@@ -1,0 +1,5 @@
+# Acceptance-only: demonstrate that switching back to embedded money writers is refused.
+services:
+  core:
+    environment:
+      TICKETBOX_PAYMENTS_MODE: embedded

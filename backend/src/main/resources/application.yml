@@ -1,0 +1,185 @@
+spring:
+  application:
+    name: ticketbox-api
+  profiles:
+    default: dev
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+  data:
+    redis:
+      timeout: ${REDIS_TIMEOUT:2s}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:2s}
+  servlet:
+    multipart:
+      max-file-size: ${GUEST_LIST_MAX_FILE_SIZE:10MB}
+      max-request-size: ${GUEST_LIST_MAX_REQUEST_SIZE:11MB}
+  modulith:
+    detection-strategy: explicitly-annotated
+  mail:
+    host: ${MAIL_HOST:mailhog}
+    port: ${MAIL_PORT:1025}
+    protocol: smtp
+    default-encoding: UTF-8
+  task:
+    scheduling:
+      pool:
+        size: 4
+    execution:
+      pool:
+        core-size: 4
+        max-size: 8
+        queue-capacity: 256
+  rabbitmq:
+    connection-timeout: 3s
+    cache:
+      channel:
+        size: 25
+        checkout-timeout: 1s
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
+    listener:
+      simple:
+        acknowledge-mode: auto
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          initial-interval: 500ms
+          multiplier: 2
+          max-attempts: 3
+          max-interval: 2s
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      vnpay:
+        sliding-window-size: 5
+        minimum-number-of-calls: 3
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 2
+      momo:
+        sliding-window-size: 5
+        minimum-number-of-calls: 3
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 2
+      artistBioAi:
+        sliding-window-size: 5
+        minimum-number-of-calls: 3
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 2
+
+ticketbox:
+  queue:
+    admission-capacity: ${TICKETBOX_QUEUE_ADMISSION_CAPACITY:8}
+    global-admission-capacity: ${TICKETBOX_QUEUE_GLOBAL_ADMISSION_CAPACITY:32}
+    admission-rate: ${TICKETBOX_QUEUE_ADMISSION_RATE:2}
+    admission-burst: ${TICKETBOX_QUEUE_ADMISSION_BURST:2}
+    global-admission-rate: ${TICKETBOX_QUEUE_GLOBAL_ADMISSION_RATE:8}
+    global-admission-burst: ${TICKETBOX_QUEUE_GLOBAL_ADMISSION_BURST:8}
+    shopping-session-ttl: ${TICKETBOX_QUEUE_SHOPPING_SESSION_TTL:PT10M}
+    waiting-room-open-before: ${TICKETBOX_QUEUE_WAITING_ROOM_OPEN_BEFORE:PT1H}
+    snapshot-check-interval-ms: ${TICKETBOX_QUEUE_SNAPSHOT_CHECK_INTERVAL_MS:1000}
+    websocket-push-interval-ms: ${TICKETBOX_QUEUE_WEBSOCKET_PUSH_INTERVAL_MS:1000}
+    websocket-snapshot-interval-ms: ${TICKETBOX_QUEUE_WEBSOCKET_SNAPSHOT_INTERVAL_MS:10000}
+    waiting-presence-ttl: ${TICKETBOX_QUEUE_WAITING_PRESENCE_TTL:PT1M}
+  orders:
+    expiration:
+      fixed-delay-ms: 60000
+  payment:
+    max-concurrent-creates: ${PAYMENT_MAX_CONCURRENT_CREATES:8}
+    max-concurrent-queries: ${PAYMENT_MAX_CONCURRENT_QUERIES:2}
+    reconciliation-interval-ms: ${PAYMENT_RECONCILIATION_INTERVAL_MS:10000}
+    mock:
+      base-url: ${PAYMENT_MOCK_BASE_URL:http://localhost:8080}
+    vnpay:
+      query-url: ${VNPAY_QUERY_URL:}
+      pay-url: ${VNPAY_PAY_URL:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
+      return-url: ${VNPAY_RETURN_URL:http://localhost:5173/payment/result}
+      ipn-url: ${VNPAY_IPN_URL:}
+      tmn-code: ${VNPAY_TMN_CODE:}
+      hash-secret: ${VNPAY_HASH_SECRET:}
+      locale: vn
+      order-type: other
+    momo:
+      api-endpoint: ${MOMO_API_ENDPOINT:https://test-payment.momo.vn/v2/gateway/api/create}
+      partner-code: ${MOMO_PARTNER_CODE:}
+      access-key: ${MOMO_ACCESS_KEY:}
+      secret-key: ${MOMO_SECRET_KEY:}
+      return-url: ${MOMO_RETURN_URL:http://localhost:5173/payment/result}
+      ipn-url: ${MOMO_IPN_URL:}
+  rate-limit:
+    global-purchase:
+      capacity: ${PURCHASE_GLOBAL_BURST:32}
+      refill-tokens: ${PURCHASE_GLOBAL_RATE:16}
+      refill-period: 1s
+    global-payment:
+      capacity: ${PAYMENT_GLOBAL_BURST:16}
+      refill-tokens: ${PAYMENT_GLOBAL_RATE:8}
+      refill-period: 1s
+    callback:
+      capacity: ${PAYMENT_CALLBACK_BURST:128}
+      refill-tokens: ${PAYMENT_CALLBACK_RATE:64}
+      refill-period: 1s
+    purchase:
+      capacity: 5
+      refill-tokens: 1
+      refill-period: 2s
+    payment:
+      capacity: 3
+      refill-tokens: 1
+      refill-period: 5s
+  notifications:
+    reminder:
+      fixed-delay-ms: 300000
+  guest-list:
+    root-dir: ${GUEST_LIST_ROOT_DIR:./data/guest-list}
+    cron: ${GUEST_LIST_IMPORT_CRON:0 0 3 * * *}
+    max-file-size: ${GUEST_LIST_MAX_FILE_SIZE:10MB}
+    stable-age: ${GUEST_LIST_STABLE_AGE:30s}
+  ai:
+    provider: ${ARTIST_BIO_AI_PROVIDER:auto}
+    base-url: ${ARTIST_BIO_AI_BASE_URL:https://api.openai.com/v1}
+    api-key: ${ARTIST_BIO_AI_API_KEY:}
+    model: ${ARTIST_BIO_AI_MODEL:gpt-4o-mini}
+    timeout: ${ARTIST_BIO_AI_TIMEOUT:30s}
+    max-input-characters: ${ARTIST_BIO_MAX_INPUT_CHARACTERS:30000}
+    max-file-size: ${ARTIST_BIO_MAX_FILE_SIZE:10MB}
+    max-pages: ${ARTIST_BIO_MAX_PAGES:50}
+    storage-root: ${ARTIST_BIO_STORAGE_ROOT:./data/artist-bio}
+    recovery:
+      fixed-delay-ms: ${ARTIST_BIO_RECOVERY_FIXED_DELAY_MS:30000}
+      pending-after: ${ARTIST_BIO_RECOVERY_PENDING_AFTER:PT30S}
+      processing-timeout: ${ARTIST_BIO_RECOVERY_PROCESSING_TIMEOUT:PT2M}
+  cloudinary:
+    cloud-name: ${CLOUDINARY_CLOUD_NAME:}
+    api-key: ${CLOUDINARY_API_KEY:}
+    api-secret: ${CLOUDINARY_API_SECRET:}
+    folder: ${CLOUDINARY_POSTER_FOLDER:ticketbox/concert-posters}
+    max-file-size: ${CLOUDINARY_MAX_FILE_SIZE:5MB}
+
+

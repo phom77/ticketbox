@@ -1,0 +1,62 @@
+name: Verify TicketBox
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: verify-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    env:
+      VITE_API_BASE_URL: /
+      JAVA_TOOL_OPTIONS: -Dapi.version=1.44
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: |
+            backend/pom.xml
+            services/payment/pom.xml
+            services/notification/pom.xml
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            mobile-scanner/package-lock.json
+            scripts/e2e/package-lock.json
+      - name: Verify Java suites, web and scanner
+        shell: pwsh
+        run: ./scripts/ci/verify.ps1 -BackendMode Local
+      - name: Verify checkout recovery in Chromium
+        run: |
+          npm ci --prefix scripts/e2e --no-audit --no-fund
+          npx --prefix scripts/e2e playwright install --with-deps chromium
+          node scripts/e2e/checkout-recovery.mjs
+      - name: Verify distributed recovery and application restore
+        shell: pwsh
+        run: ./scripts/e2e/run.ps1 -Build -Restore
+      - name: Preserve test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ticketbox-verification
+          retention-days: 7
+          include-hidden-files: true
+          path: |
+            .artifacts/verification/
+            .artifacts/e2e/
+            backend/target/surefire-reports/
+            services/payment/target/surefire-reports/
+            services/notification/target/surefire-reports/
+            !.artifacts/e2e/backups/**
+            !.artifacts/e2e/restore-overlay.yml

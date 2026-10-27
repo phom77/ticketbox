@@ -1,0 +1,52 @@
+spring:
+  application:
+    name: payment-service
+  datasource:
+    url: ${PAYMENT_DATABASE_URL}
+    username: ${PAYMENT_DATABASE_USER}
+    password: ${PAYMENT_DATABASE_PASSWORD}
+    hikari:
+      maximum-pool-size: 8
+      connection-timeout: 2000
+  task:
+    scheduling:
+      pool:
+        size: 3
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+server:
+  shutdown: graceful
+payment:
+  service-token: ${PAYMENT_SERVICE_TOKEN}
+  core-url: ${CORE_API_URL}
+  worker-interval-ms: 1000
+ticketbox:
+  payment:
+    mock:
+      base-url: ${PAYMENT_PUBLIC_URL:http://localhost:18091}
+    momo:
+      api-endpoint: ${MOMO_API_ENDPOINT:https://test-payment.momo.vn/v2/gateway/api/create}
+      partner-code: ${MOMO_PARTNER_CODE:}
+      access-key: ${MOMO_ACCESS_KEY:}
+      secret-key: ${MOMO_SECRET_KEY:}
+      return-url: ${MOMO_RETURN_URL:http://localhost:18091/payment/result}
+      ipn-url: ${MOMO_IPN_URL:http://localhost:18091/api/payments/webhooks/momo}
+    vnpay:
+      pay-url: ${VNPAY_PAY_URL:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
+      return-url: ${VNPAY_RETURN_URL:http://localhost:18091/payment/result}
+      ipn-url: ${VNPAY_IPN_URL:http://localhost:18091/api/payments/webhooks/vnpay}
+      tmn-code: ${VNPAY_TMN_CODE:}
+      hash-secret: ${VNPAY_HASH_SECRET:}
+      query-url: ${VNPAY_QUERY_URL:}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db

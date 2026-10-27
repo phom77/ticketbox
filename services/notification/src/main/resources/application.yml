@@ -1,0 +1,50 @@
+spring:
+  application:
+    name: notification-service
+  datasource:
+    url: ${NOTIFICATION_DATABASE_URL}
+    username: ${NOTIFICATION_DATABASE_USER}
+    password: ${NOTIFICATION_DATABASE_PASSWORD}
+    hikari:
+      maximum-pool-size: 8
+      connection-timeout: 2000
+  flyway:
+    enabled: true
+  rabbitmq:
+    host: ${RABBITMQ_HOST}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME}
+    password: ${RABBITMQ_PASSWORD}
+    connection-timeout: 3s
+    listener:
+      simple:
+        default-requeue-rejected: false
+        prefetch: 10
+  mail:
+    host: ${MAIL_HOST}
+    port: ${MAIL_PORT:1025}
+    properties:
+      mail.smtp.connectiontimeout: 3000
+      mail.smtp.timeout: 5000
+      mail.smtp.writetimeout: 5000
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+server:
+  shutdown: graceful
+notification:
+  jwt-secret: ${JWT_SECRET}
+  core-url: ${CORE_API_URL}
+  service-token: ${NOTIFICATION_SERVICE_TOKEN}
+  delivery-interval-ms: 1000
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db,rabbit

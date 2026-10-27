@@ -1,0 +1,202 @@
+name: ticketbox
+
+services:
+  gateway:
+    image: ticketbox-web:local
+    build: ./frontend
+    ports: ['${APP_BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-18091}:80']
+    volumes: [./infra/nginx/gateway.conf:/etc/nginx/nginx.conf:ro]
+    depends_on: [core, payment, notification]
+
+  core:
+    image: ticketbox-core:local
+    build: ./backend
+    cpus: 2
+    mem_limit: 1536m
+    stop_grace_period: 30s
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_DATASOURCE_URL: jdbc:postgresql://core-db:5432/ticketbox_core
+      SPRING_DATASOURCE_USERNAME: core_runtime
+      SPRING_DATASOURCE_PASSWORD: core-runtime-local-only
+      SPRING_FLYWAY_USER: core_owner
+      SPRING_FLYWAY_PASSWORD: core-owner-local-only
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: 12
+      SPRING_BATCH_JDBC_INITIALIZE_SCHEMA: always
+      SPRING_DATA_REDIS_TIMEOUT: 2s
+      SPRING_DATA_REDIS_CONNECT_TIMEOUT: 2s
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: ticketbox_local
+      RABBITMQ_PASSWORD: broker-local-only
+      JWT_SECRET: ${JWT_SECRET:-ticketbox-local-demo-secret-at-least-sixty-four-characters-change-before-deploy}
+      TICKETBOX_WEB_ALLOWED_ORIGINS: ${APP_ALLOWED_ORIGINS:-http://localhost:18091,http://127.0.0.1:18091}
+      TICKETBOX_PAYMENTS_MODE: remote
+      TICKETBOX_PAYMENTS_URL: http://payment:8080
+      TICKETBOX_PAYMENTS_SERVICE_TOKEN: ${PAYMENT_SERVICE_TOKEN:-ticketbox-local-payment-service-token-change-before-deploy}
+      TICKETBOX_NOTIFICATIONS_MODE: remote
+      TICKETBOX_NOTIFICATIONS_SERVICE_TOKEN: ${NOTIFICATION_SERVICE_TOKEN:-ticketbox-local-notification-service-token-change-before-deploy}
+      TICKETBOX_EVENTS_RETRY_AGE_SECONDS: 5
+      TICKETBOX_EVENTS_RECOVERY_INTERVAL_MS: 2000
+      MAIL_HOST: smtp
+      MAIL_PORT: 1025
+      ARTIST_BIO_AI_PROVIDER: ${ARTIST_BIO_AI_PROVIDER:-mock}
+      ARTIST_BIO_AI_BASE_URL: ${ARTIST_BIO_AI_BASE_URL:-https://api.openai.com/v1}
+      ARTIST_BIO_AI_API_KEY: ${ARTIST_BIO_AI_API_KEY:-}
+      ARTIST_BIO_AI_MODEL: ${ARTIST_BIO_AI_MODEL:-gpt-4o-mini}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
+      JAVA_TOOL_OPTIONS: -Xms128m -Xmx1024m
+    volumes: [core_artifacts:/app/data]
+    depends_on:
+      core-db: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+      payment-db: {condition: service_healthy}
+
+  payment:
+    image: ticketbox-payment:local
+    build: ./services/payment
+    cpus: 1
+    mem_limit: 768m
+    stop_grace_period: 30s
+    environment:
+      PAYMENT_DATABASE_URL: jdbc:postgresql://payment-db:5432/ticketbox_payments
+      PAYMENT_DATABASE_USER: payment_owner
+      PAYMENT_DATABASE_PASSWORD: payment-local-only
+      PAYMENT_SERVICE_TOKEN: ${PAYMENT_SERVICE_TOKEN:-ticketbox-local-payment-service-token-change-before-deploy}
+      CORE_API_URL: http://core:8080
+      PAYMENT_PUBLIC_URL: ${APP_PUBLIC_URL:-http://localhost:18091}
+      SPRING_PROFILES_ACTIVE: dev
+      MOMO_PARTNER_CODE: ${MOMO_PARTNER_CODE:-}
+      MOMO_ACCESS_KEY: ${MOMO_ACCESS_KEY:-}
+      MOMO_SECRET_KEY: ${MOMO_SECRET_KEY:-}
+      MOMO_API_ENDPOINT: ${MOMO_API_ENDPOINT:-https://test-payment.momo.vn/v2/gateway/api/create}
+      MOMO_RETURN_URL: ${MOMO_RETURN_URL:-http://localhost:18091/payment/result}
+      MOMO_IPN_URL: ${MOMO_IPN_URL:-http://localhost:18091/api/payments/webhooks/momo}
+      VNPAY_TMN_CODE: ${VNPAY_TMN_CODE:-}
+      VNPAY_HASH_SECRET: ${VNPAY_HASH_SECRET:-}
+      VNPAY_PAY_URL: ${VNPAY_PAY_URL:-https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
+      VNPAY_RETURN_URL: ${VNPAY_RETURN_URL:-http://localhost:18091/payment/result}
+      VNPAY_IPN_URL: ${VNPAY_IPN_URL:-http://localhost:18091/api/payments/webhooks/vnpay}
+      VNPAY_QUERY_URL: ${VNPAY_QUERY_URL:-}
+      JAVA_TOOL_OPTIONS: -Xms64m -Xmx512m
+    depends_on:
+      payment-db: {condition: service_healthy}
+
+  notification:
+    image: ticketbox-notification:local
+    build: ./services/notification
+    cpus: 1
+    mem_limit: 768m
+    stop_grace_period: 30s
+    environment:
+      NOTIFICATION_DATABASE_URL: jdbc:postgresql://notification-db:5432/ticketbox_notifications
+      NOTIFICATION_DATABASE_USER: notification_owner
+      NOTIFICATION_DATABASE_PASSWORD: notification-local-only
+      CORE_API_URL: http://core:8080
+      NOTIFICATION_SERVICE_TOKEN: ${NOTIFICATION_SERVICE_TOKEN:-ticketbox-local-notification-service-token-change-before-deploy}
+      JWT_SECRET: ${JWT_SECRET:-ticketbox-local-demo-secret-at-least-sixty-four-characters-change-before-deploy}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USERNAME: ticketbox_local
+      RABBITMQ_PASSWORD: broker-local-only
+      MAIL_HOST: smtp
+      MAIL_PORT: 1025
+      JAVA_TOOL_OPTIONS: -Xms64m -Xmx512m
+    depends_on:
+      notification-db: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+      smtp: {condition: service_started}
+
+  core-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ticketbox_core
+      POSTGRES_USER: core_owner
+      POSTGRES_PASSWORD: core-owner-local-only
+    volumes:
+      - core_data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/10-runtime.sql:ro
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U core_owner -d ticketbox_core]
+      interval: 2s
+      retries: 30
+
+  payment-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ticketbox_payments
+      POSTGRES_USER: payment_owner
+      POSTGRES_PASSWORD: payment-local-only
+    volumes: [payment_data:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U payment_owner -d ticketbox_payments]
+      interval: 2s
+      retries: 30
+
+  notification-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ticketbox_notifications
+      POSTGRES_USER: notification_owner
+      POSTGRES_PASSWORD: notification-local-only
+    volumes: [notification_data:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U notification_owner -d ticketbox_notifications]
+      interval: 2s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    command: [redis-server, --appendonly, 'yes', --maxmemory-policy, noeviction]
+    volumes: [redis_data:/data]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 2s
+      retries: 30
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ticketbox_local
+      RABBITMQ_DEFAULT_PASS: broker-local-only
+    volumes: [rabbit_data:/var/lib/rabbitmq]
+    healthcheck:
+      test: [CMD, rabbitmq-diagnostics, -q, ping]
+      interval: 5s
+      retries: 30
+
+  smtp:
+    image: node:24-alpine
+    command: [node, /app/server.cjs]
+    volumes: [./infra/smtp/server.cjs:/app/server.cjs:ro]
+
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    profiles: [monitoring]
+    volumes: [./infra/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro]
+    ports: ['127.0.0.1:9090:9090']
+    depends_on: [core]
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    profiles: [monitoring]
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-ticketbox-local}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infra/monitoring/grafana:/etc/grafana/provisioning:ro
+    ports: ['127.0.0.1:3000:3000']
+    depends_on: [prometheus]
+
+volumes:
+  core_data:
+  payment_data:
+  notification_data:
+  core_artifacts:
+  redis_data:
+  rabbit_data:
+  grafana_data:

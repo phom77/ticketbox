@@ -1,0 +1,45 @@
+# Build outputs and dependencies
+target/
+out/
+node_modules/
+dist/
+build/
+*.class
+*.jar
+*.war
+*.ear
+*.tsbuildinfo
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+*.local
+application-staging.yml
+*.pem
+*.key
+
+# Generated data, reports, test fixtures and caches
+.artifacts/
+/data/
+/backend/data/
+coverage/
+playwright-report/
+test-results/
+.npm-cache/
+.vite/
+.vite-temp/
+.expo/
+.expo-shared/
+*.log
+*.dump
+*.tar
+
+# Editor, agent and operating system files
+.idea/
+.vscode/
+.skills/
+.agents/
+*.iml
+.DS_Store
+Thumbs.db

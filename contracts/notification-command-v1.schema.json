@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ticketbox:notification-command:v1",
+  "type": "object",
+  "required": ["schemaVersion", "eventType", "eventId", "aggregateId", "userId", "occurredAt", "correlationId", "payload"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "eventType": {"enum": ["ticketing.order-confirmed", "concert.reminder-requested"]},
+    "eventId": {"type": "string", "format": "uuid"},
+    "aggregateId": {"type": "string", "format": "uuid"},
+    "userId": {"type": "string", "format": "uuid"},
+    "occurredAt": {"type": "string", "format": "date-time"},
+    "correlationId": {"type": "string", "minLength": 1, "maxLength": 200},
+    "payload": {"type": "object"}
+  },
+  "allOf": [
+    {"if": {"properties": {"eventType": {"const": "ticketing.order-confirmed"}}}, "then": {"properties": {"payload": {"required": ["orderId", "amount"], "properties": {"orderId": {"type": "string", "format": "uuid"}, "amount": {"type": "number", "minimum": 0}}}}}},
+    {"if": {"properties": {"eventType": {"const": "concert.reminder-requested"}}}, "then": {"properties": {"payload": {"required": ["concertId", "concertTitle", "eventDate"], "properties": {"concertId": {"type": "string", "format": "uuid"}, "eventDate": {"type": "string", "format": "date-time"}}}}}}
+  ]
+}

@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "$id": "urn:ticketbox:payment-result:v1",
+  "required": [
+    "schemaVersion",
+    "intentId",
+    "orderId",
+    "userId",
+    "provider",
+    "amount",
+    "currency",
+    "orderVersion",
+    "requestId",
+    "eventId",
+    "transactionId",
+    "occurredAt"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "intentId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "orderId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "userId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "provider": {
+      "enum": [
+        "MOCK",
+        "MOMO",
+        "VNPAY"
+      ]
+    },
+    "amount": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 999999999999
+    },
+    "currency": {
+      "const": "VND"
+    },
+    "orderVersion": {
+      "const": 1
+    },
+    "requestId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "eventId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "transactionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}
