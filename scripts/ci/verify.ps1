@@ -71,6 +71,24 @@ try {
             'com.ticketbox.module.payment.infrastructure.ProductionPaymentBoundaryTest')) {
         if (-not ($suites | Where-Object { $_.name -eq $required })) { throw "Missing required suite: $required" }
     }
+    if ($BackendMode -eq 'Docker') {
+        $splitRepo = $repoPath.Replace('\', '/')
+        Invoke-Check 'service-extraction' $repoPath 'docker' @(
+            'run','--rm','--add-host','host.docker.internal:host-gateway',
+            '-v','/var/run/docker.sock:/var/run/docker.sock','-v','ticketbox-maven-cache:/root/.m2',
+            '-v',"${splitRepo}:/workspace",'-w','/workspace',
+            '-e',"TESTCONTAINERS_HOST_OVERRIDE=$TestcontainersHost",'-e','JAVA_TOOL_OPTIONS=-Dapi.version=1.44',
+            'maven:3.9.9-eclipse-temurin-21','mvn','-B','-ntp',
+            '-pl','services/runtime,services/identity,services/catalog,services/checkin,services/ticketing','-am','verify'
+        )
+    } else {
+        $splitCommand = if ($IsWindows) { $wrapper } else { 'bash' }
+        $splitArguments = if ($IsWindows) { @() } else { @($wrapper) }
+        $splitArguments += @('-B','-ntp','-f',(Join-Path $repoPath 'pom.xml'),
+            '-pl','services/runtime,services/identity,services/catalog,services/checkin,services/ticketing','-am','verify')
+        Invoke-Check 'service-extraction' $repoPath $splitCommand $splitArguments
+
+    }
     $notificationPath = (Join-Path $repoPath 'services/notification').Replace('\', '/')
     if ($BackendMode -eq 'Docker') {
         Invoke-Check 'notification' $repoPath 'docker' @(

@@ -1,0 +1,76 @@
+spring:
+  application:
+    name: ticketbox-catalog
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USER}
+    password: ${DATABASE_PASSWORD}
+    hikari:
+      maximum-pool-size: 8
+  flyway:
+    user: ${DATABASE_OWNER}
+    password: ${DATABASE_OWNER_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      timeout: 2s
+  rabbitmq:
+    host: ${RABBITMQ_HOST:rabbitmq}
+    username: ${RABBITMQ_USERNAME:ticketbox_local}
+    password: ${RABBITMQ_PASSWORD:broker-local-only}
+  batch:
+    jdbc:
+      initialize-schema: never
+    job:
+      enabled: false
+ticketbox:
+  security:
+    jwt:
+      secret: ${JWT_SECRET}
+  payments:
+    mode: remote
+    url: http://payment:8080
+    service-token: ${PAYMENT_SERVICE_TOKEN}
+  notifications:
+    mode: remote
+    service-token: ${NOTIFICATION_SERVICE_TOKEN}
+  web:
+    allowed-origins: ${APP_ALLOWED_ORIGINS:http://localhost:18091}
+  events:
+    retry-age-seconds: 5
+    recovery-interval-ms: 2000
+  ai:
+    provider: ${ARTIST_BIO_AI_PROVIDER:auto}
+    base-url: ${ARTIST_BIO_AI_BASE_URL:https://api.openai.com/v1}
+    api-key: ${ARTIST_BIO_AI_API_KEY:}
+    model: ${ARTIST_BIO_AI_MODEL:gpt-4o-mini}
+    timeout: ${ARTIST_BIO_AI_TIMEOUT:30s}
+    max-input-characters: ${ARTIST_BIO_MAX_INPUT_CHARACTERS:30000}
+    max-file-size: ${ARTIST_BIO_MAX_FILE_SIZE:10MB}
+    max-pages: ${ARTIST_BIO_MAX_PAGES:50}
+    storage-root: ${ARTIST_BIO_STORAGE_ROOT:./data/artist-bio}
+    recovery:
+      fixed-delay-ms: ${ARTIST_BIO_RECOVERY_FIXED_DELAY_MS:30000}
+      pending-after: ${ARTIST_BIO_RECOVERY_PENDING_AFTER:PT30S}
+      processing-timeout: ${ARTIST_BIO_RECOVERY_PROCESSING_TIMEOUT:PT2M}
+  cloudinary:
+    cloud-name: ${CLOUDINARY_CLOUD_NAME:}
+    api-key: ${CLOUDINARY_API_KEY:}
+    api-secret: ${CLOUDINARY_API_SECRET:}
+    folder: ${CLOUDINARY_POSTER_FOLDER:ticketbox/concert-posters}
+    max-file-size: ${CLOUDINARY_MAX_FILE_SIZE:5MB}
+split:
+  token: ${SPLIT_SERVICE_TOKEN}
+  identity-url: http://identity:8080
+  catalog-url: http://catalog:8080
+  ticketing-url: http://ticketing:8080
+  checkin-url: http://checkin:8080
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus

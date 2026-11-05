@@ -64,6 +64,7 @@ public class ConcertService {
         this.readCache = readCache;
     }
 
+    @org.ticketbox.split.ReplicaRead
     public Page<ConcertSummaryResponse> getPublicConcerts(Pageable pageable) {
         String key = RedisKeyConstants.CACHE_CONCERT_LIST + ":v:" + PublicCatalogCache.listVersion(redisTemplate)
                 + ":page:" + pageable.getPageNumber() + ":size:" + pageable.getPageSize() + ":sort:" + pageable.getSort();
@@ -73,6 +74,7 @@ public class ConcertService {
                         .map(concertMapper::toSummaryResponse))).toPage(pageable);
     }
 
+    @org.ticketbox.split.ReplicaRead
     public ConcertDetailResponse getConcertDetail(UUID concertId) {
         return readCache.get("detail", RedisKeyConstants.CACHE_CONCERT_DETAIL + concertId,
                 ConcertDetailResponse.class, RedisKeyConstants.TTL_CONCERT_DETAIL,
@@ -112,6 +114,7 @@ public class ConcertService {
         return concertMapper.toDetailResponse(concert).withTicketTypes(ticketTypes);
     }
 
+    @org.ticketbox.split.ReplicaRead
     public ConcertSeatMapResponse getConcertSeatMap(UUID concertId) {
         return readCache.get("seat_map", "cache:seat-map:" + concertId, ConcertSeatMapResponse.class,
                 RedisKeyConstants.TTL_CONCERT_DETAIL, () -> {

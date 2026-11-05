@@ -1,0 +1,6 @@
+{
+  "identity": ["users"],
+  "catalog": ["concerts", "ticket_types", "artist_pdf_jobs", "event_publication"],
+  "ticketing": ["concerts", "ticket_types", "orders", "order_items", "tickets", "ticket_holds", "purchase_guards", "ticket_inventory", "ticketing_payment_intents", "ticketing_payment_inbox", "payment_cutover_control", "order_events", "remote_reminder_dispatches", "event_publication"],
+  "checkin": ["concerts", "ticket_types", "tickets", "checkin_logs", "guest_lists", "batch_logs", "guest_list_staging", "batch_job_instance", "batch_job_execution", "batch_job_execution_params", "batch_step_execution", "batch_step_execution_context", "batch_job_execution_context"]
+}

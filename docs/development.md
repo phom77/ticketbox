@@ -11,7 +11,7 @@ node scripts/smoke.mjs
 
 Open http://localhost:18091. Images build directly from source; host Java, Maven and prebuilt JARs are not required. The web image contains the built React application. Named volumes persist databases, Redis, RabbitMQ and Core artifacts.
 
-Copy `.env.example` to `.env` only when overriding demo defaults. If changing the public address/port, also update `APP_PUBLIC_URL`, `APP_ALLOWED_ORIGINS` and the provider return URLs. `docker compose logs -f core payment notification` shows application logs; `docker compose down` stops the deployment and retains volumes.
+Copy `.env.example` to `.env` only when overriding demo defaults. If changing the public address/port, also update `APP_PUBLIC_URL`, `APP_ALLOWED_ORIGINS` and the provider return URLs. `docker compose logs -f identity catalog ticketing checkin payment notification` shows application logs; `docker compose down` stops the deployment and retains volumes.
 
 The SMTP sink accepts email locally without forwarding it. Its private HTTP endpoint `http://smtp:8080/stats` reports accepted message/PDF counts. MoMo/VNPAY require merchant credentials and publicly reachable signed callbacks; local MOCK checkout requires neither.
 
@@ -86,3 +86,12 @@ Build the frontend first. This browser suite does not replace live purchase/prov
 ## Database changes
 
 Add new Flyway migrations to the owning application's migration directory. Keep existing migrations intact: their checksums are part of already initialized databases. Core, Payment and Notification have separate histories and ownership. Generated reports, credentials, database dumps and local datasets must stay out of Git.
+
+
+## Split-service verification
+
+The root Maven reactor builds all six services and runs projection concurrency/rollback tests. The backend suite continues to check the original business modules. Python 3 acceptance scripts exercise the six-service topology. Run them with an isolated E2E_PROJECT and E2E_PORT, or use the updated PowerShell E2E entry point.
+
+Read service-extraction.md before migrating an existing Core database. Legacy fault scripts use compose.legacy.yaml. Local backup files and generated reports stay under .artifacts/.
+
+Phase 5–6: see [replication and partitioning lab](lab-replication-partitioning.md) for the `compose.lab.yaml` override, acceptance commands, switchover and benchmark evidence.

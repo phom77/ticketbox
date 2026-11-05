@@ -64,6 +64,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 class OrderConcurrencyIntegrationTest {
 
     @Autowired private com.ticketbox.module.ticket.PaymentWorkflowPort workflow;
+    @Autowired private com.ticketbox.module.ticket.infrastructure.OrderEventStore orderEvents;
 
     private com.ticketbox.shared.payment.PaymentResult money(com.ticketbox.shared.payment.PaymentIntent intent,UUID event) {
         return new com.ticketbox.shared.payment.PaymentResult(1,event,intent.intentId(),intent.orderId(),intent.userId(),intent.provider(),
@@ -78,6 +79,21 @@ class OrderConcurrencyIntegrationTest {
         assertThat(inventoryJdbc.queryForObject("SELECT count(*) FROM ticketing_payment_inbox WHERE intent_id=?",Integer.class,intent.intentId())).isEqualTo(1);
         assertThat(inventoryJdbc.queryForObject("SELECT count(*) FROM tickets t JOIN order_items i ON i.id=t.order_item_id WHERE i.order_id=?",Integer.class,order)).isEqualTo(1);
         assertThat(inventory.available(fixture.ticketType().getId())).isEqualTo(9);
+        assertThat(inventoryJdbc.queryForList(
+                "SELECT event_type FROM order_events WHERE order_id=? ORDER BY stream_version", String.class, order))
+                .containsExactly("OrderCreated", "OrderPaid");
+        assertThat(inventoryJdbc.queryForObject(
+                "SELECT replay_order(?) ->> 'status'", String.class, order)).isEqualTo("PAID");
+
+        var transaction = new org.springframework.transaction.support.TransactionTemplate(transactionManager);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> transaction.executeWithoutResult(status -> {
+            var projection = orderRepository.findByIdForUpdate(order).orElseThrow();
+            projection.setStatus(Order.Status.CANCELLED);
+            orderEvents.record(projection, 1,
+                    com.ticketbox.module.ticket.infrastructure.OrderEventStore.Transition.OrderCancelled);
+        })).isInstanceOf(org.springframework.dao.OptimisticLockingFailureException.class);
+        assertThat(orderRepository.findById(order).orElseThrow().getStatus()).isEqualTo(Order.Status.PAID);
+
     }
     @Test void paymentWorkflowRejectsMismatchedMoneyWithoutPoisoningInbox() {
         var fixture=createFixture(10,4);var user=createAudienceUsers(1).getFirst();var order=createPaymentOrder(fixture,user);
@@ -519,8 +535,18 @@ class OrderConcurrencyIntegrationTest {
             payments.initiatePayment(orderId,"MOCK",buyer.getId());
             if (cancel) orderService.cancelOrder(orderId,buyer.getId());
             else {
-                var order = orderRepository.findById(orderId).orElseThrow();
-                order.setExpiresAt(OffsetDateTime.now().minusSeconds(1)); orderRepository.saveAndFlush(order);
+                // Seed an expired order in the isolated test database as its owner.
+                // Keep the fixture projection and creation event aligned.
+                var deadline = OffsetDateTime.now().minusSeconds(1);
+                new org.springframework.transaction.support.TransactionTemplate(transactionManager)
+                        .executeWithoutResult(status -> {
+                            inventoryJdbc.update("UPDATE orders SET expires_at=? WHERE id=?", deadline, orderId);
+                            inventoryJdbc.update("""
+                                    UPDATE order_events
+                                    SET payload = payload || jsonb_build_object('expires_at', CAST(? AS timestamptz))
+                                    WHERE order_id=? AND stream_version=1
+                                    """, deadline, orderId);
+                        });
             }
             payments.processMockPaymentSuccess(orderId);
             payments.processMockPaymentSuccess(orderId);

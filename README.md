@@ -1,6 +1,6 @@
 # TicketBox
 
-A concert ticketing platform built with a modular Java backend, independent payment and notification services, a React web app, and an offline-capable Expo scanner.
+A concert ticketing platform built with six independent Java services, a React web app, and an offline-capable Expo scanner.
 
 The project focuses on the difficult parts of ticket sales: admission control, concurrent inventory updates, idempotent checkout, payment reconciliation, durable messaging and gate check-in.
 
@@ -21,7 +21,7 @@ docker compose up -d --build
 
 Open **http://localhost:18091**. The first build downloads Java/Node dependencies; wait for Core startup before signing in. Check readiness at **http://localhost:18091/api/health**.
 
-No host Java installation or prebuilt artifacts are needed. Compose includes the web gateway, three backend applications, three PostgreSQL databases, Redis, RabbitMQ and a local SMTP sink. Defaults use MOCK payment and mock artist biographies; external provider keys are optional. Copy `.env.example` to `.env` to customize addresses or integrations.
+No host Java installation or prebuilt artifacts are needed. Compose includes the web gateway, six backend applications, six PostgreSQL databases, Redis, RabbitMQ and a local SMTP sink. Defaults use MOCK payment and mock artist biographies; external provider keys are optional. Copy `.env.example` to `.env` to customize addresses or integrations.
 
 | Demo role | Email | Password |
 | --- | --- | --- |
@@ -34,38 +34,40 @@ These are local demo accounts. SMTP accepts messages locally without delivering 
 
 ```sh
 node scripts/smoke.mjs                   # Web, catalog, role login and notification checks
-docker compose logs -f core payment notification
+docker compose logs -f identity catalog ticketing checkin payment notification
 docker compose down                     # Stop services; retain named data volumes
 ```
 
 ## Architecture
 
-```mermaid
+~~~mermaid
 flowchart LR
-  Web[React web] --> Gateway[Nginx]
-  Scanner[Expo scanner] --> Gateway
-  Gateway --> Core[Modular Core]
+  Clients[React web / Expo scanner] --> Gateway[Nginx]
+  Gateway --> Identity
+  Gateway --> Catalog
+  Gateway --> Ticketing
+  Gateway --> Checkin[Check-in]
   Gateway --> Payment
   Gateway --> Notification
-  Core --> CoreDB[(Core DB)]
-  Core --> Redis[(Redis)]
-  Core <-->|Intent / result / ACK| Payment
-  Payment --> PaymentDB[(Payment DB)]
-  Payment --> Providers[MOCK / MoMo / VNPAY]
-  Core --> RabbitMQ --> Notification
-  Notification --> NotificationDB[(Notification DB)]
-  Notification --> SMTP
-```
+  Identity --> I[(Identity DB)]
+  Catalog --> C[(Catalog DB)]
+  Ticketing --> T[(Ticketing DB)]
+  Checkin --> X[(Check-in DB)]
+  Payment --> P[(Payment DB)]
+  Notification --> N[(Notification DB)]
+  Catalog -->|Versioned configuration / ACK| Ticketing
+  Catalog -->|Versioned configuration / ACK| Checkin
+  Ticketing -->|Ticket outbox / ACK| Checkin
+  Ticketing <-->|Intent / result / ACK| Payment
+  Ticketing --> RabbitMQ --> Notification
+  Ticketing --> Redis
+~~~
 
-Core contains ten business modules. Transactional inventory, holds, orders, ticket issuance and check-in stay together; Payment and Notification own their databases and communicate through versioned contracts. Embedded implementations remain in Core for compatibility with its migration history.
+Identity owns accounts. Catalog owns concert metadata and AI jobs. Ticketing owns transactional stock, holds, quotas, Order event sourcing, payment workflow and ticket issuance. Check-in owns admission decisions, offline synchronization, guest lists and CSV jobs. Each application has its own PostgreSQL instance and runtime role.
 
-- PostgreSQL conditional stock updates and per-user/concert guards protect inventory and account limits.
-- Redis admission budgets regulate how many shoppers enter checkout. STOMP/SockJS provides queue updates.
-- Durable payment intents, result outbox/inbox deduplication and persisted ACKs support retries without issuing duplicate tickets.
-- RabbitMQ notifications recover after outages. Database delivery leases coordinate workers; SMTP remains at least once.
-- Spring Modulith architecture tests enforce module boundaries. Testcontainers covers real database/broker/Redis behavior.
+The Java business modules compile into a shared runtime library within this repository. Service entry points explicitly select their beans and persistence models. Order events and stock changes commit together in Ticketing. Durable, versioned snapshots synchronize the Catalog and Check-in projections.
 
-Read the [architecture](docs/architecture.md) for transaction boundaries, ownership and recovery details.
+For an existing Core database, follow the offline [service cutover guide](docs/service-extraction.md) before serving traffic with the new topology. The previous deployment is available through compose.legacy.yaml. Phase 5–6 is available in the isolated [replication and partitioning lab](docs/lab-replication-partitioning.md), including stale reads, primary checkout routing, manual switchover and measured query plans.
 
 ## Stack
 
@@ -81,8 +83,8 @@ Read the [architecture](docs/architecture.md) for transaction boundaries, owners
 ## Repository
 
 ```text
-backend/           Modular Core application and integration tests
-services/          Independent payment and notification applications
+backend/           Business modules, legacy Core application and integration tests
+services/          Six application entry points and shared runtime build
 frontend/          React web application
 mobile-scanner/    Expo scanner and offline synchronization
 contracts/         Versioned integration schemas
@@ -99,7 +101,7 @@ pwsh -File scripts/ci/verify.ps1          # All Java suites, web lint/build, sca
 pwsh -File scripts/e2e/run.ps1 -Build     # Isolated distributed workflow and fault tests
 ```
 
-Java integration tests require Docker. PowerShell 7 runs the shared verification scripts; Node.js 24 is used for local web/scanner development and smoke checks. See [development and testing](docs/development.md) for individual commands, browser regression, restore rehearsal and optional monitoring.
+Java integration tests require Docker. PowerShell 7 runs the shared verification scripts; Python 3 runs split-service acceptance and cutover checks; Node.js 24 is used for local web/scanner development and smoke checks. See [development and testing](docs/development.md) for individual commands, browser regression, restore rehearsal and optional monitoring.
 
 - [Architecture and consistency](docs/architecture.md)
 - [Development and testing](docs/development.md)

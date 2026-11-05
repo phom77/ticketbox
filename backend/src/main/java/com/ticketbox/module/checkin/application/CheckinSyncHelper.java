@@ -31,11 +31,16 @@ public class CheckinSyncHelper {
         UUID logId = UUID.randomUUID();
 
         if (!ticketCheckinPort.markAsUsedIfValid(ticket.id(), entry.checkedAt())) {
-            return new SyncResultEntry(
-                    entry.qrCode(),
-                    "SKIPPED",
-                    "Vé đã được check-in trên máy chủ"
-            );
+            var previous = checkinLogRepository.findByTicketId(ticket.id());
+            boolean same = previous.filter(log -> log.isOffline()
+                    && staffId.equals(log.getStaffId())
+                    && deviceId.equals(log.getDeviceId())
+                    && entry.checkedAt().toInstant().truncatedTo(java.time.temporal.ChronoUnit.MICROS)
+                        .equals(log.getCheckedAt().toInstant())
+                    && java.util.Objects.equals(entry.gate(), log.getGate())
+                    && java.util.Objects.equals(entry.notes(), log.getNotes())).isPresent();
+            return new SyncResultEntry(entry.qrCode(), same ? "ACCEPTED" : "SKIPPED",
+                    same ? "Lượt quét này đã được đồng bộ" : "Vé đã được check-in trên máy chủ");
         }
 
         int inserted = checkinLogRepository.insertOfflineIfAbsent(

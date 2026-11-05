@@ -13,6 +13,7 @@ import com.ticketbox.module.ticket.domain.OrderRepository;
 import com.ticketbox.module.ticket.domain.Ticket;
 import com.ticketbox.module.ticket.domain.TicketRepository;
 import com.ticketbox.module.ticket.application.util.TicketQrGenerator;
+import com.ticketbox.module.ticket.infrastructure.OrderEventStore;
 import com.ticketbox.module.ticket.web.dto.CreateOrderRequest;
 import com.ticketbox.module.ticket.web.dto.OrderItemRequest;
 import com.ticketbox.module.ticket.web.dto.OrderItemResponse;
@@ -38,6 +39,10 @@ import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static com.ticketbox.module.ticket.infrastructure.OrderEventStore.Transition.OrderCancelled;
+import static com.ticketbox.module.ticket.infrastructure.OrderEventStore.Transition.OrderExpired;
+import static com.ticketbox.module.ticket.infrastructure.OrderEventStore.Transition.OrderPaid;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -45,6 +50,7 @@ import java.util.stream.Collectors;
 public class OrderService {
 
     private final PurchaseGuard purchaseGuard;
+    private final OrderEventStore orderEvents;
     private final ConcertOrderPort concertOrderPort;
     private final com.ticketbox.module.inventory.InventoryPort inventory;
     private final OrderRepository orderRepository;
@@ -227,6 +233,7 @@ public class OrderService {
             orderItem.setOrderId(savedOrder.getId());
         }
         orderItemRepository.saveAll(orderItems);
+        orderEvents.created(savedOrder.getId());
 
         List<OrderItemResponse> itemResponses = orderItems.stream()
                 .map(item -> {
@@ -267,6 +274,7 @@ public class OrderService {
         });
     }
 
+    @org.ticketbox.split.ReplicaRead
     public List<OrderResponse> listUserOrders(UUID userId) {
         List<Order> orders = orderRepository.findByUserIdOrderByCreatedAtDesc(userId);
         if (orders.isEmpty()) {
@@ -489,6 +497,7 @@ public class OrderService {
     public OrderResponse cancelOrder(UUID orderId, UUID userId) {
         Order order = orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND, "Không tìm thấy đơn hàng"));
+        long version = orderEvents.restore(order);
 
         if (!order.getUserId().equals(userId)) {
             throw new AppException(ErrorCode.ORDER_NOT_FOUND, "Không tìm thấy đơn hàng");
@@ -506,6 +515,7 @@ public class OrderService {
         }
 
         order.setStatus(Order.Status.CANCELLED);
+        orderEvents.record(order, version, OrderCancelled);
         orderRepository.save(order);
         log.info("Order {} cancelled by user {}, released {} item type(s) back to inventory",
                 orderId, userId, items.size());
@@ -531,18 +541,24 @@ public class OrderService {
     @Transactional
     public boolean expireOrderIfDue(UUID orderId) {
         Order order=orderRepository.findByIdForUpdate(orderId).orElse(null);
-        if (order == null || order.getStatus()!=Order.Status.AWAITING_PAYMENT || order.getExpiresAt().isAfter(OffsetDateTime.now())) return false;
+        if (order == null) return false;
+        long version = orderEvents.restore(order);
+        if (order.getStatus() != Order.Status.AWAITING_PAYMENT || order.getExpiresAt().isAfter(OffsetDateTime.now())) return false;
         purchaseGuard.lock(order.getUserId(),order.getConcertId());
         for (OrderItem item : orderItemRepository.findByOrderId(orderId).stream().sorted(Comparator.comparing(OrderItem::getTicketTypeId)).toList()) {
             inventory.release(item.getTicketTypeId(),item.getQuantity());
         }
-        order.setStatus(Order.Status.EXPIRED); orderRepository.save(order); return true;
+        order.setStatus(Order.Status.EXPIRED);
+        orderEvents.record(order, version, OrderExpired);
+        orderRepository.save(order);
+        return true;
     }
 
     @Transactional
     public boolean handlePaymentSuccess(UUID orderId, String provider, String providerRef) {
         Order order = orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND, "Không tìm thấy đơn hàng"));
+        long version = orderEvents.restore(order);
 
         if (order.getStatus() == Order.Status.PAID) {
             return true;
@@ -558,6 +574,7 @@ public class OrderService {
                 inventory.release(item.getTicketTypeId(), item.getQuantity());
             }
             order.setStatus(Order.Status.EXPIRED);
+            orderEvents.record(order, version, OrderExpired);
             orderRepository.save(order);
             return false;
         }
@@ -566,6 +583,7 @@ public class OrderService {
         order.setPaidAt(OffsetDateTime.now());
         order.setPaymentProvider(Order.PaymentProvider.valueOf(provider));
         order.setPaymentRef(providerRef);
+        orderEvents.record(order, version, OrderPaid);
         orderRepository.save(order);
 
         List<OrderItem> items = orderItemRepository.findByOrderId(orderId);

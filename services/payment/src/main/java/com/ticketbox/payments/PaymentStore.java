@@ -37,9 +37,10 @@ public class PaymentStore {
     i.expiresAt().withOffsetSameInstant(java.time.ZoneOffset.UTC).truncatedTo(java.time.temporal.ChronoUnit.MICROS),i.orderVersion(),i.requestId(),i.correlationId());
   db.update("""
    INSERT INTO payment_attempts(intent_id,order_id,user_id,provider,amount,currency,order_version,request_id,correlation_id,expires_at,state)
-   VALUES(?,?,?,?,?,?,?,?,?,?,'CREATED') ON CONFLICT(order_id) DO NOTHING
+   VALUES(?,?,?,?,?,?,?,?,?,?,'CREATED') ON CONFLICT DO NOTHING
    """,i.intentId(),i.orderId(),i.userId(),i.provider(),i.amount(),i.currency(),i.orderVersion(),i.requestId(),i.correlationId(),i.expiresAt());
-  Attempt a=lock(i.orderId());
+  Attempt a=db.query("SELECT * FROM payment_attempts WHERE order_id=? FOR UPDATE",(rs,n)->row(rs),i.orderId())
+    .stream().findFirst().orElseThrow(()->new ResponseStatusException(HttpStatus.CONFLICT,"Intent identity already belongs to another order"));
   if(!a.intent().equals(i))throw new ResponseStatusException(HttpStatus.CONFLICT,"Intent snapshot is immutable");
   if("CREATED".equals(a.state()) && !i.expiresAt().isAfter(OffsetDateTime.now())) {
    db.update("UPDATE payment_attempts SET state='FAILED',last_error='Intent expired before provider submission' WHERE order_id=?",i.orderId());

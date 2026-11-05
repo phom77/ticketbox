@@ -1,0 +1,61 @@
+spring:
+  application:
+    name: ticketbox-checkin
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USER}
+    password: ${DATABASE_PASSWORD}
+    hikari:
+      maximum-pool-size: 8
+  flyway:
+    user: ${DATABASE_OWNER}
+    password: ${DATABASE_OWNER_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      timeout: 2s
+  rabbitmq:
+    host: ${RABBITMQ_HOST:rabbitmq}
+    username: ${RABBITMQ_USERNAME:ticketbox_local}
+    password: ${RABBITMQ_PASSWORD:broker-local-only}
+  batch:
+    jdbc:
+      initialize-schema: always
+    job:
+      enabled: false
+ticketbox:
+  security:
+    jwt:
+      secret: ${JWT_SECRET}
+  payments:
+    mode: remote
+    url: http://payment:8080
+    service-token: ${PAYMENT_SERVICE_TOKEN}
+  notifications:
+    mode: remote
+    service-token: ${NOTIFICATION_SERVICE_TOKEN}
+  web:
+    allowed-origins: ${APP_ALLOWED_ORIGINS:http://localhost:18091}
+  events:
+    retry-age-seconds: 5
+    recovery-interval-ms: 2000
+  guest-list:
+    root-dir: ${GUEST_LIST_ROOT_DIR:./data/guest-list}
+    cron: ${GUEST_LIST_IMPORT_CRON:0 0 3 * * *}
+    max-file-size: ${GUEST_LIST_MAX_FILE_SIZE:10MB}
+    stable-age: ${GUEST_LIST_STABLE_AGE:30s}
+split:
+  token: ${SPLIT_SERVICE_TOKEN}
+  identity-url: http://identity:8080
+  catalog-url: http://catalog:8080
+  ticketing-url: http://ticketing:8080
+  checkin-url: http://checkin:8080
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus

@@ -66,6 +66,19 @@ class PaymentIntegrationTest {
   assertThatThrownBy(()->facade.submit(changed)).isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
   assertThat(db.queryForObject("SELECT count(*) FROM payment_attempts",Integer.class)).isEqualTo(1);
  }
+ @Test void reusedIntentOrRequestIdentityOnAnotherOrderReturnsConflict() {
+  var original=intent();facade.submit(original);
+  var sameIntent=new Intent(1,original.intentId(),UUID.randomUUID(),original.userId(),"MOCK",
+    original.amount(),"VND",original.expiresAt(),1,UUID.randomUUID().toString(),original.correlationId());
+  var sameRequest=new Intent(1,UUID.randomUUID(),UUID.randomUUID(),original.userId(),"MOCK",
+    original.amount(),"VND",original.expiresAt(),1,original.requestId(),original.correlationId());
+  for(var collision:List.of(sameIntent,sameRequest)) {
+   assertThatThrownBy(()->facade.submit(collision))
+    .isInstanceOfSatisfying(org.springframework.web.server.ResponseStatusException.class,
+     error->assertThat(error.getStatusCode().value()).isEqualTo(409));
+  }
+  assertThat(db.queryForObject("SELECT count(*) FROM payment_attempts",Integer.class)).isEqualTo(1);
+ }
  @Test void coreOutageAndReceiptReplayRetainDurableResultUntilAck(){
   var i=intent();facade.submit(i);money(i);money(i);coreStatus.set(503);workers.results();
   assertThat(state(i)).isEqualTo("SETTLEMENT_PENDING");assertThat(db.queryForObject("SELECT count(*) FROM payment_result_outbox",Integer.class)).isEqualTo(1);

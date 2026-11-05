@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Issued ticket snapshot v1",
+  "type": "object",
+  "required": [
+    "id",
+    "version",
+    "ticket"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "ticket": {
+      "type": "object",
+      "required": [
+        "id",
+        "concert_id",
+        "ticket_type_id",
+        "user_id",
+        "qr_code",
+        "qr_secret",
+        "status"
+      ]
+    }
+  }
+}

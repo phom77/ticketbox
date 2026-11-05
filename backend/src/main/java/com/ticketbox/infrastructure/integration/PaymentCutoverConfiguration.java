@@ -16,6 +16,9 @@ public class PaymentCutoverConfiguration {
    public boolean canHandleInTransaction(Event event,Context context){return true;}
    public String getCallbackName(){return "payment-ownership-fence";}
    public void handle(Event event,Context context){try(var statement=context.getConnection().createStatement()){
+    var marker=statement.executeQuery("SELECT to_regclass('public.split_cutover_control') IS NOT NULL");
+    marker.next();boolean split=marker.getBoolean(1);marker.close();
+    if(split)throw new IllegalStateException("Core was split into service-owned databases; use the verified cutover manifest before recovery");
     var previous=statement.executeQuery("SELECT mode FROM payment_cutover_control WHERE id=1");
     boolean remoteBefore=previous.next() && "remote".equals(previous.getString(1));previous.close();
     if("embedded".equals(mode)) {if(remoteBefore)throw new IllegalStateException("Payment was cut over: drain/restore the documented workflow before rollback; routing alone is unsafe");return;}

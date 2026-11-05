@@ -227,12 +227,6 @@ public class CheckinService {
                 continue;
             }
 
-            if ("USED".equals(ticket.status())) {
-                results.add(new SyncResultEntry(entry.qrCode(), "SKIPPED", "Vé đã được sử dụng trên máy chủ"));
-                skipped++;
-                continue;
-            }
-
             SyncResultEntry result = checkinSyncHelper.syncSingleEntry(
                     entry, ticket, staffId, request.deviceId());
             results.add(result);

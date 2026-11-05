@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -29,6 +30,7 @@ import java.util.Map;
 public class OrderAdapter implements OrderPort {
     private final com.ticketbox.module.ticket.application.PurchaseGuard purchaseGuard;
     private final OrderRepository orderRepository;
+    private final OrderEventStore orderEvents;
     private final OrderItemRepository orderItemRepository;
     private final ConcertOrderPort concertOrderPort;
     private final com.ticketbox.module.inventory.InventoryPort inventory;
@@ -37,7 +39,10 @@ public class OrderAdapter implements OrderPort {
     @Override
     @Transactional
     public Optional<OrderView> lockOrder(UUID orderId) {
-        return orderRepository.findByIdForUpdate(orderId).map(this::toOrderView);
+        return orderRepository.findByIdForUpdate(orderId).map(order -> {
+            orderEvents.restore(order);
+            return toOrderView(order);
+        });
     }
 
     @Override
@@ -57,6 +62,7 @@ public class OrderAdapter implements OrderPort {
     public OrderView getPayableOrderForUser(UUID orderId, UUID userId) {
         Order order = orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND, "Không tìm thấy đơn hàng"));
+        long version = orderEvents.restore(order);
 
         if (!order.getUserId().equals(userId)) {
             // Do not disclose whether another customer's order exists.
@@ -75,6 +81,7 @@ public class OrderAdapter implements OrderPort {
                 inventory.release(item.getTicketTypeId(), item.getQuantity());
             }
             order.setStatus(Order.Status.EXPIRED);
+            orderEvents.record(order, version, OrderEventStore.Transition.OrderExpired);
             orderRepository.save(order);
             throw new AppException(ErrorCode.INVALID_STATUS_TRANSITION,
                     "Thời hạn thanh toán đơn hàng đã hết");
@@ -125,14 +132,23 @@ public class OrderAdapter implements OrderPort {
     public void markPaymentInitiated(UUID orderId, String provider, String providerRef, String paymentUrl) {
         Order order = orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND, "Không tìm thấy đơn hàng"));
+        long version = orderEvents.restore(order);
 
         if (order.getStatus() != Order.Status.AWAITING_PAYMENT) {
             throw new AppException(ErrorCode.INVALID_STATUS_TRANSITION, "Đơn hàng không ở trạng thái có thể thanh toán");
         }
 
-        order.setPaymentProvider(Order.PaymentProvider.valueOf(provider));
+        Order.PaymentProvider paymentProvider = Order.PaymentProvider.valueOf(provider);
+        if (order.getPaymentProvider() == paymentProvider
+                && Objects.equals(order.getPaymentRef(), providerRef)
+                && Objects.equals(order.getPaymentUrl(), paymentUrl)) {
+            return;
+        }
+
+        order.setPaymentProvider(paymentProvider);
         order.setPaymentRef(providerRef);
         order.setPaymentUrl(paymentUrl);
+        orderEvents.record(order, version, OrderEventStore.Transition.OrderPaymentInitiated);
         orderRepository.save(order);
     }
 

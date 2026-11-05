@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Catalog sale snapshot v1",
+  "type": "object",
+  "required": [
+    "id",
+    "version",
+    "deleted",
+    "concert",
+    "types"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "deleted": {
+      "type": "boolean"
+    },
+    "concert": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "types": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "concert_id",
+          "price",
+          "total_quantity",
+          "max_per_account",
+          "is_active"
+        ]
+      }
+    }
+  }
+}

@@ -89,7 +89,7 @@ export async function performManualOfflineCheckin({
     inserted: true,
     result: {
       status: 'PENDING',
-      message: 'Vé hợp lệ. Lượt check-in đã được lưu và chờ đồng bộ.',
+      message: 'Đã lưu lượt quét chờ xử lý. Cần xác nhận từ máy chủ soát vé trước khi cho vào cổng.',
       checkedAt,
       qrCode: selectedQrCode,
     },
@@ -119,15 +119,24 @@ export async function performOnlineCheckin({
     return invalidResult('Thiết bị chưa có mã định danh để check-in online.', selectedQrCode);
   }
 
-  const response = await scanTicketOnline(
-    {
-      qrCode: selectedQrCode,
-      concertId: selectedConcertId,
-      deviceId: selectedDeviceId,
-      gate: gate.trim() || null,
-    },
-    accessToken,
-  );
+  let response;
+  try {
+    response = await scanTicketOnline(
+      {
+        qrCode: selectedQrCode,
+        concertId: selectedConcertId,
+        deviceId: selectedDeviceId,
+        gate: gate.trim() || null,
+      },
+      accessToken,
+    );
+  } catch (error) {
+    const { ApiClientError } = await import('../../api/client');
+    if (error instanceof ApiClientError && error.status === 0) {
+      return performManualOfflineCheckin({ concertId, qrCode, gate });
+    }
+    throw error;
+  }
 
   const accepted = response.status === 'SUCCESS';
 

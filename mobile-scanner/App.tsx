@@ -145,7 +145,7 @@ export default function App() {
 
   useEffect(() => {
     return NetInfo.addEventListener((state) => {
-      const online = Boolean(state.isConnected && state.isInternetReachable !== false);
+      const online = Boolean(state.isConnected);
       setIsOnline(online);
       setWasOffline((previous) => {
         if (!online) return true;

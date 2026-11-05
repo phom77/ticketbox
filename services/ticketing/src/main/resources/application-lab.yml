@@ -1,0 +1,9 @@
+spring:
+  flyway:
+    url: ${DATABASE_URL}
+    out-of-order: true
+    locations: classpath:db/migration,classpath:db/lab
+lab:
+  replica:
+    enabled: true
+    url: ${LAB_REPLICA_URL}

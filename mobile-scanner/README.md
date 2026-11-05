@@ -34,3 +34,9 @@ For a physical device, bind the gateway to the LAN using `APP_BIND_ADDRESS=0.0.0
 Online scans atomically consume tickets in Core. Separate offline devices can both admit a ticket before synchronization; conflicts are resolved on the server after sync. Do not remove app data while unsynced logs remain.
 
 Run `npm run typecheck` for static verification. Camera behavior and multi-device offline operation require device testing.
+
+## Admission authority on a local network
+
+Set EXPO_PUBLIC_ADMISSION_API_BASE_URL to the venue Check-in API, including /api, when the venue authority has its own address. Every scanner uses the same Check-in database for admission decisions. The direct Compose binding uses CHECKIN_BIND_ADDRESS and CHECKIN_PORT (default 18093).
+
+A Wi-Fi/LAN connection is sufficient even when Internet connectivity is unavailable. If the authority cannot be reached, scans are stored PENDING and staff must wait for confirmation before admitting attendees. Keep the configured authority stable during the event. Repeated uploads of the same pending scan recover the accepted result.

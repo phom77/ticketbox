@@ -65,6 +65,7 @@ public class TicketTypeService {
                 .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy concert"));
     }
 
+    @org.ticketbox.split.ReplicaRead
     public List<TicketTypeResponse> getPublicTicketTypes(UUID concertId) {
         return readCache.get("ticket_types", "cache:ticket-types:" + concertId,
                 new TypeReference<List<TicketTypeResponse>>() {}, Duration.ofSeconds(10), () -> {

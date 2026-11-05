@@ -43,3 +43,5 @@ test-results/
 *.iml
 .DS_Store
 Thumbs.db
+
+__pycache__/

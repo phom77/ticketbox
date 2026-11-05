@@ -88,7 +88,22 @@ try {
  checks.push('Redis outage fails closed; AOF restart keeps access; actual state loss invalidates old session and permits fresh admission');
 
  docker(['up','-d','--no-deps','--scale','payment=2','payment']);
- assert.equal(docker(['ps','-q','payment']).trim().split(/\s+/).length,2);
+ const replicaIds=docker(['ps','-q','payment']).trim().split(/\s+/);
+ assert.equal(replicaIds.length,2);
+ // Container running precedes Spring Boot accepting requests. Probe both replicas
+ // directly so a healthy response from the old replica cannot hide a cold one.
+ const replicaAddresses=replicaIds.map(id=>execFileSync('docker',[
+  'inspect','-f','{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}',id
+ ],{encoding:'utf8'}).trim());
+ await until(()=>{
+  docker(['exec','-T','smtp','node','-e',`
+   Promise.all(process.argv.slice(1).map(async address=>{
+    const response=await fetch('http://'+address+':8080/actuator/health',{signal:AbortSignal.timeout(2000)});
+    if(!response.ok)throw new Error('Payment replica is starting');
+   })).catch(()=>{process.exitCode=1;});
+  `,...replicaAddresses],{stdio:'pipe'});
+  return true;
+ });
  const scaleUsers=await Promise.all([account('e2e-scale-a'),account('e2e-scale-b')]);
  const scaled=await Promise.all(scaleUsers.map(async u=>{const id=await order(u,concert.id,type.id);await ready(u,id);await paid(u,id);return id;}));
  checks.push('Payment scales to two processes on its own DB with one settlement per order');

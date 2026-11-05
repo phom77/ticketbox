@@ -75,6 +75,9 @@ public class OrderConcurrencyTest {
 
     @Mock private com.ticketbox.module.inventory.InventoryPort inventory;
 
+    @Mock
+    private com.ticketbox.module.ticket.infrastructure.OrderEventStore orderEvents;
+
     @InjectMocks
     private OrderService orderService;
 

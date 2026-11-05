@@ -24,7 +24,11 @@ export const apiClient = axios.create({
 });
 
 apiClient.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
-  config.baseURL = getApiBaseUrl();
+  const admission = process.env.EXPO_PUBLIC_ADMISSION_API_BASE_URL;
+  config.baseURL = config.url?.startsWith('/staff/') && admission
+    ? admission.replace(/\/+$/, '')
+    : getApiBaseUrl();
+  config.timeout = 8000;
 
   const headers = AxiosHeaders.from(config.headers);
   if (!headers.has('Authorization')) {

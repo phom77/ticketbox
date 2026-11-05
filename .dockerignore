@@ -1,0 +1,6 @@
+.git
+.artifacts
+**/node_modules
+**/target
+**/.expo
+.env

@@ -1,0 +1,73 @@
+# Always use a separate project: docker compose -p ticketbox-e2e-lab -f compose.yaml -f compose.lab.yaml --profile lab ...
+name: ticketbox-lab
+services:
+  catalog:
+    environment:
+      SPRING_PROFILES_ACTIVE: lab
+      DATABASE_URL: jdbc:postgresql://${CATALOG_PRIMARY_HOST:-catalog-db}:5432/ticketbox_catalog
+      LAB_REPLICA_URL: jdbc:postgresql://${CATALOG_REPLICA_HOST:-catalog-replica}:5432/ticketbox_catalog
+    depends_on:
+      catalog-replica:
+        condition: service_healthy
+  ticketing:
+    environment:
+      SPRING_PROFILES_ACTIVE: lab
+      DATABASE_URL: jdbc:postgresql://${TICKETING_PRIMARY_HOST:-ticketing-db}:5432/ticketbox_ticketing
+      LAB_REPLICA_URL: jdbc:postgresql://${TICKETING_REPLICA_HOST:-ticketing-replica}:5432/ticketbox_ticketing
+    depends_on:
+      ticketing-replica:
+        condition: service_healthy
+  checkin:
+    environment:
+      SPRING_PROFILES_ACTIVE: lab
+  catalog-db:
+    command: [postgres, -c, wal_level=replica, -c, max_wal_senders=8, -c, wal_keep_size=256MB]
+    volumes:
+      - ./infra/postgres/lab/prepare-primary.sh:/docker-entrypoint-initdb.d/20-replication.sh:ro
+      - ./infra/postgres/lab/fence-primary.sh:/lab/fence-primary.sh:ro
+  ticketing-db:
+    command: [postgres, -c, wal_level=replica, -c, max_wal_senders=8, -c, wal_keep_size=256MB]
+    volumes:
+      - ./infra/postgres/lab/prepare-primary.sh:/docker-entrypoint-initdb.d/20-replication.sh:ro
+      - ./infra/postgres/lab/fence-primary.sh:/lab/fence-primary.sh:ro
+  catalog-replica:
+    image: postgres:16-alpine
+    profiles: [lab]
+    entrypoint: [sh, /lab/start-standby.sh]
+    environment:
+      PGDATA: /var/lib/postgresql/data/standby
+      PGHOST: catalog-db
+      PGUSER: lab_replicator
+      PGPASSWORD: lab-replication-local-only
+    volumes:
+      - catalog_replica_data:/var/lib/postgresql/data
+      - ./infra/postgres/lab/start-standby.sh:/lab/start-standby.sh:ro
+    depends_on:
+      catalog-db:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD-SHELL, 'PGHOST=127.0.0.1 PGUSER=catalog_owner pg_isready -d ticketbox_catalog']
+      interval: 2s
+      retries: 90
+  ticketing-replica:
+    image: postgres:16-alpine
+    profiles: [lab]
+    entrypoint: [sh, /lab/start-standby.sh]
+    environment:
+      PGDATA: /var/lib/postgresql/data/standby
+      PGHOST: ticketing-db
+      PGUSER: lab_replicator
+      PGPASSWORD: lab-replication-local-only
+    volumes:
+      - ticketing_replica_data:/var/lib/postgresql/data
+      - ./infra/postgres/lab/start-standby.sh:/lab/start-standby.sh:ro
+    depends_on:
+      ticketing-db:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD-SHELL, 'PGHOST=127.0.0.1 PGUSER=ticketing_owner pg_isready -d ticketbox_ticketing']
+      interval: 2s
+      retries: 90
+volumes:
+  catalog_replica_data:
+  ticketing_replica_data:

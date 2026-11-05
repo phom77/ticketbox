@@ -1,0 +1,137 @@
+spring:
+  application:
+    name: ticketbox-ticketing
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USER}
+    password: ${DATABASE_PASSWORD}
+    hikari:
+      maximum-pool-size: 8
+  flyway:
+    user: ${DATABASE_OWNER}
+    password: ${DATABASE_OWNER_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      timeout: 2s
+  rabbitmq:
+    host: ${RABBITMQ_HOST:rabbitmq}
+    username: ${RABBITMQ_USERNAME:ticketbox_local}
+    password: ${RABBITMQ_PASSWORD:broker-local-only}
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
+  batch:
+    jdbc:
+      initialize-schema: never
+    job:
+      enabled: false
+ticketbox:
+  security:
+    jwt:
+      secret: ${JWT_SECRET}
+  payments:
+    mode: remote
+    url: http://payment:8080
+    service-token: ${PAYMENT_SERVICE_TOKEN}
+  notifications:
+    mode: remote
+    service-token: ${NOTIFICATION_SERVICE_TOKEN}
+  web:
+    allowed-origins: ${APP_ALLOWED_ORIGINS:http://localhost:18091}
+  events:
+    retry-age-seconds: 5
+    recovery-interval-ms: 2000
+  queue:
+    admission-capacity: ${TICKETBOX_QUEUE_ADMISSION_CAPACITY:8}
+    global-admission-capacity: ${TICKETBOX_QUEUE_GLOBAL_ADMISSION_CAPACITY:32}
+    admission-rate: ${TICKETBOX_QUEUE_ADMISSION_RATE:2}
+    admission-burst: ${TICKETBOX_QUEUE_ADMISSION_BURST:2}
+    global-admission-rate: ${TICKETBOX_QUEUE_GLOBAL_ADMISSION_RATE:8}
+    global-admission-burst: ${TICKETBOX_QUEUE_GLOBAL_ADMISSION_BURST:8}
+    shopping-session-ttl: ${TICKETBOX_QUEUE_SHOPPING_SESSION_TTL:PT10M}
+    waiting-room-open-before: ${TICKETBOX_QUEUE_WAITING_ROOM_OPEN_BEFORE:PT1H}
+    snapshot-check-interval-ms: ${TICKETBOX_QUEUE_SNAPSHOT_CHECK_INTERVAL_MS:1000}
+    websocket-push-interval-ms: ${TICKETBOX_QUEUE_WEBSOCKET_PUSH_INTERVAL_MS:1000}
+    websocket-snapshot-interval-ms: ${TICKETBOX_QUEUE_WEBSOCKET_SNAPSHOT_INTERVAL_MS:10000}
+    waiting-presence-ttl: ${TICKETBOX_QUEUE_WAITING_PRESENCE_TTL:PT1M}
+  payment:
+    max-concurrent-creates: ${PAYMENT_MAX_CONCURRENT_CREATES:8}
+    max-concurrent-queries: ${PAYMENT_MAX_CONCURRENT_QUERIES:2}
+    reconciliation-interval-ms: ${PAYMENT_RECONCILIATION_INTERVAL_MS:10000}
+    mock:
+      base-url: ${PAYMENT_MOCK_BASE_URL:http://localhost:8080}
+    vnpay:
+      query-url: ${VNPAY_QUERY_URL:}
+      pay-url: ${VNPAY_PAY_URL:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
+      return-url: ${VNPAY_RETURN_URL:http://localhost:5173/payment/result}
+      ipn-url: ${VNPAY_IPN_URL:}
+      tmn-code: ${VNPAY_TMN_CODE:}
+      hash-secret: ${VNPAY_HASH_SECRET:}
+      locale: vn
+      order-type: other
+    momo:
+      api-endpoint: ${MOMO_API_ENDPOINT:https://test-payment.momo.vn/v2/gateway/api/create}
+      partner-code: ${MOMO_PARTNER_CODE:}
+      access-key: ${MOMO_ACCESS_KEY:}
+      secret-key: ${MOMO_SECRET_KEY:}
+      return-url: ${MOMO_RETURN_URL:http://localhost:5173/payment/result}
+      ipn-url: ${MOMO_IPN_URL:}
+  rate-limit:
+    global-purchase:
+      capacity: ${PURCHASE_GLOBAL_BURST:32}
+      refill-tokens: ${PURCHASE_GLOBAL_RATE:16}
+      refill-period: 1s
+    global-payment:
+      capacity: ${PAYMENT_GLOBAL_BURST:16}
+      refill-tokens: ${PAYMENT_GLOBAL_RATE:8}
+      refill-period: 1s
+    callback:
+      capacity: ${PAYMENT_CALLBACK_BURST:128}
+      refill-tokens: ${PAYMENT_CALLBACK_RATE:64}
+      refill-period: 1s
+    purchase:
+      capacity: 5
+      refill-tokens: 1
+      refill-period: 2s
+    payment:
+      capacity: 3
+      refill-tokens: 1
+      refill-period: 5s
+split:
+  token: ${SPLIT_SERVICE_TOKEN}
+  identity-url: http://identity:8080
+  catalog-url: http://catalog:8080
+  ticketing-url: http://ticketing:8080
+  checkin-url: http://checkin:8080
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+resilience4j:
+  circuitbreaker:
+    instances:
+      vnpay:
+        sliding-window-size: 5
+        minimum-number-of-calls: 3
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 2
+      momo:
+        sliding-window-size: 5
+        minimum-number-of-calls: 3
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 2
+      artistBioAi:
+        sliding-window-size: 5
+        minimum-number-of-calls: 3
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 2

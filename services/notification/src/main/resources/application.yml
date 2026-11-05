@@ -32,6 +32,8 @@ spring:
 server:
   shutdown: graceful
 notification:
+  identity-url: ${IDENTITY_API_URL:}
+  identity-token: ${SPLIT_SERVICE_TOKEN:}
   jwt-secret: ${JWT_SECRET}
   core-url: ${CORE_API_URL}
   service-token: ${NOTIFICATION_SERVICE_TOKEN}

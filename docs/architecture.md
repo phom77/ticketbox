@@ -1,6 +1,6 @@
 # Architecture
 
-TicketBox keeps transactional ticketing in a modular Spring Boot Core and runs Payment and Notification as independent applications. The default Compose deployment uses a separate PostgreSQL database for each application.
+The default deployment runs Identity, Catalog, Ticketing, Check-in, Payment and Notification with six separate PostgreSQL instances. The [service extraction guide](service-extraction.md) defines current ownership, durable configuration/ticket delivery, LAN admission and the offline cutover procedure. The Core diagram below records the architecture before Phase 2–4 and remains the reference for the legacy deployment.
 
 ```mermaid
 flowchart LR
@@ -66,3 +66,13 @@ The stock invariant for a normal sale is `total = available + held + allocated`,
 Core retains legacy embedded implementations and historical migrations. In remote mode, database fencing prevents old Payment/Notification writers from modifying their former tables. After remote transactions exist, changing routing alone is not a safe rollback.
 
 The supplied Compose configuration is a single-host development deployment with demo credentials. Real merchant certification, production failover, signing-key rotation, multi-device field testing and large-scale capacity acceptance remain separate work. No 80,000-user capacity claim is made.
+
+## Order event sourcing — đợt 1
+
+Core dùng PostgreSQL cho order streams. Migration V34 tạo `order_events` và nhập đơn cũ thành `OrderImported` ở phiên bản 1. Snapshot chứa dữ liệu đơn và dòng hàng tại lúc cutover. Các trạng thái trước thời điểm đó không thể tái tạo từ snapshot.
+
+Order mới bắt đầu với `OrderCreated`. Các thay đổi sau đó append patch có kiểu và phiên bản, gồm khởi tạo thanh toán, thanh toán thành công, hết hạn và hủy. Các command giữ row lock trên `orders`, đọc lại trạng thái vòng đời từ stream, rồi append với expected version. Khóa chính chặn hai lần ghi cùng phiên bản. `orders` và `order_items` là projection đồng bộ để giữ API, truy vấn quota và các FK hiện hành. Stock, ledger thanh toán, vé và hàng đợi thông báo vẫn có vòng đời riêng.
+
+Giữ transaction hiện hành cho stock, append và projection. Khi chấp nhận thanh toán, việc phát hành vé, inbox ACK và publication cho thông báo vẫn nằm trong transaction xử lý kết quả. Replay SQL chỉ dựng dữ liệu Order. Nó không gọi provider, ghi stock, tạo vé hoặc phát sự kiện ra broker.
+
+Dừng toàn bộ Core writer cũ trước khi chạy Flyway. Sao lưu DB, diễn tập V34 trên bản sao và kiểm tra replay trước khi mở writer mới. Không chạy song song phiên bản trước/sau V34 trên cùng DB. Sau khi phiên bản mới nhận ghi, khôi phục bằng backup đã đối chiếu hoặc sửa tiến về phía trước để giữ lịch sử sự kiện. Chạy `psql -v ON_ERROR_STOP=1 -f scripts/db/verify-order-replay.sql` trên DB mục tiêu bằng quyền đọc và tạo bảng tạm. Script dựng bảng tạm tại một snapshot nhất quán, đối chiếu từng đơn và rollback. Bảng đọc hiện hành chưa bị hoán đổi tự động.

@@ -1,0 +1,7 @@
+spring:
+  flyway:
+    url: ${DATABASE_URL}
+lab:
+  replica:
+    enabled: true
+    url: ${LAB_REPLICA_URL}
