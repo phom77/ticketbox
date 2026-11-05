@@ -146,6 +146,15 @@ try {
         notificationJarSha256=(Get-FileHash (Join-Path $notificationPath 'target/notification-service-0.0.1-SNAPSHOT.jar') -Algorithm SHA256).Hash
         paymentJarSha256=(Get-FileHash (Join-Path $paymentPath 'target/payment-service-0.0.1-SNAPSHOT.jar') -Algorithm SHA256).Hash
     }
+    $pythonCommand = if ($IsWindows) { 'python' } else { 'python3' }
+    Invoke-Check 'service-boundary-tests' $repoPath $pythonCommand @(
+        '-B', '-m', 'unittest', 'discover', '-s', 'scripts/ci', '-p', 'test_service_boundaries.py'
+    )
+    foreach ($service in @('payment', 'notification')) {
+        Invoke-Check "service-boundary-$service" $repoPath $pythonCommand @(
+            'scripts/ci/verify-service-boundaries.py', '--service', $service
+        )
+    }
     Invoke-Check 'frontend-install' (Join-Path $repoPath 'frontend') 'npm' @('ci', '--no-audit', '--no-fund')
     Invoke-Check 'frontend-lint' (Join-Path $repoPath 'frontend') 'npm' @('run', 'lint')
     Invoke-Check 'frontend-build' (Join-Path $repoPath 'frontend') 'npm' @('run', 'build')

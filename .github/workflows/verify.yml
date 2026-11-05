@@ -34,7 +34,10 @@ jobs:
             frontend/package-lock.json
             mobile-scanner/package-lock.json
             scripts/e2e/package-lock.json
-      - name: Verify Java suites, web and scanner
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify Java suites, service boundaries, web and scanner
         shell: pwsh
         run: ./scripts/ci/verify.ps1 -BackendMode Local
       - name: Verify checkout recovery in Chromium
@@ -56,6 +59,7 @@ jobs:
             .artifacts/verification/
             .artifacts/e2e/
             backend/target/surefire-reports/
+            services/runtime/target/surefire-reports/
             services/payment/target/surefire-reports/
             services/notification/target/surefire-reports/
             !.artifacts/e2e/backups/**
