@@ -77,10 +77,12 @@ Baseline nguồn nằm ở `codex/service-ownership-baseline`. Lần chạy mớ
 
 **Nguồn → đích** — `backend/src/main/java/com/ticketbox/module/auth/` → `services/identity/src/main/java/org/ticketbox/identity/` theo nhóm `account`, `auth`, `integration`. Sửa `IdentityApplication.java`, `IdentityInternalApi.java`, `services/identity/{pom.xml,Dockerfile}` và build context của `identity` trong `compose.yaml`.
 
-- [ ] Chuyển `AuthServiceTest`, `UserProfileServiceTest`, các test controller, security hardening và RBAC vào `services/identity/src/test/java/org/ticketbox/identity/`. Đổi fixture đang boot `TicketBoxApplication` sang `IdentityApplication`, dùng migration Identity và giữ số trường hợp kiểm tra.
-- [ ] Chuyển repository, entity, DTO, mapper, login/profile và contact lookup. Tách phần kỹ thuật từ `SplitCommon` cần dùng cho Identity thành config cục bộ. Giữ contract `GET /internal/split/users/{id}` và cấu hình security theo thứ tự filter hiện tại. Giữ test khởi động bị chặn khi marker cutover `ready=false`.
-- [ ] Khai báo dependency cần dùng trong POM service, gỡ runtime JAR, dùng context `./services/identity`. Giữ user ID, email, role, password hash, các điều kiện RBAC và token claims hiện có.
-- [ ] Chạy `mvn -B -ntp -f services/identity/pom.xml clean verify` và cổng Task 1. Trên Compose trộn image, token cấp trước đổi image vẫn dùng được. Token cấp bởi Identity mới được Catalog/Ticketing/Check-in hiện tại chấp nhận đúng vai trò. Internal contact lookup trả `401` với token sai, còn contact lookup hợp lệ giữ payload.
+- [x] Chuyển `AuthServiceTest`, `UserProfileServiceTest`, các test controller, security hardening và RBAC vào `services/identity/src/test/java/org/ticketbox/identity/`. Đổi fixture đang boot `TicketBoxApplication` sang `IdentityApplication`, dùng migration Identity và giữ số trường hợp kiểm tra.
+- [x] Chuyển repository, entity, DTO, mapper, login/profile và contact lookup. Tách phần kỹ thuật từ `SplitCommon` cần dùng cho Identity thành config cục bộ. Giữ contract `GET /internal/split/users/{id}` và cấu hình security theo thứ tự filter hiện tại. Giữ test khởi động bị chặn khi marker cutover `ready=false`.
+- [x] Khai báo dependency cần dùng trong POM service, gỡ runtime JAR, dùng context `./services/identity`. Giữ user ID, email, role, password hash, các điều kiện RBAC và token claims hiện có.
+- [x] Chạy `mvn -B -ntp -f services/identity/pom.xml clean verify` và cổng Task 1. Trên Compose trộn image, token cấp trước đổi image vẫn dùng được. Token cấp bởi Identity mới được Catalog/Ticketing/Check-in hiện tại chấp nhận đúng vai trò. Internal contact lookup trả `401` với token sai, còn contact lookup hợp lệ giữ payload.
+
+Identity chạy 47 test trên Maven/Java 21 và đã được bật trong cổng CI. Ba ca hardening của endpoint reservation tiếp tục chạy ở Core legacy. Phép thử `scripts/e2e/identity-swap.py` dùng image `ticketbox-identity:ownership-task-2` và các tag baseline của Task 1. Kết quả chạy mới nằm dưới `.artifacts/verification/service-source-ownership/task-2/`.
 
 **Nghiệm thu** — Identity build riêng và thay image độc lập qua gateway với DB Identity đã có dữ liệu.
 

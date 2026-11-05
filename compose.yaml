@@ -167,9 +167,7 @@ services:
     - prometheus
   identity:
     image: ticketbox-identity:local
-    build:
-      context: .
-      dockerfile: services/identity/Dockerfile
+    build: ./services/identity
     cpus: 2
     mem_limit: 1200m
     stop_grace_period: 30s
@@ -192,10 +190,6 @@ services:
       CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
     depends_on:
       identity-db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      rabbitmq:
         condition: service_healthy
   identity-db:
     image: postgres:16-alpine
