@@ -30,18 +30,13 @@ import net.javacrumbs.shedlock.spring.annotation.EnableSchedulerLock;
 @EnableAsync
 @EnableSchedulerLock(defaultLockAtMostFor="PT2M")
 @Import({SplitCommon.class, ConcertOrderAdapter.class, ConcertReportingAdapter.class,
-        ConcertReminderAdapter.class, ProjectionApi.class, RemotePaymentOperations.class,
+        ConcertReminderAdapter.class, RemotePaymentOperations.class,
         PaymentWorkflowController.class, PaymentRemoteClient.class, PaymentIntentDispatcher.class,
         RemoteReminderDispatcher.class, RemoteReminderListener.class, NotificationInternalController.class,
         OrganizerRevenueService.class, RevenueReportExportService.class, OrganizerRevenueController.class})
 public class TicketingApplication {
     public static void main(String[] args) {
         SpringApplication.run(TicketingApplication.class, args);
-    }
-
-    @Bean
-    ProjectionReceiver projections(JdbcTemplate jdbc) {
-        return new ProjectionReceiver(jdbc, true);
     }
 
     @Bean
