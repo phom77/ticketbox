@@ -1,4 +1,4 @@
-package org.ticketbox.checkin;
+package org.ticketbox.checkin.integration;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;

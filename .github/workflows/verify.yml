@@ -26,6 +26,7 @@ jobs:
             backend/pom.xml
             services/identity/pom.xml
             services/catalog/pom.xml
+            services/checkin/pom.xml
             services/payment/pom.xml
             services/notification/pom.xml
       - uses: actions/setup-node@v4
@@ -63,6 +64,7 @@ jobs:
             backend/target/surefire-reports/
             services/identity/target/surefire-reports/
             services/catalog/target/surefire-reports/
+            services/checkin/target/surefire-reports/
             services/runtime/target/surefire-reports/
             services/payment/target/surefire-reports/
             services/notification/target/surefire-reports/

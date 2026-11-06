@@ -16,6 +16,8 @@ PROJECT = os.environ.get("E2E_PROJECT", "ticketbox-e2e-split")
 PORT = os.environ.get("E2E_PORT", "18096")
 assert re.fullmatch(r"ticketbox-e2e(?:-[a-z0-9-]+)?", PROJECT)
 BASE = "http://localhost:" + PORT
+CHECKIN_PORT = os.environ.get("CHECKIN_PORT", str(int(PORT) + 1))
+CHECKIN_BASE = "http://localhost:" + CHECKIN_PORT
 PROOF = {"passed": False, "checks": []}
 
 
@@ -24,7 +26,7 @@ def compose(*args):
         ["docker", "compose", "-p", PROJECT, "-f", str(ROOT / "compose.yaml"), *args],
         cwd=ROOT, text=True, env={**os.environ, "APP_PORT": PORT,
             "APP_PUBLIC_URL": BASE, "APP_ALLOWED_ORIGINS": BASE,
-            "CHECKIN_PORT": os.environ.get("CHECKIN_PORT", str(int(PORT)+1))},
+            "CHECKIN_PORT": CHECKIN_PORT},
     )
 
 
@@ -33,14 +35,14 @@ def sql(service, query):
                    "-d", {"notification": "ticketbox_notifications", "payment": "ticketbox_payments"}.get(service, "ticketbox_" + service), "-At", "-v", "ON_ERROR_STOP=1", "-c", query).strip()
 
 
-def request(method, path, token=None, body=None, expected=(200,), headers=None):
+def request(method, path, token=None, body=None, expected=(200,), headers=None, *, base=BASE):
     supplied = {"Content-Type": "application/json", **(headers or {})}
     if token:
         supplied["Authorization"] = "Bearer " + token
     data = json.dumps(body).encode() if body is not None else None
     try:
         response = urllib.request.urlopen(
-            urllib.request.Request(BASE + path, data=data, headers=supplied, method=method), timeout=20)
+            urllib.request.Request(base + path, data=data, headers=supplied, method=method), timeout=20)
     except urllib.error.HTTPError as error:
         assert error.code in expected, (method, path, error.code, error.read().decode()[:500])
         return None
@@ -166,8 +168,8 @@ def main():
         payload = {"concertId": concert_id, "deviceId": "offline-device", "logs": [{
             "qrCode": codes[1], "checkedAt": now.isoformat(timespec="milliseconds"), "gate": "VIP", "notes": None,
         }]}
-        first = request("POST", "/api/staff/checkins/sync", staff, payload)
-        repeated = request("POST", "/api/staff/checkins/sync", staff, payload)
+        first = request("POST", "/api/staff/checkins/sync", staff, payload, base=CHECKIN_BASE)
+        repeated = request("POST", "/api/staff/checkins/sync", staff, payload, base=CHECKIN_BASE)
         assert first["accepted"] == repeated["accepted"] == 1
         assert sql("checkin", f"SELECT count(*) FROM checkin_logs WHERE concert_id='{concert_id}'") == "2"
     finally:

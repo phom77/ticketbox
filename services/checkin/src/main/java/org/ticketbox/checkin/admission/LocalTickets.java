@@ -1,6 +1,5 @@
-package org.ticketbox.checkin;
+package org.ticketbox.checkin.admission;
 
-import com.ticketbox.module.ticket.*;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.data.domain.*;
@@ -58,10 +57,6 @@ public class LocalTickets implements TicketCheckinPort {
                 FROM tickets WHERE concert_id=?
                 """,(rs,index)->new TicketCheckinStats(rs.getLong(1),rs.getLong(2),rs.getLong(3),
                 rs.getLong(4),rs.getLong(5),rs.getObject(6,OffsetDateTime.class)),concert);
-    }
-
-    public void markAsUsed(UUID id, OffsetDateTime time) {
-        markAsUsedIfValid(id,time);
     }
 
     public boolean markAsUsedIfValid(UUID id, OffsetDateTime time) {

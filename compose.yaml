@@ -300,9 +300,7 @@ services:
       retries: 30
   checkin:
     image: ticketbox-checkin:local
-    build:
-      context: .
-      dockerfile: services/checkin/Dockerfile
+    build: ./services/checkin
     cpus: 2
     mem_limit: 1200m
     stop_grace_period: 30s
@@ -325,10 +323,6 @@ services:
       CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
     depends_on:
       checkin-db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      rabbitmq:
         condition: service_healthy
     volumes:
     - checkin_artifacts:/app/data

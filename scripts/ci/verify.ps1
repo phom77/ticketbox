@@ -150,7 +150,7 @@ try {
     Invoke-Check 'service-boundary-tests' $repoPath $pythonCommand @(
         '-B', '-m', 'unittest', 'discover', '-s', 'scripts/ci', '-p', 'test_service_boundaries.py'
     )
-    foreach ($service in @('payment', 'notification', 'identity', 'catalog')) {
+    foreach ($service in @('payment', 'notification', 'identity', 'catalog', 'checkin')) {
         Invoke-Check "service-boundary-$service" $repoPath $pythonCommand @(
             'scripts/ci/verify-service-boundaries.py', '--service', $service
         )
