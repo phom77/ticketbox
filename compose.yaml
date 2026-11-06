@@ -253,9 +253,7 @@ services:
       retries: 30
   ticketing:
     image: ticketbox-ticketing:local
-    build:
-      context: .
-      dockerfile: services/ticketing/Dockerfile
+    build: ./services/ticketing
     cpus: 2
     mem_limit: 1200m
     stop_grace_period: 30s

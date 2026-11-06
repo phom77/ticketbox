@@ -42,10 +42,12 @@ def main():
     parser.add_argument("--port",default=os.environ.get("APP_PORT","18106"))
     parser.add_argument("--switchover",action="store_true",help="Planned switch Catalog, then Ticketing; leaves old primaries fenced")
     parser.add_argument("--replica-outage-only",action="store_true",help="Exercise Ticketing standby outage using an existing audience order")
+    parser.add_argument("--output",type=Path,default=ROOT/".artifacts/verification/phase-5-6",
+                        help="Directory for the lab verification report")
     args=parser.parse_args()
     lab=ops.Lab(args.project)
     proof={"passed":False,"checks":[]}
-    output=ROOT/".artifacts/verification/phase-5-6"
+    output=args.output
     output.mkdir(parents=True,exist_ok=True)
     base="http://127.0.0.1:"+args.port
 

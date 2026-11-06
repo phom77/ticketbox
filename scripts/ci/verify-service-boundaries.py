@@ -24,6 +24,12 @@ SERVICE_PACKAGES = {
 # keeps its persisted FQCN and is verified by CatalogPublicationIntegrationTest.
 COMPATIBILITY_CLASSES = {
     "catalog": {"com/ticketbox/module/ai/application/ArtistBioJobSubmittedEvent.class"},
+    # OrderConcurrencyIntegrationTest replays the corresponding baseline publications.
+    "ticketing": {
+        "com/ticketbox/shared/event/PaymentCompletedEvent.class",
+        "com/ticketbox/shared/event/RemoteNotificationRequested.class",
+        "com/ticketbox/shared/event/UserLeftQueueEvent.class",
+    },
 }
 MAVEN_IMAGE = "maven:3.9.9-eclipse-temurin-21"
 TREE_GOAL = "org.apache.maven.plugins:maven-dependency-plugin:3.8.1:tree"

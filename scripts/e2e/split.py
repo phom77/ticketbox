@@ -102,7 +102,7 @@ def check(name):
     print(name, flush=True)
 
 
-def main():
+def main(*, source_outage=True):
     until(lambda: request("GET", "/api/health"))
     admin = until(lambda: login("admin"))
     staff = login("staff")
@@ -163,7 +163,8 @@ def main():
     assert sql("checkin", f"SELECT count(*) FROM checkin_logs WHERE concert_id='{concert_id}'") == "1"
     check("Two scanners racing for one QR produce one accepted admission")
 
-    compose("stop", "identity", "catalog", "ticketing")
+    if source_outage:
+        compose("stop", "identity", "catalog", "ticketing")
     try:
         payload = {"concertId": concert_id, "deviceId": "offline-device", "logs": [{
             "qrCode": codes[1], "checkedAt": now.isoformat(timespec="milliseconds"), "gate": "VIP", "notes": None,
@@ -173,8 +174,12 @@ def main():
         assert first["accepted"] == repeated["accepted"] == 1
         assert sql("checkin", f"SELECT count(*) FROM checkin_logs WHERE concert_id='{concert_id}'") == "2"
     finally:
-        compose("start", "identity", "catalog", "ticketing")
-    check("LAN Check-in works during source outage and repeated offline sync is idempotent")
+        if source_outage:
+            compose("start", "identity", "catalog", "ticketing")
+    if source_outage:
+        check("LAN Check-in works during source outage and repeated offline sync is idempotent")
+    else:
+        check("Repeated offline sync is idempotent")
 
     until(lambda: request("GET", "/api/health"))
     sql("ticketing", f"UPDATE checkin_ticket_outbox SET delivered_version=0 WHERE ticket_id IN (SELECT id FROM tickets WHERE concert_id='{concert_id}')")
