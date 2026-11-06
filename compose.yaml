@@ -208,9 +208,7 @@ services:
       retries: 30
   catalog:
     image: ticketbox-catalog:local
-    build:
-      context: .
-      dockerfile: services/catalog/Dockerfile
+    build: ./services/catalog
     cpus: 2
     mem_limit: 1200m
     stop_grace_period: 30s
@@ -235,8 +233,6 @@ services:
       catalog-db:
         condition: service_healthy
       redis:
-        condition: service_healthy
-      rabbitmq:
         condition: service_healthy
     volumes:
     - catalog_artifacts:/app/data

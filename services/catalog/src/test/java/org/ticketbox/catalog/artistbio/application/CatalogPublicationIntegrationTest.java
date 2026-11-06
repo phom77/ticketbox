@@ -1,0 +1,68 @@
+package org.ticketbox.catalog.artistbio.application;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.modulith.events.IncompleteEventPublications;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
+import static org.mockito.Mockito.verify;
+
+@Testcontainers
+@SpringBootTest(properties = {
+        "ticketbox.security.jwt.secret=catalog-integration-fixture-secret-at-least-sixty-four-characters",
+        "split.token=catalog-integration-fixture-service-token",
+        "split.ticketing-url=http://127.0.0.1:1",
+        "split.checkin-url=http://127.0.0.1:1",
+        "split.config-interval-ms=3600000",
+        "split.stock-interval-ms=3600000",
+        "ticketbox.ai.recovery.fixed-delay-ms=3600000"
+})
+class CatalogPublicationIntegrationTest {
+    @Container
+    private static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
+
+    @DynamicPropertySource
+    static void database(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
+        registry.add("spring.datasource.username", POSTGRES::getUsername);
+        registry.add("spring.datasource.password", POSTGRES::getPassword);
+        registry.add("spring.flyway.user", POSTGRES::getUsername);
+        registry.add("spring.flyway.password", POSTGRES::getPassword);
+    }
+
+    @Autowired private JdbcTemplate jdbc;
+    @Autowired private IncompleteEventPublications publications;
+    @MockBean private ArtistBioJobProcessor processor;
+
+    @Test
+    void pendingPublicationFromBaselineIsReplayedAndCompleted() {
+        UUID publication = UUID.randomUUID();
+        UUID job = UUID.randomUUID();
+        String event = "com.ticketbox.module.ai.application.ArtistBioJobSubmittedEvent";
+        String listener = "com.ticketbox.module.ai.application.ArtistBioJobEventListener.onSubmitted(" + event + ")";
+        jdbc.update("""
+                INSERT INTO event_publication (id, listener_id, event_type, serialized_event, publication_date)
+                VALUES (?, ?, ?, ?, now())
+                """, publication, listener, event, "{\"jobId\":\"" + job + "\"}");
+
+        publications.resubmitIncompletePublications(candidate -> candidate.getIdentifier().equals(publication));
+
+        await().untilAsserted(() -> {
+            verify(processor).process(job);
+            assertThat(jdbc.queryForObject("""
+                    SELECT completion_date IS NOT NULL FROM event_publication WHERE id=?
+                    """, Boolean.class, publication)).isTrue();
+        });
+    }
+}

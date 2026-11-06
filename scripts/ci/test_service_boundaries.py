@@ -59,11 +59,28 @@ class ServiceBoundariesTest(unittest.TestCase):
                 }),
             })
 
-    def check_jar(self, entries):
+    def test_legacy_event_class_is_allowed_only_in_catalog_application_classes(self):
+        event = "com/ticketbox/module/ai/application/ArtistBioJobSubmittedEvent.class"
+        self.check_jar({
+            "BOOT-INF/classes/org/ticketbox/catalog/CatalogApplication.class": b"",
+            f"BOOT-INF/classes/{event}": b"",
+        }, "catalog")
+        with self.assertRaisesRegex(BoundaryError, event):
+            self.check_jar({
+                "BOOT-INF/classes/com/ticketbox/payments/PaymentsApplication.class": b"",
+                f"BOOT-INF/classes/{event}": b"",
+            })
+        with self.assertRaisesRegex(BoundaryError, "ArtistBioJobService"):
+            self.check_jar({
+                "BOOT-INF/classes/org/ticketbox/catalog/CatalogApplication.class": b"",
+                "BOOT-INF/classes/com/ticketbox/module/ai/application/ArtistBioJobService.class": b"",
+            }, "catalog")
+
+    def check_jar(self, entries, service="payment"):
         with tempfile.TemporaryDirectory() as directory:
             jar = Path(directory) / "app.jar"
             jar.write_bytes(self.jar_bytes(entries))
-            gate["verify_jar"]("payment", jar)
+            gate["verify_jar"](service, jar)
 
     @staticmethod
     def jar_bytes(entries):

@@ -20,6 +20,11 @@ SERVICE_PACKAGES = {
     "payment": "com/ticketbox/payments/",
     "notification": "com/ticketbox/notifications/",
 }
+# Catalog replays event_publication rows written by the baseline image. This record
+# keeps its persisted FQCN and is verified by CatalogPublicationIntegrationTest.
+COMPATIBILITY_CLASSES = {
+    "catalog": {"com/ticketbox/module/ai/application/ArtistBioJobSubmittedEvent.class"},
+}
 MAVEN_IMAGE = "maven:3.9.9-eclipse-temurin-21"
 TREE_GOAL = "org.apache.maven.plugins:maven-dependency-plugin:3.8.1:tree"
 APP_CLASSES = "BOOT-INF/classes/"
@@ -51,9 +56,11 @@ def verify_dependencies(service, tree):
         pending.extend((child, chain) for child in dependency.get("children", []))
 
 
-def verify_classes(entries, own_package, location):
+def verify_classes(entries, own_package, location, compatibility_classes=()):
     for entry in entries:
         if not entry.endswith(".class"):
+            continue
+        if entry in compatibility_classes:
             continue
         class_path = re.sub(r"^META-INF/versions/[0-9]+/", "", entry)
         if class_path.startswith(("com/ticketbox/", "org/ticketbox/")) and not class_path.startswith(own_package):
@@ -66,7 +73,7 @@ def verify_jar(service, jar_path):
     with ZipFile(jar_path) as app:
         entries = app.namelist()
         classes = [entry.removeprefix(APP_CLASSES) for entry in entries if entry.startswith(APP_CLASSES)]
-        verify_classes(classes, own_package, "BOOT-INF/classes")
+        verify_classes(classes, own_package, "BOOT-INF/classes", COMPATIBILITY_CLASSES.get(service, ()))
         if not any(entry.startswith(own_package) and entry.endswith(".class") for entry in classes):
             raise BoundaryError(f"No {service} application classes under BOOT-INF/classes")
 

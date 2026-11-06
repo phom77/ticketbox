@@ -1,6 +1,5 @@
-package org.ticketbox.catalog;
+package org.ticketbox.catalog.web;
 
-import com.ticketbox.shared.response.ApiResponse;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.dao.DataAccessException;

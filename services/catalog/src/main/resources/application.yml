@@ -18,31 +18,12 @@ spring:
     redis:
       host: ${REDIS_HOST:redis}
       timeout: 2s
-  rabbitmq:
-    host: ${RABBITMQ_HOST:rabbitmq}
-    username: ${RABBITMQ_USERNAME:ticketbox_local}
-    password: ${RABBITMQ_PASSWORD:broker-local-only}
-  batch:
-    jdbc:
-      initialize-schema: never
-    job:
-      enabled: false
 ticketbox:
   security:
     jwt:
       secret: ${JWT_SECRET}
-  payments:
-    mode: remote
-    url: http://payment:8080
-    service-token: ${PAYMENT_SERVICE_TOKEN}
-  notifications:
-    mode: remote
-    service-token: ${NOTIFICATION_SERVICE_TOKEN}
   web:
     allowed-origins: ${APP_ALLOWED_ORIGINS:http://localhost:18091}
-  events:
-    retry-age-seconds: 5
-    recovery-interval-ms: 2000
   ai:
     provider: ${ARTIST_BIO_AI_PROVIDER:auto}
     base-url: ${ARTIST_BIO_AI_BASE_URL:https://api.openai.com/v1}
@@ -65,8 +46,6 @@ ticketbox:
     max-file-size: ${CLOUDINARY_MAX_FILE_SIZE:5MB}
 split:
   token: ${SPLIT_SERVICE_TOKEN}
-  identity-url: http://identity:8080
-  catalog-url: http://catalog:8080
   ticketing-url: http://ticketing:8080
   checkin-url: http://checkin:8080
 management:
