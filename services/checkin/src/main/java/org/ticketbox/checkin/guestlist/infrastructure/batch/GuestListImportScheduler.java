@@ -1,16 +1,12 @@
 package org.ticketbox.checkin.guestlist.infrastructure.batch;
 
-import org.ticketbox.checkin.guestlist.application.GuestListImportService;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.time.Instant;
-import java.util.UUID;
-import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
+
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
+
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.ticketbox.checkin.guestlist.application.GuestListImportService;
 
 @Slf4j
 @Component
@@ -20,8 +16,7 @@ public class GuestListImportScheduler {
     private final GuestListImportService importService;
 
     public GuestListImportScheduler(
-            GuestListFileStorage fileStorage,
-            GuestListImportService importService) {
+            GuestListFileStorage fileStorage, GuestListImportService importService) {
         this.fileStorage = fileStorage;
         this.importService = importService;
     }

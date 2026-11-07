@@ -11,6 +11,10 @@ Bản đồ này dùng baseline `e19658119e6258878b0827dd076eab508761bdbf` (`fea
 | Payment | `PaymentApplication` → `PaymentApi` → `PaymentFacade`, `PaymentStore`, `PaymentWorkers` và `provider.*` của chính service. Gateway định tuyến webhook VNPay/MoMo thẳng tới Payment. |
 | Notification | `NotificationApplication` nhận và gửi thông báo bằng mã trong `services/notification`. Ticketing sở hữu các publisher, reminder dispatcher và API nội bộ cung cấp dữ liệu đơn/nhắc lịch mà nó import hoặc quét. |
 
+## Cấu trúc sau Task 6b
+
+Bảng trên ghi đường đi tại baseline để đối chiếu quá trình tách nguồn. Cấu trúc hiện tại tổ chức theo capability và các lớp `domain`, `application`, `infrastructure`, `web`, với wiring trong `config`. Xem `docs/architecture.md`, `docs/adr/0001-service-domain-models.md` và `GLOSSARY-MAP.md` trước khi sửa code mới. Payment worker được tách thành use case settlement, port và scheduler. Reminder của Ticketing cũng được chia theo các vai trò này.
+
 ## Các lớp từ module admin
 
 Tên lớp tương ứng với file Java dưới `backend/src/main/java/com/ticketbox/module/admin/`.

@@ -1,12 +1,11 @@
 package org.ticketbox.identity.auth;
 
-import org.ticketbox.identity.account.User;
-import org.ticketbox.identity.account.UserRepository;
-import org.ticketbox.identity.auth.dto.AuthResponse;
-import org.ticketbox.identity.auth.dto.LoginRequest;
-import org.ticketbox.identity.auth.dto.RegisterRequest;
-import org.ticketbox.identity.web.AppException;
-import org.ticketbox.identity.web.ErrorCode;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -14,30 +13,29 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.ticketbox.identity.account.application.port.UserRepository;
+import org.ticketbox.identity.account.domain.User;
+import org.ticketbox.identity.application.error.AppException;
+import org.ticketbox.identity.application.error.ErrorCode;
+import org.ticketbox.identity.auth.application.AuthService;
+import org.ticketbox.identity.auth.application.dto.AuthResponse;
+import org.ticketbox.identity.auth.application.dto.LoginRequest;
+import org.ticketbox.identity.auth.application.dto.RegisterRequest;
+import org.ticketbox.identity.infrastructure.security.JwtService;
 
 import java.util.Optional;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
-
 @ExtendWith(MockitoExtension.class)
 class AuthServiceTest {
 
-    @Mock
-    private UserRepository userRepository;
+    @Mock private UserRepository userRepository;
 
-    @Mock
-    private PasswordEncoder passwordEncoder;
+    @Mock private PasswordEncoder passwordEncoder;
 
-    @Mock
-    private JwtService jwtService;
+    @Mock private JwtService jwtService;
 
-    @InjectMocks
-    private AuthService authService;
+    @InjectMocks private AuthService authService;
 
     private User sampleUser;
     private RegisterRequest registerRequest;
@@ -46,14 +44,16 @@ class AuthServiceTest {
     @BeforeEach
     void setUp() {
         sampleUser = new User();
-        org.springframework.test.util.ReflectionTestUtils.setField(sampleUser, "id", UUID.randomUUID());
+        org.springframework.test.util.ReflectionTestUtils.setField(
+                sampleUser, "id", UUID.randomUUID());
         sampleUser.setEmail("test@example.com");
         sampleUser.setFullName("Test User");
         sampleUser.setPasswordHash("hashed_password");
         sampleUser.setRole(User.Role.AUDIENCE);
         sampleUser.setActive(true);
 
-        registerRequest = new RegisterRequest("test@example.com", "password123", "Test User", "123456789");
+        registerRequest =
+                new RegisterRequest("test@example.com", "password123", "Test User", "123456789");
         loginRequest = new LoginRequest("test@example.com", "password123");
     }
 
@@ -80,7 +80,8 @@ class AuthServiceTest {
     void register_DuplicateEmail_ThrowsException() {
         when(userRepository.existsByEmail(registerRequest.email())).thenReturn(true);
 
-        AppException ex = assertThrows(AppException.class, () -> authService.register(registerRequest));
+        AppException ex =
+                assertThrows(AppException.class, () -> authService.register(registerRequest));
         assertEquals(ErrorCode.EMAIL_ALREADY_EXISTS, ex.getErrorCode());
 
         verify(userRepository).existsByEmail(registerRequest.email());
@@ -90,13 +91,14 @@ class AuthServiceTest {
     @Test
     void login_Success() {
         when(userRepository.findByEmail(loginRequest.email())).thenReturn(Optional.of(sampleUser));
-        when(passwordEncoder.matches(loginRequest.password(), sampleUser.getPasswordHash())).thenReturn(true);
+        when(passwordEncoder.matches(loginRequest.password(), sampleUser.getPasswordHash()))
+                .thenReturn(true);
         when(jwtService.generateToken(
-                eq(sampleUser.getId()),
-                eq(sampleUser.getEmail()),
-                eq(sampleUser.getRole().name()),
-                eq(sampleUser.getFullName())
-        )).thenReturn("jwt_token");
+                        eq(sampleUser.getId()),
+                        eq(sampleUser.getEmail()),
+                        eq(sampleUser.getRole().name()),
+                        eq(sampleUser.getFullName())))
+                .thenReturn("jwt_token");
         when(jwtService.getExpirationMs()).thenReturn(3600000L); // 1 hour
 
         AuthResponse response = authService.login(loginRequest);
@@ -109,12 +111,12 @@ class AuthServiceTest {
 
         verify(userRepository).findByEmail(loginRequest.email());
         verify(passwordEncoder).matches(loginRequest.password(), sampleUser.getPasswordHash());
-        verify(jwtService).generateToken(
-                eq(sampleUser.getId()),
-                eq(sampleUser.getEmail()),
-                eq(sampleUser.getRole().name()),
-                eq(sampleUser.getFullName())
-        );
+        verify(jwtService)
+                .generateToken(
+                        eq(sampleUser.getId()),
+                        eq(sampleUser.getEmail()),
+                        eq(sampleUser.getRole().name()),
+                        eq(sampleUser.getFullName()));
     }
 
     @Test
@@ -131,7 +133,8 @@ class AuthServiceTest {
     @Test
     void login_InvalidPassword_ThrowsException() {
         when(userRepository.findByEmail(loginRequest.email())).thenReturn(Optional.of(sampleUser));
-        when(passwordEncoder.matches(loginRequest.password(), sampleUser.getPasswordHash())).thenReturn(false);
+        when(passwordEncoder.matches(loginRequest.password(), sampleUser.getPasswordHash()))
+                .thenReturn(false);
 
         AppException ex = assertThrows(AppException.class, () -> authService.login(loginRequest));
         assertEquals(ErrorCode.UNAUTHENTICATED, ex.getErrorCode());

@@ -1,17 +1,18 @@
 package org.ticketbox.checkin.guestlist.infrastructure.batch;
 
-import org.ticketbox.checkin.guestlist.domain.BatchLog;
-import org.ticketbox.checkin.guestlist.domain.BatchLogRepository;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.time.OffsetDateTime;
-import java.util.UUID;
 import org.springframework.batch.core.BatchStatus;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.ticketbox.checkin.guestlist.application.port.BatchLogRepository;
+import org.ticketbox.checkin.guestlist.domain.BatchLog;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.OffsetDateTime;
+import java.util.UUID;
 
 @Component
 public class GuestListImportJobListener implements JobExecutionListener {
@@ -20,8 +21,7 @@ public class GuestListImportJobListener implements JobExecutionListener {
     private final GuestListFileStorage fileStorage;
 
     public GuestListImportJobListener(
-            BatchLogRepository batchLogRepository,
-            GuestListFileStorage fileStorage) {
+            BatchLogRepository batchLogRepository, GuestListFileStorage fileStorage) {
         this.batchLogRepository = batchLogRepository;
         this.fileStorage = fileStorage;
     }
@@ -44,9 +44,10 @@ public class GuestListImportJobListener implements JobExecutionListener {
             return;
         }
 
-        boolean jobFailed = jobExecution.getStatus() != BatchStatus.COMPLETED
-                || log.getStatus() == BatchLog.Status.RUNNING
-                || log.getStatus() == BatchLog.Status.FAILED;
+        boolean jobFailed =
+                jobExecution.getStatus() != BatchStatus.COMPLETED
+                        || log.getStatus() == BatchLog.Status.RUNNING
+                        || log.getStatus() == BatchLog.Status.FAILED;
         if (jobFailed) {
             if (log.getStatus() != BatchLog.Status.FAILED) {
                 log.setStatus(BatchLog.Status.FAILED);
@@ -56,16 +57,18 @@ public class GuestListImportJobListener implements JobExecutionListener {
 
         try {
             if (Files.exists(filePath)) {
-                Path finalPath = jobFailed
-                        ? fileStorage.quarantine(filePath, concertId)
-                        : fileStorage.archive(
-                                filePath,
-                                concertId,
-                                log.getStatus() == BatchLog.Status.PARTIAL);
+                Path finalPath =
+                        jobFailed
+                                ? fileStorage.quarantine(filePath, concertId)
+                                : fileStorage.archive(
+                                        filePath,
+                                        concertId,
+                                        log.getStatus() == BatchLog.Status.PARTIAL);
                 log.setFilePath(finalPath.toString());
             }
         } catch (Exception ex) {
-            log.setErrorDetail(append(log.getErrorDetail(), "Không thể di chuyển file: " + ex.getMessage()));
+            log.setErrorDetail(
+                    append(log.getErrorDetail(), "Không thể di chuyển file: " + ex.getMessage()));
         }
 
         log.setCompletedAt(OffsetDateTime.now());
@@ -73,11 +76,12 @@ public class GuestListImportJobListener implements JobExecutionListener {
     }
 
     private String failureSummary(JobExecution execution) {
-        String message = execution.getAllFailureExceptions().stream()
-                .map(Throwable::getMessage)
-                .filter(value -> value != null && !value.isBlank())
-                .findFirst()
-                .orElse("Import danh sách khách mời thất bại");
+        String message =
+                execution.getAllFailureExceptions().stream()
+                        .map(Throwable::getMessage)
+                        .filter(value -> value != null && !value.isBlank())
+                        .findFirst()
+                        .orElse("Import danh sách khách mời thất bại");
         return message.length() <= 4000 ? message : message.substring(0, 4000);
     }
 

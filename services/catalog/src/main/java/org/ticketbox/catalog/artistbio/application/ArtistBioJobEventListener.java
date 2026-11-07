@@ -17,9 +17,11 @@ public class ArtistBioJobEventListener {
     }
 
     @Async("artistBioExecutor")
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT,
-            id = "com.ticketbox.module.ai.application.ArtistBioJobEventListener.onSubmitted("
-                    + "com.ticketbox.module.ai.application.ArtistBioJobSubmittedEvent)")
+    @TransactionalEventListener(
+            phase = TransactionPhase.AFTER_COMMIT,
+            id =
+                    "com.ticketbox.module.ai.application.ArtistBioJobEventListener.onSubmitted("
+                            + "com.ticketbox.module.ai.application.ArtistBioJobSubmittedEvent)")
     public void onSubmitted(ArtistBioJobSubmittedEvent event) {
         processor.process(event.jobId());
     }

@@ -1,5 +1,7 @@
 package org.ticketbox.catalog.artistbio.application;
 
+import org.springframework.stereotype.Component;
+
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -7,7 +9,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import org.springframework.stereotype.Component;
 
 @Component
 public class ArtistBioTextCleaner {
@@ -17,15 +18,17 @@ public class ArtistBioTextCleaner {
             return "";
         }
 
-        String normalized = Normalizer.normalize(input, Normalizer.Form.NFC)
-                .replace("\u0000", "")
-                .replace("\r\n", "\n")
-                .replace('\r', '\n')
-                .replaceAll("[\\p{Cc}&&[^\\n\\t]]", "");
+        String normalized =
+                Normalizer.normalize(input, Normalizer.Form.NFC)
+                        .replace("\u0000", "")
+                        .replace("\r\n", "\n")
+                        .replace('\r', '\n')
+                        .replaceAll("[\\p{Cc}&&[^\\n\\t]]", "");
 
-        List<String> lines = Arrays.stream(normalized.split("\\n", -1))
-                .map(line -> line.replace('\t', ' ').replaceAll("[ ]+", " ").trim())
-                .toList();
+        List<String> lines =
+                Arrays.stream(normalized.split("\\n", -1))
+                        .map(line -> line.replace('\t', ' ').replaceAll("[ ]+", " ").trim())
+                        .toList();
         Map<String, Integer> frequencies = countNonBlankLines(lines);
 
         List<String> kept = new ArrayList<>();
@@ -36,13 +39,14 @@ public class ArtistBioTextCleaner {
             kept.add(line);
         }
 
-        String cleaned = String.join("\n", kept)
-                .replaceAll("(?<=\\p{L})-\\n(?=\\p{Ll})", "")
-                .replaceAll("(?<!\\n)\\n(?!\\n)", " ")
-                .replaceAll("[ ]+", " ")
-                .replaceAll(" *\\n *", "\n")
-                .replaceAll("\\n{3,}", "\n\n")
-                .trim();
+        String cleaned =
+                String.join("\n", kept)
+                        .replaceAll("(?<=\\p{L})-\\n(?=\\p{Ll})", "")
+                        .replaceAll("(?<!\\n)\\n(?!\\n)", " ")
+                        .replaceAll("[ ]+", " ")
+                        .replaceAll(" *\\n *", "\n")
+                        .replaceAll("\\n{3,}", "\n\n")
+                        .trim();
 
         if (cleaned.length() <= maxCharacters) {
             return cleaned;
@@ -75,9 +79,7 @@ public class ArtistBioTextCleaner {
         return frequencies;
     }
 
-    private boolean isRepeatedHeaderOrFooter(
-            String line,
-            Map<String, Integer> frequencies) {
+    private boolean isRepeatedHeaderOrFooter(String line, Map<String, Integer> frequencies) {
         if (line.length() > 120) {
             return false;
         }

@@ -1,18 +1,23 @@
 package org.ticketbox.ticketing.reporting.application;
 
-import org.ticketbox.ticketing.reporting.web.dto.OrganizerConcertResponse;
-import org.ticketbox.ticketing.reporting.web.dto.RevenueSummaryResponse;
-import org.ticketbox.ticketing.reporting.web.dto.SalesTrendResponse;
-import org.ticketbox.ticketing.reporting.web.dto.ZoneRevenueResponse;
-import org.ticketbox.ticketing.integration.catalog.ConcertReportingPort;
-import org.ticketbox.ticketing.integration.catalog.ConcertReportingView;
-import org.ticketbox.ticketing.integration.catalog.TicketTypeReportingView;
-import org.ticketbox.ticketing.reporting.RevenueSummaryView;
-import org.ticketbox.ticketing.reporting.SalesTrendView;
-import org.ticketbox.ticketing.reporting.TicketSalesReportingPort;
-import org.ticketbox.ticketing.reporting.ZoneRevenueView;
-import org.ticketbox.ticketing.web.AppException;
-import org.ticketbox.ticketing.web.ErrorCode;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.ticketbox.ticketing.application.error.AppException;
+import org.ticketbox.ticketing.application.error.ErrorCode;
+import org.ticketbox.ticketing.application.port.catalog.ConcertReportingPort;
+import org.ticketbox.ticketing.application.port.catalog.ConcertReportingView;
+import org.ticketbox.ticketing.application.port.catalog.TicketTypeReportingView;
+import org.ticketbox.ticketing.reporting.application.dto.OrganizerConcertResponse;
+import org.ticketbox.ticketing.reporting.application.dto.RevenueSummaryResponse;
+import org.ticketbox.ticketing.reporting.application.dto.SalesTrendResponse;
+import org.ticketbox.ticketing.reporting.application.dto.ZoneRevenueResponse;
+import org.ticketbox.ticketing.reporting.application.port.RevenueSummaryView;
+import org.ticketbox.ticketing.reporting.application.port.SalesTrendView;
+import org.ticketbox.ticketing.reporting.application.port.TicketSalesReportingPort;
+import org.ticketbox.ticketing.reporting.application.port.ZoneRevenueView;
+
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -24,10 +29,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @Transactional(readOnly = true)
@@ -47,23 +48,26 @@ public class OrganizerRevenueService {
     }
 
     public Page<OrganizerConcertResponse> getCompletedConcerts(
-            UUID organizerId,
-            Pageable pageable) {
-        return concertReportingPort.findCompletedConcerts(organizerId, pageable)
-                .map(concert -> new OrganizerConcertResponse(
-                        concert.id(),
-                        concert.title(),
-                        concert.eventDate(),
-                        concert.status()));
+            UUID organizerId, Pageable pageable) {
+        return concertReportingPort
+                .findCompletedConcerts(organizerId, pageable)
+                .map(
+                        concert ->
+                                new OrganizerConcertResponse(
+                                        concert.id(),
+                                        concert.title(),
+                                        concert.eventDate(),
+                                        concert.status()));
     }
 
     public RevenueSummaryResponse getRevenueSummary(UUID concertId, UUID organizerId) {
         requireCompletedOwnedConcert(concertId, organizerId);
 
         RevenueSummaryView sales = ticketSalesReportingPort.getRevenueSummary(concertId);
-        long totalCapacity = concertReportingPort.findTicketTypes(concertId).stream()
-                .mapToLong(TicketTypeReportingView::totalQuantity)
-                .sum();
+        long totalCapacity =
+                concertReportingPort.findTicketTypes(concertId).stream()
+                        .mapToLong(TicketTypeReportingView::totalQuantity)
+                        .sum();
 
         return new RevenueSummaryResponse(
                 concertId,
@@ -82,61 +86,56 @@ public class OrganizerRevenueService {
 
         Map<UUID, ZoneRevenueView> salesByTicketType =
                 ticketSalesReportingPort.getZoneRevenue(concertId).stream()
-                        .collect(Collectors.toMap(
-                                ZoneRevenueView::ticketTypeId,
-                                Function.identity()));
+                        .collect(
+                                Collectors.toMap(
+                                        ZoneRevenueView::ticketTypeId, Function.identity()));
 
         return concertReportingPort.findTicketTypes(concertId).stream()
                 .sorted((left, right) -> right.price().compareTo(left.price()))
-                .map(ticketType -> toZoneResponse(
-                        ticketType,
-                        salesByTicketType.get(ticketType.id())))
+                .map(
+                        ticketType ->
+                                toZoneResponse(ticketType, salesByTicketType.get(ticketType.id())))
                 .toList();
     }
 
     public List<SalesTrendResponse> getDailySalesTrend(
-            UUID concertId,
-            UUID organizerId,
-            LocalDate from,
-            LocalDate to) {
+            UUID concertId, UUID organizerId, LocalDate from, LocalDate to) {
         requireCompletedOwnedConcert(concertId, organizerId);
         validateDateRange(from, to);
 
         OffsetDateTime startDate = from.atStartOfDay(REPORTING_ZONE).toOffsetDateTime();
-        OffsetDateTime endDateExclusive = to.plusDays(1)
-                .atStartOfDay(REPORTING_ZONE)
-                .toOffsetDateTime();
+        OffsetDateTime endDateExclusive =
+                to.plusDays(1).atStartOfDay(REPORTING_ZONE).toOffsetDateTime();
 
         Map<LocalDate, SalesTrendResponse> trendByDate = new LinkedHashMap<>();
         from.datesUntil(to.plusDays(1))
-                .forEach(date -> trendByDate.put(
-                        date,
-                        new SalesTrendResponse(date, 0, BigDecimal.ZERO)));
+                .forEach(
+                        date ->
+                                trendByDate.put(
+                                        date, new SalesTrendResponse(date, 0, BigDecimal.ZERO)));
 
-        for (SalesTrendView trend : ticketSalesReportingPort.getDailySalesTrend(
-                concertId,
-                startDate,
-                endDateExclusive)) {
+        for (SalesTrendView trend :
+                ticketSalesReportingPort.getDailySalesTrend(
+                        concertId, startDate, endDateExclusive)) {
             LocalDate date = LocalDate.parse(trend.date());
             if (trendByDate.containsKey(date)) {
-                trendByDate.put(date, new SalesTrendResponse(
-                        date,
-                        trend.ticketsSold(),
-                        trend.revenue()));
+                trendByDate.put(
+                        date, new SalesTrendResponse(date, trend.ticketsSold(), trend.revenue()));
             }
         }
 
         return List.copyOf(trendByDate.values());
     }
 
-    private ConcertReportingView requireCompletedOwnedConcert(
-            UUID concertId,
-            UUID organizerId) {
-        ConcertReportingView concert = concertReportingPort
-                .findOwnedConcert(concertId, organizerId)
-                .orElseThrow(() -> new AppException(
-                        ErrorCode.RESOURCE_NOT_FOUND,
-                        "Không tìm thấy concert"));
+    private ConcertReportingView requireCompletedOwnedConcert(UUID concertId, UUID organizerId) {
+        ConcertReportingView concert =
+                concertReportingPort
+                        .findOwnedConcert(concertId, organizerId)
+                        .orElseThrow(
+                                () ->
+                                        new AppException(
+                                                ErrorCode.RESOURCE_NOT_FOUND,
+                                                "Không tìm thấy concert"));
 
         if (!COMPLETED_STATUS.equals(concert.status())) {
             throw new AppException(ErrorCode.CONCERT_NOT_COMPLETED);
@@ -146,8 +145,7 @@ public class OrganizerRevenueService {
     }
 
     private ZoneRevenueResponse toZoneResponse(
-            TicketTypeReportingView ticketType,
-            ZoneRevenueView sales) {
+            TicketTypeReportingView ticketType, ZoneRevenueView sales) {
         long soldQuantity = sales == null ? 0 : sales.soldQuantity();
         BigDecimal revenue = sales == null ? BigDecimal.ZERO : sales.revenue();
         long availableQuantity = Math.max(0, ticketType.totalQuantity() - soldQuantity);
@@ -175,8 +173,7 @@ public class OrganizerRevenueService {
     private void validateDateRange(LocalDate from, LocalDate to) {
         if (from.isAfter(to)) {
             throw new AppException(
-                    ErrorCode.INVALID_REQUEST,
-                    "Ngày bắt đầu phải trước hoặc bằng ngày kết thúc");
+                    ErrorCode.INVALID_REQUEST, "Ngày bắt đầu phải trước hoặc bằng ngày kết thúc");
         }
     }
 }

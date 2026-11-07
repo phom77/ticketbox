@@ -2,9 +2,9 @@
 
 ## Java service architecture
 
-These conventions apply to new and changed Java code in `services/`. The existing
-services have architectural debt recorded in Task 6b of
-`docs/superpowers/plans/2026-11-05-service-source-ownership.md`.
+These conventions apply to Java code in `services/`. Task 6b of
+`docs/superpowers/plans/2026-11-05-service-source-ownership.md` records the
+service architecture migration and its verification.
 
 - Organize a service by business capability, with `domain`, `application`,
   `infrastructure` and `web` inside each capability. A small service with one
@@ -18,9 +18,10 @@ services have architectural debt recorded in Task 6b of
   on domain types and ports. Keep HTTP request/response types, SQL, Redis commands,
   Spring Data repositories and provider SDKs in adapters. Spring service and
   transaction annotations may remain on use-case orchestration classes.
-- Put persistence entities, repository implementations, JDBC, Redis, messaging,
+- Put persistence mappings, persistence-only entities, repository implementations, JDBC, Redis, messaging,
   provider clients and local read projections in `infrastructure`. Translate
-  their data into the types defined by the application or domain.
+  their data into the types defined by the application or domain. Domain aggregates
+  may use external ORM mappings as recorded in `docs/adr/0001-service-domain-models.md`.
 - Put HTTP controllers, transport DTOs and HTTP error mapping in `web`. Map
   business errors to HTTP at this boundary.
 - Each service owns its types and storage. Communicate across services through
@@ -30,6 +31,8 @@ services have architectural debt recorded in Task 6b of
   Keep abstractions tied to an actual caller or adapter.
 
 ## Domain modeling
+
+Read `GLOSSARY-MAP.md` and the owning service glossary before changing business terms.
 
 - Identify the business operation, invariant, owner and transaction boundary
   before changing a write model. Derive aggregates from the consistency rules.

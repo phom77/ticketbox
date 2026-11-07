@@ -7,22 +7,23 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import org.ticketbox.checkin.guestlist.domain.BatchLog;
-import org.ticketbox.checkin.guestlist.domain.BatchLogRepository;
-import org.ticketbox.checkin.guestlist.infrastructure.batch.GuestListFileStorage;
-import org.ticketbox.checkin.guestlist.infrastructure.batch.GuestListImportProperties;
-import org.ticketbox.checkin.guestlist.infrastructure.batch.GuestListJobRunner;
-import org.ticketbox.checkin.web.AppException;
-import java.nio.file.Path;
-import java.time.OffsetDateTime;
-import java.util.Optional;
-import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.mock.web.MockMultipartFile;
+import org.ticketbox.checkin.application.error.AppException;
+import org.ticketbox.checkin.config.GuestListImportProperties;
+import org.ticketbox.checkin.guestlist.application.port.BatchLogRepository;
+import org.ticketbox.checkin.guestlist.domain.BatchLog;
+import org.ticketbox.checkin.guestlist.infrastructure.batch.GuestListFileStorage;
+import org.ticketbox.checkin.guestlist.infrastructure.batch.GuestListJobRunner;
+import org.ticketbox.checkin.support.TestUpload;
+
+import java.nio.file.Path;
+import java.time.OffsetDateTime;
+import java.util.Optional;
+import java.util.UUID;
 
 @ExtendWith(MockitoExtension.class)
 class GuestListImportServiceTest {
@@ -36,12 +37,13 @@ class GuestListImportServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new GuestListImportService(
-                batchLogRepository,
-                fileStorage,
-                new GuestListImportProperties(),
-                jobRunner,
-                accessService);
+        service =
+                new GuestListImportService(
+                        batchLogRepository,
+                        fileStorage,
+                        new GuestListImportProperties(),
+                        jobRunner,
+                        accessService);
     }
 
     @Test
@@ -49,12 +51,11 @@ class GuestListImportServiceTest {
         UUID concertId = UUID.randomUUID();
         UUID organizerId = UUID.randomUUID();
         Path incoming = Path.of("incoming", concertId.toString(), "queued-guests.csv");
-        MockMultipartFile file = csv();
+        TestUpload file = csv();
 
         when(fileStorage.storeScheduledUpload(concertId, file)).thenReturn(incoming);
         when(fileStorage.checksum(incoming)).thenReturn("checksum");
-        when(batchLogRepository
-                .findFirstByConcertIdAndChecksumAndStatusInOrderByCompletedAtDesc(
+        when(batchLogRepository.findFirstByConcertIdAndChecksumAndStatusInOrderByCompletedAtDesc(
                         any(), any(), any()))
                 .thenReturn(Optional.empty());
         when(batchLogRepository.saveAndFlush(any(BatchLog.class)))
@@ -80,15 +81,11 @@ class GuestListImportServiceTest {
         when(fileStorage.size(claimed)).thenReturn(128L);
         when(fileStorage.checksum(claimed)).thenReturn("checksum");
         when(batchLogRepository.findFirstByConcertIdAndChecksumAndStatusOrderByStartedAtDesc(
-                concertId, "checksum", BatchLog.Status.PENDING))
+                        concertId, "checksum", BatchLog.Status.PENDING))
                 .thenReturn(Optional.of(pending));
         when(batchLogRepository.saveAndFlush(pending)).thenReturn(pending);
 
-        BatchLog result = service.submitScheduled(
-                concertId,
-                claimed,
-                "queued-guests.csv",
-                queued);
+        BatchLog result = service.submitScheduled(concertId, claimed, "queued-guests.csv", queued);
 
         assertThat(result).isSameAs(pending);
         assertThat(result.getStatus()).isEqualTo(BatchLog.Status.RUNNING);
@@ -103,21 +100,17 @@ class GuestListImportServiceTest {
         Path incoming = Path.of("incoming", concertId.toString(), "duplicate.csv");
         BatchLog existing = pending(concertId, incoming, "checksum");
         existing.setStatus(BatchLog.Status.SUCCESS);
-        MockMultipartFile file = csv();
+        TestUpload file = csv();
 
         when(fileStorage.storeScheduledUpload(concertId, file)).thenReturn(incoming);
         when(fileStorage.checksum(incoming)).thenReturn("checksum");
-        when(batchLogRepository
-                .findFirstByConcertIdAndChecksumAndStatusInOrderByCompletedAtDesc(
+        when(batchLogRepository.findFirstByConcertIdAndChecksumAndStatusInOrderByCompletedAtDesc(
                         any(), any(), any()))
                 .thenReturn(Optional.of(existing));
         when(batchLogRepository.save(any(BatchLog.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        BatchLog result = service.queueScheduledUpload(
-                concertId,
-                file,
-                UUID.randomUUID());
+        BatchLog result = service.queueScheduledUpload(concertId, file, UUID.randomUUID());
 
         assertThat(result.getStatus()).isEqualTo(BatchLog.Status.SKIPPED);
         assertThat(result.getCompletedAt()).isNotNull();
@@ -129,12 +122,14 @@ class GuestListImportServiceTest {
     void queueScheduledUpload_StopsBeforeStorageWhenOrganizerDoesNotOwnConcert() throws Exception {
         UUID concertId = UUID.randomUUID();
         UUID organizerId = UUID.randomUUID();
-        MockMultipartFile file = csv();
-        AppException denied = new AppException(
-                org.ticketbox.checkin.web.ErrorCode.RESOURCE_NOT_FOUND,
-                "Concert not found");
+        TestUpload file = csv();
+        AppException denied =
+                new AppException(
+                        org.ticketbox.checkin.application.error.ErrorCode.RESOURCE_NOT_FOUND,
+                        "Concert not found");
         org.mockito.Mockito.doThrow(denied)
-                .when(accessService).requireAccess(concertId, organizerId, false);
+                .when(accessService)
+                .requireAccess(concertId, organizerId, false);
 
         assertThatThrownBy(() -> service.queueScheduledUpload(concertId, file, organizerId))
                 .isSameAs(denied);
@@ -142,8 +137,8 @@ class GuestListImportServiceTest {
         verify(fileStorage, never()).storeScheduledUpload(any(), any());
     }
 
-    private MockMultipartFile csv() {
-        return new MockMultipartFile(
+    private TestUpload csv() {
+        return new TestUpload(
                 "file",
                 "guests.csv",
                 "text/csv",

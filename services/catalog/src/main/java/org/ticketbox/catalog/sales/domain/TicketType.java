@@ -1,43 +1,31 @@
 package org.ticketbox.catalog.sales.domain;
 
-import org.ticketbox.catalog.persistence.BaseEntity;
-import jakarta.persistence.*;
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import org.ticketbox.catalog.domain.BaseEntity;
+
 import java.math.BigDecimal;
-import java.time.OffsetDateTime;
 import java.util.UUID;
 
-@Entity
-@Table(name = "ticket_types")
 @Getter
 @NoArgsConstructor
 public class TicketType extends BaseEntity {
 
-    @Column(name = "concert_id", nullable = false)
     private UUID concertId;
 
-    @Column(name = "name", nullable = false, length = 100)
     private String name;
 
-    @Column(name = "price", nullable = false, precision = 12, scale = 0)
     private BigDecimal price;
 
-    @Column(name = "total_quantity", nullable = false)
     private int totalQuantity;
 
-    @Column(name = "available_qty", nullable = false, updatable = false)
     private int availableQty;
 
-    @Column(name = "max_per_account", nullable = false)
     private int maxPerAccount = 4;
 
-    @Column(name = "zone_color", length = 7)
     private String zoneColor;
 
-    @Column(name = "is_active", nullable = false)
     private boolean isActive = true;
 
     public void setConcertId(UUID concertId) {

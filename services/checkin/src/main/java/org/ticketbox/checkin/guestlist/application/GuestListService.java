@@ -1,16 +1,17 @@
 package org.ticketbox.checkin.guestlist.application;
 
-import org.ticketbox.checkin.guestlist.domain.GuestList;
-import org.ticketbox.checkin.guestlist.domain.GuestListRepository;
-import org.ticketbox.checkin.guestlist.web.dto.GuestLookupResponse;
-import org.ticketbox.checkin.guestlist.PhoneNormalizer;
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.ticketbox.checkin.application.error.AppException;
+import org.ticketbox.checkin.application.error.ErrorCode;
+import org.ticketbox.checkin.guestlist.application.dto.GuestLookupResponse;
+import org.ticketbox.checkin.guestlist.application.port.GuestListRepository;
+import org.ticketbox.checkin.guestlist.domain.GuestList;
+import org.ticketbox.checkin.guestlist.domain.PhoneNormalizer;
 
 import java.util.UUID;
-import org.ticketbox.checkin.web.AppException;
-import org.ticketbox.checkin.web.ErrorCode;
 
 @Service
 @RequiredArgsConstructor
@@ -40,15 +41,28 @@ public class GuestListService {
     @Transactional
     public GuestLookupResponse checkIn(UUID guestId, UUID concertId, UUID staffId, String gate) {
         String normalizedGate = gate == null || gate.isBlank() ? "VIP" : gate.trim();
-        int updated = guestListRepository.checkInIfEligible(
-                guestId, concertId, staffId, normalizedGate, java.time.OffsetDateTime.now());
-        GuestList guest = guestListRepository.findById(guestId)
-                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy khách mời"));
+        int updated =
+                guestListRepository.checkInIfEligible(
+                        guestId,
+                        concertId,
+                        staffId,
+                        normalizedGate,
+                        java.time.OffsetDateTime.now());
+        GuestList guest =
+                guestListRepository
+                        .findById(guestId)
+                        .orElseThrow(
+                                () ->
+                                        new AppException(
+                                                ErrorCode.RESOURCE_NOT_FOUND,
+                                                "Không tìm thấy khách mời"));
         if (!guest.getConcertId().equals(concertId)) {
             throw new AppException(ErrorCode.UNAUTHORIZED, "Khách mời không thuộc concert này");
         }
         if (updated == 0 && guest.getCheckedInAt() == null) {
-            throw new AppException(ErrorCode.INVALID_STATUS_TRANSITION, "Khách mời không hoạt động nên không thể check-in");
+            throw new AppException(
+                    ErrorCode.INVALID_STATUS_TRANSITION,
+                    "Khách mời không hoạt động nên không thể check-in");
         }
         return toResponse(guest);
     }
@@ -64,7 +78,6 @@ public class GuestListService {
                 guest.getSponsorName(),
                 guest.getNotes(),
                 guest.getCheckedInAt(),
-                guest.getCheckinGate()
-        );
+                guest.getCheckinGate());
     }
 }

@@ -1,15 +1,15 @@
 package org.ticketbox.catalog.concert.application.mapper;
 
-import org.ticketbox.catalog.concert.domain.Concert;
-import org.ticketbox.catalog.concert.web.dto.ConcertDetailResponse;
-import org.ticketbox.catalog.concert.web.dto.ConcertSummaryResponse;
-import org.ticketbox.catalog.concert.web.dto.CreateConcertRequest;
-import org.ticketbox.catalog.concert.web.dto.UpdateConcertRequest;
 import org.mapstruct.BeanMapping;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 import org.mapstruct.NullValuePropertyMappingStrategy;
+import org.ticketbox.catalog.concert.application.dto.ConcertDetailResponse;
+import org.ticketbox.catalog.concert.application.dto.ConcertSummaryResponse;
+import org.ticketbox.catalog.concert.application.dto.CreateConcertRequest;
+import org.ticketbox.catalog.concert.application.dto.UpdateConcertRequest;
+import org.ticketbox.catalog.concert.domain.Concert;
 
 @Mapper(componentModel = "spring")
 public interface ConcertMapper {

@@ -1,0 +1,141 @@
+<?xml version='1.0' encoding='utf-8'?>
+<entity-mappings xmlns="https://jakarta.ee/xml/ns/persistence/orm" version="3.1">
+    <mapped-superclass class="org.ticketbox.checkin.domain.BaseEntity" access="FIELD" metadata-complete="true">
+        <pre-persist method-name="initializeTimestamps" />
+        <pre-update method-name="updateTimestamp" />
+        <attributes>
+            <id name="id">
+                <column name="id" updatable="false" nullable="false" />
+                <generated-value strategy="UUID" />
+            </id>
+            <basic name="createdAt">
+                <column name="created_at" nullable="false" updatable="false" />
+            </basic>
+            <basic name="updatedAt">
+                <column name="updated_at" nullable="false" />
+            </basic>
+        </attributes>
+    </mapped-superclass>
+    <entity class="org.ticketbox.checkin.guestlist.domain.BatchLog" access="FIELD" metadata-complete="true">
+        <table name="batch_logs" />
+        <attributes>
+            <basic name="jobName">
+                <column name="job_name" nullable="false" length="100" />
+            </basic>
+            <basic name="fileName">
+                <column name="file_name" length="255" />
+            </basic>
+            <basic name="concertId">
+                <column name="concert_id" />
+            </basic>
+            <basic name="source">
+                <column name="source" length="20" />
+                <enumerated>STRING</enumerated>
+            </basic>
+            <basic name="checksum">
+                <column name="checksum" length="64" />
+            </basic>
+            <basic name="filePath">
+                <column name="file_path" length="1000" />
+            </basic>
+            <basic name="errorReportPath">
+                <column name="error_report_path" length="1000" />
+            </basic>
+            <basic name="startedAt">
+                <column name="started_at" nullable="false" />
+            </basic>
+            <basic name="completedAt">
+                <column name="completed_at" />
+            </basic>
+            <basic name="status">
+                <column name="status" nullable="false" length="20" />
+                <enumerated>STRING</enumerated>
+            </basic>
+            <basic name="totalRows">
+                <column name="total_rows" nullable="false" />
+            </basic>
+            <basic name="successRows">
+                <column name="success_rows" nullable="false" />
+            </basic>
+            <basic name="errorRows">
+                <column name="error_rows" nullable="false" />
+            </basic>
+            <basic name="errorDetail">
+                <column name="error_detail" column-definition="TEXT" />
+            </basic>
+        </attributes>
+    </entity>
+    <entity class="org.ticketbox.checkin.guestlist.domain.GuestList" access="FIELD" metadata-complete="true">
+        <table name="guest_lists" />
+        <attributes>
+            <basic name="concertId">
+                <column name="concert_id" nullable="false" />
+            </basic>
+            <basic name="phone">
+                <column name="phone" nullable="false" length="20" />
+            </basic>
+            <basic name="fullName">
+                <column name="full_name" nullable="false" length="255" />
+            </basic>
+            <basic name="category">
+                <column name="category" length="100" />
+            </basic>
+            <basic name="sponsorName">
+                <column name="sponsor_name" length="255" />
+            </basic>
+            <basic name="notes">
+                <column name="notes" column-definition="TEXT" />
+            </basic>
+            <basic name="isActive">
+                <column name="is_active" nullable="false" />
+            </basic>
+            <basic name="importedAt">
+                <column name="imported_at" nullable="false" updatable="false" />
+            </basic>
+            <basic name="batchFile">
+                <column name="batch_file" length="255" />
+            </basic>
+            <basic name="checkedInAt">
+                <column name="checked_in_at" />
+            </basic>
+            <basic name="checkedInBy">
+                <column name="checked_in_by" />
+            </basic>
+            <basic name="checkinGate">
+                <column name="checkin_gate" length="100" />
+            </basic>
+        </attributes>
+    </entity>
+    <entity class="org.ticketbox.checkin.admission.domain.CheckinLog" access="FIELD" metadata-complete="true">
+        <table name="checkin_logs" />
+        <attributes>
+            <basic name="ticketId">
+                <column name="ticket_id" nullable="false" unique="true" />
+            </basic>
+            <basic name="concertId">
+                <column name="concert_id" nullable="false" />
+            </basic>
+            <basic name="staffId">
+                <column name="staff_id" />
+            </basic>
+            <basic name="deviceId">
+                <column name="device_id" length="255" />
+            </basic>
+            <basic name="checkedAt">
+                <column name="checked_at" nullable="false" />
+            </basic>
+            <basic name="syncAt">
+                <column name="sync_at" />
+            </basic>
+            <basic name="isOffline">
+                <column name="is_offline" nullable="false" />
+            </basic>
+            <basic name="gate">
+                <column name="gate" length="50" />
+            </basic>
+            <basic name="notes">
+                <column name="notes" column-definition="TEXT" />
+            </basic>
+        </attributes>
+    </entity>
+</entity-mappings>

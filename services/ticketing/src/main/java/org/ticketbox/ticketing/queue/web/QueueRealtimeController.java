@@ -1,11 +1,12 @@
 package org.ticketbox.ticketing.queue.web;
 
-import org.ticketbox.ticketing.queue.application.QueueRealtimeService;
-import org.ticketbox.ticketing.queue.web.dto.QueueSubscriptionRequest;
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.stereotype.Controller;
+import org.ticketbox.ticketing.queue.application.QueueRealtimeService;
+import org.ticketbox.ticketing.queue.application.dto.QueueSubscriptionRequest;
 
 import java.security.Principal;
 import java.util.UUID;
@@ -20,8 +21,8 @@ public class QueueRealtimeController {
     public void subscribe(
             QueueSubscriptionRequest request,
             Principal principal,
-            @Header("simpSessionId") String sessionId
-    ) {
-        queueRealtimeService.subscribe(sessionId, UUID.fromString(principal.getName()), request.concertId());
+            @Header("simpSessionId") String sessionId) {
+        queueRealtimeService.subscribe(
+                sessionId, UUID.fromString(principal.getName()), request.concertId());
     }
 }

@@ -1,9 +1,20 @@
 package org.ticketbox.checkin.guestlist.infrastructure.batch;
 
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVParser;
+import org.apache.commons.csv.CSVPrinter;
+import org.apache.commons.csv.CSVRecord;
+import org.apache.commons.csv.DuplicateHeaderMode;
+import org.springframework.batch.core.StepContribution;
+import org.springframework.batch.core.scope.context.ChunkContext;
+import org.springframework.batch.core.step.tasklet.Tasklet;
+import org.springframework.batch.repeat.RepeatStatus;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Component;
+import org.ticketbox.checkin.guestlist.application.port.BatchLogRepository;
 import org.ticketbox.checkin.guestlist.domain.BatchLog;
-import org.ticketbox.checkin.guestlist.domain.BatchLogRepository;
-import org.ticketbox.checkin.integration.catalog.LocalConcertProjection;
-import org.ticketbox.checkin.guestlist.PhoneNormalizer;
+import org.ticketbox.checkin.guestlist.domain.PhoneNormalizer;
+import org.ticketbox.checkin.infrastructure.integration.catalog.LocalConcertProjection;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -20,17 +31,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import org.apache.commons.csv.CSVFormat;
-import org.apache.commons.csv.CSVParser;
-import org.apache.commons.csv.CSVPrinter;
-import org.apache.commons.csv.CSVRecord;
-import org.apache.commons.csv.DuplicateHeaderMode;
-import org.springframework.batch.core.StepContribution;
-import org.springframework.batch.core.scope.context.ChunkContext;
-import org.springframework.batch.core.step.tasklet.Tasklet;
-import org.springframework.batch.repeat.RepeatStatus;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.stereotype.Component;
 
 @Component
 public class GuestListImportTasklet implements Tasklet {
@@ -69,14 +69,18 @@ public class GuestListImportTasklet implements Tasklet {
             throw new GuestListImportException("Concert does not exist");
         }
 
-        BatchLog batchLog = batchLogRepository.findById(batchLogId)
-                .orElseThrow(() -> new GuestListImportException("Batch log does not exist"));
+        BatchLog batchLog =
+                batchLogRepository
+                        .findById(batchLogId)
+                        .orElseThrow(
+                                () -> new GuestListImportException("Batch log does not exist"));
 
         int totalRows;
         try {
             totalRows = stageFile(batchLogId, concertId, filePath);
         } catch (GuestListImportException exception) {
-            Path errorReport = writeStructuralErrorReport(batchLogId, concertId, exception.getMessage());
+            Path errorReport =
+                    writeStructuralErrorReport(batchLogId, concertId, exception.getMessage());
             batchLog.setStatus(BatchLog.Status.FAILED);
             batchLog.setErrorDetail(exception.getMessage());
             batchLog.setErrorReportPath(errorReport.toString());
@@ -99,15 +103,14 @@ public class GuestListImportTasklet implements Tasklet {
             batchLog.setStatus(BatchLog.Status.FAILED);
             batchLog.setErrorDetail("CSV contains no valid rows");
             batchLog.setErrorReportPath(errorReport.toString());
-            jdbcTemplate.update("DELETE FROM guest_list_staging WHERE batch_log_id = ?", batchLogId);
+            jdbcTemplate.update(
+                    "DELETE FROM guest_list_staging WHERE batch_log_id = ?", batchLogId);
             batchLogRepository.save(batchLog);
             return RepeatStatus.FINISHED;
         }
 
         mergeValidRows(batchLogId, sourceFileName);
-        Path errorReport = errorRows > 0
-                ? writeErrorReport(batchLogId, concertId, false)
-                : null;
+        Path errorReport = errorRows > 0 ? writeErrorReport(batchLogId, concertId, false) : null;
         jdbcTemplate.update("DELETE FROM guest_list_staging WHERE batch_log_id = ?", batchLogId);
 
         batchLog.setTotalRows(totalRows);
@@ -123,13 +126,15 @@ public class GuestListImportTasklet implements Tasklet {
     }
 
     private int stageFile(UUID batchLogId, UUID concertId, Path filePath) throws IOException {
-        CSVFormat format = CSVFormat.DEFAULT.builder()
-                .setHeader()
-                .setSkipHeaderRecord(true)
-                .setIgnoreHeaderCase(true)
-                .setAllowMissingColumnNames(false)
-                .setDuplicateHeaderMode(DuplicateHeaderMode.DISALLOW)
-                .build();
+        CSVFormat format =
+                CSVFormat.DEFAULT
+                        .builder()
+                        .setHeader()
+                        .setSkipHeaderRecord(true)
+                        .setIgnoreHeaderCase(true)
+                        .setAllowMissingColumnNames(false)
+                        .setDuplicateHeaderMode(DuplicateHeaderMode.DISALLOW)
+                        .build();
 
         int totalRows = 0;
         List<StagedRow> pending = new ArrayList<>(WRITE_CHUNK_SIZE);
@@ -155,7 +160,8 @@ public class GuestListImportTasklet implements Tasklet {
     }
 
     private void validateHeaders(CSVParser parser) {
-        Set<String> missing = GuestListCsvSchema.missingRequiredHeaders(parser.getHeaderMap().keySet());
+        Set<String> missing =
+                GuestListCsvSchema.missingRequiredHeaders(parser.getHeaderMap().keySet());
         if (!missing.isEmpty()) {
             throw new GuestListImportException("Thiếu cột bắt buộc trong CSV: " + missing);
         }
@@ -252,9 +258,11 @@ public class GuestListImportTasklet implements Tasklet {
     }
 
     private int countRows(UUID batchLogId, boolean validOnly) {
-        String sql = validOnly
-                ? "SELECT COUNT(*) FROM guest_list_staging WHERE batch_log_id = ? AND validation_error IS NULL"
-                : "SELECT COUNT(*) FROM guest_list_staging WHERE batch_log_id = ?";
+        String sql =
+                validOnly
+                        ? "SELECT COUNT(*) FROM guest_list_staging WHERE batch_log_id = ? AND"
+                                + " validation_error IS NULL"
+                        : "SELECT COUNT(*) FROM guest_list_staging WHERE batch_log_id = ?";
         Integer count = jdbcTemplate.queryForObject(sql, Integer.class, batchLogId);
         return count == null ? 0 : count;
     }
@@ -289,19 +297,22 @@ public class GuestListImportTasklet implements Tasklet {
             throws IOException {
         Path reportPath = fileStorage.errorReportPath(concertId, batchLogId, failed);
         try (BufferedWriter writer = Files.newBufferedWriter(reportPath, StandardCharsets.UTF_8);
-                CSVPrinter printer = new CSVPrinter(
-                        writer,
-                        CSVFormat.DEFAULT.builder()
-                                .setHeader("row_number", "phone", "error")
-                                .build())) {
-            List<Map<String, Object>> errors = jdbcTemplate.queryForList(
-                    """
-                    SELECT row_number, normalized_phone, validation_error
-                    FROM guest_list_staging
-                    WHERE batch_log_id = ? AND validation_error IS NOT NULL
-                    ORDER BY row_number
-                    """,
-                    batchLogId);
+                CSVPrinter printer =
+                        new CSVPrinter(
+                                writer,
+                                CSVFormat.DEFAULT
+                                        .builder()
+                                        .setHeader("row_number", "phone", "error")
+                                        .build())) {
+            List<Map<String, Object>> errors =
+                    jdbcTemplate.queryForList(
+                            """
+                            SELECT row_number, normalized_phone, validation_error
+                            FROM guest_list_staging
+                            WHERE batch_log_id = ? AND validation_error IS NOT NULL
+                            ORDER BY row_number
+                            """,
+                            batchLogId);
             for (Map<String, Object> error : errors) {
                 printer.printRecord(
                         error.get("row_number"),
@@ -316,9 +327,13 @@ public class GuestListImportTasklet implements Tasklet {
             throws IOException {
         Path reportPath = fileStorage.errorReportPath(concertId, batchLogId, true);
         try (BufferedWriter writer = Files.newBufferedWriter(reportPath, StandardCharsets.UTF_8);
-                CSVPrinter printer = new CSVPrinter(writer, CSVFormat.DEFAULT.builder()
-                        .setHeader("row_number", "phone", "error")
-                        .build())) {
+                CSVPrinter printer =
+                        new CSVPrinter(
+                                writer,
+                                CSVFormat.DEFAULT
+                                        .builder()
+                                        .setHeader("row_number", "phone", "error")
+                                        .build())) {
             printer.printRecord(0, "", error);
         }
         return reportPath;

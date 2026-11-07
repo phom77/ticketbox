@@ -1,14 +1,14 @@
 package org.ticketbox.ticketing.queue.application;
 
-import org.ticketbox.ticketing.queue.web.dto.QueueStatusResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.event.EventListener;
+
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import org.springframework.web.socket.messaging.SessionDisconnectEvent;
-import org.springframework.beans.factory.annotation.Value;
+import org.ticketbox.ticketing.queue.application.dto.QueueStatusResponse;
+import org.ticketbox.ticketing.queue.application.port.WaitingRoomOperations;
 
 import java.util.Map;
 import java.util.UUID;
@@ -20,19 +20,24 @@ import java.util.concurrent.ConcurrentHashMap;
 @Slf4j
 public class QueueRealtimeService {
 
-    private final WaitingRoomService waitingRoomService;
+    private final WaitingRoomOperations waitingRoomService;
     private final SimpMessagingTemplate messagingTemplate;
     private final Map<String, Subscription> subscriptions = new ConcurrentHashMap<>();
     private final Map<UUID, Integer> concertSubscriptions = new ConcurrentHashMap<>();
-    private final Map<Subscription,Integer> audienceSubscriptions = new ConcurrentHashMap<>();
+    private final Map<Subscription, Integer> audienceSubscriptions = new ConcurrentHashMap<>();
+
     @Value("${ticketbox.queue.websocket-snapshot-interval-ms:10000}")
     private long snapshotIntervalMs;
+
     private long lastSnapshotAt;
 
     public void subscribe(String sessionId, UUID userId, UUID concertId) {
         Subscription previous = subscriptions.put(sessionId, new Subscription(userId, concertId));
-        if (previous != null) { removeConcert(previous.concertId()); removeAudience(previous); }
-        audienceSubscriptions.merge(new Subscription(userId,concertId),1,Integer::sum);
+        if (previous != null) {
+            removeConcert(previous.concertId());
+            removeAudience(previous);
+        }
+        audienceSubscriptions.merge(new Subscription(userId, concertId), 1, Integer::sum);
         concertSubscriptions.merge(concertId, 1, Integer::sum);
         push(sessionId, userId, concertId);
     }
@@ -43,35 +48,42 @@ public class QueueRealtimeService {
         for (UUID concertId : concerts) {
             try {
                 if (System.currentTimeMillis() - lastSnapshotAt >= snapshotIntervalMs) {
-                    messagingTemplate.convertAndSend("/topic/queue/concerts/" + concertId,
+                    messagingTemplate.convertAndSend(
+                            "/topic/queue/concerts/" + concertId,
                             waitingRoomService.snapshot(concertId));
                 }
             } catch (RuntimeException exception) {
                 log.debug("Queue update unavailable for {}", concertId, exception);
             }
         }
-        if (System.currentTimeMillis() - lastSnapshotAt >= snapshotIntervalMs) lastSnapshotAt = System.currentTimeMillis();
+        if (System.currentTimeMillis() - lastSnapshotAt >= snapshotIntervalMs)
+            lastSnapshotAt = System.currentTimeMillis();
     }
 
     public void onAdmissionHint(UUID concertId, UUID userId) {
-        if (!audienceSubscriptions.containsKey(new Subscription(userId,concertId))) return;
-        var status=waitingRoomService.internalStatus(concertId,userId);
-        messagingTemplate.convertAndSendToUser(userId.toString(),"/queue/concerts/"+concertId,status);
+        if (!audienceSubscriptions.containsKey(new Subscription(userId, concertId))) return;
+        var status = waitingRoomService.internalStatus(concertId, userId);
+        messagingTemplate.convertAndSendToUser(
+                userId.toString(), "/queue/concerts/" + concertId, status);
     }
 
-    @EventListener
-    public void handleDisconnect(SessionDisconnectEvent event) {
+    public void handleDisconnect(String sessionId) {
         // A transport disconnect is not an explicit leave; reconnect retains membership.
-        Subscription removed = subscriptions.remove(event.getSessionId());
-        if (removed != null) { removeConcert(removed.concertId()); removeAudience(removed); }
+        Subscription removed = subscriptions.remove(sessionId);
+        if (removed != null) {
+            removeConcert(removed.concertId());
+            removeAudience(removed);
+        }
     }
 
     private void removeAudience(Subscription subscription) {
-        audienceSubscriptions.computeIfPresent(subscription,(key,count) -> count <= 1 ? null : count-1);
+        audienceSubscriptions.computeIfPresent(
+                subscription, (key, count) -> count <= 1 ? null : count - 1);
     }
 
     private void removeConcert(UUID concertId) {
-        concertSubscriptions.computeIfPresent(concertId, (key, count) -> count <= 1 ? null : count - 1);
+        concertSubscriptions.computeIfPresent(
+                concertId, (key, count) -> count <= 1 ? null : count - 1);
     }
 
     private void push(String sessionId, UUID userId, UUID concertId) {
@@ -82,13 +94,11 @@ public class QueueRealtimeService {
                     userId.toString(),
                     "/queue/concerts/" + concertId,
                     status,
-                    Map.of("simpSessionId", sessionId)
-            );
+                    Map.of("simpSessionId", sessionId));
         } catch (RuntimeException exception) {
             log.debug("Could not push waiting-room update for session {}", sessionId, exception);
         }
     }
 
-    private record Subscription(UUID userId, UUID concertId) {
-    }
+    private record Subscription(UUID userId, UUID concertId) {}
 }

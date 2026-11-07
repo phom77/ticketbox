@@ -1,24 +1,5 @@
 package org.ticketbox.catalog.concert.web;
 
-import org.ticketbox.catalog.security.JwtService;
-import org.ticketbox.catalog.security.SecurityConfig;
-import org.ticketbox.catalog.concert.application.ConcertPosterService;
-import org.ticketbox.catalog.concert.application.ConcertService;
-import org.ticketbox.catalog.concert.web.dto.ConcertDetailResponse;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.context.annotation.Import;
-import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.test.web.servlet.MockMvc;
-
-import java.time.OffsetDateTime;
-import java.util.List;
-import java.util.UUID;
-
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
@@ -28,40 +9,59 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
+import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.test.web.servlet.MockMvc;
+import org.ticketbox.catalog.concert.application.ConcertPosterService;
+import org.ticketbox.catalog.concert.application.ConcertService;
+import org.ticketbox.catalog.concert.application.dto.ConcertDetailResponse;
+import org.ticketbox.catalog.config.SecurityConfig;
+import org.ticketbox.catalog.infrastructure.security.JwtService;
+
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.UUID;
+
 @WebMvcTest(controllers = AdminConcertController.class)
 @Import(SecurityConfig.class)
 class AdminConcertPosterControllerTest {
 
-    @Autowired
-    private MockMvc mockMvc;
+    @Autowired private MockMvc mockMvc;
 
-    @MockBean
-    private ConcertService concertService;
+    @MockBean private ConcertService concertService;
 
-    @MockBean
-    private ConcertPosterService concertPosterService;
+    @MockBean private ConcertPosterService concertPosterService;
 
-    @MockBean
-    private JwtService jwtService;
-
+    @MockBean private JwtService jwtService;
 
     @Test
     void replacePoster_AsOrganizer_ReturnsUpdatedConcert() throws Exception {
         UUID concertId = UUID.randomUUID();
         UUID organizerId = UUID.randomUUID();
-        MockMultipartFile file = new MockMultipartFile(
-                "file", "poster.jpg", "image/jpeg",
-                new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF});
+        MockMultipartFile file =
+                new MockMultipartFile(
+                        "file",
+                        "poster.jpg",
+                        "image/jpeg",
+                        new byte[] {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF});
         when(concertPosterService.replacePoster(eq(concertId), any(), eq(organizerId), eq(false)))
                 .thenReturn(response(concertId, organizerId, "https://cloudinary/poster.jpg"));
 
-        mockMvc.perform(multipart("/api/admin/concerts/{id}/poster", concertId)
-                        .file(file)
-                        .with(request -> {
-                            request.setMethod("PUT");
-                            return request;
-                        })
-                        .with(authentication(auth(organizerId, "ORGANIZER"))))
+        mockMvc.perform(
+                        multipart("/api/admin/concerts/{id}/poster", concertId)
+                                .file(file)
+                                .with(
+                                        request -> {
+                                            request.setMethod("PUT");
+                                            return request;
+                                        })
+                                .with(authentication(auth(organizerId, "ORGANIZER"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.posterUrl").value("https://cloudinary/poster.jpg"));
     }
@@ -69,17 +69,22 @@ class AdminConcertPosterControllerTest {
     @Test
     void replacePoster_AsAudience_IsForbidden() throws Exception {
         UUID concertId = UUID.randomUUID();
-        MockMultipartFile file = new MockMultipartFile(
-                "file", "poster.jpg", "image/jpeg",
-                new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF});
+        MockMultipartFile file =
+                new MockMultipartFile(
+                        "file",
+                        "poster.jpg",
+                        "image/jpeg",
+                        new byte[] {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF});
 
-        mockMvc.perform(multipart("/api/admin/concerts/{id}/poster", concertId)
-                        .file(file)
-                        .with(request -> {
-                            request.setMethod("PUT");
-                            return request;
-                        })
-                        .with(authentication(auth(UUID.randomUUID(), "AUDIENCE"))))
+        mockMvc.perform(
+                        multipart("/api/admin/concerts/{id}/poster", concertId)
+                                .file(file)
+                                .with(
+                                        request -> {
+                                            request.setMethod("PUT");
+                                            return request;
+                                        })
+                                .with(authentication(auth(UUID.randomUUID(), "AUDIENCE"))))
                 .andExpect(status().isForbidden());
     }
 
@@ -90,8 +95,9 @@ class AdminConcertPosterControllerTest {
         when(concertPosterService.removePoster(concertId, adminId, true))
                 .thenReturn(response(concertId, adminId, null));
 
-        mockMvc.perform(delete("/api/admin/concerts/{id}/poster", concertId)
-                        .with(authentication(auth(adminId, "ADMIN"))))
+        mockMvc.perform(
+                        delete("/api/admin/concerts/{id}/poster", concertId)
+                                .with(authentication(auth(adminId, "ADMIN"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.posterUrl").doesNotExist());
     }
@@ -104,7 +110,21 @@ class AdminConcertPosterControllerTest {
     private ConcertDetailResponse response(UUID concertId, UUID creatorId, String posterUrl) {
         OffsetDateTime now = OffsetDateTime.now();
         return new ConcertDetailResponse(
-                concertId, "Concert", null, null, "Venue", "Address",
-                now.plusDays(1), null, null, null, "DRAFT", null, posterUrl, creatorId, now, now);
+                concertId,
+                "Concert",
+                null,
+                null,
+                "Venue",
+                "Address",
+                now.plusDays(1),
+                null,
+                null,
+                null,
+                "DRAFT",
+                null,
+                posterUrl,
+                creatorId,
+                now,
+                now);
     }
 }

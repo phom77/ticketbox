@@ -1,0 +1,150 @@
+<?xml version='1.0' encoding='utf-8'?>
+<entity-mappings xmlns="https://jakarta.ee/xml/ns/persistence/orm" version="3.1">
+    <mapped-superclass class="org.ticketbox.catalog.domain.BaseEntity" access="FIELD" metadata-complete="true">
+        <pre-persist method-name="initializeTimestamps" />
+        <pre-update method-name="updateTimestamp" />
+        <attributes>
+            <id name="id">
+                <column name="id" updatable="false" nullable="false" />
+                <generated-value strategy="UUID" />
+            </id>
+            <basic name="createdAt">
+                <column name="created_at" nullable="false" updatable="false" />
+            </basic>
+            <basic name="updatedAt">
+                <column name="updated_at" nullable="false" />
+            </basic>
+        </attributes>
+    </mapped-superclass>
+    <entity class="org.ticketbox.catalog.sales.domain.TicketType" access="FIELD" metadata-complete="true">
+        <table name="ticket_types" />
+        <attributes>
+            <basic name="concertId">
+                <column name="concert_id" nullable="false" />
+            </basic>
+            <basic name="name">
+                <column name="name" nullable="false" length="100" />
+            </basic>
+            <basic name="price">
+                <column name="price" nullable="false" precision="12" scale="0" />
+            </basic>
+            <basic name="totalQuantity">
+                <column name="total_quantity" nullable="false" />
+            </basic>
+            <basic name="availableQty">
+                <column name="available_qty" nullable="false" updatable="false" />
+            </basic>
+            <basic name="maxPerAccount">
+                <column name="max_per_account" nullable="false" />
+            </basic>
+            <basic name="zoneColor">
+                <column name="zone_color" length="7" />
+            </basic>
+            <basic name="isActive">
+                <column name="is_active" nullable="false" />
+            </basic>
+        </attributes>
+    </entity>
+    <entity class="org.ticketbox.catalog.concert.domain.Concert" access="FIELD" metadata-complete="true">
+        <table name="concerts" />
+        <attributes>
+            <basic name="title">
+                <column name="title" nullable="false" length="500" />
+            </basic>
+            <basic name="description">
+                <column name="description" column-definition="TEXT" />
+            </basic>
+            <basic name="artistBio">
+                <column name="artist_bio" column-definition="TEXT" />
+            </basic>
+            <basic name="venueName">
+                <column name="venue_name" nullable="false" length="500" />
+            </basic>
+            <basic name="venueAddress">
+                <column name="venue_address" nullable="false" column-definition="TEXT" />
+            </basic>
+            <basic name="eventDate">
+                <column name="event_date" nullable="false" />
+            </basic>
+            <basic name="doorsOpenAt">
+                <column name="doors_open_at" />
+            </basic>
+            <basic name="saleStartAt">
+                <column name="sale_start_at" nullable="false" />
+            </basic>
+            <basic name="saleEndAt">
+                <column name="sale_end_at" />
+            </basic>
+            <basic name="status">
+                <column name="status" nullable="false" length="20" />
+                <enumerated>STRING</enumerated>
+            </basic>
+            <basic name="seatMapSvg">
+                <column name="seat_map_svg" column-definition="TEXT" />
+            </basic>
+            <basic name="posterUrl">
+                <column name="poster_url" length="500" />
+            </basic>
+            <basic name="posterPublicId">
+                <column name="poster_public_id" length="500" />
+            </basic>
+            <basic name="publicVisible">
+                <column name="is_public" nullable="false" />
+            </basic>
+            <basic name="createdBy">
+                <column name="created_by" nullable="false" />
+            </basic>
+        </attributes>
+    </entity>
+    <entity class="org.ticketbox.catalog.artistbio.domain.ArtistPdfJob" access="FIELD" metadata-complete="true">
+        <table name="artist_pdf_jobs" />
+        <attributes>
+            <basic name="concertId">
+                <column name="concert_id" nullable="false" />
+            </basic>
+            <basic name="fileUrl">
+                <column name="file_url" nullable="false" length="500" />
+            </basic>
+            <basic name="originalFileName">
+                <column name="original_file_name" nullable="false" length="255" />
+            </basic>
+            <basic name="requestedBy">
+                <column name="requested_by" nullable="false" />
+            </basic>
+            <basic name="fileChecksum">
+                <column name="file_checksum" nullable="false" length="64" />
+            </basic>
+            <basic name="status">
+                <column name="status" nullable="false" length="20" />
+                <enumerated>STRING</enumerated>
+            </basic>
+            <basic name="provider">
+                <column name="provider" length="50" />
+            </basic>
+            <basic name="model">
+                <column name="model" length="100" />
+            </basic>
+            <basic name="extractedCharCount">
+                <column name="extracted_char_count" />
+            </basic>
+            <basic name="resultBio">
+                <column name="result_bio" column-definition="TEXT" />
+            </basic>
+            <basic name="startedAt">
+                <column name="started_at" />
+            </basic>
+            <basic name="completedAt">
+                <column name="completed_at" />
+            </basic>
+            <basic name="errorMessage">
+                <column name="error_message" column-definition="TEXT" />
+            </basic>
+            <basic name="appliedAt">
+                <column name="applied_at" />
+            </basic>
+            <basic name="appliedBy">
+                <column name="applied_by" />
+            </basic>
+        </attributes>
+    </entity>
+</entity-mappings>

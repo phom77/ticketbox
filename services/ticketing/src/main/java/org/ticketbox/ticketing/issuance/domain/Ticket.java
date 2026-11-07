@@ -1,52 +1,40 @@
 package org.ticketbox.ticketing.issuance.domain;
 
-import org.ticketbox.ticketing.persistence.BaseEntity;
-import jakarta.persistence.*;
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.CreationTimestamp;
+
+import org.ticketbox.ticketing.domain.BaseEntity;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
-@Entity
-@Table(name = "tickets")
 @NoArgsConstructor
 @Getter
 public class Ticket extends BaseEntity {
 
     public enum Status {
-        VALID, USED, CANCELLED, TRANSFERRED
+        VALID,
+        USED,
+        CANCELLED,
+        TRANSFERRED
     }
 
-    @Column(name = "order_item_id", nullable = false)
     private UUID orderItemId;
 
-    @Column(name = "ticket_type_id", nullable = false)
     private UUID ticketTypeId;
 
-    @Column(name = "concert_id", nullable = false)
     private UUID concertId;
 
-    @Column(name = "user_id", nullable = false)
     private UUID userId;
 
-    @Column(name = "qr_code", nullable = false, unique = true, length = 500)
     private String qrCode;
 
-    @Column(name = "qr_secret", nullable = false, length = 255)
     private String qrSecret;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false, length = 20)
     private Status status = Status.VALID;
 
-    @CreationTimestamp
-    @Column(name = "issued_at", nullable = false, updatable = false)
     private OffsetDateTime issuedAt;
 
-    @Column(name = "used_at")
     private OffsetDateTime usedAt;
 
     public void setOrderItemId(UUID orderItemId) {
@@ -83,5 +71,9 @@ public class Ticket extends BaseEntity {
 
     public void setUsedAt(OffsetDateTime usedAt) {
         this.usedAt = usedAt;
+    }
+
+    protected void initializeIssueTime() {
+        if (issuedAt == null) issuedAt = OffsetDateTime.now();
     }
 }

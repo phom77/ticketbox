@@ -1,18 +1,18 @@
 package org.ticketbox.catalog.concert.application;
 
-import org.ticketbox.catalog.concert.application.mapper.ConcertMapper;
-import org.ticketbox.catalog.concert.application.port.PosterStorage;
-import org.ticketbox.catalog.concert.application.port.PosterStorage.StoredPoster;
-import org.ticketbox.catalog.concert.domain.Concert;
-import org.ticketbox.catalog.concert.domain.ConcertRepository;
-import org.ticketbox.catalog.concert.web.dto.ConcertDetailResponse;
-import org.ticketbox.catalog.web.AppException;
-import org.ticketbox.catalog.web.ErrorCode;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
-import org.springframework.web.multipart.MultipartFile;
+import org.ticketbox.catalog.application.error.AppException;
+import org.ticketbox.catalog.application.error.ErrorCode;
+import org.ticketbox.catalog.application.port.Upload;
+import org.ticketbox.catalog.concert.application.dto.ConcertDetailResponse;
+import org.ticketbox.catalog.concert.application.mapper.ConcertMapper;
+import org.ticketbox.catalog.concert.application.port.ConcertRepository;
+import org.ticketbox.catalog.concert.application.port.PosterStorage;
+import org.ticketbox.catalog.concert.application.port.PosterStorage.StoredPoster;
+import org.ticketbox.catalog.concert.domain.Concert;
 
 import java.util.UUID;
 
@@ -28,8 +28,7 @@ public class ConcertPosterService {
             ConcertRepository concertRepository,
             ConcertMapper concertMapper,
             PosterStorage posterStorage,
-            ConcertService concertService
-    ) {
+            ConcertService concertService) {
         this.concertRepository = concertRepository;
         this.concertMapper = concertMapper;
         this.posterStorage = posterStorage;
@@ -38,11 +37,7 @@ public class ConcertPosterService {
 
     @Transactional
     public ConcertDetailResponse replacePoster(
-            UUID concertId,
-            MultipartFile file,
-            UUID requesterId,
-            boolean isAdmin
-    ) {
+            UUID concertId, Upload file, UUID requesterId, boolean isAdmin) {
         Concert concert = editableConcert(concertId, requesterId, isAdmin);
         String previousPublicId = concert.getPosterPublicId();
         StoredPoster uploaded = posterStorage.upload(concertId, file);
@@ -56,19 +51,20 @@ public class ConcertPosterService {
             posterStorage.deleteBestEffort(previousPublicId);
             return concertMapper.toDetailResponse(concert);
         }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                posterStorage.deleteBestEffort(previousPublicId);
-            }
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        posterStorage.deleteBestEffort(previousPublicId);
+                    }
 
-            @Override
-            public void afterCompletion(int status) {
-                if (status != STATUS_COMMITTED) {
-                    posterStorage.deleteBestEffort(uploaded.publicId());
-                }
-            }
-        });
+                    @Override
+                    public void afterCompletion(int status) {
+                        if (status != STATUS_COMMITTED) {
+                            posterStorage.deleteBestEffort(uploaded.publicId());
+                        }
+                    }
+                });
         return concertMapper.toDetailResponse(concert);
     }
 
@@ -86,14 +82,23 @@ public class ConcertPosterService {
     }
 
     private Concert editableConcert(UUID concertId, UUID requesterId, boolean isAdmin) {
-        Concert concert = concertRepository.findById(concertId)
-                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy concert với ID: " + concertId));
+        Concert concert =
+                concertRepository
+                        .findById(concertId)
+                        .orElseThrow(
+                                () ->
+                                        new AppException(
+                                                ErrorCode.RESOURCE_NOT_FOUND,
+                                                "Không tìm thấy concert với ID: " + concertId));
 
         if (!isAdmin && !concert.getCreatedBy().equals(requesterId)) {
-            throw new AppException(ErrorCode.UNAUTHORIZED, "Bạn không có quyền chỉnh sửa concert này");
+            throw new AppException(
+                    ErrorCode.UNAUTHORIZED, "Bạn không có quyền chỉnh sửa concert này");
         }
-        if (concert.getStatus() == Concert.Status.COMPLETED || concert.getStatus() == Concert.Status.CANCELLED) {
-            throw new AppException(ErrorCode.INVALID_STATUS_TRANSITION,
+        if (concert.getStatus() == Concert.Status.COMPLETED
+                || concert.getStatus() == Concert.Status.CANCELLED) {
+            throw new AppException(
+                    ErrorCode.INVALID_STATUS_TRANSITION,
                     "Không thể cập nhật poster concert ở trạng thái " + concert.getStatus());
         }
         return concert;
@@ -105,11 +110,12 @@ public class ConcertPosterService {
             posterStorage.deleteBestEffort(publicId);
             return;
         }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                posterStorage.deleteBestEffort(publicId);
-            }
-        });
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        posterStorage.deleteBestEffort(publicId);
+                    }
+                });
     }
 }

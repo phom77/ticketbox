@@ -1,6 +1,11 @@
 package org.ticketbox.checkin.guestlist.infrastructure.batch;
 
 import jakarta.annotation.PostConstruct;
+
+import org.springframework.stereotype.Component;
+import org.ticketbox.checkin.application.port.Upload;
+import org.ticketbox.checkin.config.GuestListImportProperties;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.AtomicMoveNotSupportedException;
@@ -14,11 +19,10 @@ import java.time.Instant;
 import java.util.HexFormat;
 import java.util.Locale;
 import java.util.UUID;
-import org.springframework.stereotype.Component;
-import org.springframework.web.multipart.MultipartFile;
 
 @Component
-public class GuestListFileStorage {
+public class GuestListFileStorage
+        implements org.ticketbox.checkin.guestlist.application.port.GuestListFiles {
 
     private final GuestListImportProperties properties;
     private Path root;
@@ -41,7 +45,7 @@ public class GuestListFileStorage {
         return root.resolve("incoming");
     }
 
-    public Path storeUpload(UUID concertId, MultipartFile file) throws IOException {
+    public Path storeUpload(UUID concertId, Upload file) throws IOException {
         Path targetDirectory = safeConcertDirectory(processingRoot(), concertId);
         Files.createDirectories(targetDirectory);
         Path target = targetDirectory.resolve(UUID.randomUUID() + ".csv");
@@ -51,7 +55,7 @@ public class GuestListFileStorage {
         return target;
     }
 
-    public Path storeScheduledUpload(UUID concertId, MultipartFile file) throws IOException {
+    public Path storeScheduledUpload(UUID concertId, Upload file) throws IOException {
         Path targetDirectory = safeConcertDirectory(incomingRoot(), concertId);
         Files.createDirectories(targetDirectory);
         String safeName = sanitizeFileName(file.getOriginalFilename());
@@ -80,9 +84,7 @@ public class GuestListFileStorage {
 
     public Path archive(Path source, UUID concertId, boolean partial) throws IOException {
         return moveToFinalDirectory(
-                source,
-                partial ? archivePartialRoot() : archiveSuccessRoot(),
-                concertId);
+                source, partial ? archivePartialRoot() : archiveSuccessRoot(), concertId);
     }
 
     public Path quarantine(Path source, UUID concertId) throws IOException {
@@ -101,8 +103,10 @@ public class GuestListFileStorage {
         try {
             return Files.isRegularFile(path)
                     && path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".csv")
-                    && !Files.getLastModifiedTime(path).toInstant()
-                            .plus(properties.getStableAge()).isAfter(now);
+                    && !Files.getLastModifiedTime(path)
+                            .toInstant()
+                            .plus(properties.getStableAge())
+                            .isAfter(now);
         } catch (IOException ex) {
             return false;
         }
@@ -127,9 +131,8 @@ public class GuestListFileStorage {
 
     public Path errorReportPath(UUID concertId, UUID batchLogId, boolean failed)
             throws IOException {
-        Path directory = safeConcertDirectory(
-                failed ? errorRoot() : archivePartialRoot(),
-                concertId);
+        Path directory =
+                safeConcertDirectory(failed ? errorRoot() : archivePartialRoot(), concertId);
         Files.createDirectories(directory);
         return directory.resolve(batchLogId + "-errors.csv");
     }
@@ -140,8 +143,7 @@ public class GuestListFileStorage {
         Path destinationDirectory = safeConcertDirectory(destinationRoot, concertId);
         Files.createDirectories(destinationDirectory);
         return atomicMove(
-                safeSource,
-                destinationDirectory.resolve(safeSource.getFileName().toString()));
+                safeSource, destinationDirectory.resolve(safeSource.getFileName().toString()));
     }
 
     private Path atomicMove(Path source, Path target) throws IOException {

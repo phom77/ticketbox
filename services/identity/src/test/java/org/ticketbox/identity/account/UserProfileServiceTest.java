@@ -1,20 +1,5 @@
 package org.ticketbox.identity.account;
 
-import org.ticketbox.identity.account.dto.UpdateUserProfileRequest;
-import org.ticketbox.identity.account.dto.UserProfileResponse;
-import org.ticketbox.identity.web.AppException;
-import org.ticketbox.identity.web.ErrorCode;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.test.util.ReflectionTestUtils;
-
-import java.util.Optional;
-import java.util.UUID;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -23,14 +8,30 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.ticketbox.identity.account.application.UserProfileService;
+import org.ticketbox.identity.account.application.dto.UpdateUserProfileRequest;
+import org.ticketbox.identity.account.application.dto.UserProfileResponse;
+import org.ticketbox.identity.account.application.port.UserRepository;
+import org.ticketbox.identity.account.domain.User;
+import org.ticketbox.identity.application.error.AppException;
+import org.ticketbox.identity.application.error.ErrorCode;
+
+import java.util.Optional;
+import java.util.UUID;
+
 @ExtendWith(MockitoExtension.class)
 class UserProfileServiceTest {
 
-    @Mock
-    private UserRepository userRepository;
+    @Mock private UserRepository userRepository;
 
-    @InjectMocks
-    private UserProfileService userProfileService;
+    @InjectMocks private UserProfileService userProfileService;
 
     private UUID userId;
     private User user;
@@ -66,10 +67,9 @@ class UserProfileServiceTest {
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
         when(userRepository.save(user)).thenReturn(user);
 
-        UserProfileResponse response = userProfileService.updateProfile(
-                userId,
-                new UpdateUserProfileRequest(" Updated Name ", " 0987654321 ")
-        );
+        UserProfileResponse response =
+                userProfileService.updateProfile(
+                        userId, new UpdateUserProfileRequest(" Updated Name ", " 0987654321 "));
 
         assertEquals("Updated Name", response.fullName());
         assertEquals("0987654321", response.phone());
@@ -98,7 +98,8 @@ class UserProfileServiceTest {
     void getProfile_UserNotFound_ThrowsNotFound() {
         when(userRepository.findById(userId)).thenReturn(Optional.empty());
 
-        AppException ex = assertThrows(AppException.class, () -> userProfileService.getProfile(userId));
+        AppException ex =
+                assertThrows(AppException.class, () -> userProfileService.getProfile(userId));
 
         assertEquals(ErrorCode.RESOURCE_NOT_FOUND, ex.getErrorCode());
         verify(userRepository, never()).save(any(User.class));

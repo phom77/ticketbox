@@ -1,8 +1,10 @@
 package org.ticketbox.ticketing.web;
 
-import org.ticketbox.ticketing.redis.RateLimitProperties;
-import org.ticketbox.ticketing.redis.TokenBucketRateLimiter;
-import org.ticketbox.ticketing.redis.RedisKeyConstants;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -15,20 +17,19 @@ import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.ticketbox.ticketing.application.error.AppException;
+import org.ticketbox.ticketing.application.error.ErrorCode;
+import org.ticketbox.ticketing.config.RateLimitProperties;
+import org.ticketbox.ticketing.infrastructure.redis.RedisKeyConstants;
+import org.ticketbox.ticketing.infrastructure.redis.TokenBucketRateLimiter;
 
 import java.time.Duration;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
-
 @ExtendWith(MockitoExtension.class)
 class PurchasePaymentRateLimitInterceptorTest {
 
-    @Mock
-    private TokenBucketRateLimiter rateLimiter;
+    @Mock private TokenBucketRateLimiter rateLimiter;
 
     private RateLimitProperties properties;
     private PurchasePaymentRateLimitInterceptor interceptor;
@@ -82,14 +83,21 @@ class PurchasePaymentRateLimitInterceptorTest {
         request.setMethod("POST");
         request.setRequestURI("/api/orders");
 
-        SecurityContextHolder.getContext().setAuthentication(
-                new UsernamePasswordAuthenticationToken("user-123", "password", List.of(new SimpleGrantedAuthority("ROLE_USER")))
-        );
+        SecurityContextHolder.getContext()
+                .setAuthentication(
+                        new UsernamePasswordAuthenticationToken(
+                                "user-123",
+                                "password",
+                                List.of(new SimpleGrantedAuthority("ROLE_USER"))));
 
-        when(rateLimiter.tryConsume(eq(RedisKeyConstants.RATE_LIMIT_USER + "user-123:purchase"), eq(purchasePolicy)))
+        when(rateLimiter.tryConsume(
+                        eq(RedisKeyConstants.RATE_LIMIT_USER + "user-123:purchase"),
+                        eq(purchasePolicy)))
                 .thenReturn(true);
 
-        when(rateLimiter.tryConsume(org.mockito.ArgumentMatchers.startsWith("rate-limit:global:"), any())).thenReturn(true);
+        when(rateLimiter.tryConsume(
+                        org.mockito.ArgumentMatchers.startsWith("rate-limit:global:"), any()))
+                .thenReturn(true);
         boolean result = interceptor.preHandle(request, response, new Object());
 
         assertTrue(result);
@@ -102,14 +110,21 @@ class PurchasePaymentRateLimitInterceptorTest {
         request.setRequestURI("/api/payments/vnpay");
         request.setRemoteAddr("192.168.1.5");
 
-        SecurityContextHolder.getContext().setAuthentication(
-                new AnonymousAuthenticationToken("key", "anonymous", List.of(new SimpleGrantedAuthority("ROLE_ANONYMOUS")))
-        );
+        SecurityContextHolder.getContext()
+                .setAuthentication(
+                        new AnonymousAuthenticationToken(
+                                "key",
+                                "anonymous",
+                                List.of(new SimpleGrantedAuthority("ROLE_ANONYMOUS"))));
 
-        when(rateLimiter.tryConsume(eq(RedisKeyConstants.RATE_LIMIT_IP + "192.168.1.5:payment"), eq(paymentPolicy)))
+        when(rateLimiter.tryConsume(
+                        eq(RedisKeyConstants.RATE_LIMIT_IP + "192.168.1.5:payment"),
+                        eq(paymentPolicy)))
                 .thenReturn(true);
 
-        when(rateLimiter.tryConsume(org.mockito.ArgumentMatchers.startsWith("rate-limit:global:"), any())).thenReturn(true);
+        when(rateLimiter.tryConsume(
+                        org.mockito.ArgumentMatchers.startsWith("rate-limit:global:"), any()))
+                .thenReturn(true);
         boolean result = interceptor.preHandle(request, response, new Object());
 
         assertTrue(result);
@@ -122,12 +137,15 @@ class PurchasePaymentRateLimitInterceptorTest {
         request.setRequestURI("/api/orders");
         request.setRemoteAddr("10.0.0.1");
 
-        when(rateLimiter.tryConsume(eq(RedisKeyConstants.RATE_LIMIT_IP + "10.0.0.1:purchase"), eq(purchasePolicy)))
+        when(rateLimiter.tryConsume(
+                        eq(RedisKeyConstants.RATE_LIMIT_IP + "10.0.0.1:purchase"),
+                        eq(purchasePolicy)))
                 .thenReturn(false);
 
-        AppException exception = assertThrows(AppException.class, () ->
-            interceptor.preHandle(request, response, new Object())
-        );
+        AppException exception =
+                assertThrows(
+                        AppException.class,
+                        () -> interceptor.preHandle(request, response, new Object()));
 
         assertEquals(ErrorCode.RATE_LIMIT_EXCEEDED, exception.getErrorCode());
         assertEquals("Too many requests. Please retry later.", exception.getMessage());

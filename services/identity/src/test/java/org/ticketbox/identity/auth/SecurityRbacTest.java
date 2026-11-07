@@ -1,29 +1,31 @@
 package org.ticketbox.identity.auth;
 
-import org.ticketbox.identity.account.User;
-import org.ticketbox.identity.account.UserRepository;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Profile;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.context.annotation.Profile;
-import org.springframework.test.context.ActiveProfiles;
+import org.ticketbox.identity.account.application.port.UserRepository;
+import org.ticketbox.identity.account.domain.User;
+import org.ticketbox.identity.config.SecurityConfig;
+import org.ticketbox.identity.infrastructure.security.JwtService;
 
 import java.util.Collections;
 import java.util.UUID;
-
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @RestController
 @Profile("rbac-slice")
@@ -32,6 +34,7 @@ class TestAdminController {
     public String adminTest() {
         return "admin-ok";
     }
+
     @GetMapping("/api/admin/users/test")
     public String adminUsersTest() {
         return "admin-users-ok";
@@ -99,29 +102,28 @@ class TestReservationController {
     }
 }
 
-@WebMvcTest(controllers = {
-    TestAdminController.class,
-    TestStaffController.class,
-    TestOrganizerController.class,
-    TestAudienceProtectedController.class,
-    TestReservationController.class
-})
+@WebMvcTest(
+        controllers = {
+            TestAdminController.class,
+            TestStaffController.class,
+            TestOrganizerController.class,
+            TestAudienceProtectedController.class,
+            TestReservationController.class
+        })
 @Import(SecurityConfig.class)
 @ActiveProfiles("rbac-slice")
 class SecurityRbacTest {
 
-    @Autowired
-    private MockMvc mockMvc;
+    @Autowired private MockMvc mockMvc;
 
-    @MockBean
-    private JwtService jwtService;
+    @MockBean private JwtService jwtService;
 
-    @MockBean
-    private UserRepository userRepository;
+    @MockBean private UserRepository userRepository;
 
     private UsernamePasswordAuthenticationToken createAuthToken(User.Role role) {
         User user = new User();
-        org.springframework.test.util.ReflectionTestUtils.setField(user, "id", UUID.fromString("11111111-1111-1111-1111-111111111111"));
+        org.springframework.test.util.ReflectionTestUtils.setField(
+                user, "id", UUID.fromString("11111111-1111-1111-1111-111111111111"));
         user.setEmail(role.name().toLowerCase() + "@example.com");
         user.setRole(role);
         user.setActive(true);
@@ -129,83 +131,89 @@ class SecurityRbacTest {
         return new UsernamePasswordAuthenticationToken(
                 user,
                 null,
-                Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role.name()))
-        );
+                Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role.name())));
     }
 
     @Test
     void adminEndpoint_WithAudience_Returns403() throws Exception {
-        mockMvc.perform(get("/api/admin/test")
-                        .with(authentication(createAuthToken(User.Role.AUDIENCE))))
+        mockMvc.perform(
+                        get("/api/admin/test")
+                                .with(authentication(createAuthToken(User.Role.AUDIENCE))))
                 .andExpect(status().isForbidden());
     }
 
     @Test
     void adminEndpoint_WithAdmin_Returns200() throws Exception {
-        mockMvc.perform(get("/api/admin/test")
-                        .with(authentication(createAuthToken(User.Role.ADMIN))))
+        mockMvc.perform(
+                        get("/api/admin/test")
+                                .with(authentication(createAuthToken(User.Role.ADMIN))))
                 .andExpect(status().isOk());
     }
 
     @Test
     void adminEndpoint_WithOrganizer_Returns200() throws Exception {
-        mockMvc.perform(get("/api/admin/test")
-                        .with(authentication(createAuthToken(User.Role.ORGANIZER))))
+        mockMvc.perform(
+                        get("/api/admin/test")
+                                .with(authentication(createAuthToken(User.Role.ORGANIZER))))
                 .andExpect(status().isOk());
     }
 
     @Test
     void adminUsersEndpoint_WithOrganizer_Returns403() throws Exception {
-        mockMvc.perform(get("/api/admin/users/test")
-                        .with(authentication(createAuthToken(User.Role.ORGANIZER))))
+        mockMvc.perform(
+                        get("/api/admin/users/test")
+                                .with(authentication(createAuthToken(User.Role.ORGANIZER))))
                 .andExpect(status().isForbidden());
     }
 
     @Test
     void adminUsersEndpoint_WithAdmin_Returns200() throws Exception {
-        mockMvc.perform(get("/api/admin/users/test")
-                        .with(authentication(createAuthToken(User.Role.ADMIN))))
+        mockMvc.perform(
+                        get("/api/admin/users/test")
+                                .with(authentication(createAuthToken(User.Role.ADMIN))))
                 .andExpect(status().isOk());
     }
 
     @Test
     void organizerEndpoint_WithOrganizer_Returns200() throws Exception {
-        mockMvc.perform(get("/api/organizer/manage/test")
-                        .with(authentication(createAuthToken(User.Role.ORGANIZER))))
+        mockMvc.perform(
+                        get("/api/organizer/manage/test")
+                                .with(authentication(createAuthToken(User.Role.ORGANIZER))))
                 .andExpect(status().isOk());
     }
 
     @Test
     void organizerEndpoint_WithAdmin_Returns403() throws Exception {
-        mockMvc.perform(get("/api/organizer/manage/test")
-                        .with(authentication(createAuthToken(User.Role.ADMIN))))
+        mockMvc.perform(
+                        get("/api/organizer/manage/test")
+                                .with(authentication(createAuthToken(User.Role.ADMIN))))
                 .andExpect(status().isForbidden());
     }
 
     @Test
     void staffEndpoint_WithAudience_Returns403() throws Exception {
-        mockMvc.perform(get("/api/staff/test")
-                        .with(authentication(createAuthToken(User.Role.AUDIENCE))))
+        mockMvc.perform(
+                        get("/api/staff/test")
+                                .with(authentication(createAuthToken(User.Role.AUDIENCE))))
                 .andExpect(status().isForbidden());
     }
 
     @Test
     void staffEndpoint_WithStaff_Returns200() throws Exception {
-        mockMvc.perform(get("/api/staff/test")
-                        .with(authentication(createAuthToken(User.Role.STAFF))))
+        mockMvc.perform(
+                        get("/api/staff/test")
+                                .with(authentication(createAuthToken(User.Role.STAFF))))
                 .andExpect(status().isOk());
     }
 
     @Test
     void ordersEndpoint_WithoutToken_Returns401() throws Exception {
-        mockMvc.perform(get("/api/orders"))
-                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/orders")).andExpect(status().isUnauthorized());
     }
 
     @Test
     void ticketsEndpoint_WithoutToken_Returns401() throws Exception {
-        mockMvc.perform(get("/api/tickets"))
-                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/tickets")).andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -222,9 +230,13 @@ class SecurityRbacTest {
                 .andExpect(status().isOk());
         mockMvc.perform(get("/api/tickets").with(authentication(audience)))
                 .andExpect(status().isOk());
-        mockMvc.perform(get("/api/payments/11111111-1111-1111-1111-111111111111/status").with(authentication(audience)))
+        mockMvc.perform(
+                        get("/api/payments/11111111-1111-1111-1111-111111111111/status")
+                                .with(authentication(audience)))
                 .andExpect(status().isOk());
-        mockMvc.perform(post("/api/payments/11111111-1111-1111-1111-111111111111/initiate").with(authentication(audience)))
+        mockMvc.perform(
+                        post("/api/payments/11111111-1111-1111-1111-111111111111/initiate")
+                                .with(authentication(audience)))
                 .andExpect(status().isOk());
     }
 
@@ -236,14 +248,15 @@ class SecurityRbacTest {
                 .andExpect(status().isForbidden());
         mockMvc.perform(get("/api/tickets").with(authentication(staff)))
                 .andExpect(status().isForbidden());
-        mockMvc.perform(get("/api/payments/11111111-1111-1111-1111-111111111111/status").with(authentication(staff)))
+        mockMvc.perform(
+                        get("/api/payments/11111111-1111-1111-1111-111111111111/status")
+                                .with(authentication(staff)))
                 .andExpect(status().isForbidden());
     }
 
     @Test
     void paymentWebhook_WithoutToken_Returns200() throws Exception {
-        mockMvc.perform(post("/api/payments/webhooks/vnpay"))
-                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/payments/webhooks/vnpay")).andExpect(status().isOk());
     }
 
     @Test
@@ -254,21 +267,25 @@ class SecurityRbacTest {
 
     @Test
     void reservationsEndpoint_WithoutToken_Returns401() throws Exception {
-        mockMvc.perform(get("/api/reservations/concerts/11111111-1111-1111-1111-111111111111/holds"))
+        mockMvc.perform(
+                        get(
+                                "/api/reservations/concerts/11111111-1111-1111-1111-111111111111/holds"))
                 .andExpect(status().isUnauthorized());
     }
 
     @Test
     void reservationsEndpoint_WithAudience_Returns200() throws Exception {
-        mockMvc.perform(get("/api/reservations/concerts/11111111-1111-1111-1111-111111111111/holds")
-                        .with(authentication(createAuthToken(User.Role.AUDIENCE))))
+        mockMvc.perform(
+                        get("/api/reservations/concerts/11111111-1111-1111-1111-111111111111/holds")
+                                .with(authentication(createAuthToken(User.Role.AUDIENCE))))
                 .andExpect(status().isOk());
     }
 
     @Test
     void reservationsEndpoint_WithStaff_Returns403() throws Exception {
-        mockMvc.perform(get("/api/reservations/concerts/11111111-1111-1111-1111-111111111111/holds")
-                        .with(authentication(createAuthToken(User.Role.STAFF))))
+        mockMvc.perform(
+                        get("/api/reservations/concerts/11111111-1111-1111-1111-111111111111/holds")
+                                .with(authentication(createAuthToken(User.Role.STAFF))))
                 .andExpect(status().isForbidden());
     }
 }

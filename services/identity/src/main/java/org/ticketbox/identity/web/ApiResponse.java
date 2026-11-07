@@ -1,7 +1,9 @@
 package org.ticketbox.identity.web;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+
 import lombok.Getter;
+
 import org.springframework.http.HttpStatus;
 
 import java.time.Instant;
@@ -31,9 +33,11 @@ public class ApiResponse<T> {
     public static <T> ApiResponse<T> created(T data) {
         return new ApiResponse<>(HttpStatus.CREATED.value(), "Đã tạo thành công", data, null);
     }
+
     public static <T> ApiResponse<T> error(int code, String message) {
         return new ApiResponse<>(code, message, null, null);
     }
+
     public static <T> ApiResponse<T> error(int code, String message, Map<String, String> details) {
         return new ApiResponse<>(code, message, null, details);
     }

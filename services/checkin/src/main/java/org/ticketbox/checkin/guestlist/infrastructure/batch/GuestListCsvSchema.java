@@ -1,44 +1,50 @@
 package org.ticketbox.checkin.guestlist.infrastructure.batch;
 
+import org.apache.commons.csv.CSVRecord;
+
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import org.apache.commons.csv.CSVRecord;
 
 /** Canonical TicketBox CSV fields and the common partner-export aliases accepted for them. */
 final class GuestListCsvSchema {
 
     private static final Map<String, Set<String>> REQUIRED_HEADER_ALIASES = requiredAliases();
-    private static final Map<String, Set<String>> OPTIONAL_HEADER_ALIASES = Map.of(
-            "status", Set.of("status", "guest_status"));
+    private static final Map<String, Set<String>> OPTIONAL_HEADER_ALIASES =
+            Map.of("status", Set.of("status", "guest_status"));
 
-    private GuestListCsvSchema() {
-    }
+    private GuestListCsvSchema() {}
 
     static Set<String> missingRequiredHeaders(Set<String> rawHeaders) {
         Set<String> normalizedHeaders = new LinkedHashSet<>();
         rawHeaders.forEach(header -> normalizedHeaders.add(normalize(header)));
 
         Set<String> missing = new LinkedHashSet<>();
-        REQUIRED_HEADER_ALIASES.forEach((canonical, aliases) -> {
-            if (aliases.stream().map(GuestListCsvSchema::normalize).noneMatch(normalizedHeaders::contains)) {
-                missing.add(canonical);
-            }
-        });
+        REQUIRED_HEADER_ALIASES.forEach(
+                (canonical, aliases) -> {
+                    if (aliases.stream()
+                            .map(GuestListCsvSchema::normalize)
+                            .noneMatch(normalizedHeaders::contains)) {
+                        missing.add(canonical);
+                    }
+                });
         return missing;
     }
 
     static String value(CSVRecord record, String canonicalHeader) {
         Set<String> aliases = REQUIRED_HEADER_ALIASES.get(canonicalHeader);
         if (aliases == null) {
-            aliases = OPTIONAL_HEADER_ALIASES.getOrDefault(canonicalHeader, Set.of(canonicalHeader));
+            aliases =
+                    OPTIONAL_HEADER_ALIASES.getOrDefault(canonicalHeader, Set.of(canonicalHeader));
         }
 
         for (Map.Entry<String, String> entry : record.toMap().entrySet()) {
             String normalizedHeader = normalize(entry.getKey());
-            if (aliases.stream().map(GuestListCsvSchema::normalize).anyMatch(normalizedHeader::equals)) {
+            if (aliases.stream()
+                    .map(GuestListCsvSchema::normalize)
+                    .anyMatch(normalizedHeader::equals)) {
                 return entry.getValue();
             }
         }

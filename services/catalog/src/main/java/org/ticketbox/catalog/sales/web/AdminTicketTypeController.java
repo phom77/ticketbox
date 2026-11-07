@@ -1,17 +1,19 @@
 package org.ticketbox.catalog.sales.web;
 
-import org.ticketbox.catalog.sales.application.TicketTypeService;
-import org.ticketbox.catalog.sales.web.dto.TicketTypeResponse;
-import org.ticketbox.catalog.sales.web.dto.CreateTicketTypeRequest;
-import org.ticketbox.catalog.sales.web.dto.UpdateTicketTypeRequest;
-import org.ticketbox.catalog.sales.web.dto.UpdateTicketTypeStatusRequest;
-import org.ticketbox.catalog.web.ApiResponse;
 import jakarta.validation.Valid;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.ticketbox.catalog.sales.application.TicketTypeService;
+import org.ticketbox.catalog.sales.application.dto.CreateTicketTypeRequest;
+import org.ticketbox.catalog.sales.application.dto.TicketTypeResponse;
+import org.ticketbox.catalog.sales.application.dto.UpdateTicketTypeRequest;
+import org.ticketbox.catalog.sales.application.dto.UpdateTicketTypeStatusRequest;
+import org.ticketbox.catalog.web.ApiResponse;
 
 import java.util.List;
 import java.util.UUID;
@@ -25,10 +27,10 @@ public class AdminTicketTypeController {
 
     @GetMapping("/concerts/{concertId}/ticket-types")
     public ResponseEntity<ApiResponse<List<TicketTypeResponse>>> listTicketTypesForAdmin(
-            @PathVariable UUID concertId,
-            Authentication authentication
-    ) {
-        List<TicketTypeResponse> list = ticketTypeService.getTicketTypesForAdmin(concertId, getUserId(authentication), isAdmin(authentication));
+            @PathVariable UUID concertId, Authentication authentication) {
+        List<TicketTypeResponse> list =
+                ticketTypeService.getTicketTypesForAdmin(
+                        concertId, getUserId(authentication), isAdmin(authentication));
         return ResponseEntity.ok(ApiResponse.success(list));
     }
 
@@ -36,9 +38,10 @@ public class AdminTicketTypeController {
     public ResponseEntity<ApiResponse<TicketTypeResponse>> createTicketType(
             @PathVariable UUID concertId,
             @Valid @RequestBody CreateTicketTypeRequest request,
-            Authentication authentication
-    ) {
-        TicketTypeResponse created = ticketTypeService.createTicketType(concertId, request, getUserId(authentication), isAdmin(authentication));
+            Authentication authentication) {
+        TicketTypeResponse created =
+                ticketTypeService.createTicketType(
+                        concertId, request, getUserId(authentication), isAdmin(authentication));
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(created));
     }
 
@@ -46,9 +49,10 @@ public class AdminTicketTypeController {
     public ResponseEntity<ApiResponse<TicketTypeResponse>> updateTicketType(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateTicketTypeRequest request,
-            Authentication authentication
-    ) {
-        TicketTypeResponse updated = ticketTypeService.updateTicketType(id, request, getUserId(authentication), isAdmin(authentication));
+            Authentication authentication) {
+        TicketTypeResponse updated =
+                ticketTypeService.updateTicketType(
+                        id, request, getUserId(authentication), isAdmin(authentication));
         return ResponseEntity.ok(ApiResponse.success(updated));
     }
 
@@ -56,17 +60,16 @@ public class AdminTicketTypeController {
     public ResponseEntity<ApiResponse<TicketTypeResponse>> changeStatus(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateTicketTypeStatusRequest request,
-            Authentication authentication
-    ) {
-        TicketTypeResponse updated = ticketTypeService.changeStatus(id, request.isActive(), getUserId(authentication), isAdmin(authentication));
+            Authentication authentication) {
+        TicketTypeResponse updated =
+                ticketTypeService.changeStatus(
+                        id, request.isActive(), getUserId(authentication), isAdmin(authentication));
         return ResponseEntity.ok(ApiResponse.success(updated));
     }
 
     @DeleteMapping("/ticket-types/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteTicketType(
-            @PathVariable UUID id,
-            Authentication authentication
-    ) {
+            @PathVariable UUID id, Authentication authentication) {
         ticketTypeService.deleteTicketType(id, getUserId(authentication), isAdmin(authentication));
         return ResponseEntity.ok(ApiResponse.success(null));
     }

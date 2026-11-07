@@ -1,17 +1,19 @@
 package org.ticketbox.ticketing.reporting.infrastructure;
 
-import org.ticketbox.ticketing.reporting.RevenueSummaryView;
-import org.ticketbox.ticketing.reporting.SalesTrendView;
-import org.ticketbox.ticketing.reporting.TicketSalesReportingPort;
-import org.ticketbox.ticketing.reporting.domain.TicketSalesReportingRepository;
-import org.ticketbox.ticketing.reporting.ZoneRevenueView;
+import lombok.RequiredArgsConstructor;
+
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+import org.ticketbox.ticketing.reporting.application.port.RevenueSummaryView;
+import org.ticketbox.ticketing.reporting.application.port.SalesTrendView;
+import org.ticketbox.ticketing.reporting.application.port.TicketSalesReportingPort;
+import org.ticketbox.ticketing.reporting.application.port.ZoneRevenueView;
+import org.ticketbox.ticketing.reporting.infrastructure.persistence.TicketSalesReportingRepository;
+
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 @Component
 @RequiredArgsConstructor
@@ -37,23 +39,25 @@ public class TicketSalesReportingAdapter implements TicketSalesReportingPort {
     @Override
     public List<ZoneRevenueView> getZoneRevenue(UUID concertId) {
         return reportingRepository.findZoneRevenue(concertId).stream()
-                .map(result -> new ZoneRevenueView(
-                        result.getTicketTypeId(),
-                        defaultQuantity(result.getSoldQuantity()),
-                        defaultRevenue(result.getRevenue())))
+                .map(
+                        result ->
+                                new ZoneRevenueView(
+                                        result.getTicketTypeId(),
+                                        defaultQuantity(result.getSoldQuantity()),
+                                        defaultRevenue(result.getRevenue())))
                 .toList();
     }
 
     @Override
     public List<SalesTrendView> getDailySalesTrend(
-            UUID concertId,
-            OffsetDateTime startDate,
-            OffsetDateTime endDate) {
+            UUID concertId, OffsetDateTime startDate, OffsetDateTime endDate) {
         return reportingRepository.findDailySalesTrend(concertId, startDate, endDate).stream()
-                .map(result -> new SalesTrendView(
-                        result.getDate(),
-                        defaultQuantity(result.getTicketsSold()),
-                        defaultRevenue(result.getRevenue())))
+                .map(
+                        result ->
+                                new SalesTrendView(
+                                        result.getDate(),
+                                        defaultQuantity(result.getTicketsSold()),
+                                        defaultRevenue(result.getRevenue())))
                 .toList();
     }
 

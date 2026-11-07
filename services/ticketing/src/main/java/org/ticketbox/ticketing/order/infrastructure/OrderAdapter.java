@@ -1,48 +1,52 @@
 package org.ticketbox.ticketing.order.infrastructure;
 
-import org.ticketbox.ticketing.integration.catalog.ConcertOrderPort;
-import org.ticketbox.ticketing.integration.catalog.ConcertView;
-import org.ticketbox.ticketing.integration.catalog.TicketTypeView;
-import org.ticketbox.ticketing.order.OrderNotificationItemView;
-import org.ticketbox.ticketing.order.OrderNotificationView;
-import org.ticketbox.ticketing.order.OrderPort;
-import org.ticketbox.ticketing.order.OrderView;
-import org.ticketbox.ticketing.order.domain.Order;
-import org.ticketbox.ticketing.order.domain.OrderItem;
-import org.ticketbox.ticketing.order.domain.OrderItemRepository;
-import org.ticketbox.ticketing.order.domain.OrderRepository;
-import org.ticketbox.ticketing.web.AppException;
-import org.ticketbox.ticketing.web.ErrorCode;
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import org.ticketbox.ticketing.application.error.AppException;
+import org.ticketbox.ticketing.application.error.ErrorCode;
+import org.ticketbox.ticketing.application.port.catalog.ConcertOrderPort;
+import org.ticketbox.ticketing.application.port.catalog.ConcertView;
+import org.ticketbox.ticketing.application.port.catalog.TicketTypeView;
+import org.ticketbox.ticketing.order.application.port.OrderItemRepository;
+import org.ticketbox.ticketing.order.application.port.OrderNotificationItemView;
+import org.ticketbox.ticketing.order.application.port.OrderNotificationView;
+import org.ticketbox.ticketing.order.application.port.OrderPort;
+import org.ticketbox.ticketing.order.application.port.OrderRepository;
+import org.ticketbox.ticketing.order.application.port.OrderView;
+import org.ticketbox.ticketing.order.domain.Order;
+import org.ticketbox.ticketing.order.domain.OrderItem;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import java.util.Map;
 
 @Component
 @RequiredArgsConstructor
 public class OrderAdapter implements OrderPort {
-    private final org.ticketbox.ticketing.inventory.hold.application.PurchaseGuard purchaseGuard;
+    private final org.ticketbox.ticketing.inventory.hold.infrastructure.PurchaseGuard purchaseGuard;
     private final OrderRepository orderRepository;
     private final OrderEventStore orderEvents;
     private final OrderItemRepository orderItemRepository;
     private final ConcertOrderPort concertOrderPort;
-    private final org.ticketbox.ticketing.inventory.InventoryPort inventory;
+    private final org.ticketbox.ticketing.inventory.application.port.InventoryPort inventory;
     private final org.ticketbox.ticketing.order.application.OrderService orderService;
 
     @Override
     @Transactional
     public Optional<OrderView> lockOrder(UUID orderId) {
-        return orderRepository.findByIdForUpdate(orderId).map(order -> {
-            orderEvents.restore(order);
-            return toOrderView(order);
-        });
+        return orderRepository
+                .findByIdForUpdate(orderId)
+                .map(
+                        order -> {
+                            orderEvents.restore(order);
+                            return toOrderView(order);
+                        });
     }
 
     @Override
@@ -53,15 +57,20 @@ public class OrderAdapter implements OrderPort {
 
     @Override
     public Optional<OrderView> findOrderById(UUID orderId) {
-        return orderRepository.findById(orderId)
-                .map(this::toOrderView);
+        return orderRepository.findById(orderId).map(this::toOrderView);
     }
 
     @Override
     @Transactional(noRollbackFor = AppException.class)
     public OrderView getPayableOrderForUser(UUID orderId, UUID userId) {
-        Order order = orderRepository.findByIdForUpdate(orderId)
-                .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND, "Không tìm thấy đơn hàng"));
+        Order order =
+                orderRepository
+                        .findByIdForUpdate(orderId)
+                        .orElseThrow(
+                                () ->
+                                        new AppException(
+                                                ErrorCode.ORDER_NOT_FOUND,
+                                                "Không tìm thấy đơn hàng"));
         long version = orderEvents.restore(order);
 
         if (!order.getUserId().equals(userId)) {
@@ -70,21 +79,25 @@ public class OrderAdapter implements OrderPort {
         }
 
         if (order.getStatus() != Order.Status.AWAITING_PAYMENT) {
-            throw new AppException(ErrorCode.INVALID_STATUS_TRANSITION,
+            throw new AppException(
+                    ErrorCode.INVALID_STATUS_TRANSITION,
                     "Đơn hàng không ở trạng thái có thể thanh toán");
         }
 
         if (!order.getExpiresAt().isAfter(OffsetDateTime.now())) {
-            purchaseGuard.lock(order.getUserId(),order.getConcertId());
-            List<OrderItem> items = orderItemRepository.findByOrderId(orderId).stream().sorted(java.util.Comparator.comparing(OrderItem::getTicketTypeId)).toList();
+            purchaseGuard.lock(order.getUserId(), order.getConcertId());
+            List<OrderItem> items =
+                    orderItemRepository.findByOrderId(orderId).stream()
+                            .sorted(java.util.Comparator.comparing(OrderItem::getTicketTypeId))
+                            .toList();
             for (OrderItem item : items) {
                 inventory.release(item.getTicketTypeId(), item.getQuantity());
             }
             order.setStatus(Order.Status.EXPIRED);
             orderEvents.record(order, version, OrderEventStore.Transition.OrderExpired);
             orderRepository.save(order);
-            throw new AppException(ErrorCode.INVALID_STATUS_TRANSITION,
-                    "Thời hạn thanh toán đơn hàng đã hết");
+            throw new AppException(
+                    ErrorCode.INVALID_STATUS_TRANSITION, "Thời hạn thanh toán đơn hàng đã hết");
         }
 
         return toOrderView(order);
@@ -92,50 +105,77 @@ public class OrderAdapter implements OrderPort {
 
     @Override
     public Optional<OrderNotificationView> findNotificationViewByOrderId(UUID orderId) {
-        return orderRepository.findById(orderId).flatMap(order -> {
-            ConcertView concert = concertOrderPort.findConcertById(order.getConcertId()).orElse(null);
-            if (concert == null) {
-                return Optional.empty();
-            }
+        return orderRepository
+                .findById(orderId)
+                .flatMap(
+                        order -> {
+                            ConcertView concert =
+                                    concertOrderPort
+                                            .findConcertById(order.getConcertId())
+                                            .orElse(null);
+                            if (concert == null) {
+                                return Optional.empty();
+                            }
 
-            java.util.List<OrderItem> orderItems = orderItemRepository.findByOrderId(order.getId());
-            Map<UUID, String> ticketTypeNames = concertOrderPort
-                    .findTicketTypesByIds(orderItems.stream().map(OrderItem::getTicketTypeId).toList())
-                    .stream()
-                    .collect(Collectors.toMap(TicketTypeView::id, TicketTypeView::name));
+                            java.util.List<OrderItem> orderItems =
+                                    orderItemRepository.findByOrderId(order.getId());
+                            Map<UUID, String> ticketTypeNames =
+                                    concertOrderPort
+                                            .findTicketTypesByIds(
+                                                    orderItems.stream()
+                                                            .map(OrderItem::getTicketTypeId)
+                                                            .toList())
+                                            .stream()
+                                            .collect(
+                                                    Collectors.toMap(
+                                                            TicketTypeView::id,
+                                                            TicketTypeView::name));
 
-            java.util.List<OrderNotificationItemView> items = orderItems.stream()
-                    .map(item -> new OrderNotificationItemView(
-                            item.getTicketTypeId(),
-                            ticketTypeNames.getOrDefault(item.getTicketTypeId(), "Vé"),
-                            item.getQuantity(),
-                            item.getUnitPrice(),
-                            item.getSubtotal()
-                    ))
-                    .toList();
+                            java.util.List<OrderNotificationItemView> items =
+                                    orderItems.stream()
+                                            .map(
+                                                    item ->
+                                                            new OrderNotificationItemView(
+                                                                    item.getTicketTypeId(),
+                                                                    ticketTypeNames.getOrDefault(
+                                                                            item.getTicketTypeId(),
+                                                                            "Vé"),
+                                                                    item.getQuantity(),
+                                                                    item.getUnitPrice(),
+                                                                    item.getSubtotal()))
+                                            .toList();
 
-            return Optional.of(new OrderNotificationView(
-                    order.getId(),
-                    order.getUserId(),
-                    order.getConcertId(),
-                    concert.title(),
-                    concert.eventDate(),
-                    null,
-                    order.getTotalAmount(),
-                    items
-            ));
-        });
+                            return Optional.of(
+                                    new OrderNotificationView(
+                                            order.getId(),
+                                            order.getUserId(),
+                                            order.getConcertId(),
+                                            concert.title(),
+                                            concert.eventDate(),
+                                            null,
+                                            order.getTotalAmount(),
+                                            items));
+                        });
     }
 
     @Override
     @Transactional
-    public void markPaymentInitiated(UUID orderId, String provider, String providerRef, String paymentUrl) {
-        Order order = orderRepository.findByIdForUpdate(orderId)
-                .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND, "Không tìm thấy đơn hàng"));
+    public void markPaymentInitiated(
+            UUID orderId, String provider, String providerRef, String paymentUrl) {
+        Order order =
+                orderRepository
+                        .findByIdForUpdate(orderId)
+                        .orElseThrow(
+                                () ->
+                                        new AppException(
+                                                ErrorCode.ORDER_NOT_FOUND,
+                                                "Không tìm thấy đơn hàng"));
         long version = orderEvents.restore(order);
 
         if (order.getStatus() != Order.Status.AWAITING_PAYMENT) {
-            throw new AppException(ErrorCode.INVALID_STATUS_TRANSITION, "Đơn hàng không ở trạng thái có thể thanh toán");
+            throw new AppException(
+                    ErrorCode.INVALID_STATUS_TRANSITION,
+                    "Đơn hàng không ở trạng thái có thể thanh toán");
         }
 
         Order.PaymentProvider paymentProvider = Order.PaymentProvider.valueOf(provider);
@@ -161,7 +201,6 @@ public class OrderAdapter implements OrderPort {
                 order.getPaymentProvider() == null ? null : order.getPaymentProvider().name(),
                 order.getPaymentRef(),
                 order.getPaymentUrl(),
-                order.getExpiresAt()
-        );
+                order.getExpiresAt());
     }
 }

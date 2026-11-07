@@ -163,25 +163,39 @@ Trong mỗi service, nhóm code theo năng lực nghiệp vụ, rồi chia `doma
 
 `domain` chứa khái niệm và quy tắc nghiệp vụ, độc lập với Spring, JPA, Jackson và HTTP. `application` chứa use case cùng các port cho I/O. Adapter trong `infrastructure` triển khai các port và chuyển đổi dữ liệu. Controller, HTTP DTO và ánh xạ lỗi HTTP thuộc `web`. Các annotation Spring phục vụ orchestration và transaction có thể nằm ở use case. Giữ namespace service và các kiểu tương thích với publication cũ đã được kiểm thử.
 
-### Mô hình nghiệp vụ hiện tại
+### Mô hình nghiệp vụ trước Task 6b
 
-Dự án đã có phân chia chủ sở hữu nghiệp vụ và dữ liệu giữa các service. Mô hình Java còn thiên về dữ liệu lưu trữ. `Order`, `OrderItem` và `Concert` là JPA entity có nhiều setter, còn nhiều quy tắc nằm trong application service hoặc SQL. Ranh giới aggregate, value object và hành vi trong domain chưa được thể hiện nhất quán.
+Trước Task 6b, dự án đã có phân chia chủ sở hữu nghiệp vụ và dữ liệu giữa các service. Mô hình Java khi đó còn thiên về dữ liệu lưu trữ. `Order`, `OrderItem` và `Concert` là JPA entity có nhiều setter, còn nhiều quy tắc nằm trong application service hoặc SQL. Ranh giới aggregate, value object và hành vi trong domain chưa được thể hiện nhất quán.
 
-JPA entity và domain entity có vai trò khác nhau. Payment và Notification hiện dùng JDBC. Các bảng event, inbox/outbox, tồn kho và projection cũng có đường đọc/ghi trực tiếp. Một aggregate có thể lưu ở nhiều bảng. Việc chọn aggregate cần dựa vào invariant và phạm vi nhất quán của thao tác ghi. Event sourcing của Order là một cơ chế hiện có cần bảo toàn trong lượt tổ chức này.
+JPA entity và domain entity có vai trò khác nhau. Payment và Notification dùng JDBC. Các bảng event, inbox/outbox, tồn kho và projection cũng có đường đọc/ghi trực tiếp. Một aggregate có thể lưu ở nhiều bảng. Việc chọn aggregate cần dựa vào invariant và phạm vi nhất quán của thao tác ghi. Event sourcing của Order là một cơ chế hiện có cần bảo toàn trong lượt tổ chức này.
+
+### Mô hình được triển khai trong Task 6b
+
+Quyết định aggregate và mapping được ghi trong `docs/adr/0001-service-domain-models.md`. Thuật ngữ và quan hệ giữa các context nằm ở `GLOSSARY-MAP.md` và glossary của từng service. `Order` sở hữu các dòng giá chốt và các thao tác thanh toán/hủy/hết hạn. Concert sở hữu quy tắc chuyển trạng thái và sale window. Các domain model khác kiểm soát mặc định tài khoản, quyền dùng shopping session, số lượng vé, admission, biên nhận thanh toán và danh tính thông báo theo kênh.
+
+JPA mapping nằm ngoài domain trong `META-INF/orm.xml`. Repository adapter triển khai port ứng dụng, giữ managed object, dirty checking và row lock trong transaction cũ. Các mô hình đọc, audit, inbox/outbox và SQL bảo vệ stock tiếp tục giữ trách nhiệm riêng. Bảng dữ liệu không tự động trở thành aggregate. Core legacy được giữ riêng và kiểm tra tương thích trong CI.
 
 ### Các bước thực hiện
 
-- [ ] Đối chiếu từng class trong sáu service và ghi đích đến theo capability/layer. Cập nhật `docs/architecture.md` với thuật ngữ, chủ sở hữu, write model, read projection và invariant đang được bảo vệ. Xác định quan hệ Order–OrderItem và các ràng buộc stock/hold/quota theo hành vi thực tế trước khi chọn aggregate.
-- [ ] Thêm `ArchitectureTest` vào package test `architecture` của từng service khi bắt đầu chuyển service đó. Kiểm tra domain độc lập framework, application độc lập transport và adapter, cùng chiều phụ thuộc giữa capability. Ghi các suite này vào `scripts/ci/java-suites.json` để CI phát hiện việc bỏ test.
-- [ ] Chuẩn hóa Payment. Đưa `PaymentApi` vào `web`, use case từ `PaymentFacade` vào `application`, port `PaymentGateway` vào `application`, JDBC từ `PaymentStore` và provider client vào `infrastructure`, security và worker wiring vào `config`. Tách quy tắc chuyển trạng thái khỏi SQL và HTTP error mapping, giữ intent/result/ACK, lease, retry và callback idempotency đã có.
-- [ ] Chuẩn hóa Notification. Phân định use case nhận lệnh/gửi thông báo, kiểm tra nội dung nghiệp vụ, JDBC inbox/store, Rabbit consumer, SMTP và HTTP client. Giữ transaction inbox cùng dữ liệu notification, lease gửi mail, cấu hình queue và retry.
-- [ ] Chuẩn hóa Identity trong `auth` và `account`. Tách controller/HTTP DTO, use case, kiểu nghiệp vụ, JPA repository/entity, JWT adapter và security wiring. Giữ JWT claims, hash mật khẩu, quyền truy cập và internal contact contract.
-- [ ] Chuẩn hóa Catalog trong `concert`, `sales` và `artistbio`. Chuyển JPA mapping và adapter ra khỏi domain, đưa port về use case sử dụng. Giữ sale ACK, version projection, cache, replica routing và replay publication AI.
-- [ ] Chuẩn hóa Check-in trong `admission` và `guestlist`. Use case đọc concert/ticket projection qua port, adapter sở hữu SQL và Spring Batch. Giữ unique admission, `REQUIRES_NEW` khi sync từng entry, replay snapshot, quyền truy cập và CSV import.
-- [ ] Chuẩn hóa Ticketing qua ba lượt kiểm tra riêng cho queue/inventory/hold, order/payment/issuance và reporting/reminder. Loại phụ thuộc từ `OrderService` vào `web.dto` và `order.infrastructure.OrderEventStore.Transition`. Đưa thao tác nghiệp vụ và kiểu transition về lớp sở hữu, truy cập event store, Redis và persistence qua port. Giữ transaction và thứ tự lock hiện có, callback lặp, primary/replica routing và PDF font.
-- [ ] Với từng service, chạy `mvn -B -ntp -f services/<name>/pom.xml clean verify`, cổng build độc lập và các bài tương thích bị ảnh hưởng. Khi sáu service qua kiểm tra kiến trúc, chạy CI đầy đủ, đối chiếu manifest test, cập nhật tài liệu và lưu checkpoint trước Task 7.
+- [x] Đối chiếu từng class trong sáu service và ghi đích đến theo capability/layer. Cập nhật `docs/architecture.md` với thuật ngữ, chủ sở hữu, write model, read projection và invariant đang được bảo vệ. Xác định quan hệ Order–OrderItem và các ràng buộc stock/hold/quota theo hành vi thực tế trước khi chọn aggregate.
+- [x] Thêm `ArchitectureTest` vào package test `architecture` của từng service khi bắt đầu chuyển service đó. Kiểm tra domain độc lập framework, application độc lập transport và adapter, cùng chiều phụ thuộc giữa capability. Ghi các suite này vào `scripts/ci/java-suites.json` để CI phát hiện việc bỏ test.
+- [x] Chuẩn hóa Payment. Đưa `PaymentApi` vào `web`, use case từ `PaymentFacade` vào `application`, port `PaymentGateway` vào `application`, JDBC từ `PaymentStore` và provider client vào `infrastructure`, security và worker wiring vào `config`. Tách quy tắc chuyển trạng thái khỏi SQL và HTTP error mapping, giữ intent/result/ACK, lease, retry và callback idempotency đã có.
+- [x] Chuẩn hóa Notification. Phân định use case nhận lệnh/gửi thông báo, kiểm tra nội dung nghiệp vụ, JDBC inbox/store, Rabbit consumer, SMTP và HTTP client. Giữ transaction inbox cùng dữ liệu notification, lease gửi mail, cấu hình queue và retry.
+- [x] Chuẩn hóa Identity trong `auth` và `account`. Tách controller/HTTP DTO, use case, kiểu nghiệp vụ, JPA repository/entity, JWT adapter và security wiring. Giữ JWT claims, hash mật khẩu, quyền truy cập và internal contact contract.
+- [x] Chuẩn hóa Catalog trong `concert`, `sales` và `artistbio`. Chuyển JPA mapping và adapter ra khỏi domain, đưa port về use case sử dụng. Giữ sale ACK, version projection, cache, replica routing và replay publication AI.
+- [x] Chuẩn hóa Check-in trong `admission` và `guestlist`. Use case đọc concert/ticket projection qua port, adapter sở hữu SQL và Spring Batch. Giữ unique admission, `REQUIRES_NEW` khi sync từng entry, replay snapshot, quyền truy cập và CSV import.
+- [x] Chuẩn hóa Ticketing qua ba lượt kiểm tra riêng cho queue/inventory/hold, order/payment/issuance và reporting/reminder. Loại phụ thuộc từ `OrderService` vào `web.dto` và `order.infrastructure.OrderEventStore.Transition`. Đưa thao tác nghiệp vụ và kiểu transition về lớp sở hữu, truy cập event store, Redis và persistence qua port. Giữ transaction và thứ tự lock hiện có, callback lặp, primary/replica routing và PDF font.
+- [x] Với từng service, chạy `mvn -B -ntp -f services/<name>/pom.xml clean verify`, cổng build độc lập và các bài tương thích bị ảnh hưởng. Khi sáu service qua kiểm tra kiến trúc, chạy CI đầy đủ, đối chiếu manifest test, cập nhật tài liệu và lưu checkpoint trước Task 7.
 
 **Nghiệm thu** — Mỗi service có trách nhiệm từng lớp rõ ràng, kiểm tra tự động chiều phụ thuộc và bằng chứng bảo toàn hành vi. Các quyết định aggregate/invariant được ghi theo nghiệp vụ. CI tiếp tục kiểm chứng build độc lập và dữ liệu tương thích.
+
+### Kết quả kiểm chứng Task 6b
+
+Báo cáo nằm dưới `.artifacts/verification/service-source-ownership/task-6b/`.
+
+- **Build và quyền sở hữu mã nguồn.** `ci/verification.json` ghi 18 bước thành công. Sáu cổng build dùng Docker context riêng, kiểm tra dependency tree và kiểm tra class trong JAR đóng gói. Core legacy qua 166 test và cụm service qua 196 test. CI cũng kiểm tra Compose, frontend và mobile. Sáu lượt `clean verify` chạy riêng từ từng thư mục service có exit code 0 trong `standalone-maven/results.json`. `final-class-map.json` đối chiếu các lớp trước và sau khi đổi package.
+- **Kiến trúc và domain.** Manifest CI yêu cầu suite kiến trúc và suite domain của cả sáu service. Các bài tích hợp PostgreSQL kiểm tra ánh xạ ORM, quyền truy cập và bảo toàn hành vi ghi. Ticketing và Catalog kiểm tra phát lại publication với kiểu và định danh listener cũ.
+- **Tương thích khi vận hành.** `acceptance/acceptance.json` ghi việc lần lượt thay sáu image trên dữ liệu baseline. Đơn chờ, inbox/outbox và publication của Ticketing được xử lý tiếp. Hành trình checkout, email, soát vé, đồng bộ offline, CSV, AI và xuất PDF đã được kiểm tra. Lab với toàn bộ image mới kiểm tra physical replica, phục hồi sau mất replica và các ràng buộc phân vùng. Diễn tập cutover, restore, rollback và switchover thuộc Task 7.
 
 ## Task 7 — Nghiệm thu đổi image, cutover và rollback
 

@@ -1,17 +1,20 @@
 package org.ticketbox.ticketing.queue.application;
 
-import org.ticketbox.ticketing.redis.TokenBucketRateLimiter;
-import org.ticketbox.ticketing.redis.RedisReadCache;
-import org.ticketbox.ticketing.redis.RedisConfig;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.times;
-import org.ticketbox.ticketing.integration.catalog.ConcertOrderPort;
-import org.ticketbox.ticketing.integration.catalog.ConcertView;
-import org.ticketbox.ticketing.web.AppException;
-import org.ticketbox.ticketing.queue.web.dto.QueueStatusResponse;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,61 +24,79 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.ticketbox.ticketing.application.port.catalog.ConcertOrderPort;
+import org.ticketbox.ticketing.application.port.catalog.ConcertView;
+import org.ticketbox.ticketing.infrastructure.redis.RedisConfig;
+import org.ticketbox.ticketing.infrastructure.redis.RedisReadCache;
+import org.ticketbox.ticketing.infrastructure.redis.TokenBucketRateLimiter;
+import org.ticketbox.ticketing.queue.application.dto.QueueStatusResponse;
+import org.ticketbox.ticketing.queue.domain.QueueStatus;
+import org.ticketbox.ticketing.queue.infrastructure.QueueAdmissionBus;
+import org.ticketbox.ticketing.queue.infrastructure.WaitingRoomService;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
 @Testcontainers
 class WaitingRoomServiceIntegrationTest {
 
     @Test
     void admissionHintPublishedOnOneNodeIsReceivedByBothNodesThroughRedis() {
-        var local=mock(QueueRealtimeService.class); var remote=mock(QueueRealtimeService.class);
-        var source=new QueueAdmissionBus(redisTemplate,local); var target=new QueueAdmissionBus(redisTemplate,remote);
-        var listeners=new java.util.ArrayList<org.springframework.data.redis.listener.RedisMessageListenerContainer>();
+        var local = mock(QueueRealtimeService.class);
+        var remote = mock(QueueRealtimeService.class);
+        var source = new QueueAdmissionBus(redisTemplate, local);
+        var target = new QueueAdmissionBus(redisTemplate, remote);
+        var listeners =
+                new java.util.ArrayList<
+                        org.springframework.data.redis.listener.RedisMessageListenerContainer>();
         try {
-            for (var bus : java.util.List.of(source,target)) {
-                var container=new org.springframework.data.redis.listener.RedisMessageListenerContainer();
+            for (var bus : java.util.List.of(source, target)) {
+                var container =
+                        new org.springframework.data.redis.listener.RedisMessageListenerContainer();
                 container.setConnectionFactory(connectionFactory);
-                container.addMessageListener(bus,new org.springframework.data.redis.listener.ChannelTopic(QueueAdmissionBus.TOPIC));
-                container.afterPropertiesSet(); container.start(); listeners.add(container);
+                container.addMessageListener(
+                        bus,
+                        new org.springframework.data.redis.listener.ChannelTopic(
+                                QueueAdmissionBus.TOPIC));
+                container.afterPropertiesSet();
+                container.start();
+                listeners.add(container);
             }
-            UUID user=UUID.randomUUID();
-            source.publish(new QueueAdmissionEvent(CONCERT_ID,user,null));
-            org.mockito.Mockito.verify(local,org.mockito.Mockito.timeout(3000)).onAdmissionHint(CONCERT_ID,user);
-            org.mockito.Mockito.verify(remote,org.mockito.Mockito.timeout(3000)).onAdmissionHint(CONCERT_ID,user);
-        } finally { listeners.forEach(org.springframework.data.redis.listener.RedisMessageListenerContainer::stop); }
+            UUID user = UUID.randomUUID();
+            source.publish(new QueueAdmissionEvent(CONCERT_ID, user, null));
+            org.mockito.Mockito.verify(local, org.mockito.Mockito.timeout(3000))
+                    .onAdmissionHint(CONCERT_ID, user);
+            org.mockito.Mockito.verify(remote, org.mockito.Mockito.timeout(3000))
+                    .onAdmissionHint(CONCERT_ID, user);
+        } finally {
+            listeners.forEach(
+                    org.springframework.data.redis.listener.RedisMessageListenerContainer::stop);
+        }
     }
 
     @Test
     void staleFinishCannotEvictTheNextShoppingSession() {
         ReflectionTestUtils.setField(service, "sessionTtl", Duration.ofMinutes(10));
-        UUID user=UUID.randomUUID();
-        service.join(CONCERT_ID,user); service.promoteWaitingUsers(CONCERT_ID);
-        String old=service.internalStatus(CONCERT_ID,user).queueAccessToken();
-        service.leave(CONCERT_ID,user);
-        service.join(CONCERT_ID,user); service.promoteWaitingUsers(CONCERT_ID);
-        String current=service.internalStatus(CONCERT_ID,user).queueAccessToken();
+        UUID user = UUID.randomUUID();
+        service.join(CONCERT_ID, user);
+        service.promoteWaitingUsers(CONCERT_ID);
+        String old = service.internalStatus(CONCERT_ID, user).queueAccessToken();
+        service.leave(CONCERT_ID, user);
+        service.join(CONCERT_ID, user);
+        service.promoteWaitingUsers(CONCERT_ID);
+        String current = service.internalStatus(CONCERT_ID, user).queueAccessToken();
         assertNotNull(current);
-        service.finishShoppingSession(CONCERT_ID,user,old);
-        assertEquals(current,service.internalStatus(CONCERT_ID,user).queueAccessToken());
-        service.finishShoppingSession(CONCERT_ID,user,current);
-        assertEquals(0L,redisTemplate.opsForZSet().zCard("queue:global-active"));
+        service.finishShoppingSession(CONCERT_ID, user, old);
+        assertEquals(current, service.internalStatus(CONCERT_ID, user).queueAccessToken());
+        service.finishShoppingSession(CONCERT_ID, user, current);
+        assertEquals(0L, redisTemplate.opsForZSet().zCard("queue:global-active"));
     }
 
     @Container
-    private static final GenericContainer<?> redis = new GenericContainer<>("redis:7")
-            .withExposedPorts(6379);
+    private static final GenericContainer<?> redis =
+            new GenericContainer<>("redis:7").withExposedPorts(6379);
 
     private static final UUID CONCERT_ID = UUID.randomUUID();
 
@@ -86,19 +107,40 @@ class WaitingRoomServiceIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        connectionFactory = new LettuceConnectionFactory(redis.getHost(), redis.getFirstMappedPort());
+        connectionFactory =
+                new LettuceConnectionFactory(redis.getHost(), redis.getFirstMappedPort());
         connectionFactory.afterPropertiesSet();
         redisTemplate = new StringRedisTemplate(connectionFactory);
-        try (var connection = connectionFactory.getConnection()) { connection.serverCommands().flushDb(); }
+        try (var connection = connectionFactory.getConnection()) {
+            connection.serverCommands().flushDb();
+        }
 
         concertOrderPort = mock(ConcertOrderPort.class);
         when(concertOrderPort.findConcertById(CONCERT_ID))
-                .thenReturn(Optional.of(new ConcertView(CONCERT_ID, "Demo Concert", "ON_SALE", OffsetDateTime.now().plusDays(1), OffsetDateTime.now().minusDays(1), OffsetDateTime.now().plusDays(2))));
+                .thenReturn(
+                        Optional.of(
+                                new ConcertView(
+                                        CONCERT_ID,
+                                        "Demo Concert",
+                                        "ON_SALE",
+                                        OffsetDateTime.now().plusDays(1),
+                                        OffsetDateTime.now().minusDays(1),
+                                        OffsetDateTime.now().plusDays(2))));
 
-        org.springframework.context.ApplicationEventPublisher eventPublisher = mock(org.springframework.context.ApplicationEventPublisher.class);
+        org.springframework.context.ApplicationEventPublisher eventPublisher =
+                mock(org.springframework.context.ApplicationEventPublisher.class);
         var mapper = new ObjectMapper().registerModule(new JavaTimeModule());
-        var readCache = new RedisReadCache(new RedisConfig().redisTemplate(connectionFactory, mapper), mapper, new SimpleMeterRegistry());
-        service = new WaitingRoomService(redisTemplate, new QueueMetadataService(concertOrderPort, readCache), new TokenBucketRateLimiter(redisTemplate), eventPublisher);
+        var readCache =
+                new RedisReadCache(
+                        new RedisConfig().redisTemplate(connectionFactory, mapper),
+                        mapper,
+                        new SimpleMeterRegistry());
+        service =
+                new WaitingRoomService(
+                        redisTemplate,
+                        new QueueMetadataService(concertOrderPort, readCache),
+                        new TokenBucketRateLimiter(redisTemplate),
+                        eventPublisher);
         ReflectionTestUtils.setField(service, "admissionCapacity", 1);
         ReflectionTestUtils.setField(service, "sessionTtl", Duration.ofMillis(450));
         ReflectionTestUtils.setField(service, "estimatedServiceSeconds", 30L);
@@ -110,8 +152,11 @@ class WaitingRoomServiceIntegrationTest {
 
     @AfterEach
     void tearDown() {
-        try (var connection = connectionFactory.getConnection()) { connection.serverCommands().flushDb(); }
-        finally { connectionFactory.destroy(); }
+        try (var connection = connectionFactory.getConnection()) {
+            connection.serverCommands().flushDb();
+        } finally {
+            connectionFactory.destroy();
+        }
     }
 
     @Test
@@ -127,7 +172,8 @@ class WaitingRoomServiceIntegrationTest {
         assertEquals(QueueStatus.ADMITTED, second.status());
         assertNotNull(first.queueAccessToken());
         assertEquals(first.queueAccessToken(), second.queueAccessToken());
-        assertDoesNotThrow(() -> service.validateAccess(CONCERT_ID, userId, first.queueAccessToken()));
+        assertDoesNotThrow(
+                () -> service.validateAccess(CONCERT_ID, userId, first.queueAccessToken()));
     }
 
     @Test
@@ -180,25 +226,32 @@ class WaitingRoomServiceIntegrationTest {
         service.promoteWaitingUsers(CONCERT_ID);
         QueueStatusResponse admitted = service.status(CONCERT_ID, userId);
 
-        assertThrows(AppException.class, () -> service.validateAccess(CONCERT_ID, userId, null));
-        assertThrows(AppException.class, () -> service.validateAccess(CONCERT_ID, userId, "bad-token"));
+        assertThrows(
+                org.ticketbox.ticketing.domain.DomainViolation.class,
+                () -> service.validateAccess(CONCERT_ID, userId, null));
+        assertThrows(
+                org.ticketbox.ticketing.domain.DomainViolation.class,
+                () -> service.validateAccess(CONCERT_ID, userId, "bad-token"));
 
         Thread.sleep(520);
 
-        assertThrows(AppException.class, () -> service.validateAccess(CONCERT_ID, userId, admitted.queueAccessToken()));
+        assertThrows(
+                org.ticketbox.ticketing.domain.DomainViolation.class,
+                () -> service.validateAccess(CONCERT_ID, userId, admitted.queueAccessToken()));
     }
 
     @Test
     void join_BeforeSaleStart_PlacesUserInWaitingRoomWithoutAdmission() {
         when(concertOrderPort.findConcertById(CONCERT_ID))
-                .thenReturn(Optional.of(new ConcertView(
-                        CONCERT_ID,
-                        "Demo Concert",
-                        "ON_SALE",
-                        OffsetDateTime.now().plusDays(1),
-                        OffsetDateTime.now().plusMinutes(30),
-                        OffsetDateTime.now().plusDays(2)
-                )));
+                .thenReturn(
+                        Optional.of(
+                                new ConcertView(
+                                        CONCERT_ID,
+                                        "Demo Concert",
+                                        "ON_SALE",
+                                        OffsetDateTime.now().plusDays(1),
+                                        OffsetDateTime.now().plusMinutes(30),
+                                        OffsetDateTime.now().plusDays(2))));
 
         QueueStatusResponse waitingRoom = service.join(CONCERT_ID, UUID.randomUUID());
 
@@ -214,17 +267,27 @@ class WaitingRoomServiceIntegrationTest {
         ReflectionTestUtils.setField(service, "sessionTtl", Duration.ofMinutes(10));
         UUID firstUser = UUID.randomUUID();
         UUID secondUser = UUID.randomUUID();
-        ConcertView beforeSale = new ConcertView(
-                CONCERT_ID, "Demo Concert", "ON_SALE", OffsetDateTime.now().plusDays(1),
-                OffsetDateTime.now().plusMinutes(30), OffsetDateTime.now().plusDays(2));
+        ConcertView beforeSale =
+                new ConcertView(
+                        CONCERT_ID,
+                        "Demo Concert",
+                        "ON_SALE",
+                        OffsetDateTime.now().plusDays(1),
+                        OffsetDateTime.now().plusMinutes(30),
+                        OffsetDateTime.now().plusDays(2));
         when(concertOrderPort.findConcertById(CONCERT_ID)).thenReturn(Optional.of(beforeSale));
 
         service.join(CONCERT_ID, firstUser);
         service.join(CONCERT_ID, secondUser);
 
-        ConcertView afterSale = new ConcertView(
-                CONCERT_ID, "Demo Concert", "ON_SALE", OffsetDateTime.now().plusDays(1),
-                OffsetDateTime.now().minusSeconds(1), OffsetDateTime.now().plusDays(2));
+        ConcertView afterSale =
+                new ConcertView(
+                        CONCERT_ID,
+                        "Demo Concert",
+                        "ON_SALE",
+                        OffsetDateTime.now().plusDays(1),
+                        OffsetDateTime.now().minusSeconds(1),
+                        OffsetDateTime.now().plusDays(2));
         when(concertOrderPort.findConcertById(CONCERT_ID)).thenReturn(Optional.of(afterSale));
 
         redisTemplate.delete("cache:queue:metadata:" + CONCERT_ID);
@@ -282,6 +345,7 @@ class WaitingRoomServiceIntegrationTest {
         assertEquals(0, service.snapshot(CONCERT_ID).queueSize());
         assertEquals(QueueStatus.LEFT, service.status(CONCERT_ID, next).status());
     }
+
     @Test
     void statusCannotAdmitAndManyWorkersShareOneRateBudget() throws Exception {
         ReflectionTestUtils.setField(service, "sessionTtl", Duration.ofMinutes(10));
@@ -289,7 +353,8 @@ class WaitingRoomServiceIntegrationTest {
         ReflectionTestUtils.setField(service, "admissionRate", 1);
         ReflectionTestUtils.setField(service, "admissionBurst", 2);
         for (int i = 0; i < 30; i++) {
-            UUID user = UUID.randomUUID(); service.join(CONCERT_ID, user);
+            UUID user = UUID.randomUUID();
+            service.join(CONCERT_ID, user);
             assertEquals(QueueStatus.WAITING, service.status(CONCERT_ID, user).status());
         }
         assertEquals(0, service.snapshot(CONCERT_ID).activeShoppers());
@@ -308,16 +373,25 @@ class WaitingRoomServiceIntegrationTest {
         ReflectionTestUtils.setField(service, "admissionCapacity", 10);
         ReflectionTestUtils.setField(service, "globalAdmissionCapacity", 1);
         UUID otherConcert = UUID.randomUUID();
-        when(concertOrderPort.findConcertById(otherConcert)).thenReturn(Optional.of(new ConcertView(
-                otherConcert, "Other", "ON_SALE", OffsetDateTime.now().plusDays(1),
-                OffsetDateTime.now().minusMinutes(1), OffsetDateTime.now().plusDays(2))));
+        when(concertOrderPort.findConcertById(otherConcert))
+                .thenReturn(
+                        Optional.of(
+                                new ConcertView(
+                                        otherConcert,
+                                        "Other",
+                                        "ON_SALE",
+                                        OffsetDateTime.now().plusDays(1),
+                                        OffsetDateTime.now().minusMinutes(1),
+                                        OffsetDateTime.now().plusDays(2))));
         UUID first = UUID.randomUUID(), next = UUID.randomUUID();
-        service.join(CONCERT_ID, first); service.join(otherConcert, next);
-        service.promoteWaitingUsers(CONCERT_ID); service.promoteWaitingUsers(otherConcert);
+        service.join(CONCERT_ID, first);
+        service.join(otherConcert, next);
+        service.promoteWaitingUsers(CONCERT_ID);
+        service.promoteWaitingUsers(otherConcert);
         assertEquals(QueueStatus.WAITING, service.status(otherConcert, next).status());
-        service.finishShoppingSession(CONCERT_ID, first); service.promoteWaitingUsers(otherConcert);
+        service.finishShoppingSession(CONCERT_ID, first);
+        service.promoteWaitingUsers(otherConcert);
         assertEquals(QueueStatus.ADMITTED, service.status(otherConcert, next).status());
         assertEquals(1L, redisTemplate.opsForZSet().zCard("queue:global-active"));
     }
-
 }

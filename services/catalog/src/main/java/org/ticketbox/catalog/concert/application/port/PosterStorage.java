@@ -1,12 +1,12 @@
 package org.ticketbox.catalog.concert.application.port;
 
-import org.springframework.web.multipart.MultipartFile;
+import org.ticketbox.catalog.application.port.Upload;
 
 import java.util.UUID;
 
 public interface PosterStorage {
 
-    StoredPoster upload(UUID concertId, MultipartFile file);
+    StoredPoster upload(UUID concertId, Upload file);
 
     void deleteBestEffort(String publicId);
 

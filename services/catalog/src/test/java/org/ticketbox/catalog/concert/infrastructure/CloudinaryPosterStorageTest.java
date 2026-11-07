@@ -1,57 +1,63 @@
 package org.ticketbox.catalog.concert.infrastructure;
 
-import com.cloudinary.Cloudinary;
-import com.cloudinary.Uploader;
-import org.ticketbox.catalog.concert.application.port.PosterStorage.StoredPoster;
-import org.ticketbox.catalog.web.AppException;
-import org.ticketbox.catalog.web.ErrorCode;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.util.unit.DataSize;
-
-import java.io.IOException;
-import java.util.Map;
-import java.util.UUID;
-
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.cloudinary.Cloudinary;
+import com.cloudinary.Uploader;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.util.unit.DataSize;
+import org.ticketbox.catalog.application.error.AppException;
+import org.ticketbox.catalog.application.error.ErrorCode;
+import org.ticketbox.catalog.concert.application.port.PosterStorage.StoredPoster;
+import org.ticketbox.catalog.config.CloudinaryProperties;
+import org.ticketbox.catalog.support.TestUpload;
+
+import java.io.IOException;
+import java.util.Map;
+import java.util.UUID;
+
 @ExtendWith(MockitoExtension.class)
 class CloudinaryPosterStorageTest {
 
-    @Mock
-    private Cloudinary cloudinary;
+    @Mock private Cloudinary cloudinary;
 
-    @Mock
-    private Uploader uploader;
+    @Mock private Uploader uploader;
 
     private CloudinaryPosterStorage storage;
 
     @BeforeEach
     void setUp() {
-        CloudinaryProperties properties = new CloudinaryProperties(
-                "demo-cloud", "api-key", "api-secret", "ticketbox/concert-posters", DataSize.ofMegabytes(5));
+        CloudinaryProperties properties =
+                new CloudinaryProperties(
+                        "demo-cloud",
+                        "api-key",
+                        "api-secret",
+                        "ticketbox/concert-posters",
+                        DataSize.ofMegabytes(5));
         storage = new CloudinaryPosterStorage(cloudinary, properties);
     }
 
     @Test
     void upload_ValidJpeg_ReturnsSecureUrlAndPublicId() throws IOException {
         byte[] jpeg = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 0x01};
-        MockMultipartFile file = new MockMultipartFile("file", "poster.jpg", "image/jpeg", jpeg);
+        TestUpload file = new TestUpload("file", "poster.jpg", "image/jpeg", jpeg);
         when(cloudinary.uploader()).thenReturn(uploader);
-        when(uploader.upload(any(byte[].class), anyMap())).thenReturn(Map.of(
-                "secure_url", "https://res.cloudinary.com/demo/poster.jpg",
-                "public_id", "ticketbox/concert-posters/poster"
-        ));
+        when(uploader.upload(any(byte[].class), anyMap()))
+                .thenReturn(
+                        Map.of(
+                                "secure_url", "https://res.cloudinary.com/demo/poster.jpg",
+                                "public_id", "ticketbox/concert-posters/poster"));
 
         StoredPoster result = storage.upload(UUID.randomUUID(), file);
 
@@ -61,19 +67,21 @@ class CloudinaryPosterStorageTest {
 
     @Test
     void upload_SpoofedContentType_IsRejectedBeforeCloudinary() {
-        MockMultipartFile file = new MockMultipartFile(
-                "file", "poster.jpg", "image/jpeg", "not-an-image".getBytes());
+        TestUpload file =
+                new TestUpload("file", "poster.jpg", "image/jpeg", "not-an-image".getBytes());
 
-        AppException exception = assertThrows(AppException.class, () -> storage.upload(UUID.randomUUID(), file));
+        AppException exception =
+                assertThrows(AppException.class, () -> storage.upload(UUID.randomUUID(), file));
 
         assertEquals(ErrorCode.INVALID_REQUEST, exception.getErrorCode());
     }
 
     @Test
     void upload_UnsupportedType_IsRejected() {
-        MockMultipartFile file = new MockMultipartFile("file", "poster.gif", "image/gif", "GIF89a".getBytes());
+        TestUpload file = new TestUpload("file", "poster.gif", "image/gif", "GIF89a".getBytes());
 
-        AppException exception = assertThrows(AppException.class, () -> storage.upload(UUID.randomUUID(), file));
+        AppException exception =
+                assertThrows(AppException.class, () -> storage.upload(UUID.randomUUID(), file));
 
         assertEquals(ErrorCode.INVALID_REQUEST, exception.getErrorCode());
     }
@@ -84,9 +92,10 @@ class CloudinaryPosterStorageTest {
         oversized[0] = (byte) 0xFF;
         oversized[1] = (byte) 0xD8;
         oversized[2] = (byte) 0xFF;
-        MockMultipartFile file = new MockMultipartFile("file", "poster.jpg", "image/jpeg", oversized);
+        TestUpload file = new TestUpload("file", "poster.jpg", "image/jpeg", oversized);
 
-        AppException exception = assertThrows(AppException.class, () -> storage.upload(UUID.randomUUID(), file));
+        AppException exception =
+                assertThrows(AppException.class, () -> storage.upload(UUID.randomUUID(), file));
 
         assertEquals(ErrorCode.INVALID_REQUEST, exception.getErrorCode());
     }
@@ -94,7 +103,8 @@ class CloudinaryPosterStorageTest {
     @Test
     void deleteBestEffort_CloudinaryFailureDoesNotEscape() throws IOException {
         when(cloudinary.uploader()).thenReturn(uploader);
-        when(uploader.destroy(any(String.class), anyMap())).thenThrow(new IOException("network error"));
+        when(uploader.destroy(any(String.class), anyMap()))
+                .thenThrow(new IOException("network error"));
 
         assertDoesNotThrow(() -> storage.deleteBestEffort("ticketbox/concert-posters/poster"));
         verify(uploader).destroy(any(String.class), anyMap());

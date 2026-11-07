@@ -8,10 +8,7 @@ public record ArtistBioGenerationRequest(
         String compositionInstruction) {
 
     public ArtistBioGenerationRequest(
-            String concertTitle,
-            String sourceText,
-            String language,
-            int desiredLength) {
+            String concertTitle, String sourceText, String language, int desiredLength) {
         this(
                 concertTitle,
                 sourceText,

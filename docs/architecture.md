@@ -13,6 +13,21 @@ The default deployment runs six independently built applications with separate P
 
 The root Maven reactor verifies the six applications. Docker Compose builds each image from the matching service directory. The services exchange HTTP payloads and messages through versioned contracts. See the [service extraction guide](service-extraction.md) for the data flow and offline cutover procedure.
 
+## Domain model and dependency rules
+
+The six business contexts define their language in [the glossary map](../GLOSSARY-MAP.md).
+Each service groups business capabilities into domain, application, infrastructure and web packages.
+Domain models own state-transition rules and value validation. Application use cases coordinate ports.
+Infrastructure owns external I/O and persistence, and web adapters map HTTP requests and errors.
+
+[The domain model decision](adr/0001-service-domain-models.md) records aggregate consistency boundaries
+and external ORM mapping. Order owns its priced line items. Stock, holds, account quotas, order events
+and issuance retain their existing transaction and lock ordering. The application records durable
+publications together with the relevant state change.
+
+Architecture tests in every service check layer dependencies. Functional tests check concurrent writes,
+legacy publication replay, physical replica routing, provider callbacks and read projections.
+
 ## Legacy deployment
 
 `backend/` builds and tests the Core application separately. The diagram and Core module descriptions below document the deployment selected by `compose.legacy.yaml`.

@@ -1,15 +1,17 @@
 package org.ticketbox.ticketing.inventory.hold.web;
 
-import org.ticketbox.ticketing.inventory.hold.application.ReservationService;
-import org.ticketbox.ticketing.inventory.hold.domain.TicketHold;
-import org.ticketbox.ticketing.inventory.hold.web.dto.ReserveTicketRequest;
-import org.ticketbox.ticketing.inventory.hold.web.dto.TicketHoldResponse;
-import org.ticketbox.ticketing.web.ApiResponse;
 import jakarta.validation.Valid;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.ticketbox.ticketing.inventory.hold.application.ReservationService;
+import org.ticketbox.ticketing.inventory.hold.application.dto.ReserveTicketRequest;
+import org.ticketbox.ticketing.inventory.hold.application.dto.TicketHoldResponse;
+import org.ticketbox.ticketing.inventory.hold.domain.TicketHold;
+import org.ticketbox.ticketing.web.ApiResponse;
 
 import java.util.List;
 import java.util.UUID;
@@ -27,11 +29,14 @@ public class ReservationController {
             @PathVariable UUID ticketTypeId,
             @Valid @RequestBody ReserveTicketRequest request,
             @RequestHeader(value = "Queue-Access-Token", required = false) String queueAccessToken,
-            Authentication authentication
-    ) {
+            Authentication authentication) {
         UUID userId = UUID.fromString(authentication.getName());
-        TicketHold hold = reservationService.reserve(concertId, ticketTypeId, request.getQuantity(), userId, queueAccessToken);
-        TicketHoldResponse response = new TicketHoldResponse(hold.getTicketTypeId(), hold.getQuantity(), hold.getExpiresAt());
+        TicketHold hold =
+                reservationService.reserve(
+                        concertId, ticketTypeId, request.getQuantity(), userId, queueAccessToken);
+        TicketHoldResponse response =
+                new TicketHoldResponse(
+                        hold.getTicketTypeId(), hold.getQuantity(), hold.getExpiresAt());
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
@@ -41,11 +46,14 @@ public class ReservationController {
             @PathVariable UUID ticketTypeId,
             @Valid @RequestBody ReserveTicketRequest request,
             @RequestHeader(value = "Queue-Access-Token", required = false) String queueAccessToken,
-            Authentication authentication
-    ) {
+            Authentication authentication) {
         UUID userId = UUID.fromString(authentication.getName());
-        TicketHold hold = reservationService.release(concertId, ticketTypeId, request.getQuantity(), userId, queueAccessToken);
-        TicketHoldResponse response = new TicketHoldResponse(hold.getTicketTypeId(), hold.getQuantity(), hold.getExpiresAt());
+        TicketHold hold =
+                reservationService.release(
+                        concertId, ticketTypeId, request.getQuantity(), userId, queueAccessToken);
+        TicketHoldResponse response =
+                new TicketHoldResponse(
+                        hold.getTicketTypeId(), hold.getQuantity(), hold.getExpiresAt());
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
@@ -53,13 +61,19 @@ public class ReservationController {
     public ResponseEntity<ApiResponse<List<TicketHoldResponse>>> getHolds(
             @PathVariable UUID concertId,
             @RequestHeader(value = "Queue-Access-Token", required = false) String queueAccessToken,
-            Authentication authentication
-    ) {
+            Authentication authentication) {
         UUID userId = UUID.fromString(authentication.getName());
-        List<TicketHold> holds = reservationService.getCurrentHolds(concertId, userId, queueAccessToken);
-        List<TicketHoldResponse> response = holds.stream()
-                .map(hold -> new TicketHoldResponse(hold.getTicketTypeId(), hold.getQuantity(), hold.getExpiresAt()))
-                .toList();
+        List<TicketHold> holds =
+                reservationService.getCurrentHolds(concertId, userId, queueAccessToken);
+        List<TicketHoldResponse> response =
+                holds.stream()
+                        .map(
+                                hold ->
+                                        new TicketHoldResponse(
+                                                hold.getTicketTypeId(),
+                                                hold.getQuantity(),
+                                                hold.getExpiresAt()))
+                        .toList();
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
@@ -67,8 +81,7 @@ public class ReservationController {
     public ResponseEntity<ApiResponse<Void>> releaseAllHolds(
             @PathVariable UUID concertId,
             @RequestHeader(value = "Queue-Access-Token", required = false) String queueAccessToken,
-            Authentication authentication
-    ) {
+            Authentication authentication) {
         UUID userId = UUID.fromString(authentication.getName());
         reservationService.releaseAllCurrentHolds(concertId, userId, queueAccessToken);
         return ResponseEntity.ok(ApiResponse.success(null));

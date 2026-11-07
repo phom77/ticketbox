@@ -1,35 +1,37 @@
 package org.ticketbox.ticketing.reporting.web;
 
-import org.ticketbox.ticketing.reporting.application.OrganizerRevenueService;
-import org.ticketbox.ticketing.reporting.application.RevenueReportExport;
-import org.ticketbox.ticketing.reporting.application.RevenueReportExportService;
-import org.ticketbox.ticketing.reporting.web.dto.OrganizerConcertResponse;
-import org.ticketbox.ticketing.reporting.web.dto.RevenueSummaryResponse;
-import org.ticketbox.ticketing.reporting.web.dto.SalesTrendResponse;
-import org.ticketbox.ticketing.reporting.web.dto.ZoneRevenueResponse;
-import org.ticketbox.ticketing.web.AppException;
-import org.ticketbox.ticketing.web.ErrorCode;
-import org.ticketbox.ticketing.web.ApiResponse;
-import java.time.LocalDate;
-import java.nio.charset.StandardCharsets;
-import java.util.List;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.http.ResponseEntity;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.ticketbox.ticketing.application.error.AppException;
+import org.ticketbox.ticketing.application.error.ErrorCode;
+import org.ticketbox.ticketing.reporting.application.OrganizerRevenueService;
+import org.ticketbox.ticketing.reporting.application.RevenueReportExport;
+import org.ticketbox.ticketing.reporting.application.dto.OrganizerConcertResponse;
+import org.ticketbox.ticketing.reporting.application.dto.RevenueSummaryResponse;
+import org.ticketbox.ticketing.reporting.application.dto.SalesTrendResponse;
+import org.ticketbox.ticketing.reporting.application.dto.ZoneRevenueResponse;
+import org.ticketbox.ticketing.reporting.application.port.RevenueReportExporter;
+import org.ticketbox.ticketing.web.ApiResponse;
+
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/organizer/concerts")
@@ -37,7 +39,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class OrganizerRevenueController {
 
     private final OrganizerRevenueService organizerRevenueService;
-    private final RevenueReportExportService revenueReportExportService;
+    private final RevenueReportExporter revenueReportExportService;
 
     @GetMapping
     public ResponseEntity<ApiResponse<Page<OrganizerConcertResponse>>> getCompletedConcerts(
@@ -45,31 +47,29 @@ public class OrganizerRevenueController {
             @RequestParam(defaultValue = "20") int size,
             Authentication authentication) {
         UUID organizerId = getOrganizerId(authentication);
-        Pageable pageable = PageRequest.of(
-                page,
-                size,
-                Sort.by("eventDate").descending());
+        Pageable pageable = PageRequest.of(page, size, Sort.by("eventDate").descending());
 
-        return ResponseEntity.ok(ApiResponse.success(
-                organizerRevenueService.getCompletedConcerts(organizerId, pageable)));
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        organizerRevenueService.getCompletedConcerts(organizerId, pageable)));
     }
 
     @GetMapping("/{concertId}/revenue-summary")
     public ResponseEntity<ApiResponse<RevenueSummaryResponse>> getRevenueSummary(
-            @PathVariable UUID concertId,
-            Authentication authentication) {
+            @PathVariable UUID concertId, Authentication authentication) {
         UUID organizerId = getOrganizerId(authentication);
-        return ResponseEntity.ok(ApiResponse.success(
-                organizerRevenueService.getRevenueSummary(concertId, organizerId)));
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        organizerRevenueService.getRevenueSummary(concertId, organizerId)));
     }
 
     @GetMapping("/{concertId}/zone-revenue")
     public ResponseEntity<ApiResponse<List<ZoneRevenueResponse>>> getZoneRevenue(
-            @PathVariable UUID concertId,
-            Authentication authentication) {
+            @PathVariable UUID concertId, Authentication authentication) {
         UUID organizerId = getOrganizerId(authentication);
-        return ResponseEntity.ok(ApiResponse.success(
-                organizerRevenueService.getZoneRevenue(concertId, organizerId)));
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        organizerRevenueService.getZoneRevenue(concertId, organizerId)));
     }
 
     @GetMapping("/{concertId}/sales-trend")
@@ -80,18 +80,14 @@ public class OrganizerRevenueController {
             @RequestParam(defaultValue = "day") String groupBy,
             Authentication authentication) {
         if (!"day".equalsIgnoreCase(groupBy)) {
-            throw new AppException(
-                    ErrorCode.INVALID_REQUEST,
-                    "Hiện chỉ hỗ trợ groupBy=day");
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Hiện chỉ hỗ trợ groupBy=day");
         }
 
         UUID organizerId = getOrganizerId(authentication);
-        return ResponseEntity.ok(ApiResponse.success(
-                organizerRevenueService.getDailySalesTrend(
-                        concertId,
-                        organizerId,
-                        from,
-                        to)));
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        organizerRevenueService.getDailySalesTrend(
+                                concertId, organizerId, from, to)));
     }
 
     @GetMapping("/{concertId}/revenue-report/export")
@@ -103,9 +99,10 @@ public class OrganizerRevenueController {
         RevenueReportExport report =
                 revenueReportExportService.export(concertId, organizerId, format);
 
-        ContentDisposition disposition = ContentDisposition.attachment()
-                .filename(report.filename(), StandardCharsets.UTF_8)
-                .build();
+        ContentDisposition disposition =
+                ContentDisposition.attachment()
+                        .filename(report.filename(), StandardCharsets.UTF_8)
+                        .build();
 
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(report.contentType()))

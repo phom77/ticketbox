@@ -1,16 +1,19 @@
 package org.ticketbox.catalog.sales.application.mapper;
 
-import org.ticketbox.catalog.sales.domain.TicketType;
-import org.ticketbox.catalog.sales.web.dto.CreateTicketTypeRequest;
-import org.ticketbox.catalog.sales.web.dto.TicketTypeResponse;
-import org.ticketbox.catalog.sales.web.dto.UpdateTicketTypeRequest;
 import org.mapstruct.BeanMapping;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 import org.mapstruct.NullValuePropertyMappingStrategy;
+import org.ticketbox.catalog.sales.application.dto.CreateTicketTypeRequest;
+import org.ticketbox.catalog.sales.application.dto.TicketTypeResponse;
+import org.ticketbox.catalog.sales.application.dto.UpdateTicketTypeRequest;
+import org.ticketbox.catalog.sales.domain.TicketType;
 
-@Mapper(componentModel = "spring", uses = InventoryMapping.class, injectionStrategy = org.mapstruct.InjectionStrategy.CONSTRUCTOR)
+@Mapper(
+        componentModel = "spring",
+        uses = InventoryMapping.class,
+        injectionStrategy = org.mapstruct.InjectionStrategy.CONSTRUCTOR)
 public interface TicketTypeMapper {
 
     @Mapping(target = "availableQty", source = "id", qualifiedByName = "available")
@@ -32,5 +35,6 @@ public interface TicketTypeMapper {
     @Mapping(target = "active", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
-    public abstract void updateTicketTypeFromRequest(UpdateTicketTypeRequest request, @MappingTarget TicketType ticketType);
+    public abstract void updateTicketTypeFromRequest(
+            UpdateTicketTypeRequest request, @MappingTarget TicketType ticketType);
 }

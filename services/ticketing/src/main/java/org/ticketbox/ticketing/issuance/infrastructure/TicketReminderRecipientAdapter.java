@@ -1,9 +1,10 @@
 package org.ticketbox.ticketing.issuance.infrastructure;
 
-import org.ticketbox.ticketing.issuance.TicketReminderRecipientPort;
-import org.ticketbox.ticketing.issuance.domain.TicketRepository;
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.stereotype.Component;
+import org.ticketbox.ticketing.issuance.application.port.TicketReminderRecipientPort;
+import org.ticketbox.ticketing.issuance.application.port.TicketRepository;
 
 import java.util.List;
 import java.util.UUID;

@@ -1,11 +1,7 @@
 package org.ticketbox.ticketing.order.web;
 
-import org.ticketbox.ticketing.order.application.OrderService;
-import org.ticketbox.ticketing.order.web.dto.OrderResponse;
-import org.ticketbox.ticketing.web.ApiResponse;
-import java.util.List;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,6 +9,12 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.ticketbox.ticketing.order.application.OrderService;
+import org.ticketbox.ticketing.order.application.dto.OrderResponse;
+import org.ticketbox.ticketing.web.ApiResponse;
+
+import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/organizer/manage/orders")
@@ -26,22 +28,17 @@ public class OrganizerOrderController {
             @RequestParam(required = false) UUID concertId,
             @RequestParam(required = false) String status,
             Authentication authentication) {
-        List<OrderResponse> orders = orderService.listManagedOrders(
-                concertId,
-                status,
-                currentUserId(authentication),
-                false);
+        List<OrderResponse> orders =
+                orderService.listManagedOrders(
+                        concertId, status, currentUserId(authentication), false);
         return ResponseEntity.ok(ApiResponse.success(orders));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<OrderResponse>> getOrder(
-            @PathVariable UUID id,
-            Authentication authentication) {
-        OrderResponse order = orderService.getManagedOrderDetail(
-                id,
-                currentUserId(authentication),
-                false);
+            @PathVariable UUID id, Authentication authentication) {
+        OrderResponse order =
+                orderService.getManagedOrderDetail(id, currentUserId(authentication), false);
         return ResponseEntity.ok(ApiResponse.success(order));
     }
 

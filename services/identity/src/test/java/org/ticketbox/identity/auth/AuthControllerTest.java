@@ -1,26 +1,5 @@
 package org.ticketbox.identity.auth;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.ticketbox.identity.account.User;
-import org.ticketbox.identity.account.UserRepository;
-import org.ticketbox.identity.auth.dto.AuthResponse;
-import org.ticketbox.identity.auth.dto.LoginRequest;
-import org.ticketbox.identity.auth.dto.RegisterRequest;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.context.annotation.Import;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
-
-import java.util.UUID;
-
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import java.util.Collections;
-
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
@@ -29,31 +8,52 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.test.web.servlet.MockMvc;
+import org.ticketbox.identity.account.application.port.UserRepository;
+import org.ticketbox.identity.account.domain.User;
+import org.ticketbox.identity.auth.application.AuthService;
+import org.ticketbox.identity.auth.application.dto.AuthResponse;
+import org.ticketbox.identity.auth.application.dto.LoginRequest;
+import org.ticketbox.identity.auth.application.dto.RegisterRequest;
+import org.ticketbox.identity.auth.web.AuthController;
+import org.ticketbox.identity.config.SecurityConfig;
+import org.ticketbox.identity.infrastructure.security.JwtService;
+
+import java.util.Collections;
+import java.util.UUID;
+
 @WebMvcTest(controllers = AuthController.class)
 @Import(SecurityConfig.class)
 class AuthControllerTest {
 
-    @Autowired
-    private MockMvc mockMvc;
+    @Autowired private MockMvc mockMvc;
 
-    @Autowired
-    private ObjectMapper objectMapper;
+    @Autowired private ObjectMapper objectMapper;
 
-    @MockBean
-    private AuthService authService;
+    @MockBean private AuthService authService;
 
-    @MockBean
-    private JwtService jwtService;
+    @MockBean private JwtService jwtService;
 
-    @MockBean
-    private UserRepository userRepository;
+    @MockBean private UserRepository userRepository;
 
     private User sampleUser;
 
     @BeforeEach
     void setUp() {
         sampleUser = new User();
-        org.springframework.test.util.ReflectionTestUtils.setField(sampleUser, "id", UUID.randomUUID());
+        org.springframework.test.util.ReflectionTestUtils.setField(
+                sampleUser, "id", UUID.randomUUID());
         sampleUser.setEmail("audience@example.com");
         sampleUser.setFullName("Audience User");
         sampleUser.setPasswordHash("hashed_password");
@@ -63,16 +63,22 @@ class AuthControllerTest {
 
     @Test
     void register_WithValidRequest_Returns201() throws Exception {
-        RegisterRequest request = new RegisterRequest("audience@example.com", "password123", "Audience User", "123456789");
-        AuthResponse.UserSummary summary = new AuthResponse.UserSummary(
-                sampleUser.getId(), sampleUser.getEmail(), sampleUser.getFullName(), sampleUser.getRole()
-        );
+        RegisterRequest request =
+                new RegisterRequest(
+                        "audience@example.com", "password123", "Audience User", "123456789");
+        AuthResponse.UserSummary summary =
+                new AuthResponse.UserSummary(
+                        sampleUser.getId(),
+                        sampleUser.getEmail(),
+                        sampleUser.getFullName(),
+                        sampleUser.getRole());
 
         when(authService.register(any(RegisterRequest.class))).thenReturn(summary);
 
-        mockMvc.perform(post("/api/auth/register")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+        mockMvc.perform(
+                        post("/api/auth/register")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.code").value(201))
                 .andExpect(jsonPath("$.message").value("Đã tạo thành công"))
@@ -84,9 +90,10 @@ class AuthControllerTest {
     void register_WithInvalidRequest_Returns400() throws Exception {
         RegisterRequest request = new RegisterRequest("invalid-email", "", "", "");
 
-        mockMvc.perform(post("/api/auth/register")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+        mockMvc.perform(
+                        post("/api/auth/register")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(400))
                 .andExpect(jsonPath("$.message").value("Dữ liệu chưa hợp lệ"))
@@ -98,16 +105,20 @@ class AuthControllerTest {
     @Test
     void login_WithValidCredentials_Returns200() throws Exception {
         LoginRequest request = new LoginRequest("audience@example.com", "password123");
-        AuthResponse.UserSummary summary = new AuthResponse.UserSummary(
-                sampleUser.getId(), sampleUser.getEmail(), sampleUser.getFullName(), sampleUser.getRole()
-        );
+        AuthResponse.UserSummary summary =
+                new AuthResponse.UserSummary(
+                        sampleUser.getId(),
+                        sampleUser.getEmail(),
+                        sampleUser.getFullName(),
+                        sampleUser.getRole());
         AuthResponse authResponse = new AuthResponse("jwt_token", "Bearer", 3600, summary);
 
         when(authService.login(any(LoginRequest.class))).thenReturn(authResponse);
 
-        mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+        mockMvc.perform(
+                        post("/api/auth/login")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.message").value("Thành công"))
@@ -127,14 +138,13 @@ class AuthControllerTest {
 
     @Test
     void me_WithToken_Returns200() throws Exception {
-        UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
-                sampleUser,
-                null,
-                Collections.singletonList(new SimpleGrantedAuthority("ROLE_AUDIENCE"))
-        );
+        UsernamePasswordAuthenticationToken auth =
+                new UsernamePasswordAuthenticationToken(
+                        sampleUser,
+                        null,
+                        Collections.singletonList(new SimpleGrantedAuthority("ROLE_AUDIENCE")));
 
-        mockMvc.perform(get("/api/auth/me")
-                        .with(authentication(auth)))
+        mockMvc.perform(get("/api/auth/me").with(authentication(auth)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.message").value("Thành công"))

@@ -1,15 +1,17 @@
 package org.ticketbox.ticketing.order.web;
 
-import org.ticketbox.ticketing.order.application.OrderService;
-import org.ticketbox.ticketing.order.web.dto.CreateOrderRequest;
-import org.ticketbox.ticketing.order.web.dto.OrderResponse;
-import org.ticketbox.ticketing.web.ApiResponse;
 import jakarta.validation.Valid;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.ticketbox.ticketing.order.application.OrderService;
+import org.ticketbox.ticketing.order.application.dto.CreateOrderRequest;
+import org.ticketbox.ticketing.order.application.dto.OrderResponse;
+import org.ticketbox.ticketing.web.ApiResponse;
 
 import java.util.List;
 import java.util.UUID;
@@ -24,22 +26,18 @@ public class OrderController {
     @PostMapping
     public ResponseEntity<ApiResponse<OrderResponse>> createOrder(
             @Valid @RequestBody CreateOrderRequest request,
-            @RequestHeader(value = "Idempotency-Key", required = false)
-            String idempotencyKey,
-            @RequestHeader(value = "Queue-Access-Token", required = false)
-            String queueAccessToken,
-            Authentication authentication
-    ) {
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            @RequestHeader(value = "Queue-Access-Token", required = false) String queueAccessToken,
+            Authentication authentication) {
         UUID userId = UUID.fromString(authentication.getName());
-        OrderResponse response = orderService.createOrder(request, userId, idempotencyKey, queueAccessToken);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.created(response));
+        OrderResponse response =
+                orderService.createOrder(request, userId, idempotencyKey, queueAccessToken);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(response));
     }
 
     @GetMapping("/my")
     public ResponseEntity<ApiResponse<List<OrderResponse>>> listMyOrders(
-            Authentication authentication
-    ) {
+            Authentication authentication) {
         UUID userId = UUID.fromString(authentication.getName());
         List<OrderResponse> response = orderService.listUserOrders(userId);
         return ResponseEntity.ok(ApiResponse.success(response));
@@ -47,18 +45,15 @@ public class OrderController {
 
     @GetMapping("/by-idempotency-key")
     public ResponseEntity<ApiResponse<OrderResponse>> recoverOrder(
-            @RequestHeader("Idempotency-Key") String key,
-            Authentication authentication
-    ) {
+            @RequestHeader("Idempotency-Key") String key, Authentication authentication) {
         UUID userId = UUID.fromString(authentication.getName());
-        return ResponseEntity.ok(ApiResponse.success(orderService.getOrderByIdempotencyKey(key, userId)));
+        return ResponseEntity.ok(
+                ApiResponse.success(orderService.getOrderByIdempotencyKey(key, userId)));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<OrderResponse>> getOrder(
-            @PathVariable UUID id,
-            Authentication authentication
-    ) {
+            @PathVariable UUID id, Authentication authentication) {
         UUID userId = UUID.fromString(authentication.getName());
         OrderResponse response = orderService.getOrderDetail(id, userId);
         return ResponseEntity.ok(ApiResponse.success(response));
@@ -66,9 +61,7 @@ public class OrderController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<OrderResponse>> cancelOrder(
-            @PathVariable UUID id,
-            Authentication authentication
-    ) {
+            @PathVariable UUID id, Authentication authentication) {
         UUID userId = UUID.fromString(authentication.getName());
         OrderResponse response = orderService.cancelOrder(id, userId);
         return ResponseEntity.ok(ApiResponse.success(response));
@@ -76,9 +69,7 @@ public class OrderController {
 
     @PostMapping("/{id}/retry-payment")
     public ResponseEntity<ApiResponse<OrderResponse>> retryPayment(
-            @PathVariable UUID id,
-            Authentication authentication
-    ) {
+            @PathVariable UUID id, Authentication authentication) {
         UUID userId = UUID.fromString(authentication.getName());
         OrderResponse response = orderService.retryPayment(id, userId);
         return ResponseEntity.ok(ApiResponse.success(response));

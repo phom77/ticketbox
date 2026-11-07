@@ -1,26 +1,5 @@
 package org.ticketbox.identity.account;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.ticketbox.identity.auth.JwtService;
-import org.ticketbox.identity.auth.SecurityConfig;
-import org.ticketbox.identity.account.dto.UpdateUserProfileRequest;
-import org.ticketbox.identity.account.dto.UserProfileResponse;
-import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.context.annotation.Import;
-import org.springframework.http.MediaType;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.test.web.servlet.MockMvc;
-
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.UUID;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -32,30 +11,51 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.test.web.servlet.MockMvc;
+import org.ticketbox.identity.account.application.UserProfileService;
+import org.ticketbox.identity.account.application.dto.UpdateUserProfileRequest;
+import org.ticketbox.identity.account.application.dto.UserProfileResponse;
+import org.ticketbox.identity.account.domain.User;
+import org.ticketbox.identity.account.web.UserProfileController;
+import org.ticketbox.identity.config.SecurityConfig;
+import org.ticketbox.identity.infrastructure.security.JwtService;
+
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.UUID;
+
 @WebMvcTest(controllers = UserProfileController.class)
 @Import(SecurityConfig.class)
 class UserProfileControllerTest {
 
-    @Autowired
-    private MockMvc mockMvc;
+    @Autowired private MockMvc mockMvc;
 
-    @Autowired
-    private ObjectMapper objectMapper;
+    @Autowired private ObjectMapper objectMapper;
 
-    @MockBean
-    private UserProfileService userProfileService;
+    @MockBean private UserProfileService userProfileService;
 
-    @MockBean
-    private JwtService jwtService;
+    @MockBean private JwtService jwtService;
 
     private final UUID userId = UUID.fromString("11111111-1111-1111-1111-111111111111");
 
     @Test
     void getProfile_WithAuthentication_ReturnsProfile() throws Exception {
-        when(userProfileService.getProfile(userId)).thenReturn(profile("Audience User", "0123456789", User.Role.AUDIENCE));
+        when(userProfileService.getProfile(userId))
+                .thenReturn(profile("Audience User", "0123456789", User.Role.AUDIENCE));
 
-        mockMvc.perform(get("/api/users/me/profile")
-                        .with(authentication(auth(User.Role.AUDIENCE))))
+        mockMvc.perform(get("/api/users/me/profile").with(authentication(auth(User.Role.AUDIENCE))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.email").value("audience@example.com"))
@@ -76,14 +76,16 @@ class UserProfileControllerTest {
 
     @Test
     void updateProfile_WithAllowedFields_ReturnsUpdatedProfile() throws Exception {
-        UpdateUserProfileRequest request = new UpdateUserProfileRequest("Updated User", "0987654321");
+        UpdateUserProfileRequest request =
+                new UpdateUserProfileRequest("Updated User", "0987654321");
         when(userProfileService.updateProfile(eq(userId), any(UpdateUserProfileRequest.class)))
                 .thenReturn(profile("Updated User", "0987654321", User.Role.AUDIENCE));
 
-        mockMvc.perform(patch("/api/users/me/profile")
-                        .with(authentication(auth(User.Role.AUDIENCE)))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+        mockMvc.perform(
+                        patch("/api/users/me/profile")
+                                .with(authentication(auth(User.Role.AUDIENCE)))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.fullName").value("Updated User"))
@@ -103,16 +105,18 @@ class UserProfileControllerTest {
         when(userProfileService.updateProfile(eq(userId), any(UpdateUserProfileRequest.class)))
                 .thenReturn(profile("Updated User", "0987654321", User.Role.AUDIENCE));
 
-        mockMvc.perform(patch("/api/users/me/profile")
-                        .with(authentication(auth(User.Role.AUDIENCE)))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(payload)))
+        mockMvc.perform(
+                        patch("/api/users/me/profile")
+                                .with(authentication(auth(User.Role.AUDIENCE)))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(payload)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.role").value("AUDIENCE"))
                 .andExpect(jsonPath("$.data.passwordHash").doesNotExist())
                 .andExpect(jsonPath("$.data.isActive").doesNotExist());
 
-        ArgumentCaptor<UpdateUserProfileRequest> captor = ArgumentCaptor.forClass(UpdateUserProfileRequest.class);
+        ArgumentCaptor<UpdateUserProfileRequest> captor =
+                ArgumentCaptor.forClass(UpdateUserProfileRequest.class);
         verify(userProfileService).updateProfile(eq(userId), captor.capture());
         assertEquals("Updated User", captor.getValue().fullName());
         assertEquals("0987654321", captor.getValue().phone());
@@ -120,12 +124,14 @@ class UserProfileControllerTest {
 
     @Test
     void updateProfile_WithValidationError_ReturnsStandardErrorResponse() throws Exception {
-        UpdateUserProfileRequest request = new UpdateUserProfileRequest("x".repeat(256), "0123456789");
+        UpdateUserProfileRequest request =
+                new UpdateUserProfileRequest("x".repeat(256), "0123456789");
 
-        mockMvc.perform(patch("/api/users/me/profile")
-                        .with(authentication(auth(User.Role.AUDIENCE)))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+        mockMvc.perform(
+                        patch("/api/users/me/profile")
+                                .with(authentication(auth(User.Role.AUDIENCE)))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(400))
                 .andExpect(jsonPath("$.message").value("Dữ liệu chưa hợp lệ"))
@@ -136,17 +142,10 @@ class UserProfileControllerTest {
         return new UsernamePasswordAuthenticationToken(
                 userId.toString(),
                 null,
-                Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role.name()))
-        );
+                Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role.name())));
     }
 
     private UserProfileResponse profile(String fullName, String phone, User.Role role) {
-        return new UserProfileResponse(
-                userId,
-                "audience@example.com",
-                fullName,
-                phone,
-                role
-        );
+        return new UserProfileResponse(userId, "audience@example.com", fullName, phone, role);
     }
 }

@@ -13,6 +13,5 @@ public class HealthController {
         return new HealthResponse("UP", "ticketbox-api");
     }
 
-    public record HealthResponse(String status, String service) {
-    }
+    public record HealthResponse(String status, String service) {}
 }

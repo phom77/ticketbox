@@ -1,8 +1,14 @@
 package org.ticketbox.catalog.artistbio.infrastructure;
 
-import org.ticketbox.catalog.web.AppException;
-import org.ticketbox.catalog.web.ErrorCode;
 import jakarta.annotation.PostConstruct;
+
+import org.springframework.stereotype.Component;
+import org.ticketbox.catalog.application.error.AppException;
+import org.ticketbox.catalog.application.error.ErrorCode;
+import org.ticketbox.catalog.application.port.Upload;
+import org.ticketbox.catalog.artistbio.application.port.StoredArtistPdf;
+import org.ticketbox.catalog.config.AiProperties;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -15,11 +21,10 @@ import java.util.HexFormat;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
-import org.springframework.stereotype.Component;
-import org.springframework.web.multipart.MultipartFile;
 
 @Component
-public class ArtistPdfFileStorage {
+public class ArtistPdfFileStorage
+        implements org.ticketbox.catalog.artistbio.application.port.ArtistDocuments {
 
     private static final Set<String> ALLOWED_CONTENT_TYPES =
             Set.of("application/pdf", "application/octet-stream");
@@ -37,7 +42,7 @@ public class ArtistPdfFileStorage {
         Files.createDirectories(root);
     }
 
-    public StoredArtistPdf store(UUID concertId, MultipartFile file) {
+    public StoredArtistPdf store(UUID concertId, Upload file) {
         validateMetadata(file);
         Path stored = null;
         try {
@@ -49,17 +54,14 @@ public class ArtistPdfFileStorage {
             }
             requirePdfMagic(stored);
             return new StoredArtistPdf(
-                    stored,
-                    safeOriginalName(file.getOriginalFilename()),
-                    checksum(stored));
+                    stored, safeOriginalName(file.getOriginalFilename()), checksum(stored));
         } catch (AppException ex) {
             deleteQuietly(stored);
             throw ex;
         } catch (IOException ex) {
             deleteQuietly(stored);
             throw new AppException(
-                    ErrorCode.INTERNAL_SERVER_ERROR,
-                    "Không thể lưu file PDF nghệ sĩ");
+                    ErrorCode.INTERNAL_SERVER_ERROR, "Không thể lưu file PDF nghệ sĩ");
         }
     }
 
@@ -78,7 +80,7 @@ public class ArtistPdfFileStorage {
         }
     }
 
-    private void validateMetadata(MultipartFile file) {
+    private void validateMetadata(Upload file) {
         if (file == null || file.isEmpty()) {
             throw new AppException(ErrorCode.INVALID_REQUEST, "Vui lòng chọn file PDF");
         }
@@ -90,7 +92,8 @@ public class ArtistPdfFileStorage {
         if (contentType != null
                 && !contentType.isBlank()
                 && !ALLOWED_CONTENT_TYPES.contains(contentType.toLowerCase(Locale.ROOT))) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Định dạng nội dung PDF không hợp lệ");
+            throw new AppException(
+                    ErrorCode.INVALID_REQUEST, "Định dạng nội dung PDF không hợp lệ");
         }
         if (file.getSize() > properties.getMaxFileSize().toBytes()) {
             throw new AppException(ErrorCode.INVALID_REQUEST, "PDF vượt quá dung lượng tối đa");
@@ -101,7 +104,10 @@ public class ArtistPdfFileStorage {
         byte[] magic = new byte[5];
         try (InputStream input = Files.newInputStream(path)) {
             if (input.read(magic) != magic.length
-                    || !"%PDF-".equals(new String(magic, java.nio.charset.StandardCharsets.US_ASCII))) {
+                    || !"%PDF-"
+                            .equals(
+                                    new String(
+                                            magic, java.nio.charset.StandardCharsets.US_ASCII))) {
                 throw new AppException(ErrorCode.INVALID_REQUEST, "File không phải PDF hợp lệ");
             }
         }

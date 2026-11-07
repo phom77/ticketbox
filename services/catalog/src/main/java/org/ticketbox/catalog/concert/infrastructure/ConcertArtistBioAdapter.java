@@ -1,17 +1,18 @@
 package org.ticketbox.catalog.concert.infrastructure;
 
-import org.ticketbox.catalog.concert.ConcertArtistBioPort;
-import org.ticketbox.catalog.concert.ConcertArtistBioView;
-import org.ticketbox.catalog.concert.domain.Concert;
-import org.ticketbox.catalog.concert.domain.ConcertRepository;
-import org.ticketbox.catalog.web.AppException;
-import org.ticketbox.catalog.web.ErrorCode;
-import org.ticketbox.catalog.cache.PublicCatalogCache;
-import java.util.List;
-import java.util.UUID;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import org.ticketbox.catalog.application.error.AppException;
+import org.ticketbox.catalog.application.error.ErrorCode;
+import org.ticketbox.catalog.concert.application.port.ConcertArtistBioPort;
+import org.ticketbox.catalog.concert.application.port.ConcertArtistBioView;
+import org.ticketbox.catalog.concert.application.port.ConcertRepository;
+import org.ticketbox.catalog.concert.domain.Concert;
+import org.ticketbox.catalog.infrastructure.cache.PublicCatalogCache;
+
+import java.util.List;
+import java.util.UUID;
 
 @Component
 public class ConcertArtistBioAdapter implements ConcertArtistBioPort {
@@ -20,8 +21,7 @@ public class ConcertArtistBioAdapter implements ConcertArtistBioPort {
     private final RedisTemplate<String, Object> redisTemplate;
 
     public ConcertArtistBioAdapter(
-            ConcertRepository concertRepository,
-            RedisTemplate<String, Object> redisTemplate) {
+            ConcertRepository concertRepository, RedisTemplate<String, Object> redisTemplate) {
         this.concertRepository = concertRepository;
         this.redisTemplate = redisTemplate;
     }
@@ -29,9 +29,7 @@ public class ConcertArtistBioAdapter implements ConcertArtistBioPort {
     @Override
     @Transactional(readOnly = true)
     public ConcertArtistBioView requireAccessibleConcert(
-            UUID concertId,
-            UUID requesterId,
-            boolean admin) {
+            UUID concertId, UUID requesterId, boolean admin) {
         Concert concert = requireEntity(concertId);
         if (!admin && !concert.getCreatedBy().equals(requesterId)) {
             throw new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy concert");
@@ -54,11 +52,7 @@ public class ConcertArtistBioAdapter implements ConcertArtistBioPort {
     @Override
     @Transactional
     public void applyArtistBio(
-            UUID concertId,
-            String artistBio,
-            UUID requesterId,
-            boolean admin,
-            boolean overwrite) {
+            UUID concertId, String artistBio, UUID requesterId, boolean admin, boolean overwrite) {
         Concert concert = requireEntity(concertId);
         if (!admin && !concert.getCreatedBy().equals(requesterId)) {
             throw new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy concert");
@@ -74,17 +68,17 @@ public class ConcertArtistBioAdapter implements ConcertArtistBioPort {
     }
 
     private Concert requireEntity(UUID concertId) {
-        return concertRepository.findById(concertId)
-                .orElseThrow(() -> new AppException(
-                        ErrorCode.RESOURCE_NOT_FOUND,
-                        "Không tìm thấy concert"));
+        return concertRepository
+                .findById(concertId)
+                .orElseThrow(
+                        () ->
+                                new AppException(
+                                        ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy concert"));
     }
 
     private ConcertArtistBioView toView(Concert concert) {
         return new ConcertArtistBioView(
-                concert.getId(),
-                concert.getTitle(),
-                concert.getArtistBio());
+                concert.getId(), concert.getTitle(), concert.getArtistBio());
     }
 
     private void evictCaches(UUID concertId) {

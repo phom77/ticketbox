@@ -1,71 +1,52 @@
 package org.ticketbox.catalog.artistbio.domain;
 
-import org.ticketbox.catalog.persistence.BaseEntity;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+
+import org.ticketbox.catalog.domain.BaseEntity;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
-@Entity
-@Table(name = "artist_pdf_jobs")
 @Getter
 @NoArgsConstructor
 public class ArtistPdfJob extends BaseEntity {
 
     public enum Status {
-        PENDING, PROCESSING, DONE, FAILED
+        PENDING,
+        PROCESSING,
+        DONE,
+        FAILED
     }
 
-    @Column(name = "concert_id", nullable = false)
     private UUID concertId;
 
-    @Column(name = "file_url", nullable = false, length = 500)
     private String fileUrl;
 
-    @Column(name = "original_file_name", nullable = false, length = 255)
     private String originalFileName;
 
-    @Column(name = "requested_by", nullable = false)
     private UUID requestedBy;
 
-    @Column(name = "file_checksum", nullable = false, length = 64)
     private String fileChecksum;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false, length = 20)
     private Status status = Status.PENDING;
 
-    @Column(name = "provider", length = 50)
     private String provider;
 
-    @Column(name = "model", length = 100)
     private String model;
 
-    @Column(name = "extracted_char_count")
     private Integer extractedCharCount;
 
-    @Column(name = "result_bio", columnDefinition = "TEXT")
     private String resultBio;
 
-    @Column(name = "started_at")
     private OffsetDateTime startedAt;
 
-    @Column(name = "completed_at")
     private OffsetDateTime completedAt;
 
-    @Column(name = "error_message", columnDefinition = "TEXT")
     private String errorMessage;
 
-    @Column(name = "applied_at")
     private OffsetDateTime appliedAt;
 
-    @Column(name = "applied_by")
     private UUID appliedBy;
 
     public ArtistPdfJob(
@@ -92,11 +73,7 @@ public class ArtistPdfJob extends BaseEntity {
         errorMessage = null;
     }
 
-    public void complete(
-            String resultBio,
-            String provider,
-            String model,
-            int extractedCharCount) {
+    public void complete(String resultBio, String provider, String model, int extractedCharCount) {
         if (status != Status.PROCESSING) {
             throw new IllegalStateException("Only processing artist bio jobs can complete");
         }

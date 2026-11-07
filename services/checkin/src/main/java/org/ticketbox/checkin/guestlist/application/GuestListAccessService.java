@@ -1,24 +1,23 @@
 package org.ticketbox.checkin.guestlist.application;
 
-import org.ticketbox.checkin.integration.catalog.LocalConcertProjection;
-import org.ticketbox.checkin.web.AppException;
-import org.ticketbox.checkin.web.ErrorCode;
-import java.util.UUID;
 import org.springframework.stereotype.Service;
+import org.ticketbox.checkin.admission.application.port.ConcertAccess;
+import org.ticketbox.checkin.application.error.AppException;
+import org.ticketbox.checkin.application.error.ErrorCode;
+
+import java.util.UUID;
 
 @Service
 public class GuestListAccessService {
 
-    private final LocalConcertProjection concerts;
+    private final ConcertAccess concerts;
 
-    public GuestListAccessService(LocalConcertProjection concerts) {
+    public GuestListAccessService(ConcertAccess concerts) {
         this.concerts = concerts;
     }
 
     public void requireAccess(UUID concertId, UUID userId, boolean admin) {
-        boolean exists = admin
-                ? concerts.exists(concertId)
-                : concerts.isOwnedBy(concertId, userId);
+        boolean exists = admin ? concerts.exists(concertId) : concerts.isOwnedBy(concertId, userId);
         if (!exists) {
             throw new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy concert");
         }

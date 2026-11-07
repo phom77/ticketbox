@@ -1,8 +1,10 @@
 package org.ticketbox.ticketing.inventory.hold.application;
 
 import com.ticketbox.shared.event.UserLeftQueueEvent;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.modulith.events.ApplicationModuleListener;
 import org.springframework.stereotype.Component;
 
@@ -12,9 +14,15 @@ import org.springframework.stereotype.Component;
 public class UserLeftQueueListener {
     private final ReservationService reservationService;
 
-    @ApplicationModuleListener(id = "com.ticketbox.module.ticket.application.UserLeftQueueListener.on(com.ticketbox.shared.event.UserLeftQueueEvent)")
+    @ApplicationModuleListener(
+            id =
+                    "com.ticketbox.module.ticket.application.UserLeftQueueListener.on(com.ticketbox.shared.event.UserLeftQueueEvent)")
     public void on(UserLeftQueueEvent event) {
-        log.info("Received UserLeftQueueEvent for user {} and concert {}", event.userId(), event.concertId());
-        reservationService.releaseHoldsForSession(event.userId(), event.concertId(), event.sessionToken());
+        log.info(
+                "Received UserLeftQueueEvent for user {} and concert {}",
+                event.userId(),
+                event.concertId());
+        reservationService.releaseHoldsForSession(
+                event.userId(), event.concertId(), event.sessionToken());
     }
 }

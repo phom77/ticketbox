@@ -1,33 +1,25 @@
 package org.ticketbox.ticketing.order.domain;
 
-import org.ticketbox.ticketing.persistence.BaseEntity;
-import jakarta.persistence.*;
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+
+import org.ticketbox.ticketing.domain.BaseEntity;
 
 import java.math.BigDecimal;
 import java.util.UUID;
 
-@Entity
-@Table(name = "order_items")
 @Getter
 @NoArgsConstructor
 public class OrderItem extends BaseEntity {
 
-    @Column(name = "order_id", nullable = false)
     private UUID orderId;
 
-    @Column(name = "ticket_type_id", nullable = false)
     private UUID ticketTypeId;
 
-    @Column(name = "quantity", nullable = false)
     private int quantity;
 
-    @Column(name = "unit_price", nullable = false, precision = 12, scale = 0)
     private BigDecimal unitPrice;
 
-    @Column(name = "subtotal", nullable = false, precision = 12, scale = 0)
     private BigDecimal subtotal;
 
     public void setOrderId(UUID orderId) {
@@ -48,5 +40,15 @@ public class OrderItem extends BaseEntity {
 
     public void setSubtotal(BigDecimal subtotal) {
         this.subtotal = subtotal;
+    }
+
+    public static OrderItem priced(UUID ticketTypeId, int quantity, BigDecimal unitPrice) {
+        Money price = new Money(unitPrice);
+        OrderItem line = new OrderItem();
+        line.ticketTypeId = java.util.Objects.requireNonNull(ticketTypeId);
+        line.quantity = quantity;
+        line.unitPrice = price.amount();
+        line.subtotal = price.multiply(quantity).amount();
+        return line;
     }
 }

@@ -1,16 +1,21 @@
 package org.ticketbox.ticketing.order.infrastructure;
 
-import org.ticketbox.ticketing.integration.catalog.ConcertOrderPort;
-import org.ticketbox.ticketing.order.domain.Order;
-import org.ticketbox.ticketing.order.domain.OrderItem;
-import org.ticketbox.ticketing.order.domain.OrderItemRepository;
-import org.ticketbox.ticketing.order.domain.OrderRepository;
-import org.ticketbox.ticketing.web.AppException;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.ticketbox.ticketing.application.error.AppException;
+import org.ticketbox.ticketing.application.port.catalog.ConcertOrderPort;
+import org.ticketbox.ticketing.order.application.port.OrderItemRepository;
+import org.ticketbox.ticketing.order.application.port.OrderRepository;
+import org.ticketbox.ticketing.order.domain.Order;
+import org.ticketbox.ticketing.order.domain.OrderItem;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -18,31 +23,20 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
 @ExtendWith(MockitoExtension.class)
 class OrderAdapterPaymentEligibilityTest {
 
-    @Mock
-    private OrderRepository orderRepository;
-    @Mock
-    private OrderItemRepository orderItemRepository;
-    @Mock
-    private ConcertOrderPort concertOrderPort;
+    @Mock private OrderRepository orderRepository;
+    @Mock private OrderItemRepository orderItemRepository;
+    @Mock private ConcertOrderPort concertOrderPort;
 
-    @Mock
-    private org.ticketbox.ticketing.inventory.hold.application.PurchaseGuard purchaseGuard;
+    @Mock private org.ticketbox.ticketing.inventory.hold.infrastructure.PurchaseGuard purchaseGuard;
 
-    @Mock private org.ticketbox.ticketing.inventory.InventoryPort inventory;
+    @Mock private org.ticketbox.ticketing.inventory.application.port.InventoryPort inventory;
 
-    @Mock
-    private org.ticketbox.ticketing.order.infrastructure.OrderEventStore orderEvents;
+    @Mock private org.ticketbox.ticketing.order.infrastructure.OrderEventStore orderEvents;
 
-    @InjectMocks
-    private OrderAdapter orderAdapter;
+    @InjectMocks private OrderAdapter orderAdapter;
 
     @Test
     void expiresAnOverdueOrderAndReleasesItsInventoryBeforeRejectingPayment() {

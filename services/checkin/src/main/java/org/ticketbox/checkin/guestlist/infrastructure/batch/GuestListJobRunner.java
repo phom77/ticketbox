@@ -1,20 +1,22 @@
 package org.ticketbox.checkin.guestlist.infrastructure.batch;
 
-import org.ticketbox.checkin.guestlist.domain.BatchLog;
-import org.ticketbox.checkin.guestlist.domain.BatchLogRepository;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.time.OffsetDateTime;
-import java.util.UUID;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobParametersBuilder;
 import org.springframework.batch.core.launch.JobLauncher;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
+import org.ticketbox.checkin.guestlist.application.port.BatchLogRepository;
+import org.ticketbox.checkin.guestlist.domain.BatchLog;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.OffsetDateTime;
+import java.util.UUID;
 
 @Component
-public class GuestListJobRunner {
+public class GuestListJobRunner
+        implements org.ticketbox.checkin.guestlist.application.port.GuestListJobs {
 
     private final JobLauncher jobLauncher;
     private final Job guestListImportJob;
@@ -50,20 +52,29 @@ public class GuestListJobRunner {
     }
 
     private void markLaunchFailure(UUID batchLogId, Exception exception) {
-        batchLogRepository.findById(batchLogId).ifPresent(log -> {
-            log.setStatus(BatchLog.Status.FAILED);
-            log.setCompletedAt(OffsetDateTime.now());
-            log.setErrorDetail("Không thể khởi chạy job import: " + exception.getMessage());
-            try {
-                Path source = Path.of(log.getFilePath());
-                if (Files.exists(source)) {
-                    log.setFilePath(fileStorage.quarantine(source, log.getConcertId()).toString());
-                }
-            } catch (Exception moveException) {
-                log.setErrorDetail(log.getErrorDetail()
-                        + "; Không thể di chuyển file: " + moveException.getMessage());
-            }
-            batchLogRepository.save(log);
-        });
+        batchLogRepository
+                .findById(batchLogId)
+                .ifPresent(
+                        log -> {
+                            log.setStatus(BatchLog.Status.FAILED);
+                            log.setCompletedAt(OffsetDateTime.now());
+                            log.setErrorDetail(
+                                    "Không thể khởi chạy job import: " + exception.getMessage());
+                            try {
+                                Path source = Path.of(log.getFilePath());
+                                if (Files.exists(source)) {
+                                    log.setFilePath(
+                                            fileStorage
+                                                    .quarantine(source, log.getConcertId())
+                                                    .toString());
+                                }
+                            } catch (Exception moveException) {
+                                log.setErrorDetail(
+                                        log.getErrorDetail()
+                                                + "; Không thể di chuyển file: "
+                                                + moveException.getMessage());
+                            }
+                            batchLogRepository.save(log);
+                        });
     }
 }

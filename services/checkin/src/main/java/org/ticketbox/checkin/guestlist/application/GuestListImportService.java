@@ -1,12 +1,18 @@
 package org.ticketbox.checkin.guestlist.application;
 
+import lombok.extern.slf4j.Slf4j;
+
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.stereotype.Service;
+import org.ticketbox.checkin.application.error.AppException;
+import org.ticketbox.checkin.application.error.ErrorCode;
+import org.ticketbox.checkin.application.port.Upload;
+import org.ticketbox.checkin.guestlist.application.port.BatchLogRepository;
+import org.ticketbox.checkin.guestlist.application.port.GuestListFiles;
+import org.ticketbox.checkin.guestlist.application.port.GuestListJobs;
+import org.ticketbox.checkin.guestlist.application.port.GuestListLimits;
 import org.ticketbox.checkin.guestlist.domain.BatchLog;
-import org.ticketbox.checkin.guestlist.domain.BatchLogRepository;
-import org.ticketbox.checkin.guestlist.infrastructure.batch.GuestListFileStorage;
-import org.ticketbox.checkin.guestlist.infrastructure.batch.GuestListImportProperties;
-import org.ticketbox.checkin.guestlist.infrastructure.batch.GuestListJobRunner;
-import org.ticketbox.checkin.web.AppException;
-import org.ticketbox.checkin.web.ErrorCode;
+
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -16,10 +22,6 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Stream;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
 
 @Slf4j
 @Service
@@ -33,16 +35,16 @@ public class GuestListImportService {
                     BatchLog.Status.PARTIAL);
 
     private final BatchLogRepository batchLogRepository;
-    private final GuestListFileStorage fileStorage;
-    private final GuestListImportProperties properties;
-    private final GuestListJobRunner jobRunner;
+    private final GuestListFiles fileStorage;
+    private final GuestListLimits properties;
+    private final GuestListJobs jobRunner;
     private final GuestListAccessService accessService;
 
     public GuestListImportService(
             BatchLogRepository batchLogRepository,
-            GuestListFileStorage fileStorage,
-            GuestListImportProperties properties,
-            GuestListJobRunner jobRunner,
+            GuestListFiles fileStorage,
+            GuestListLimits properties,
+            GuestListJobs jobRunner,
             GuestListAccessService accessService) {
         this.batchLogRepository = batchLogRepository;
         this.fileStorage = fileStorage;
@@ -51,11 +53,7 @@ public class GuestListImportService {
         this.accessService = accessService;
     }
 
-    public BatchLog submitUpload(
-            UUID concertId,
-            MultipartFile file,
-            UUID userId,
-            boolean admin) {
+    public BatchLog submitUpload(UUID concertId, Upload file, UUID userId, boolean admin) {
         accessService.requireAccess(concertId, userId, admin);
         validateUpload(file);
 
@@ -75,10 +73,7 @@ public class GuestListImportService {
         }
     }
 
-    public BatchLog queueScheduledUpload(
-            UUID concertId,
-            MultipartFile file,
-            UUID userId) {
+    public BatchLog queueScheduledUpload(UUID concertId, Upload file, UUID userId) {
         accessService.requireAccess(concertId, userId, false);
         validateUpload(file);
 
@@ -124,10 +119,7 @@ public class GuestListImportService {
     }
 
     public BatchLog submitScheduled(
-            UUID concertId,
-            Path claimedFile,
-            String originalFileName,
-            Path queuedPath) {
+            UUID concertId, Path claimedFile, String originalFileName, Path queuedPath) {
         try {
             if (fileStorage.size(claimedFile) > properties.getMaxFileSize().toBytes()) {
                 return rejectScheduled(
@@ -138,14 +130,14 @@ public class GuestListImportService {
                         queuedPath);
             }
             String checksum = fileStorage.checksum(claimedFile);
-            Optional<BatchLog> pending = batchLogRepository
-                    .findFirstByConcertIdAndChecksumAndStatusOrderByStartedAtDesc(
-                            concertId,
-                            checksum,
-                            BatchLog.Status.PENDING);
+            Optional<BatchLog> pending =
+                    batchLogRepository.findFirstByConcertIdAndChecksumAndStatusOrderByStartedAtDesc(
+                            concertId, checksum, BatchLog.Status.PENDING);
             if (pending.isPresent()
                     && (queuedPath == null
-                            || Path.of(pending.get().getFilePath()).toAbsolutePath().normalize()
+                            || Path.of(pending.get().getFilePath())
+                                    .toAbsolutePath()
+                                    .normalize()
                                     .equals(queuedPath.toAbsolutePath().normalize()))) {
                 return launchPending(pending.get(), claimedFile);
             }
@@ -165,21 +157,15 @@ public class GuestListImportService {
         }
     }
 
-    private BatchLog submit(
-            UUID concertId,
-            Path file,
-            String fileName,
-            BatchLog.Source source) throws IOException {
+    private BatchLog submit(UUID concertId, Path file, String fileName, BatchLog.Source source)
+            throws IOException {
         String checksum = fileStorage.checksum(file);
         return submit(concertId, file, fileName, source, checksum);
     }
 
     private BatchLog submit(
-            UUID concertId,
-            Path file,
-            String fileName,
-            BatchLog.Source source,
-            String checksum) throws IOException {
+            UUID concertId, Path file, String fileName, BatchLog.Source source, String checksum)
+            throws IOException {
         Optional<BatchLog> existing = findDuplicate(concertId, checksum);
         if (existing.isPresent()) {
             if (source == BatchLog.Source.UPLOAD) {
@@ -214,9 +200,7 @@ public class GuestListImportService {
         return log;
     }
 
-    private BatchLog launchPending(
-            BatchLog pending,
-            Path claimedFile) {
+    private BatchLog launchPending(BatchLog pending, Path claimedFile) {
         pending.setFilePath(claimedFile.toString());
         pending.setStatus(BatchLog.Status.RUNNING);
         BatchLog running = batchLogRepository.saveAndFlush(pending);
@@ -225,10 +209,7 @@ public class GuestListImportService {
     }
 
     private BatchLog recordSkippedQueue(
-            UUID concertId,
-            String fileName,
-            String checksum,
-            BatchLog original) {
+            UUID concertId, String fileName, String checksum, BatchLog original) {
         BatchLog skipped = new BatchLog();
         skipped.setJobName("GUEST_LIST_IMPORT");
         skipped.setConcertId(concertId);
@@ -243,11 +224,8 @@ public class GuestListImportService {
     }
 
     private BatchLog skipScheduled(
-            UUID concertId,
-            Path file,
-            String fileName,
-            String checksum,
-            BatchLog original) throws IOException {
+            UUID concertId, Path file, String fileName, String checksum, BatchLog original)
+            throws IOException {
         Path archived = fileStorage.archive(file, concertId, false);
         BatchLog skipped = new BatchLog();
         skipped.setJobName("GUEST_LIST_IMPORT");
@@ -264,18 +242,14 @@ public class GuestListImportService {
     }
 
     private BatchLog rejectScheduled(
-            UUID concertId,
-            Path file,
-            String fileName,
-            String reason,
-            Path queuedPath) {
-        BatchLog failed = queuedPath == null
-                ? new BatchLog()
-                : batchLogRepository.findFirstByConcertIdAndFilePathAndStatus(
-                                concertId,
-                                queuedPath.toString(),
-                                BatchLog.Status.PENDING)
-                        .orElseGet(BatchLog::new);
+            UUID concertId, Path file, String fileName, String reason, Path queuedPath) {
+        BatchLog failed =
+                queuedPath == null
+                        ? new BatchLog()
+                        : batchLogRepository
+                                .findFirstByConcertIdAndFilePathAndStatus(
+                                        concertId, queuedPath.toString(), BatchLog.Status.PENDING)
+                                .orElseGet(BatchLog::new);
         if (failed.getJobName() == null) {
             failed.setJobName("GUEST_LIST_IMPORT");
             failed.setConcertId(concertId);
@@ -296,14 +270,11 @@ public class GuestListImportService {
     }
 
     private Optional<BatchLog> findDuplicate(UUID concertId, String checksum) {
-        return batchLogRepository
-                .findFirstByConcertIdAndChecksumAndStatusInOrderByCompletedAtDesc(
-                        concertId,
-                        checksum,
-                        DEDUPLICATED_STATUSES);
+        return batchLogRepository.findFirstByConcertIdAndChecksumAndStatusInOrderByCompletedAtDesc(
+                concertId, checksum, DEDUPLICATED_STATUSES);
     }
 
-    private void validateUpload(MultipartFile file) {
+    private void validateUpload(Upload file) {
         if (file == null || file.isEmpty()) {
             throw new AppException(ErrorCode.INVALID_REQUEST, "Vui lòng chọn file CSV");
         }
@@ -327,8 +298,11 @@ public class GuestListImportService {
     }
 
     public void importAvailableFiles() {
-        try (Stream<Path> concertDirectories = java.nio.file.Files.list(fileStorage.incomingRoot())) {
-            concertDirectories.filter(java.nio.file.Files::isDirectory).forEach(this::processConcertDirectory);
+        try (Stream<Path> concertDirectories =
+                java.nio.file.Files.list(fileStorage.incomingRoot())) {
+            concertDirectories
+                    .filter(java.nio.file.Files::isDirectory)
+                    .forEach(this::processConcertDirectory);
         } catch (IOException ex) {
             log.error("Could not scan guest-list incoming directory", ex);
         }

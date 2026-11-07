@@ -14,10 +14,15 @@ public class CatalogErrorAdvice {
     public ResponseEntity<?> saleWrite(DataAccessException failure) {
         String detail = failure.getMostSpecificCause().getMessage();
         if (detail != null && detail.contains("can be edited only while the concert is DRAFT")) {
-            return ResponseEntity.status(409).body(ApiResponse.error(409,
-                    "Chỉ chỉnh giá, số lượng và danh sách hạng vé khi concert ở trạng thái DRAFT"));
+            return ResponseEntity.status(409)
+                    .body(
+                            ApiResponse.error(
+                                    409,
+                                    "Chỉ chỉnh giá, số lượng và danh sách hạng vé khi concert ở"
+                                            + " trạng thái DRAFT"));
         }
         org.slf4j.LoggerFactory.getLogger(getClass()).error("Catalog persistence failed", failure);
-        return ResponseEntity.internalServerError().body(ApiResponse.error(500, "Không thể lưu cấu hình concert"));
+        return ResponseEntity.internalServerError()
+                .body(ApiResponse.error(500, "Không thể lưu cấu hình concert"));
     }
 }

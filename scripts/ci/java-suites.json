@@ -2,32 +2,96 @@
   "coreLegacy": {
     "reports": "backend/target/surefire-reports",
     "requiredGroups": {
-      "legacy-modularity": {"com.ticketbox.ModularityTest": []},
-      "legacy-purchase": {"com.ticketbox.PurchaseJourneyIntegrationTest": []},
-      "legacy-provider-boundary": {"com.ticketbox.module.payment.infrastructure.ProductionPaymentBoundaryTest": []}
+      "legacy-modularity": {
+        "com.ticketbox.ModularityTest": []
+      },
+      "legacy-purchase": {
+        "com.ticketbox.PurchaseJourneyIntegrationTest": []
+      },
+      "legacy-provider-boundary": {
+        "com.ticketbox.module.payment.infrastructure.ProductionPaymentBoundaryTest": []
+      }
     }
   },
   "identity": {
     "reports": "services/identity/target/surefire-reports",
     "requiredGroups": {
-      "accounts-and-contacts": {"org.ticketbox.identity.IdentityIntegrationTest": []},
-      "authentication-and-rbac": {"org.ticketbox.identity.auth.SecurityRbacTest": []}
+      "accounts-and-contacts": {
+        "org.ticketbox.identity.IdentityIntegrationTest": []
+      },
+      "authentication-and-rbac": {
+        "org.ticketbox.identity.auth.SecurityRbacTest": []
+      },
+      "architecture": {
+        "org.ticketbox.identity.architecture.ArchitectureTest": [
+          "domainIsIndependentOfFrameworksAndOuterLayers",
+          "useCasesDependOnPortsInsteadOfAdapters",
+          "controllersUseApplicationInterfaces"
+        ]
+      },
+      "domain-rules": {
+        "org.ticketbox.identity.account.domain.UserRulesTest": []
+      }
     }
   },
   "catalog": {
     "reports": "services/catalog/target/surefire-reports",
     "requiredGroups": {
-      "sale-snapshots": {"org.ticketbox.catalog.sales.CatalogPublisherIntegrationTest": []},
-      "ai-publication-replay": {"org.ticketbox.catalog.artistbio.application.CatalogPublicationIntegrationTest": ["pendingPublicationFromBaselineIsReplayedAndCompleted"]},
-      "replica-routing": {"org.ticketbox.catalog.persistence.ReplicaRoutingIntegrationTest": ["onlyExplicitReadOnlyQueriesUseReplicaAndFailureDoesNotLeakRouting"]}
+      "sale-snapshots": {
+        "org.ticketbox.catalog.sales.CatalogPublisherIntegrationTest": []
+      },
+      "ai-publication-replay": {
+        "org.ticketbox.catalog.artistbio.application.CatalogPublicationIntegrationTest": [
+          "pendingPublicationFromBaselineIsReplayedAndCompleted",
+          "jobSearchPreservesOwnershipAndStatusFilters"
+        ]
+      },
+      "replica-routing": {
+        "org.ticketbox.catalog.persistence.ReplicaRoutingIntegrationTest": [
+          "onlyExplicitReadOnlyQueriesUseReplicaAndFailureDoesNotLeakRouting"
+        ]
+      },
+      "architecture": {
+        "org.ticketbox.catalog.architecture.ArchitectureTest": [
+          "domainIsIndependentOfFrameworksAndOuterLayers",
+          "useCasesDependOnPortsInsteadOfAdapters",
+          "controllersUseApplicationInterfaces"
+        ]
+      },
+      "domain-rules": {
+        "org.ticketbox.catalog.concert.domain.ConcertRulesTest": []
+      }
     }
   },
   "checkin": {
     "reports": "services/checkin/target/surefire-reports",
     "requiredGroups": {
-      "admission-replay": {"org.ticketbox.checkin.integration.CheckinProjectionReceiverIntegrationTest": ["reissuedSnapshotCannotEraseLocalAdmissionAndTerminalStatusesWin"]},
-      "admission-audit-partitions": {"org.ticketbox.checkin.persistence.CheckinLabPartitionIntegrationTest": ["monthlyAuditPreservesRowsBoundaryFallbackAndAdmissionUniqueness"]},
-      "csv-import": {"org.ticketbox.checkin.guestlist.application.GuestListImportServiceTest": []}
+      "admission-replay": {
+        "org.ticketbox.checkin.integration.CheckinProjectionReceiverIntegrationTest": [
+          "reissuedSnapshotCannotEraseLocalAdmissionAndTerminalStatusesWin"
+        ]
+      },
+      "admission-audit-partitions": {
+        "org.ticketbox.checkin.persistence.CheckinLabPartitionIntegrationTest": [
+          "monthlyAuditPreservesRowsBoundaryFallbackAndAdmissionUniqueness"
+        ]
+      },
+      "csv-import": {
+        "org.ticketbox.checkin.guestlist.application.GuestListImportServiceTest": []
+      },
+      "architecture": {
+        "org.ticketbox.checkin.architecture.ArchitectureTest": [
+          "domainIsIndependentOfFrameworksAndOuterLayers",
+          "useCasesDependOnPortsInsteadOfAdapters",
+          "controllersUseApplicationInterfaces"
+        ]
+      },
+      "domain-rules": {
+        "org.ticketbox.checkin.admission.domain.AdmissionRulesTest": []
+      },
+      "persistence-mapping": {
+        "org.ticketbox.checkin.persistence.CheckinPersistenceIntegrationTest": []
+      }
     }
   },
   "ticketing": {
@@ -39,30 +103,81 @@
           "failedInventoryResizeRollsBackMetadataAndVersionTogether"
         ]
       },
-      "waiting-room": {"org.ticketbox.ticketing.queue.application.WaitingRoomServiceIntegrationTest": []},
+      "waiting-room": {
+        "org.ticketbox.ticketing.queue.application.WaitingRoomServiceIntegrationTest": []
+      },
       "checkout-and-publication-replay": {
-        "org.ticketbox.ticketing.order.application.OrderConcurrencyIntegrationTest": ["pendingBaselinePublicationsReplayAndCompleteWithTheirStoredIdentities"]
+        "org.ticketbox.ticketing.order.application.OrderConcurrencyIntegrationTest": [
+          "pendingBaselinePublicationsReplayAndCompleteWithTheirStoredIdentities"
+        ]
       },
       "payment-boundary": {
         "org.ticketbox.ticketing.integration.payment.PaymentWorkflowControllerTest": [],
         "org.ticketbox.ticketing.integration.payment.ProductionPaymentBoundaryTest": []
       },
-      "replica-routing": {"org.ticketbox.ticketing.persistence.ReplicaRoutingIntegrationTest": ["onlyExplicitReadOnlyQueriesUseReplicaAndFailureDoesNotLeakRouting"]},
-      "order-event-partitions": {"org.ticketbox.ticketing.persistence.TicketingLabPartitionIntegrationTest": ["hashMigrationPreservesEventsReplayChecksAndAppendOnlyPermissions"]},
-      "vietnamese-pdfs": {"org.ticketbox.ticketing.reporting.VietnamesePdfTest": []}
+      "replica-routing": {
+        "org.ticketbox.ticketing.persistence.ReplicaRoutingIntegrationTest": [
+          "onlyExplicitReadOnlyQueriesUseReplicaAndFailureDoesNotLeakRouting"
+        ]
+      },
+      "order-event-partitions": {
+        "org.ticketbox.ticketing.persistence.TicketingLabPartitionIntegrationTest": [
+          "hashMigrationPreservesEventsReplayChecksAndAppendOnlyPermissions"
+        ]
+      },
+      "vietnamese-pdfs": {
+        "org.ticketbox.ticketing.reporting.VietnamesePdfTest": []
+      },
+      "architecture": {
+        "org.ticketbox.ticketing.architecture.ArchitectureTest": [
+          "domainIsIndependentOfFrameworksAndOuterLayers",
+          "useCasesDependOnPortsInsteadOfAdapters",
+          "controllersUseApplicationInterfaces",
+          "useCasesChangeOrderStateThroughItsDomainOperations"
+        ]
+      },
+      "domain-rules": {
+        "org.ticketbox.ticketing.order.domain.OrderRulesTest": []
+      }
     }
   },
   "payment": {
     "reports": "services/payment/target/surefire-reports",
     "requiredGroups": {
-      "settlement": {"com.ticketbox.payments.PaymentIntegrationTest": []},
-      "provider-protocol": {"com.ticketbox.payments.provider.PaymentGatewayProtocolTest": []}
+      "settlement": {
+        "com.ticketbox.payments.PaymentIntegrationTest": []
+      },
+      "provider-protocol": {
+        "com.ticketbox.payments.provider.PaymentGatewayProtocolTest": []
+      },
+      "architecture": {
+        "com.ticketbox.payments.architecture.ArchitectureTest": [
+          "domainIsIndependentOfFrameworksAndOuterLayers",
+          "useCasesDependOnPortsInsteadOfAdapters",
+          "controllersUseApplicationInterfaces"
+        ]
+      },
+      "domain-rules": {
+        "com.ticketbox.payments.domain.PaymentAttemptRulesTest": []
+      }
     }
   },
   "notification": {
     "reports": "services/notification/target/surefire-reports",
     "requiredGroups": {
-      "notification-delivery": {"com.ticketbox.notifications.NotificationIntegrationTest": []}
+      "notification-delivery": {
+        "com.ticketbox.notifications.NotificationIntegrationTest": []
+      },
+      "architecture": {
+        "com.ticketbox.notifications.architecture.ArchitectureTest": [
+          "domainIsIndependentOfFrameworksAndOuterLayers",
+          "useCasesDependOnPortsInsteadOfAdapters",
+          "controllersUseApplicationInterfaces"
+        ]
+      },
+      "domain-rules": {
+        "com.ticketbox.notifications.domain.NotificationRulesTest": []
+      }
     }
   }
 }

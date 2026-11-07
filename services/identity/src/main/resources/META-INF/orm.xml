@@ -1,0 +1,43 @@
+<?xml version='1.0' encoding='utf-8'?>
+<entity-mappings xmlns="https://jakarta.ee/xml/ns/persistence/orm" version="3.1">
+    <mapped-superclass class="org.ticketbox.identity.domain.BaseEntity" access="FIELD" metadata-complete="true">
+        <pre-persist method-name="initializeTimestamps" />
+        <pre-update method-name="updateTimestamp" />
+        <attributes>
+            <id name="id">
+                <column name="id" updatable="false" nullable="false" />
+                <generated-value strategy="UUID" />
+            </id>
+            <basic name="createdAt">
+                <column name="created_at" nullable="false" updatable="false" />
+            </basic>
+            <basic name="updatedAt">
+                <column name="updated_at" nullable="false" />
+            </basic>
+        </attributes>
+    </mapped-superclass>
+    <entity class="org.ticketbox.identity.account.domain.User" access="FIELD" metadata-complete="true">
+        <table name="users" />
+        <attributes>
+            <basic name="email">
+                <column name="email" nullable="false" unique="true" length="255" />
+            </basic>
+            <basic name="phone">
+                <column name="phone" length="20" />
+            </basic>
+            <basic name="fullName">
+                <column name="full_name" nullable="false" length="255" />
+            </basic>
+            <basic name="passwordHash">
+                <column name="password_hash" nullable="false" length="255" />
+            </basic>
+            <basic name="role">
+                <column name="role" nullable="false" length="20" />
+                <enumerated>STRING</enumerated>
+            </basic>
+            <basic name="isActive">
+                <column name="is_active" nullable="false" />
+            </basic>
+        </attributes>
+    </entity>
+</entity-mappings>

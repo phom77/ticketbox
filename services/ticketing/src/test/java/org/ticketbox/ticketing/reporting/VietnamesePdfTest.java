@@ -1,30 +1,30 @@
 package org.ticketbox.ticketing.reporting;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.junit.jupiter.api.Test;
-import org.ticketbox.ticketing.integration.catalog.ConcertOrderPort;
-import org.ticketbox.ticketing.integration.catalog.ConcertView;
-import org.ticketbox.ticketing.integration.catalog.TicketTypeView;
-import org.ticketbox.ticketing.issuance.application.OrderETicketPdfService;
+import org.ticketbox.ticketing.application.port.catalog.ConcertOrderPort;
+import org.ticketbox.ticketing.application.port.catalog.ConcertView;
+import org.ticketbox.ticketing.application.port.catalog.TicketTypeView;
+import org.ticketbox.ticketing.issuance.application.port.TicketRepository;
 import org.ticketbox.ticketing.issuance.domain.Ticket;
-import org.ticketbox.ticketing.issuance.domain.TicketRepository;
+import org.ticketbox.ticketing.issuance.infrastructure.OrderETicketPdfService;
+import org.ticketbox.ticketing.order.application.port.OrderRepository;
 import org.ticketbox.ticketing.order.domain.Order;
-import org.ticketbox.ticketing.order.domain.OrderRepository;
 import org.ticketbox.ticketing.reporting.application.OrganizerRevenueService;
-import org.ticketbox.ticketing.reporting.application.RevenueReportExportService;
-import org.ticketbox.ticketing.reporting.web.dto.RevenueSummaryResponse;
-import org.ticketbox.ticketing.reporting.web.dto.ZoneRevenueResponse;
+import org.ticketbox.ticketing.reporting.application.dto.RevenueSummaryResponse;
+import org.ticketbox.ticketing.reporting.application.dto.ZoneRevenueResponse;
+import org.ticketbox.ticketing.reporting.infrastructure.RevenueReportExportService;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 class VietnamesePdfTest {
     private static final String TITLE = "Đêm nhạc Ánh Dương";
@@ -45,12 +45,26 @@ class VietnamesePdfTest {
         ticket.setQrCode("qr-fixture");
         when(orders.findById(orderId)).thenReturn(Optional.of(order));
         when(tickets.findByOrderId(orderId)).thenReturn(List.of(ticket));
-        when(concerts.findConcertById(concertId)).thenReturn(Optional.of(
-                new ConcertView(concertId, TITLE, "ON_SALE", OffsetDateTime.now(), null, null)));
-        when(concerts.findTicketTypesByIds(List.of(typeId))).thenReturn(List.of(
-                new TicketTypeView(typeId, concertId, ZONE, BigDecimal.TEN, 4, 3, 2, true)));
+        when(concerts.findConcertById(concertId))
+                .thenReturn(
+                        Optional.of(
+                                new ConcertView(
+                                        concertId,
+                                        TITLE,
+                                        "ON_SALE",
+                                        OffsetDateTime.now(),
+                                        null,
+                                        null)));
+        when(concerts.findTicketTypesByIds(List.of(typeId)))
+                .thenReturn(
+                        List.of(
+                                new TicketTypeView(
+                                        typeId, concertId, ZONE, BigDecimal.TEN, 4, 3, 2, true)));
 
-        var document = new OrderETicketPdfService(orders, tickets, concerts).createForOrder(orderId).orElseThrow();
+        var document =
+                new OrderETicketPdfService(orders, tickets, concerts)
+                        .createForOrder(orderId)
+                        .orElseThrow();
         verifyPdf(document.content());
     }
 
@@ -59,12 +73,26 @@ class VietnamesePdfTest {
         var revenues = mock(OrganizerRevenueService.class);
         UUID concert = UUID.randomUUID(), organizer = UUID.randomUUID();
         when(revenues.getCompletedConcertName(concert, organizer)).thenReturn(TITLE);
-        when(revenues.getRevenueSummary(concert, organizer)).thenReturn(
-                new RevenueSummaryResponse(concert, BigDecimal.TEN, 1, 4, BigDecimal.valueOf(25)));
-        when(revenues.getZoneRevenue(concert, organizer)).thenReturn(List.of(
-                new ZoneRevenueResponse(ZONE, BigDecimal.TEN, 1, 3, 4, BigDecimal.TEN, BigDecimal.valueOf(25))));
+        when(revenues.getRevenueSummary(concert, organizer))
+                .thenReturn(
+                        new RevenueSummaryResponse(
+                                concert, BigDecimal.TEN, 1, 4, BigDecimal.valueOf(25)));
+        when(revenues.getZoneRevenue(concert, organizer))
+                .thenReturn(
+                        List.of(
+                                new ZoneRevenueResponse(
+                                        ZONE,
+                                        BigDecimal.TEN,
+                                        1,
+                                        3,
+                                        4,
+                                        BigDecimal.TEN,
+                                        BigDecimal.valueOf(25))));
 
-        verifyPdf(new RevenueReportExportService(revenues).export(concert, organizer, "pdf").content());
+        verifyPdf(
+                new RevenueReportExportService(revenues)
+                        .export(concert, organizer, "pdf")
+                        .content());
     }
 
     private void verifyPdf(byte[] content) throws Exception {

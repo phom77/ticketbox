@@ -1,14 +1,5 @@
 package org.ticketbox.checkin.guestlist.web;
 
-import org.ticketbox.checkin.guestlist.application.BatchLogService;
-import org.ticketbox.checkin.guestlist.application.GuestListImportService;
-import org.ticketbox.checkin.guestlist.application.GuestListManagementService;
-import org.ticketbox.checkin.guestlist.domain.BatchLog;
-import org.ticketbox.checkin.guestlist.web.dto.BatchLogResponse;
-import org.ticketbox.checkin.guestlist.web.dto.GuestListEntryResponse;
-import org.ticketbox.checkin.guestlist.web.dto.GuestListImportResponse;
-import org.ticketbox.checkin.web.ApiResponse;
-import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -23,6 +14,17 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import org.ticketbox.checkin.guestlist.application.BatchLogService;
+import org.ticketbox.checkin.guestlist.application.GuestListImportService;
+import org.ticketbox.checkin.guestlist.application.GuestListManagementService;
+import org.ticketbox.checkin.guestlist.application.dto.BatchLogResponse;
+import org.ticketbox.checkin.guestlist.application.dto.GuestListEntryResponse;
+import org.ticketbox.checkin.guestlist.application.dto.GuestListImportResponse;
+import org.ticketbox.checkin.guestlist.domain.BatchLog;
+import org.ticketbox.checkin.web.ApiResponse;
+import org.ticketbox.checkin.web.MultipartUpload;
+
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/organizer/manage")
@@ -48,14 +50,14 @@ public class OrganizerGuestListController {
             @PathVariable UUID concertId,
             @RequestPart("file") MultipartFile file,
             Authentication authentication) {
-        BatchLog log = importService.queueScheduledUpload(
-                concertId,
-                file,
-                userId(authentication));
-        GuestListImportResponse response = new GuestListImportResponse(
-                log.getId(),
-                log.getStatus().name(),
-                "/api/organizer/manage/batch-logs/" + log.getId());
+        BatchLog log =
+                importService.queueScheduledUpload(
+                        concertId, new MultipartUpload(file), userId(authentication));
+        GuestListImportResponse response =
+                new GuestListImportResponse(
+                        log.getId(),
+                        log.getStatus().name(),
+                        "/api/organizer/manage/batch-logs/" + log.getId());
         return ResponseEntity.accepted().body(ApiResponse.accepted(response));
     }
 
@@ -65,15 +67,13 @@ public class OrganizerGuestListController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             Authentication authentication) {
-        PageRequest pageable = PageRequest.of(
-                Math.max(page, 0),
-                Math.min(Math.max(size, 1), 100),
-                Sort.by("fullName").ascending());
-        return ApiResponse.success(managementService.list(
-                concertId,
-                userId(authentication),
-                false,
-                pageable));
+        PageRequest pageable =
+                PageRequest.of(
+                        Math.max(page, 0),
+                        Math.min(Math.max(size, 1), 100),
+                        Sort.by("fullName").ascending());
+        return ApiResponse.success(
+                managementService.list(concertId, userId(authentication), false, pageable));
     }
 
     @GetMapping("/batch-logs")
@@ -84,27 +84,20 @@ public class OrganizerGuestListController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             Authentication authentication) {
-        PageRequest pageable = PageRequest.of(
-                Math.max(page, 0),
-                Math.min(Math.max(size, 1), 100),
-                Sort.by("startedAt").descending());
-        return ApiResponse.success(batchLogService.list(
-                userId(authentication),
-                false,
-                concertId,
-                status,
-                source,
-                pageable));
+        PageRequest pageable =
+                PageRequest.of(
+                        Math.max(page, 0),
+                        Math.min(Math.max(size, 1), 100),
+                        Sort.by("startedAt").descending());
+        return ApiResponse.success(
+                batchLogService.list(
+                        userId(authentication), false, concertId, status, source, pageable));
     }
 
     @GetMapping("/batch-logs/{batchLogId}")
     public ApiResponse<BatchLogResponse> getBatchLog(
-            @PathVariable UUID batchLogId,
-            Authentication authentication) {
-        return ApiResponse.success(batchLogService.get(
-                batchLogId,
-                userId(authentication),
-                false));
+            @PathVariable UUID batchLogId, Authentication authentication) {
+        return ApiResponse.success(batchLogService.get(batchLogId, userId(authentication), false));
     }
 
     private UUID userId(Authentication authentication) {

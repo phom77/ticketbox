@@ -1,16 +1,9 @@
 package org.ticketbox.catalog.concert.web;
 
-import org.ticketbox.catalog.concert.application.ConcertPosterService;
-import org.ticketbox.catalog.concert.application.ConcertService;
-import org.ticketbox.catalog.concert.domain.Concert;
-import org.ticketbox.catalog.concert.web.dto.ConcertDetailResponse;
-import org.ticketbox.catalog.concert.web.dto.CreateConcertRequest;
-import org.ticketbox.catalog.concert.web.dto.UpdateConcertRequest;
-import org.ticketbox.catalog.concert.web.dto.UpdateStatusRequest;
-import org.ticketbox.catalog.web.ApiResponse;
 import jakarta.validation.Valid;
-import java.util.UUID;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -30,6 +23,17 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import org.ticketbox.catalog.concert.application.ConcertPosterService;
+import org.ticketbox.catalog.concert.application.ConcertService;
+import org.ticketbox.catalog.concert.application.dto.ConcertDetailResponse;
+import org.ticketbox.catalog.concert.application.dto.CreateConcertRequest;
+import org.ticketbox.catalog.concert.application.dto.UpdateConcertRequest;
+import org.ticketbox.catalog.concert.application.dto.UpdateStatusRequest;
+import org.ticketbox.catalog.concert.domain.Concert;
+import org.ticketbox.catalog.web.ApiResponse;
+import org.ticketbox.catalog.web.MultipartUpload;
+
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/organizer/manage/concerts")
@@ -46,24 +50,25 @@ public class OrganizerConcertController {
             @RequestParam(defaultValue = "10") int size,
             Authentication authentication) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
-        return ResponseEntity.ok(ApiResponse.success(
-                concertService.getOwnedConcerts(userId(authentication), status, pageable)));
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        concertService.getOwnedConcerts(userId(authentication), status, pageable)));
     }
 
     @PostMapping
     public ResponseEntity<ApiResponse<ConcertDetailResponse>> createConcert(
-            @Valid @RequestBody CreateConcertRequest request,
-            Authentication authentication) {
-        ConcertDetailResponse created = concertService.createConcert(request, userId(authentication));
+            @Valid @RequestBody CreateConcertRequest request, Authentication authentication) {
+        ConcertDetailResponse created =
+                concertService.createConcert(request, userId(authentication));
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(created));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<ConcertDetailResponse>> getConcert(
-            @PathVariable UUID id,
-            Authentication authentication) {
-        return ResponseEntity.ok(ApiResponse.success(
-                concertService.getConcertForEdit(id, userId(authentication), false)));
+            @PathVariable UUID id, Authentication authentication) {
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        concertService.getConcertForEdit(id, userId(authentication), false)));
     }
 
     @PutMapping("/{id}")
@@ -71,8 +76,9 @@ public class OrganizerConcertController {
             @PathVariable UUID id,
             @Valid @RequestBody UpdateConcertRequest request,
             Authentication authentication) {
-        return ResponseEntity.ok(ApiResponse.success(
-                concertService.updateConcert(id, request, userId(authentication), false)));
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        concertService.updateConcert(id, request, userId(authentication), false)));
     }
 
     @PatchMapping("/{id}/status")
@@ -80,14 +86,15 @@ public class OrganizerConcertController {
             @PathVariable UUID id,
             @Valid @RequestBody UpdateStatusRequest request,
             Authentication authentication) {
-        return ResponseEntity.ok(ApiResponse.success(
-                concertService.changeStatus(id, request.status(), userId(authentication), false)));
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        concertService.changeStatus(
+                                id, request.status(), userId(authentication), false)));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteConcert(
-            @PathVariable UUID id,
-            Authentication authentication) {
+            @PathVariable UUID id, Authentication authentication) {
         concertService.deleteConcert(id, userId(authentication), false);
         return ResponseEntity.ok(ApiResponse.success(null));
     }
@@ -97,17 +104,17 @@ public class OrganizerConcertController {
             @PathVariable UUID id,
             @RequestPart("file") MultipartFile file,
             Authentication authentication) {
-        ConcertDetailResponse updated = concertPosterService.replacePoster(
-                id, file, userId(authentication), false);
+        ConcertDetailResponse updated =
+                concertPosterService.replacePoster(
+                        id, new MultipartUpload(file), userId(authentication), false);
         return ResponseEntity.ok(ApiResponse.success(updated, "Concert poster uploaded"));
     }
 
     @DeleteMapping("/{id}/poster")
     public ResponseEntity<ApiResponse<ConcertDetailResponse>> removePoster(
-            @PathVariable UUID id,
-            Authentication authentication) {
-        ConcertDetailResponse updated = concertPosterService.removePoster(
-                id, userId(authentication), false);
+            @PathVariable UUID id, Authentication authentication) {
+        ConcertDetailResponse updated =
+                concertPosterService.removePoster(id, userId(authentication), false);
         return ResponseEntity.ok(ApiResponse.success(updated, "Concert poster removed"));
     }
 

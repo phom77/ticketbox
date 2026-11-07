@@ -3,7 +3,7 @@ package org.ticketbox.catalog.artistbio.application;
 /**
  * Provider-independent contract for generating an artist biography.
  *
- * <p>Concrete implementations are selected by {@link ArtistBioGeneratorResolver}.
+ * <p>Concrete implementations are selected by {@link ArtistBioGenerators}.
  */
 public interface ArtistBioGenerator {
 

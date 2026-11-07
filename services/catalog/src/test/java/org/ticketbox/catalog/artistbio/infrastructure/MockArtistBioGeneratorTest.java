@@ -1,9 +1,9 @@
 package org.ticketbox.catalog.artistbio.infrastructure;
 
-import org.ticketbox.catalog.artistbio.application.ArtistBioGenerationRequest;
-import org.junit.jupiter.api.Test;
-
 import static org.assertj.core.api.Assertions.assertThat;
+
+import org.junit.jupiter.api.Test;
+import org.ticketbox.catalog.artistbio.application.ArtistBioGenerationRequest;
 
 class MockArtistBioGeneratorTest {
 
@@ -11,7 +11,8 @@ class MockArtistBioGeneratorTest {
 
     @Test
     void generate_MultiArtistCompositionKeepsSeparateSections() {
-        String sourceText = """
+        String sourceText =
+                """
                 Composition mode: MULTI_ARTIST
                 Detected artists: Minh Anh Collective, The Horizon Lights
 
@@ -24,12 +25,16 @@ class MockArtistBioGeneratorTest {
                 The Horizon Lights la ban nhac alternative rock.
                 """;
 
-        String bio = generator.generate(new ArtistBioGenerationRequest(
-                "TicketBox Live",
-                sourceText,
-                "Vietnamese",
-                280,
-                "Return one section per artist.")).bio();
+        String bio =
+                generator
+                        .generate(
+                                new ArtistBioGenerationRequest(
+                                        "TicketBox Live",
+                                        sourceText,
+                                        "Vietnamese",
+                                        280,
+                                        "Return one section per artist."))
+                        .bio();
 
         assertThat(bio).contains("Minh Anh Collective\n");
         assertThat(bio).contains("The Horizon Lights\n");
@@ -38,7 +43,8 @@ class MockArtistBioGeneratorTest {
 
     @Test
     void generate_SameArtistCompositionReturnsSingleDraft() {
-        String sourceText = """
+        String sourceText =
+                """
                 Composition mode: SAME_ARTIST
                 Detected artists: Minh Anh Collective
 
@@ -51,12 +57,16 @@ class MockArtistBioGeneratorTest {
                 Minh Anh Collective la nghe si live synth.
                 """;
 
-        String bio = generator.generate(new ArtistBioGenerationRequest(
-                "TicketBox Live",
-                sourceText,
-                "Vietnamese",
-                140,
-                "Return one cohesive biography.")).bio();
+        String bio =
+                generator
+                        .generate(
+                                new ArtistBioGenerationRequest(
+                                        "TicketBox Live",
+                                        sourceText,
+                                        "Vietnamese",
+                                        140,
+                                        "Return one cohesive biography."))
+                        .bio();
 
         assertThat(bio).contains("Minh Anh Collective");
         assertThat(bio).doesNotContain("mot muc rieng");
