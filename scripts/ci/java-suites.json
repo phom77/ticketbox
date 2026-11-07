@@ -1,0 +1,68 @@
+{
+  "coreLegacy": {
+    "reports": "backend/target/surefire-reports",
+    "requiredGroups": {
+      "legacy-modularity": {"com.ticketbox.ModularityTest": []},
+      "legacy-purchase": {"com.ticketbox.PurchaseJourneyIntegrationTest": []},
+      "legacy-provider-boundary": {"com.ticketbox.module.payment.infrastructure.ProductionPaymentBoundaryTest": []}
+    }
+  },
+  "identity": {
+    "reports": "services/identity/target/surefire-reports",
+    "requiredGroups": {
+      "accounts-and-contacts": {"org.ticketbox.identity.IdentityIntegrationTest": []},
+      "authentication-and-rbac": {"org.ticketbox.identity.auth.SecurityRbacTest": []}
+    }
+  },
+  "catalog": {
+    "reports": "services/catalog/target/surefire-reports",
+    "requiredGroups": {
+      "sale-snapshots": {"org.ticketbox.catalog.sales.CatalogPublisherIntegrationTest": []},
+      "ai-publication-replay": {"org.ticketbox.catalog.artistbio.application.CatalogPublicationIntegrationTest": ["pendingPublicationFromBaselineIsReplayedAndCompleted"]},
+      "replica-routing": {"org.ticketbox.catalog.persistence.ReplicaRoutingIntegrationTest": ["onlyExplicitReadOnlyQueriesUseReplicaAndFailureDoesNotLeakRouting"]}
+    }
+  },
+  "checkin": {
+    "reports": "services/checkin/target/surefire-reports",
+    "requiredGroups": {
+      "admission-replay": {"org.ticketbox.checkin.integration.CheckinProjectionReceiverIntegrationTest": ["reissuedSnapshotCannotEraseLocalAdmissionAndTerminalStatusesWin"]},
+      "admission-audit-partitions": {"org.ticketbox.checkin.persistence.CheckinLabPartitionIntegrationTest": ["monthlyAuditPreservesRowsBoundaryFallbackAndAdmissionUniqueness"]},
+      "csv-import": {"org.ticketbox.checkin.guestlist.application.GuestListImportServiceTest": []}
+    }
+  },
+  "ticketing": {
+    "reports": "services/ticketing/target/surefire-reports",
+    "requiredGroups": {
+      "catalog-projection": {
+        "org.ticketbox.ticketing.integration.catalog.TicketingCatalogReceiverIntegrationTest": [
+          "lateAndConcurrentConfigurationsCannotRegressAppliedVersion",
+          "failedInventoryResizeRollsBackMetadataAndVersionTogether"
+        ]
+      },
+      "waiting-room": {"org.ticketbox.ticketing.queue.application.WaitingRoomServiceIntegrationTest": []},
+      "checkout-and-publication-replay": {
+        "org.ticketbox.ticketing.order.application.OrderConcurrencyIntegrationTest": ["pendingBaselinePublicationsReplayAndCompleteWithTheirStoredIdentities"]
+      },
+      "payment-boundary": {
+        "org.ticketbox.ticketing.integration.payment.PaymentWorkflowControllerTest": [],
+        "org.ticketbox.ticketing.integration.payment.ProductionPaymentBoundaryTest": []
+      },
+      "replica-routing": {"org.ticketbox.ticketing.persistence.ReplicaRoutingIntegrationTest": ["onlyExplicitReadOnlyQueriesUseReplicaAndFailureDoesNotLeakRouting"]},
+      "order-event-partitions": {"org.ticketbox.ticketing.persistence.TicketingLabPartitionIntegrationTest": ["hashMigrationPreservesEventsReplayChecksAndAppendOnlyPermissions"]},
+      "vietnamese-pdfs": {"org.ticketbox.ticketing.reporting.VietnamesePdfTest": []}
+    }
+  },
+  "payment": {
+    "reports": "services/payment/target/surefire-reports",
+    "requiredGroups": {
+      "settlement": {"com.ticketbox.payments.PaymentIntegrationTest": []},
+      "provider-protocol": {"com.ticketbox.payments.provider.PaymentGatewayProtocolTest": []}
+    }
+  },
+  "notification": {
+    "reports": "services/notification/target/surefire-reports",
+    "requiredGroups": {
+      "notification-delivery": {"com.ticketbox.notifications.NotificationIntegrationTest": []}
+    }
+  }
+}

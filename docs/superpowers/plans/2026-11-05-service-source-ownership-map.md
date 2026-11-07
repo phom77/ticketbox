@@ -1,6 +1,6 @@
 # Quyền sở hữu mã nguồn TicketBox
 
-Bản đồ này dùng baseline `e19658119e6258878b0827dd076eab508761bdbf` (`codex/service-ownership-baseline`). Đích trong bảng là nơi triển khai cho cụm sáu service. Các lớp trong `backend/` tiếp tục phục vụ Core legacy và diễn tập cutover.
+Bản đồ này dùng baseline `e19658119e6258878b0827dd076eab508761bdbf` (`feat/service-ownership-baseline`). Đích trong bảng là nơi triển khai cho cụm sáu service. Các lớp trong `backend/` tiếp tục phục vụ Core legacy và diễn tập cutover.
 
 | Service | Entry point và đường đi |
 |---|---|

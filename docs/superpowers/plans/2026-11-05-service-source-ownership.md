@@ -69,7 +69,7 @@ Các phụ thuộc giữa service là hợp đồng HTTP và dữ liệu trên w
 - [x] Kiểm tra cổng trên Payment và Notification để có mẫu xanh. Chạy với Identity hiện tại để quan sát lỗi đúng lý do `service-runtime` hoặc Dockerfile yêu cầu context gốc. CI chỉ bật cổng cho những service đã chuyển, thêm từng service sau mỗi task.
 - [x] Chốt quyền sở hữu các lớp theo entry point và chuỗi import. Ưu tiên `backend/src/main/java/com/ticketbox/module/admin` và `payment`, vì các package này hiện trộn nhiều chức năng. Ghi mỗi lớp được dùng vào service đích hoặc Core legacy, tránh lấy cả package theo tên.
 
-Baseline nguồn nằm ở `codex/service-ownership-baseline`. Lần chạy mới dùng `verify.ps1` ở chế độ Docker trên máy hiện tại và `split.py` trên project `ticketbox-e2e-ownership-baseline`. Sáu tag baseline trỏ tới image hiện có đã chạy trong project này. Kết quả lab, switchover, sự cố replica và benchmark phase 5–6 là bằng chứng tham chiếu. Manifest, image ID và log nằm dưới `.artifacts/verification/service-source-ownership/`. [Bản đồ quyền sở hữu](2026-11-05-service-source-ownership-map.md).
+Baseline nguồn nằm ở `feat/service-ownership-baseline`. Lần chạy mới dùng `verify.ps1` ở chế độ Docker trên máy hiện tại và `split.py` trên project `ticketbox-e2e-ownership-baseline`. Sáu tag baseline trỏ tới image hiện có đã chạy trong project này. Kết quả lab, switchover, sự cố replica và benchmark phase 5–6 là bằng chứng tham chiếu. Manifest, image ID và log nằm dưới `.artifacts/verification/service-source-ownership/`. [Bản đồ quyền sở hữu](2026-11-05-service-source-ownership-map.md).
 
 **Nghiệm thu** — Có ảnh baseline dùng được, danh sách lớp theo chủ sở hữu và cổng build chứng minh được cả trường hợp pass lẫn fail.
 
@@ -144,10 +144,12 @@ Ticketing chạy độc lập 62 test và đã được bật trong cổng CI. B
 
 **Điểm sửa dự kiến** — `pom.xml`, `services/runtime/`, `.github/workflows/verify.yml`, `scripts/ci/{verify.ps1,source-manifest.mjs}`, `README.md`, `docs/{development,architecture}.md`.
 
-- [ ] Đối chiếu từng test trong runtime với các test service-local đã chuyển. Test projection version và resize thuộc Ticketing, test admission replay thuộc Check-in, test routing thuộc Catalog/Ticketing và test partition thuộc Ticketing/Check-in. Mỗi service dùng tài nguyên từ classpath của chính mình. E2E liên service tiếp tục nằm trong `scripts/e2e/`.
-- [ ] Gỡ `services/runtime/` và khai báo module trong Maven gốc khi bốn service đã qua cổng độc lập. Dùng `mvn -B -ntp clean verify` ở gốc cho reactor sáu service. Giữ build/test riêng cho Core legacy, với manifest ghi rõ suite nào là legacy. CI thu report từ từng service và kiểm tra suite bắt buộc theo nhóm chức năng thay vì áp dụng tổng số test cũ cho kiến trúc mới. Kiểm tra `.dockerignore` cục bộ của bốn context mới để loại `target/`, `.env*` và dữ liệu local khỏi build context.
-- [ ] Bật cổng Task 1 cho cả sáu service. Với các lớp buộc giữ tên cũ để deserialize dữ liệu, dùng allowlist tên lớp cụ thể có fixture tương thích và giải thích. Cổng tiếp tục từ chối dependency runtime JAR và toàn bộ package nghiệp vụ của service khác.
-- [ ] Cập nhật README và tài liệu để hướng dẫn vị trí code, nguồn build, lệnh test, cấu hình mặc định và legacy. Thêm `pom.xml`, `compose.lab.yaml` và `compose.legacy.yaml` vào phạm vi source manifest nếu đang thiếu.
+- [x] Đối chiếu từng test trong runtime với các test service-local đã chuyển. Test projection version và resize thuộc Ticketing, test admission replay thuộc Check-in, test routing thuộc Catalog/Ticketing và test partition thuộc Ticketing/Check-in. Mỗi service dùng tài nguyên từ classpath của chính mình. E2E liên service tiếp tục nằm trong `scripts/e2e/`.
+- [x] Gỡ `services/runtime/` và khai báo module trong Maven gốc khi bốn service đã qua cổng độc lập. Dùng `mvn -B -ntp clean verify` ở gốc cho reactor sáu service. Giữ build/test riêng cho Core legacy, với manifest ghi rõ suite nào là legacy. CI thu report từ từng service và kiểm tra suite bắt buộc theo nhóm chức năng thay vì áp dụng tổng số test cũ cho kiến trúc mới. Kiểm tra `.dockerignore` cục bộ của bốn context mới để loại `target/`, `.env*` và dữ liệu local khỏi build context.
+- [x] Bật cổng Task 1 cho cả sáu service. Với các lớp buộc giữ tên cũ để deserialize dữ liệu, dùng allowlist tên lớp cụ thể có fixture tương thích và giải thích. Cổng tiếp tục từ chối dependency runtime JAR và toàn bộ package nghiệp vụ của service khác.
+- [x] Cập nhật README và tài liệu để hướng dẫn vị trí code, nguồn build, lệnh test, cấu hình mặc định và legacy. Thêm `pom.xml`, `compose.lab.yaml` và `compose.legacy.yaml` vào phạm vi source manifest nếu đang thiếu.
+
+Reactor sáu service và Core legacy chạy riêng, mỗi lượt qua 166 test. CI kiểm tra các suite bắt buộc theo chức năng, cả sáu build context và ba cấu hình Compose. Bản đối chiếu test runtime và manifest của lần chạy đủ 18 bước nằm dưới `.artifacts/verification/service-source-ownership/task-6/`.
 
 **Nghiệm thu** — Sáu service build được từ context riêng. Reactor gốc và test legacy đều chạy. Cấu hình Compose mặc định, lab và legacy đều hợp lệ.
 

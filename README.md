@@ -65,7 +65,7 @@ flowchart LR
 
 Identity owns accounts. Catalog owns concert metadata and AI jobs. Ticketing owns transactional stock, holds, quotas, Order event sourcing, payment workflow and ticket issuance. Check-in owns admission decisions, offline synchronization, guest lists and CSV jobs. Each application has its own PostgreSQL instance and runtime role.
 
-The Java business modules compile into a shared runtime library within this repository. Service entry points explicitly select their beans and persistence models. Order events and stock changes commit together in Ticketing. Durable, versioned snapshots synchronize the Catalog and Check-in projections.
+Each Java service builds from its own source, tests and resources. The root Maven reactor verifies all six applications. Order events and stock changes commit together in Ticketing. Durable, versioned snapshots synchronize the Catalog and Check-in projections.
 
 For an existing Core database, follow the offline [service cutover guide](docs/service-extraction.md) before serving traffic with the new topology. The previous deployment is available through compose.legacy.yaml. Phase 5–6 is available in the isolated [replication and partitioning lab](docs/lab-replication-partitioning.md), including stale reads, primary checkout routing, manual switchover and measured query plans.
 
@@ -83,21 +83,24 @@ For an existing Core database, follow the offline [service cutover guide](docs/s
 ## Repository
 
 ```text
-backend/           Business modules, legacy Core application and integration tests
-services/          Six application entry points and shared runtime build
+backend/           Legacy Core application, migrations and integration tests
+services/          Six independent applications, each with its own code, migrations and tests
 frontend/          React web application
 mobile-scanner/    Expo scanner and offline synchronization
 contracts/         Versioned integration schemas
 infra/             Gateway, database initialization, SMTP and monitoring config
 scripts/           Verification, smoke and isolated end-to-end tests
 docs/              Architecture, development and API guides
-compose.yaml       Default local deployment
+compose.yaml       Default six-service deployment
+compose.lab.yaml   Optional replication and partitioning lab override
+compose.legacy.yaml  Legacy Core deployment
 ```
 
 ## Verification and documentation
 
 ```sh
-pwsh -File scripts/ci/verify.ps1          # All Java suites, web lint/build, scanner typecheck
+mvn -B -ntp clean verify                 # Six-service Maven reactor
+pwsh -File scripts/ci/verify.ps1          # Java, image ownership, web and scanner checks
 pwsh -File scripts/e2e/run.ps1 -Build     # Isolated distributed workflow and fault tests
 ```
 

@@ -1,6 +1,21 @@
 # Architecture
 
-The default deployment runs Identity, Catalog, Ticketing, Check-in, Payment and Notification with six separate PostgreSQL instances. The [service extraction guide](service-extraction.md) defines current ownership, durable configuration/ticket delivery, LAN admission and the offline cutover procedure. The Core diagram below records the architecture before Phase 2–4 and remains the reference for the legacy deployment.
+The default deployment runs six independently built applications with separate PostgreSQL instances. Each service owns its Java code, tests and Flyway resources under its own directory.
+
+| Directory | Responsibilities |
+| --- | --- |
+| `services/identity` | Accounts, profiles, authentication and JWT issuance |
+| `services/catalog` | Concerts, ticket types, sale configuration and artist biographies |
+| `services/checkin` | Ticket projection, admission ledger, offline sync and guest-list CSV |
+| `services/ticketing` | Waiting room, stock, checkout, issuance and revenue reports |
+| `services/payment` | Provider attempts, callback verification and payment result delivery |
+| `services/notification` | Notification intake and delivery |
+
+The root Maven reactor verifies the six applications. Docker Compose builds each image from the matching service directory. The services exchange HTTP payloads and messages through versioned contracts. See the [service extraction guide](service-extraction.md) for the data flow and offline cutover procedure.
+
+## Legacy deployment
+
+`backend/` builds and tests the Core application separately. The diagram and Core module descriptions below document the deployment selected by `compose.legacy.yaml`.
 
 ```mermaid
 flowchart LR
@@ -45,19 +60,19 @@ Modules expose ports and views from their root packages. Other modules use those
 3. Order creation checks account limits and server-side prices, converts holds to allocations and snapshots the order items. Orders expire after fifteen minutes. Cancellation/expiry returns stock in a local transaction.
 4. Idempotency keys protect order creation. An authenticated lookup by key recovers a committed order after a lost response.
 5. Ticketing persists an immutable payment intent before remote calls. Payment persists its attempt before provider I/O and retains the original request identity after ambiguous timeouts.
-6. A verified provider success creates a durable result outbox entry. Core validates the result against its intent, deduplicates it and commits the paid order, tickets and notification publication together. The ACK is persisted; replay does not issue more tickets.
+6. A verified provider success creates a durable result outbox entry. Ticketing validates the result against its intent, deduplicates it and commits the paid order, tickets and notification publication together. The ACK is persisted; replay does not issue more tickets.
 7. Success for an expired/cancelled order creates a compensation review. It does not reclaim released stock. Manual refund records are operator evidence; the application does not automatically refund through providers.
 
 The stock invariant for a normal sale is `total = available + held + allocated`, where allocated includes awaiting-payment and paid order items. Some legacy catalog seeds contain illustrative sales without corresponding orders; use newly created sales for strict invariant checks.
 
 ## Messaging and recovery
 
-- Core's Modulith publication log survives broker outages. RabbitMQ publishing uses confirms; notification consumers commit inbox deduplication with notification rows.
+- Ticketing's Modulith publication log survives broker outages. RabbitMQ publishing uses confirms; notification consumers commit inbox deduplication with notification rows.
 - Email delivery uses owner-fenced database leases. SMTP runs outside database transactions and is at least once: a crash after SMTP acceptance can cause a duplicate email.
 - Payment dispatch/result workers use leases and retries. Uncertain attempts are queried using the original identity instead of creating a new charge.
 - Redis is the queue/session authority, not the stock authority. Redis outages reject purchase mutations. Loss of Redis state invalidates old shopping tokens.
-- Queue admission hints use Redis Pub/Sub across Core replicas. STOMP/SockJS delivers updates; periodic status refresh compensates for missed hints.
-- Online check-in atomically changes a valid ticket to used and records the accepted scan. Offline devices reconcile when syncing and can conflict before that point.
+- Queue admission hints use Redis Pub/Sub across Ticketing replicas. STOMP/SockJS delivers updates; periodic status refresh compensates for missed hints.
+- Check-in atomically marks its local ticket projection used and records the accepted scan. The admission outbox delivers feedback to Ticketing. Offline devices reconcile when syncing and can conflict before that point.
 
 ## Contracts and deployment boundaries
 

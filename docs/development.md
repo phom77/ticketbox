@@ -9,7 +9,7 @@ docker compose up -d --build
 node scripts/smoke.mjs
 ```
 
-Open http://localhost:18091. Images build directly from source; host Java, Maven and prebuilt JARs are not required. The web image contains the built React application. Named volumes persist databases, Redis, RabbitMQ and Core artifacts.
+Open http://localhost:18091. Docker builds the images from source with its bundled Java and Maven. The web image contains the built React application. Named volumes persist databases, Redis, RabbitMQ and application artifacts. Each Java image builds from its own directory under `services/`.
 
 Copy `.env.example` to `.env` only when overriding demo defaults. If changing the public address/port, also update `APP_PUBLIC_URL`, `APP_ALLOWED_ORIGINS` and the provider return URLs. `docker compose logs -f identity catalog ticketing checkin payment notification` shows application logs; `docker compose down` stops the deployment and retains volumes.
 
@@ -20,7 +20,7 @@ docker compose up -d --scale payment=2
 docker compose --profile monitoring up -d
 ```
 
-Optional monitoring exposes Prometheus at http://localhost:9090 and Grafana at http://localhost:3000. Grafana's local login is `admin` / `ticketbox-local` unless `GRAFANA_PASSWORD` is set. Prometheus scrapes Core by default; Payment and Notification metrics have separate authentication requirements.
+Optional monitoring exposes Prometheus at http://localhost:9090 and Grafana at http://localhost:3000. Grafana's local login is `admin` / `ticketbox-local` unless `GRAFANA_PASSWORD` is set. In the default Compose deployment, Prometheus scrapes Ticketing. Payment and Notification metrics have separate authentication requirements.
 
 ## Web and scanner
 
@@ -32,27 +32,27 @@ npm ci
 npm run dev
 ```
 
-Set `VITE_API_BASE_URL=http://localhost:18091` in `frontend/.env.local` before starting Vite. For direct cross-origin development, add `http://localhost:5173` to the Core `APP_ALLOWED_ORIGINS` setting and recreate Core. Production web assets use the gateway's same origin.
+Set `VITE_API_BASE_URL=http://localhost:18091` in `frontend/.env.local` before starting Vite. For direct cross-origin development, add `http://localhost:5173` to `APP_ALLOWED_ORIGINS` and recreate the services receiving browser requests. Production web assets use the gateway's same origin.
 
 See [the scanner guide](../mobile-scanner/README.md) for Expo, physical-device addressing and offline behavior.
 
 ## Verification
 
-The shared CI script runs all three Java test suites, frontend lint/build and scanner typecheck. Docker must be available for Testcontainers. PowerShell 7 is required for the scripts.
+The shared CI script runs the six-service Maven reactor, the separate Core legacy suite, image ownership checks, frontend lint/build and scanner typecheck. It also validates the default, lab and legacy Compose configurations. Docker must be available for Testcontainers. PowerShell 7, Python 3 and Node.js 24 are required for the shared checks.
 
 ```sh
 pwsh -File scripts/ci/verify.ps1
 ```
 
-By default Maven/Java 21 run in Docker, with `host.docker.internal` mapped to the Docker host for Testcontainers. With Java 21 installed locally, use `-BackendMode Local`. Reports are written to ignored `.artifacts/verification/` and each application's `target/surefire-reports/`.
+By default Maven/Java 21 run in Docker, with `host.docker.internal` mapped to the Docker host for Testcontainers. With Java 21 installed locally, use `-BackendMode Local`. Surefire writes XML under each application's `target/surefire-reports/`. CI records those results and JAR hashes in `.artifacts/verification/verification.json`. [Required suites by function](../scripts/ci/java-suites.json) identifies each service and the separate `coreLegacy` group.
 
-Individual checks:
+Run these checks from the repository root.
 
 ```sh
-cd backend
-bash ./mvnw verify
-bash ./mvnw -f ../services/payment/pom.xml verify
-bash ./mvnw -f ../services/notification/pom.xml verify
+mvn -B -ntp clean verify
+mvn -B -ntp -f services/ticketing/pom.xml clean verify
+mvn -B -ntp -f backend/pom.xml clean verify
+python3 scripts/ci/verify-service-boundaries.py --service ticketing
 ```
 
 ```sh
@@ -85,13 +85,13 @@ Build the frontend first. This browser suite does not replace live purchase/prov
 
 ## Database changes
 
-Add new Flyway migrations to the owning application's migration directory. Keep existing migrations intact: their checksums are part of already initialized databases. Core, Payment and Notification have separate histories and ownership. Generated reports, credentials, database dumps and local datasets must stay out of Git.
+Add new Flyway migrations to the owning application's migration directory. Keep existing migrations intact: their checksums are part of already initialized databases. The six services and Core legacy each have their own Flyway history. Generated reports, credentials, database dumps and local datasets must stay out of Git.
 
 
 ## Split-service verification
 
-The root Maven reactor builds all six services and runs projection concurrency/rollback tests. The backend suite continues to check the original business modules. Python 3 acceptance scripts exercise the six-service topology. Run them with an isolated E2E_PROJECT and E2E_PORT, or use the updated PowerShell E2E entry point.
+Python acceptance scripts under `scripts/e2e/` exercise the six-service topology. Use an isolated `E2E_PROJECT` and `E2E_PORT`, or use the PowerShell E2E entry point.
 
-Read service-extraction.md before migrating an existing Core database. Legacy fault scripts use compose.legacy.yaml. Local backup files and generated reports stay under .artifacts/.
+Follow the [service cutover guide](service-extraction.md) before migrating an existing Core database. Run the legacy topology with `docker compose -f compose.legacy.yaml up -d --build`. Local backup files and generated reports stay under `.artifacts/`.
 
 Phase 5–6: see [replication and partitioning lab](lab-replication-partitioning.md) for the `compose.lab.yaml` override, acceptance commands, switchover and benchmark evidence.

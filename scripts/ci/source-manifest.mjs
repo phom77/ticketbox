@@ -7,7 +7,7 @@ import path from 'node:path';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
 const paths = git('ls-files', '--cached', '--others', '--exclude-standard', '-z').split('\0')
-  .filter(p => /^(backend\/|frontend\/|mobile-scanner\/|services\/|contracts\/|scripts\/|infra\/|\.github\/|compose\.yaml$)/.test(p))
+  .filter(p => /^(backend\/|frontend\/|mobile-scanner\/|services\/|contracts\/|scripts\/|infra\/|\.github\/|pom\.xml$|compose(?:\.lab|\.legacy)?\.yaml$)/.test(p))
   .filter(p => !p.split('/').some(part => ['node_modules', 'dist', 'target', '.expo', '.vite'].includes(part)))
   .filter(p => existsSync(path.join(root, p)))
   .sort();

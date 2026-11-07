@@ -36,7 +36,7 @@ try {
     $manifest.source = $source | ConvertFrom-Json
     if ($BackendMode -eq 'Docker') {
         $backendPath = (Join-Path $repoPath 'backend').Replace('\', '/')
-        Invoke-Check 'backend' $repoPath 'docker' @(
+        Invoke-Check 'core-legacy' $repoPath 'docker' @(
             'run', '--rm', '--cpus', '4', '--memory', '3g', '--add-host', 'host.docker.internal:host-gateway',
             '-v', '/var/run/docker.sock:/var/run/docker.sock',
             '-v', 'ticketbox-maven-cache:/root/.m2', '-v', "${backendPath}:/workspace", '-w', '/workspace',
@@ -47,114 +47,45 @@ try {
     } else {
         $wrapper = if ($IsWindows) { Join-Path $repoPath 'backend/mvnw.cmd' } else { Join-Path $repoPath 'backend/mvnw' }
         if ($IsWindows) {
-            Invoke-Check 'backend' (Join-Path $repoPath 'backend') $wrapper @('-B', '-ntp', 'clean', 'verify', '-DargLine=-Xmx1536m')
+            Invoke-Check 'core-legacy' (Join-Path $repoPath 'backend') $wrapper @('-B', '-ntp', 'clean', 'verify', '-DargLine=-Xmx1536m')
         } else {
-            Invoke-Check 'backend' (Join-Path $repoPath 'backend') 'bash' @($wrapper, '-B', '-ntp', 'clean', 'verify', '-DargLine=-Xmx1536m')
+            Invoke-Check 'core-legacy' (Join-Path $repoPath 'backend') 'bash' @($wrapper, '-B', '-ntp', 'clean', 'verify', '-DargLine=-Xmx1536m')
         }
     }
-    $reports = @(Get-ChildItem (Join-Path $repoPath 'backend/target/surefire-reports') -Filter 'TEST-*.xml')
-    if ($reports.Count -eq 0) { throw 'No backend test reports generated' }
-    $suites = @($reports | ForEach-Object {
-        $backendReport = [xml](Get-Content -LiteralPath $_.FullName -Raw)
-        [ordered]@{ name = $backendReport.testsuite.name; tests = [int]$backendReport.testsuite.tests;
-            failures = [int]$backendReport.testsuite.failures; errors = [int]$backendReport.testsuite.errors; skipped = [int]$backendReport.testsuite.skipped }
-    })
-    $totals = [ordered]@{}
-    foreach ($field in @('tests', 'failures', 'errors', 'skipped')) {
-        $totals[$field] = ($suites | ForEach-Object { $_[$field] } | Measure-Object -Sum).Sum
-    }
-    $manifest.backend = [ordered]@{ totals = $totals; suites = $suites }
-    if ($totals.tests -le 0 -or $totals.failures -gt 0 -or $totals.errors -gt 0 -or $totals.skipped -gt 0) {
-        throw 'Backend suite must pass without skipped tests'
-    }
-    foreach ($required in @('com.ticketbox.ModularityTest', 'com.ticketbox.PurchaseJourneyIntegrationTest',
-            'com.ticketbox.module.payment.infrastructure.ProductionPaymentBoundaryTest')) {
-        if (-not ($suites | Where-Object { $_.name -eq $required })) { throw "Missing required suite: $required" }
-    }
     if ($BackendMode -eq 'Docker') {
-        $splitRepo = $repoPath.Replace('\', '/')
-        Invoke-Check 'service-extraction' $repoPath 'docker' @(
+        $serviceRepo = $repoPath.Replace('\', '/')
+        Invoke-Check 'service-reactor' $repoPath 'docker' @(
             'run','--rm','--add-host','host.docker.internal:host-gateway',
             '-v','/var/run/docker.sock:/var/run/docker.sock','-v','ticketbox-maven-cache:/root/.m2',
-            '-v',"${splitRepo}:/workspace",'-w','/workspace',
-            '-e',"TESTCONTAINERS_HOST_OVERRIDE=$TestcontainersHost",'-e','JAVA_TOOL_OPTIONS=-Dapi.version=1.44',
-            'maven:3.9.9-eclipse-temurin-21','mvn','-B','-ntp',
-            '-pl','services/runtime,services/identity,services/catalog,services/checkin,services/ticketing','-am','verify'
+            '-v',"${serviceRepo}:/workspace",'-w','/workspace',
+            '-e',"TESTCONTAINERS_HOST_OVERRIDE=$TestcontainersHost",'-e','JAVA_TOOL_OPTIONS=-Dapi.version=1.44','-e','JWT_SECRET',
+            'maven:3.9.9-eclipse-temurin-21','mvn','-B','-ntp','clean','verify'
         )
     } else {
-        $splitCommand = if ($IsWindows) { $wrapper } else { 'bash' }
-        $splitArguments = if ($IsWindows) { @() } else { @($wrapper) }
-        $splitArguments += @('-B','-ntp','-f',(Join-Path $repoPath 'pom.xml'),
-            '-pl','services/runtime,services/identity,services/catalog,services/checkin,services/ticketing','-am','verify')
-        Invoke-Check 'service-extraction' $repoPath $splitCommand $splitArguments
-
-    }
-    $notificationPath = (Join-Path $repoPath 'services/notification').Replace('\', '/')
-    if ($BackendMode -eq 'Docker') {
-        Invoke-Check 'notification' $repoPath 'docker' @(
-            'run','--rm','--cpus','3','--memory','2g','--add-host','host.docker.internal:host-gateway',
-            '-v','/var/run/docker.sock:/var/run/docker.sock','-v','ticketbox-maven-cache:/root/.m2',
-            '-v',"${notificationPath}:/workspace",'-w','/workspace',
-            '-e',"TESTCONTAINERS_HOST_OVERRIDE=$TestcontainersHost",'-e','JAVA_TOOL_OPTIONS=-Dapi.version=1.44',
-            'maven:3.9.9-eclipse-temurin-21','mvn','-B','-ntp','clean','verify','-DargLine=-Xmx1024m'
-        )
-    } else {
-        $notificationPom = Join-Path $notificationPath 'pom.xml'
-        if ($IsWindows) {
-            Invoke-Check 'notification' $notificationPath $wrapper @('-B','-ntp','-f',$notificationPom,'clean','verify','-DargLine=-Xmx1024m')
-        } else {
-            Invoke-Check 'notification' $notificationPath 'bash' @($wrapper,'-B','-ntp','-f',$notificationPom,'clean','verify','-DargLine=-Xmx1024m')
-        }
-    }
-    $notificationReports = @(Get-ChildItem (Join-Path $notificationPath 'target/surefire-reports') -Filter 'TEST-*.xml')
-    if ($notificationReports.Count -eq 0) { throw 'Notification reports missing' }
-    $notificationTests=0
-    foreach ($file in $notificationReports) {
-        $notificationReport=[xml](Get-Content -LiteralPath $file.FullName -Raw)
-        $notificationTests += [int]$notificationReport.testsuite.tests
-        if ([int]$notificationReport.testsuite.failures -gt 0 -or [int]$notificationReport.testsuite.errors -gt 0 -or [int]$notificationReport.testsuite.skipped -gt 0) {
-            throw 'Notification suite must pass without skipped tests'
-        }
-    }
-    if ($notificationTests -lt 4) { throw 'Notification integration tests missing' }
-    $manifest.notification = [ordered]@{ tests=$notificationTests; failures=0; errors=0; skipped=0 }
-    $paymentPath=(Join-Path $repoPath 'services/payment').Replace('\','/')
-    if ($BackendMode -eq 'Docker') {
-        Invoke-Check 'payment' $repoPath 'docker' @(
-            'run','--rm','--cpus','3','--memory','2g','--add-host','host.docker.internal:host-gateway',
-            '-v','/var/run/docker.sock:/var/run/docker.sock','-v','ticketbox-maven-cache:/root/.m2',
-            '-v',"${paymentPath}:/workspace",'-w','/workspace',
-            '-e',"TESTCONTAINERS_HOST_OVERRIDE=$TestcontainersHost",'-e','JAVA_TOOL_OPTIONS=-Dapi.version=1.44',
-            'maven:3.9.9-eclipse-temurin-21','mvn','-B','-ntp','clean','verify','-DargLine=-Xmx1024m'
-        )
-    } else {
-        $paymentPom=Join-Path $paymentPath 'pom.xml'
-        if ($IsWindows) { Invoke-Check 'payment' $paymentPath $wrapper @('-B','-ntp','-f',$paymentPom,'clean','verify','-DargLine=-Xmx1024m') }
-        else { Invoke-Check 'payment' $paymentPath 'bash' @($wrapper,'-B','-ntp','-f',$paymentPom,'clean','verify','-DargLine=-Xmx1024m') }
-    }
-    $paymentReports=@(Get-ChildItem (Join-Path $paymentPath 'target/surefire-reports') -Filter 'TEST-*.xml')
-    $paymentTests=0
-    foreach ($file in $paymentReports) {
-        $paymentReport=[xml](Get-Content -LiteralPath $file.FullName -Raw)
-        $paymentTests += [int]$paymentReport.testsuite.tests
-        if ([int]$paymentReport.testsuite.failures -gt 0 -or [int]$paymentReport.testsuite.errors -gt 0 -or [int]$paymentReport.testsuite.skipped -gt 0) { throw 'Payment suite must pass without skipped tests' }
-    }
-    if ($paymentTests -lt 12) { throw 'Payment integration/protocol tests missing' }
-    $manifest.payment=[ordered]@{tests=$paymentTests;failures=0;errors=0;skipped=0}
-    $manifest.outputs = [ordered]@{
-        coreJarSha256=(Get-FileHash (Join-Path $repoPath 'backend/target/ticketbox-api-0.0.1-SNAPSHOT.jar') -Algorithm SHA256).Hash
-        notificationJarSha256=(Get-FileHash (Join-Path $notificationPath 'target/notification-service-0.0.1-SNAPSHOT.jar') -Algorithm SHA256).Hash
-        paymentJarSha256=(Get-FileHash (Join-Path $paymentPath 'target/payment-service-0.0.1-SNAPSHOT.jar') -Algorithm SHA256).Hash
+        $mavenCommand = if ($IsWindows) { $wrapper } else { 'bash' }
+        $mavenArguments = if ($IsWindows) { @() } else { @($wrapper) }
+        $mavenArguments += @('-B','-ntp','clean','verify')
+        Invoke-Check 'service-reactor' $repoPath $mavenCommand $mavenArguments
     }
     $pythonCommand = if ($IsWindows) { 'python' } else { 'python3' }
-    Invoke-Check 'service-boundary-tests' $repoPath $pythonCommand @(
-        '-B', '-m', 'unittest', 'discover', '-s', 'scripts/ci', '-p', 'test_service_boundaries.py'
+    Invoke-Check 'ci-unit' $repoPath $pythonCommand @(
+        '-B', '-m', 'unittest', 'discover', '-s', 'scripts/ci', '-p', 'test_*.py'
     )
-    foreach ($service in @('payment', 'notification', 'identity', 'catalog', 'checkin', 'ticketing')) {
+    Invoke-Check 'java-reports' $repoPath $pythonCommand @('-B', 'scripts/ci/java_reports.py')
+    $manifest.java = Get-Content -LiteralPath (Join-Path $outputPath 'java-reports.log') -Raw | ConvertFrom-Json
+    $manifest.outputs = [ordered]@{
+        coreJarSha256=(Get-FileHash (Join-Path $repoPath 'backend/target/ticketbox-api-0.0.1-SNAPSHOT.jar') -Algorithm SHA256).Hash
+    }
+    foreach ($service in @('identity', 'catalog', 'checkin', 'ticketing', 'payment', 'notification')) {
+        $jar = Join-Path $repoPath "services/$service/target/$service-service-0.0.1-SNAPSHOT.jar"
+        $manifest.outputs["${service}JarSha256"] = (Get-FileHash $jar -Algorithm SHA256).Hash
         Invoke-Check "service-boundary-$service" $repoPath $pythonCommand @(
             'scripts/ci/verify-service-boundaries.py', '--service', $service
         )
     }
+    Invoke-Check 'compose-default' $repoPath 'docker' @('compose', '-f', 'compose.yaml', 'config', '--quiet')
+    Invoke-Check 'compose-lab' $repoPath 'docker' @('compose', '-f', 'compose.yaml', '-f', 'compose.lab.yaml', '--profile', 'lab', 'config', '--quiet')
+    Invoke-Check 'compose-legacy' $repoPath 'docker' @('compose', '-f', 'compose.legacy.yaml', 'config', '--quiet')
     Invoke-Check 'frontend-install' (Join-Path $repoPath 'frontend') 'npm' @('ci', '--no-audit', '--no-fund')
     Invoke-Check 'frontend-lint' (Join-Path $repoPath 'frontend') 'npm' @('run', 'lint')
     Invoke-Check 'frontend-build' (Join-Path $repoPath 'frontend') 'npm' @('run', 'build')

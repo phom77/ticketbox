@@ -23,6 +23,7 @@ jobs:
           java-version: '21'
           cache: maven
           cache-dependency-path: |
+            pom.xml
             backend/pom.xml
             services/identity/pom.xml
             services/catalog/pom.xml
@@ -67,7 +68,6 @@ jobs:
             services/catalog/target/surefire-reports/
             services/checkin/target/surefire-reports/
             services/ticketing/target/surefire-reports/
-            services/runtime/target/surefire-reports/
             services/payment/target/surefire-reports/
             services/notification/target/surefire-reports/
             !.artifacts/e2e/backups/**

@@ -4,7 +4,7 @@
 
 Compose mặc định chạy sáu Spring Boot process, sáu PostgreSQL instance, gateway, Redis, RabbitMQ và SMTP sink. Identity sở hữu account/role/profile. Catalog sở hữu concert, ticket type và AI jobs. Ticketing sở hữu stock, holds, quota, Order event stream, payment workflow và phát hành vé. Check-in sở hữu admission ledger, guest list và CSV jobs. Payment và Notification giữ hợp đồng version 1.
 
-Mỗi service có entry point, Flyway history, datasource runtime và migration owner riêng trong services/<name>/. Thư viện services/runtime biên dịch các module nghiệp vụ hiện có để các service dùng chung trong repo. Mỗi ứng dụng chọn rõ bean, entity và repository để chạy.
+Mỗi service sở hữu mã Java, test và tài nguyên Flyway trong `services/<name>/`. Compose build từng ứng dụng từ thư mục service tương ứng. Maven reactor ở gốc kiểm tra cả sáu service, còn `backend/` build và kiểm tra Core legacy riêng.
 
 Các bảng concerts và ticket_types bên Ticketing/Check-in là projection của Catalog. Bảng tickets bên Check-in là projection phát hành kết hợp trạng thái sử dụng tại cổng. Các FK xuyên chủ sở hữu được thay bằng ID và luồng đồng bộ. Transaction tạo đơn, stock, Order event và phát hành vé ở Ticketing DB.
 
@@ -56,7 +56,7 @@ Backup database có thể chứa thông tin cá nhân và dữ liệu thanh toá
 
 ## Bằng chứng kiểm thử
 
-Đợt triển khai được kiểm tra bằng 166 test backend, 3 test projection trên PostgreSQL thực, 13 test Payment và 4 test Notification. Scanner qua typecheck. Tám kịch bản E2E bao phủ JWT/RBAC, sale ACK, thanh toán, soát vé đồng thời, mất kết nối đến các service nguồn, replay, CSV và AI.
+Đợt Phase 2–4 được kiểm tra bằng 166 test backend, 3 test projection trên PostgreSQL thực, 13 test Payment và 4 test Notification. Scanner qua typecheck. Tám kịch bản E2E bao phủ JWT/RBAC, sale ACK, thanh toán, soát vé đồng thời, mất kết nối đến các service nguồn, replay, CSV và AI.
 
 Bài cutover giữ được đơn đang chờ và payment attempt ID, khôi phục đơn bằng idempotency key và xử lý callback lặp với một vé. Startup fence của Core cũ và service đích chưa hoàn tất đã được kiểm tra. Sequence Spring Batch được chuyển với ID tiếp theo lớn hơn ID đã nhập.
 
