@@ -26,16 +26,16 @@ class ProductionPaymentBoundaryTest {
 
         assertThatThrownBy(() -> operations.initiatePayment(order, null, user))
                 .isInstanceOf(AppException.class)
-                .hasMessageContaining("MOCK");
+                .hasMessage("error.payment.mock-disabled");
         assertThatThrownBy(() -> operations.initiatePayment(order, " mock ", user))
                 .isInstanceOf(AppException.class)
-                .hasMessageContaining("MOCK");
+                .hasMessage("error.payment.mock-disabled");
         assertThatThrownBy(() -> operations.processMockPaymentSuccess(order))
                 .isInstanceOf(AppException.class)
-                .hasMessageContaining("MOCK");
+                .hasMessage("error.payment.mock-disabled");
         assertThatThrownBy(() -> operations.processMockPaymentFail(order))
                 .isInstanceOf(AppException.class)
-                .hasMessageContaining("MOCK");
+                .hasMessage("error.payment.mock-disabled");
         verifyNoInteractions(workflow, remote);
     }
 }

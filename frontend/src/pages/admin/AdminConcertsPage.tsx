@@ -30,7 +30,7 @@ import {
   type ManagementApiScope,
 } from '../../api/admin';
 import type { ConcertDetail, ConcertStatus, Page } from '../../api/concerts';
-import { commandMessage, isRequestCanceled } from '../../api/client';
+import { isRequestCanceled } from '../../api/client';
 import { AdminConfirmDialog } from '../../components/admin/AdminConfirmDialog';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { ActionMenu } from '../../components/admin/ActionMenu';
@@ -264,10 +264,7 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
       }
 
       toast.success(
-        commandMessage(
-          result.message,
-          editing ? 'Đã cập nhật concert.' : 'Đã tạo concert ở trạng thái bản nháp.',
-        ),
+        editing ? 'Đã cập nhật concert.' : 'Đã tạo concert ở trạng thái bản nháp.',
       );
       closeForm();
       await loadConcerts();
@@ -300,7 +297,7 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
     try {
       const result = await removeConcertPoster(editing.id, apiScope);
       setEditing(result.data);
-      toast.success(commandMessage(result.message, 'Đã xóa poster concert.'));
+      toast.success(result.message || 'Đã xóa poster concert.');
       await loadConcerts();
     } catch (requestError) {
       toast.error(
@@ -314,9 +311,9 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
   async function changeStatus(concert: ConcertDetail, next: ConcertStatus) {
     setBusyId(concert.id);
     try {
-      const result = await updateConcertStatus(concert.id, next, apiScope);
+      await updateConcertStatus(concert.id, next, apiScope);
       toast.success(
-        commandMessage(result.message, `Đã chuyển "${concert.title}" sang ${statusLabel(next)}.`),
+        `Đã chuyển "${concert.title}" sang ${statusLabel(next)}.`,
       );
       await loadConcerts();
     } catch (requestError) {
@@ -332,8 +329,8 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
     if (!deleteTarget) return;
     setBusyId(deleteTarget.id);
     try {
-      const result = await deleteConcert(deleteTarget.id, apiScope);
-      toast.success(commandMessage(result.message, 'Đã xóa concert.'));
+      await deleteConcert(deleteTarget.id, apiScope);
+      toast.success('Đã xóa concert.');
       setDeleteTarget(null);
       await loadConcerts();
     } catch (requestError) {

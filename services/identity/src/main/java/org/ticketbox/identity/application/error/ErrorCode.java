@@ -4,17 +4,17 @@ import lombok.Getter;
 
 @Getter
 public enum ErrorCode {
-    INVALID_REQUEST("Yêu cầu không hợp lệ"),
-    VALIDATION_FAILED("Dữ liệu chưa hợp lệ"),
-    UNAUTHENTICATED("Vui lòng đăng nhập để tiếp tục"),
-    RESOURCE_NOT_FOUND("Không tìm thấy dữ liệu được yêu cầu"),
-    INTERNAL_SERVER_ERROR("Máy chủ đang gặp lỗi. Vui lòng thử lại sau"),
+    INVALID_REQUEST("error.invalid-request"),
+    VALIDATION_FAILED("error.validation-failed"),
+    UNAUTHENTICATED("error.unauthenticated"),
+    RESOURCE_NOT_FOUND("error.resource-not-found"),
+    INTERNAL_SERVER_ERROR("error.internal-server-error"),
 
-    EMAIL_ALREADY_EXISTS("Email đã được đăng ký");
+    EMAIL_ALREADY_EXISTS("error.email-already-exists");
 
-    private final String message;
+    private final String messageKey;
 
-    ErrorCode(String message) {
-        this.message = message;
+    ErrorCode(String messageKey) {
+        this.messageKey = messageKey;
     }
 }

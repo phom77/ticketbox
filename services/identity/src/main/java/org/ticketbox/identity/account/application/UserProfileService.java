@@ -40,6 +40,6 @@ public class UserProfileService {
                 .orElseThrow(
                         () ->
                                 new AppException(
-                                        ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy người dùng"));
+                                        ErrorCode.RESOURCE_NOT_FOUND, "error.user.not-found"));
     }
 }

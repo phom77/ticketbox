@@ -1,17 +1,24 @@
 package org.ticketbox.catalog.artistbio.infrastructure;
 
+import org.springframework.context.MessageSource;
 import org.springframework.stereotype.Component;
 import org.ticketbox.catalog.artistbio.application.ArtistBioGenerationRequest;
 import org.ticketbox.catalog.artistbio.application.ArtistBioGenerationResult;
 import org.ticketbox.catalog.artistbio.application.ArtistBioGenerator;
 
 import java.util.LinkedHashSet;
+import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @Component
 public class MockArtistBioGenerator implements ArtistBioGenerator {
+    private final MessageSource messages;
+
+    public MockArtistBioGenerator(MessageSource messages) {
+        this.messages = messages;
+    }
 
     @Override
     public String provider() {
@@ -25,6 +32,10 @@ public class MockArtistBioGenerator implements ArtistBioGenerator {
 
     @Override
     public ArtistBioGenerationResult generate(ArtistBioGenerationRequest request) {
+        Locale locale =
+                "Vietnamese".equalsIgnoreCase(request.language())
+                        ? Locale.forLanguageTag("vi")
+                        : Locale.forLanguageTag(request.language());
         if (request.sourceText() != null
                 && request.sourceText().contains("Composition mode: MULTI_ARTIST")) {
             Set<String> artists = detectedArtists(request.sourceText());
@@ -35,15 +46,13 @@ public class MockArtistBioGenerator implements ArtistBioGenerator {
                         bio.append("\n\n");
                     }
                     bio.append(artist)
-                            .append("\n")
-                            .append(artist)
+                            .append('\n')
                             .append(
-                                    " duoc tong hop thanh mot muc rieng tu cac ho so da chon cho"
-                                            + " concert ")
-                            .append(request.concertTitle())
-                            .append(
-                                    ". Ban nhap nay giu cac chi tiet rieng cua nghe si va can duoc"
-                                            + " bien tap truoc khi xuat ban.");
+                                    text(
+                                            "artist-bio.mock.multi-draft",
+                                            locale,
+                                            artist,
+                                            request.concertTitle()));
                 }
                 return new ArtistBioGenerationResult(bio.toString(), provider(), model());
             }
@@ -66,18 +75,24 @@ public class MockArtistBioGenerator implements ArtistBioGenerator {
                         request.sourceText(),
                         "(?is)(?:thể loại|genre)\\s*[:\\-]?\\s*([^\\n]{2,90})");
         if (artist == null) {
-            artist = "Nghệ sĩ biểu diễn";
+            artist = text("artist-bio.mock.artist", locale);
         }
         String genreSentence =
                 genre == null
-                        ? "Hồ sơ cung cấp thông tin về phong cách biểu diễn và hành trình sáng tạo"
-                                + " của nghệ sĩ."
-                        : "Nghệ sĩ theo đuổi màu sắc " + genre + ".";
+                        ? text("artist-bio.mock.general-style", locale)
+                        : text("artist-bio.mock.genre", locale, genre);
         String bio =
-                ("%s là nghệ sĩ được giới thiệu trong hồ sơ của concert %s. %s Bản nháp này được"
-                     + " tạo từ tài liệu đã tải lên; hãy biên tập và xác nhận trước khi xuất bản.")
-                        .formatted(artist, request.concertTitle(), genreSentence);
+                text(
+                        "artist-bio.mock.draft",
+                        locale,
+                        artist,
+                        request.concertTitle(),
+                        genreSentence);
         return new ArtistBioGenerationResult(bio, provider(), model());
+    }
+
+    private String text(String key, Locale locale, Object... arguments) {
+        return messages.getMessage(key, arguments, locale);
     }
 
     private Set<String> detectedArtists(String text) {

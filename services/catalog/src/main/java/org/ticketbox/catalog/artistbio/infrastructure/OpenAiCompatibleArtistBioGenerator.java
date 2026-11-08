@@ -85,14 +85,13 @@ public class OpenAiCompatibleArtistBioGenerator implements ArtistBioGenerator {
                                     .asText(null);
             if (content == null || content.isBlank()) {
                 throw new AppException(
-                        ErrorCode.AI_PROVIDER_UNAVAILABLE, "Dịch vụ AI trả về phản hồi rỗng");
+                        ErrorCode.AI_PROVIDER_UNAVAILABLE, "error.ai.empty-response");
             }
             return new ArtistBioGenerationResult(content, provider(), model());
         } catch (AppException ex) {
             throw ex;
         } catch (Exception ex) {
-            throw new AppException(
-                    ErrorCode.AI_PROVIDER_UNAVAILABLE, "Yêu cầu tới dịch vụ AI thất bại");
+            throw new AppException(ErrorCode.AI_PROVIDER_UNAVAILABLE, "error.ai.request-failed");
         }
     }
 

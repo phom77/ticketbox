@@ -1,5 +1,7 @@
 package org.ticketbox.ticketing.issuance.application;
 
+import org.ticketbox.ticketing.application.port.FallbackTicketNames;
+
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.data.domain.Pageable;
@@ -21,6 +23,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class TicketService {
+    private final FallbackTicketNames fallbackNames;
     private final TicketRepository ticketRepository;
     private final ConcertOrderPort concertOrderPort;
 
@@ -49,10 +52,11 @@ public class TicketService {
                                         t.getId(),
                                         t.getConcertId(),
                                         concertMap.getOrDefault(
-                                                t.getConcertId(), "Không rõ concert"),
+                                                t.getConcertId(), fallbackNames.unknownConcert()),
                                         t.getTicketTypeId(),
                                         ticketTypeMap.getOrDefault(
-                                                t.getTicketTypeId(), "Không rõ hạng vé"),
+                                                t.getTicketTypeId(),
+                                                fallbackNames.unknownTicketType()),
                                         t.getQrCode(),
                                         t.getStatus().name(),
                                         t.getIssuedAt()))
@@ -66,7 +70,8 @@ public class TicketService {
                         .orElseThrow(
                                 () ->
                                         new AppException(
-                                                ErrorCode.TICKET_NOT_FOUND, "Không tìm thấy vé"));
+                                                ErrorCode.TICKET_NOT_FOUND,
+                                                "error.ticket-not-found"));
 
         ConcertView concert =
                 concertOrderPort
@@ -75,7 +80,7 @@ public class TicketService {
                                 () ->
                                         new AppException(
                                                 ErrorCode.CONCERT_NOT_FOUND,
-                                                "Không tìm thấy concert"));
+                                                "error.concert-not-found"));
 
         TicketTypeView ticketType =
                 concertOrderPort.findTicketTypesByIds(List.of(t.getTicketTypeId())).stream()
@@ -84,7 +89,7 @@ public class TicketService {
                                 () ->
                                         new AppException(
                                                 ErrorCode.RESOURCE_NOT_FOUND,
-                                                "Không tìm thấy hạng vé"));
+                                                "error.ticket-type.not-found"));
 
         return new TicketResponse(
                 t.getId(),
@@ -133,7 +138,7 @@ public class TicketService {
                                 () ->
                                         new AppException(
                                                 ErrorCode.CONCERT_NOT_FOUND,
-                                                "Không tìm thấy concert"));
+                                                "error.concert-not-found"));
 
         return tickets.stream()
                 .map(
@@ -144,7 +149,8 @@ public class TicketService {
                                         concert.title(),
                                         t.getTicketTypeId(),
                                         ticketTypeMap.getOrDefault(
-                                                t.getTicketTypeId(), "Không rõ hạng vé"),
+                                                t.getTicketTypeId(),
+                                                fallbackNames.unknownTicketType()),
                                         t.getQrCode(),
                                         t.getStatus().name(),
                                         t.getIssuedAt()))
@@ -165,7 +171,8 @@ public class TicketService {
                         .orElseThrow(
                                 () ->
                                         new AppException(
-                                                ErrorCode.TICKET_NOT_FOUND, "Không tìm thấy vé"));
+                                                ErrorCode.TICKET_NOT_FOUND,
+                                                "error.ticket-not-found"));
         if (!admin) {
             requireOwnedConcert(t.getConcertId(), requesterId);
         }
@@ -180,7 +187,7 @@ public class TicketService {
                                 () ->
                                         new AppException(
                                                 ErrorCode.CONCERT_NOT_FOUND,
-                                                "Không tìm thấy concert"));
+                                                "error.concert-not-found"));
 
         TicketTypeView ticketType =
                 concertOrderPort.findTicketTypesByIds(List.of(t.getTicketTypeId())).stream()
@@ -189,7 +196,7 @@ public class TicketService {
                                 () ->
                                         new AppException(
                                                 ErrorCode.RESOURCE_NOT_FOUND,
-                                                "Không tìm thấy hạng vé"));
+                                                "error.ticket-type.not-found"));
 
         return new TicketResponse(
                 t.getId(),
@@ -204,7 +211,7 @@ public class TicketService {
 
     private void requireOwnedConcert(UUID concertId, UUID organizerId) {
         if (!concertOrderPort.isConcertOwnedBy(concertId, organizerId)) {
-            throw new AppException(ErrorCode.UNAUTHORIZED, "Bạn không quản lý concert này");
+            throw new AppException(ErrorCode.UNAUTHORIZED, "error.concert.not-managed");
         }
     }
 }

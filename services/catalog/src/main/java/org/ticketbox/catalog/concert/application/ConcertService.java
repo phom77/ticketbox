@@ -102,7 +102,7 @@ public class ConcertService {
                 .orElseThrow(
                         () ->
                                 new AppException(
-                                        ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy concert"));
+                                        ErrorCode.RESOURCE_NOT_FOUND, "error.concert-not-found"));
     }
 
     public ConcertDetailResponse getConcertForEdit(
@@ -114,7 +114,8 @@ public class ConcertService {
                                 () ->
                                         new AppException(
                                                 ErrorCode.RESOURCE_NOT_FOUND,
-                                                "Không tìm thấy concert với ID: " + concertId));
+                                                "error.concert.not-found-by-id",
+                                                concertId));
         verifyOwnership(concert, requesterId, isAdmin);
         return composeManagementDetail(concert);
     }
@@ -200,7 +201,8 @@ public class ConcertService {
                                 () ->
                                         new AppException(
                                                 ErrorCode.RESOURCE_NOT_FOUND,
-                                                "Không tìm thấy concert với ID: " + id));
+                                                "error.concert.not-found-by-id",
+                                                id));
 
         verifyOwnership(concert, requesterId, isAdmin);
 
@@ -208,7 +210,8 @@ public class ConcertService {
                 || concert.getStatus() == Concert.Status.CANCELLED) {
             throw new AppException(
                     ErrorCode.INVALID_STATUS_TRANSITION,
-                    "Không thể cập nhật thông tin concert ở trạng thái " + concert.getStatus());
+                    "error.concert.status-locked",
+                    concert.getStatus());
         }
 
         new org.ticketbox.catalog.concert.domain.SaleWindow(
@@ -232,8 +235,7 @@ public class ConcertService {
                                         ? null
                                         : request.saleEndAt().toInstant()))) {
             throw new AppException(
-                    ErrorCode.INVALID_STATUS_TRANSITION,
-                    "Không thay đổi cửa sổ bán khi concert đã mở bán");
+                    ErrorCode.INVALID_STATUS_TRANSITION, "error.concert.sale-window-locked");
         }
         concertMapper.updateConcertFromRequest(request, concert);
 
@@ -252,7 +254,8 @@ public class ConcertService {
                                 () ->
                                         new AppException(
                                                 ErrorCode.RESOURCE_NOT_FOUND,
-                                                "Không tìm thấy concert với ID: " + id));
+                                                "error.concert.not-found-by-id",
+                                                id));
 
         verifyOwnership(concert, requesterId, isAdmin);
 
@@ -271,14 +274,16 @@ public class ConcertService {
                                 () ->
                                         new AppException(
                                                 ErrorCode.RESOURCE_NOT_FOUND,
-                                                "Không tìm thấy concert với ID: " + id));
+                                                "error.concert.not-found-by-id",
+                                                id));
 
         verifyOwnership(concert, requesterId, isAdmin);
 
         if (concert.getStatus() != Concert.Status.DRAFT) {
             throw new AppException(
                     ErrorCode.CONCERT_NOT_DELETABLE,
-                    "Không thể xóa concert ở trạng thái " + concert.getStatus());
+                    "error.concert.delete-status-locked",
+                    concert.getStatus());
         }
 
         ticketTypeRepository.deleteByConcertId(id);
@@ -300,8 +305,7 @@ public class ConcertService {
 
     private void verifyOwnership(Concert concert, UUID requesterId, boolean isAdmin) {
         if (!isAdmin && !concert.getCreatedBy().equals(requesterId)) {
-            throw new AppException(
-                    ErrorCode.UNAUTHORIZED, "Bạn không có quyền chỉnh sửa concert này");
+            throw new AppException(ErrorCode.UNAUTHORIZED, "error.concert.edit-forbidden");
         }
     }
 

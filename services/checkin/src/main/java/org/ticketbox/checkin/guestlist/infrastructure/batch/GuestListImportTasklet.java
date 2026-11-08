@@ -12,6 +12,7 @@ import org.springframework.batch.repeat.RepeatStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.ticketbox.checkin.guestlist.application.port.BatchLogRepository;
+import org.ticketbox.checkin.guestlist.application.port.GuestListMessages;
 import org.ticketbox.checkin.guestlist.domain.BatchLog;
 import org.ticketbox.checkin.guestlist.domain.PhoneNormalizer;
 import org.ticketbox.checkin.infrastructure.integration.catalog.LocalConcertProjection;
@@ -42,18 +43,21 @@ public class GuestListImportTasklet implements Tasklet {
     private final PhoneNormalizer phoneNormalizer;
     private final LocalConcertProjection concerts;
     private final GuestListFileStorage fileStorage;
+    private final GuestListMessages messages;
 
     public GuestListImportTasklet(
             JdbcTemplate jdbcTemplate,
             BatchLogRepository batchLogRepository,
             PhoneNormalizer phoneNormalizer,
             LocalConcertProjection concerts,
-            GuestListFileStorage fileStorage) {
+            GuestListFileStorage fileStorage,
+            GuestListMessages messages) {
         this.jdbcTemplate = jdbcTemplate;
         this.batchLogRepository = batchLogRepository;
         this.phoneNormalizer = phoneNormalizer;
         this.concerts = concerts;
         this.fileStorage = fileStorage;
+        this.messages = messages;
     }
 
     @Override
@@ -88,7 +92,7 @@ public class GuestListImportTasklet implements Tasklet {
             throw exception;
         }
         if (totalRows == 0) {
-            throw new GuestListImportException("CSV contains no data rows");
+            throw new GuestListImportException(messages.text("guest-import.csv-empty"));
         }
 
         markDuplicatePhones(batchLogId);
@@ -101,7 +105,7 @@ public class GuestListImportTasklet implements Tasklet {
             batchLog.setSuccessRows(0);
             batchLog.setErrorRows(errorRows);
             batchLog.setStatus(BatchLog.Status.FAILED);
-            batchLog.setErrorDetail("CSV contains no valid rows");
+            batchLog.setErrorDetail(messages.text("guest-import.csv-no-valid-rows"));
             batchLog.setErrorReportPath(errorReport.toString());
             jdbcTemplate.update(
                     "DELETE FROM guest_list_staging WHERE batch_log_id = ?", batchLogId);
@@ -117,7 +121,10 @@ public class GuestListImportTasklet implements Tasklet {
         batchLog.setSuccessRows(validRows);
         batchLog.setErrorRows(errorRows);
         batchLog.setStatus(errorRows == 0 ? BatchLog.Status.SUCCESS : BatchLog.Status.PARTIAL);
-        batchLog.setErrorDetail(errorRows == 0 ? null : errorRows + " row(s) were rejected");
+        batchLog.setErrorDetail(
+                errorRows == 0
+                        ? null
+                        : messages.text("guest-import.rows-rejected", Integer.toString(errorRows)));
         if (errorReport != null) {
             batchLog.setErrorReportPath(errorReport.toString());
         }
@@ -154,7 +161,8 @@ public class GuestListImportTasklet implements Tasklet {
                 insertRows(batchLogId, pending);
             }
         } catch (IllegalArgumentException ex) {
-            throw new GuestListImportException("CSV không đúng định dạng: " + ex.getMessage(), ex);
+            throw new GuestListImportException(
+                    messages.text("guest-import.csv-malformed", ex.getMessage()), ex);
         }
         return totalRows;
     }
@@ -163,7 +171,8 @@ public class GuestListImportTasklet implements Tasklet {
         Set<String> missing =
                 GuestListCsvSchema.missingRequiredHeaders(parser.getHeaderMap().keySet());
         if (!missing.isEmpty()) {
-            throw new GuestListImportException("Thiếu cột bắt buộc trong CSV: " + missing);
+            throw new GuestListImportException(
+                    messages.text("guest-import.csv-missing-columns", missing));
         }
     }
 
@@ -178,22 +187,22 @@ public class GuestListImportTasklet implements Tasklet {
 
         List<String> errors = new ArrayList<>();
         if (phone == null) {
-            errors.add("Số điện thoại không hợp lệ");
+            errors.add(messages.text("guest-import.phone-invalid"));
         }
         if (fullName == null) {
-            errors.add("full_name là bắt buộc");
+            errors.add(messages.text("guest-import.full-name-required"));
         } else if (fullName.length() > 255) {
-            errors.add("full_name vượt quá 255 ký tự");
+            errors.add(messages.text("guest-import.full-name-too-long"));
         }
         if (category != null && category.length() > 100) {
-            errors.add("category vượt quá 100 ký tự");
+            errors.add(messages.text("guest-import.category-too-long"));
         }
         if (sponsorName != null && sponsorName.length() > 255) {
-            errors.add("sponsor_name vượt quá 255 ký tự");
+            errors.add(messages.text("guest-import.sponsor-name-too-long"));
         }
         Boolean active = activeStatus(status);
         if (active == null) {
-            errors.add("status phải là ACTIVE hoặc CANCELLED");
+            errors.add(messages.text("guest-import.invalid-status"));
             active = true;
         }
 
@@ -239,8 +248,8 @@ public class GuestListImportTasklet implements Tasklet {
                 UPDATE guest_list_staging s
                 SET validation_error =
                     CASE
-                        WHEN validation_error IS NULL THEN 'Duplicate phone in file'
-                        ELSE validation_error || '; Duplicate phone in file'
+                        WHEN validation_error IS NULL THEN ?
+                        ELSE validation_error || '; ' || ?
                     END
                 WHERE s.batch_log_id = ?
                   AND s.normalized_phone IS NOT NULL
@@ -253,6 +262,8 @@ public class GuestListImportTasklet implements Tasklet {
                       HAVING COUNT(*) > 1
                   )
                 """,
+                messages.text("guest-import.duplicate-phone"),
+                messages.text("guest-import.duplicate-phone"),
                 batchLogId,
                 batchLogId);
     }

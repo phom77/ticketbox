@@ -1,5 +1,8 @@
 package com.ticketbox.notifications.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ticketbox.notifications.web.ApiMessages;
+
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 
@@ -20,13 +23,17 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Configuration
 public class NotificationSecurity {
     @Bean
     SecurityFilterChain security(
-            HttpSecurity http, @Value("${notification.jwt-secret}") String secret)
+            HttpSecurity http,
+            @Value("${notification.jwt-secret}") String secret,
+            ObjectMapper json,
+            ApiMessages messages)
             throws Exception {
         if (secret.length() < 64)
             throw new IllegalStateException("JWT secret must be at least 64 characters");
@@ -83,24 +90,39 @@ public class NotificationSecurity {
                 .exceptionHandling(
                         c ->
                                 c.authenticationEntryPoint(
-                                                (q, r, e) -> {
-                                                    r.setStatus(401);
-                                                    r.setContentType("application/json");
-                                                    r.getWriter()
-                                                            .write(
-                                                                    "{\"code\":401,\"message\":\"Authentication"
-                                                                        + " required\"}");
-                                                })
+                                                (request, response, error) ->
+                                                        reject(
+                                                                request,
+                                                                response,
+                                                                json,
+                                                                messages,
+                                                                401,
+                                                                "error.unauthenticated"))
                                         .accessDeniedHandler(
-                                                (q, r, e) -> {
-                                                    r.setStatus(403);
-                                                    r.setContentType("application/json");
-                                                    r.getWriter()
-                                                            .write(
-                                                                    "{\"code\":403,\"message\":\"Access"
-                                                                        + " denied\"}");
-                                                }))
+                                                (request, response, error) ->
+                                                        reject(
+                                                                request,
+                                                                response,
+                                                                json,
+                                                                messages,
+                                                                403,
+                                                                "error.unauthorized")))
                 .addFilterBefore(jwt, UsernamePasswordAuthenticationFilter.class)
                 .build();
+    }
+
+    private static void reject(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            ObjectMapper json,
+            ApiMessages messages,
+            int status,
+            String key)
+            throws IOException {
+        response.setStatus(status);
+        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+        response.setContentType("application/json");
+        String message = messages.responseText(key, messages.resolveLocale(request), response);
+        json.writeValue(response.getWriter(), Map.of("code", status, "message", message));
     }
 }

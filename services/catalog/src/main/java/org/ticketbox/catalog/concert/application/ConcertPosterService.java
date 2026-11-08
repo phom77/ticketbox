@@ -89,17 +89,18 @@ public class ConcertPosterService {
                                 () ->
                                         new AppException(
                                                 ErrorCode.RESOURCE_NOT_FOUND,
-                                                "Không tìm thấy concert với ID: " + concertId));
+                                                "error.concert.not-found-by-id",
+                                                concertId));
 
         if (!isAdmin && !concert.getCreatedBy().equals(requesterId)) {
-            throw new AppException(
-                    ErrorCode.UNAUTHORIZED, "Bạn không có quyền chỉnh sửa concert này");
+            throw new AppException(ErrorCode.UNAUTHORIZED, "error.concert.edit-forbidden");
         }
         if (concert.getStatus() == Concert.Status.COMPLETED
                 || concert.getStatus() == Concert.Status.CANCELLED) {
             throw new AppException(
                     ErrorCode.INVALID_STATUS_TRANSITION,
-                    "Không thể cập nhật poster concert ở trạng thái " + concert.getStatus());
+                    "error.poster.status-locked",
+                    concert.getStatus());
         }
         return concert;
     }

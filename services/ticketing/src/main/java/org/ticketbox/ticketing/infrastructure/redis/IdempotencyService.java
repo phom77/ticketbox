@@ -116,13 +116,12 @@ public class IdempotencyService
 
     private String validate(String rawKey) {
         if (!StringUtils.hasText(rawKey)) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Thiếu header Idempotency-Key");
+            throw new AppException(ErrorCode.INVALID_REQUEST, "error.idempotency-key.required");
         }
 
         String key = rawKey.trim();
         if (key.length() > MAX_KEY_LENGTH) {
-            throw new AppException(
-                    ErrorCode.INVALID_REQUEST, "Idempotency-Key không được vượt quá 128 ký tự");
+            throw new AppException(ErrorCode.INVALID_REQUEST, "error.idempotency-key.too-long");
         }
 
         return key;

@@ -43,8 +43,8 @@ public class GlobalExceptionHandler {
                 ApiResponse.error(
                         status,
                         status == 503
-                                ? "Dịch vụ tạm thời chưa sẵn sàng"
-                                : "Yêu cầu bị từ chối; kiểm tra trạng thái nghiệp vụ"));
+                                ? "error.service-unavailable"
+                                : "error.business-request-rejected"));
     }
 
     @ExceptionHandler(org.springframework.web.server.ResponseStatusException.class)
@@ -58,7 +58,10 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleAppException(AppException ex) {
         ErrorCode errorCode = ex.getErrorCode();
         ApiResponse<Void> response =
-                ApiResponse.error(ErrorHttpMapping.status(errorCode).value(), ex.getMessage());
+                ApiResponse.errorWithArguments(
+                        ErrorHttpMapping.status(errorCode).value(),
+                        ex.getMessage(),
+                        ex.messageArguments());
         var builder = ResponseEntity.status(ErrorHttpMapping.status(errorCode));
         if (errorCode == ErrorCode.REDIS_UNAVAILABLE
                 || errorCode == ErrorCode.RATE_LIMIT_EXCEEDED
@@ -77,7 +80,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleResourceUnavailable(RuntimeException ex) {
         return ResponseEntity.status(503)
                 .header("Retry-After", "1")
-                .body(ApiResponse.error(503, "Hệ thống tạm thời bận. Vui lòng thử lại sau"));
+                .body(ApiResponse.error(503, "error.service-busy"));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -90,13 +93,13 @@ public class GlobalExceptionHandler {
                                         FieldError::getField,
                                         fe ->
                                                 Optional.ofNullable(fe.getDefaultMessage())
-                                                        .orElse("Giá trị không hợp lệ"),
+                                                        .orElse("error.invalid-value"),
                                         (existing, replacement) -> existing));
 
         ApiResponse<Void> response =
                 ApiResponse.error(
                         ErrorHttpMapping.status(ErrorCode.VALIDATION_FAILED).value(),
-                        ErrorCode.VALIDATION_FAILED.getMessage(),
+                        ErrorCode.VALIDATION_FAILED.getMessageKey(),
                         details);
 
         return ResponseEntity.badRequest().body(response);
@@ -115,7 +118,7 @@ public class GlobalExceptionHandler {
         ApiResponse<Void> response =
                 ApiResponse.error(
                         ErrorHttpMapping.status(ErrorCode.VALIDATION_FAILED).value(),
-                        ErrorCode.VALIDATION_FAILED.getMessage(),
+                        ErrorCode.VALIDATION_FAILED.getMessageKey(),
                         details);
         return ResponseEntity.badRequest().body(response);
     }
@@ -127,7 +130,7 @@ public class GlobalExceptionHandler {
         ApiResponse<Void> response =
                 ApiResponse.error(
                         ErrorHttpMapping.status(ErrorCode.INVALID_REQUEST).value(),
-                        "Dữ liệu JSON không hợp lệ");
+                        "error.invalid-json");
         return ResponseEntity.badRequest().body(response);
     }
 
@@ -136,7 +139,7 @@ public class GlobalExceptionHandler {
         ApiResponse<Void> response =
                 ApiResponse.error(
                         ErrorHttpMapping.status(ErrorCode.RESOURCE_NOT_FOUND).value(),
-                        "Không tìm thấy tài nguyên được yêu cầu");
+                        "error.route-not-found");
         return ResponseEntity.status(ErrorHttpMapping.status(ErrorCode.RESOURCE_NOT_FOUND))
                 .body(response);
     }
@@ -148,7 +151,7 @@ public class GlobalExceptionHandler {
         ApiResponse<Void> response =
                 ApiResponse.error(
                         ErrorHttpMapping.status(ErrorCode.INTERNAL_SERVER_ERROR).value(),
-                        ErrorCode.INTERNAL_SERVER_ERROR.getMessage());
+                        ErrorCode.INTERNAL_SERVER_ERROR.getMessageKey());
         return ResponseEntity.internalServerError().body(response);
     }
 }

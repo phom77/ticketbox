@@ -112,7 +112,7 @@ public class CheckinService {
         TicketView ticket = ticketCheckinPort.findByQrCode(request.qrCode()).orElse(null);
         if (ticket == null) {
             return new ScanTicketResponse(
-                    null, request.concertId(), "FAILED", "Mã QR không hợp lệ", now);
+                    null, request.concertId(), "FAILED", "checkin.qr-invalid", now);
         }
 
         try {
@@ -120,7 +120,7 @@ public class CheckinService {
                     .requireConcert(request.concertId());
         } catch (org.ticketbox.checkin.domain.DomainViolation failure) {
             return new ScanTicketResponse(
-                    ticket.id(), ticket.concertId(), "FAILED", "Vé không thuộc concert này", now);
+                    ticket.id(), ticket.concertId(), "FAILED", "checkin.wrong-concert", now);
         }
 
         // Atomic UPDATE: sets status = USED only if current status = VALID.
@@ -128,7 +128,7 @@ public class CheckinService {
         boolean marked = ticketCheckinPort.markAsUsedIfValid(ticket.id(), now);
         if (!marked) {
             return new ScanTicketResponse(
-                    ticket.id(), ticket.concertId(), "FAILED", "Vé không hợp lệ để check-in", now);
+                    ticket.id(), ticket.concertId(), "FAILED", "checkin.ticket-invalid", now);
         }
 
         // Log after successful atomic mark — safe, no exception risk from duplicate constraint
@@ -139,7 +139,7 @@ public class CheckinService {
         checkinLogRepository.save(log);
 
         return new ScanTicketResponse(
-                ticket.id(), ticket.concertId(), "SUCCESS", "Check-in thành công", now);
+                ticket.id(), ticket.concertId(), "SUCCESS", "checkin.success", now);
     }
 
     @Transactional(readOnly = true)
@@ -198,14 +198,15 @@ public class CheckinService {
 
             TicketView ticket = ticketCheckinPort.findByQrCode(entry.qrCode()).orElse(null);
             if (ticket == null) {
-                results.add(new SyncResultEntry(entry.qrCode(), "INVALID", "Không tìm thấy mã QR"));
+                results.add(new SyncResultEntry(entry.qrCode(), "INVALID", "checkin.qr-not-found"));
                 invalid++;
                 continue;
             }
 
             if (!qrJwtService.verify(entry.qrCode(), ticket.qrSecret())) {
                 results.add(
-                        new SyncResultEntry(entry.qrCode(), "INVALID", "Chữ ký QR không hợp lệ"));
+                        new SyncResultEntry(
+                                entry.qrCode(), "INVALID", "checkin.qr-signature-invalid"));
                 invalid++;
                 continue;
             }
@@ -216,8 +217,7 @@ public class CheckinService {
                         .requireConcert(request.concertId());
             } catch (org.ticketbox.checkin.domain.DomainViolation failure) {
                 results.add(
-                        new SyncResultEntry(
-                                entry.qrCode(), "INVALID", "Vé không thuộc concert này"));
+                        new SyncResultEntry(entry.qrCode(), "INVALID", "checkin.wrong-concert"));
                 invalid++;
                 continue;
             }
@@ -225,7 +225,9 @@ public class CheckinService {
             if ("CANCELLED".equals(ticket.status()) || "TRANSFERRED".equals(ticket.status())) {
                 results.add(
                         new SyncResultEntry(
-                                entry.qrCode(), "INVALID", "Vé đã bị hủy hoặc đã chuyển nhượng"));
+                                entry.qrCode(),
+                                "INVALID",
+                                "checkin.ticket-cancelled-or-transferred"));
                 invalid++;
                 continue;
             }
@@ -250,7 +252,8 @@ public class CheckinService {
                         () ->
                                 new AppException(
                                         ErrorCode.RESOURCE_NOT_FOUND,
-                                        "Không tìm thấy concert với ID: " + concertId));
+                                        "error.concert.not-found-by-id",
+                                        concertId));
     }
 
     private StaffConcertResponse toStaffConcertResponse(CheckinConcertView concert) {

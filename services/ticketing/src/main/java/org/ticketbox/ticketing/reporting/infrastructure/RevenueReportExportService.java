@@ -69,8 +69,7 @@ public class RevenueReportExportService
                             filenamePrefix + "-revenue-report.pdf");
             default ->
                     throw new AppException(
-                            ErrorCode.INVALID_REQUEST,
-                            "Định dạng xuất báo cáo không được hỗ trợ. Định dạng hỗ trợ: csv, pdf");
+                            ErrorCode.INVALID_REQUEST, "error.revenue.unsupported-format");
         };
     }
 
@@ -176,8 +175,7 @@ public class RevenueReportExportService
             document.close();
             return output.toByteArray();
         } catch (DocumentException | java.io.IOException exception) {
-            throw new AppException(
-                    ErrorCode.INTERNAL_SERVER_ERROR, "Không thể tạo báo cáo doanh thu PDF");
+            throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR, "error.revenue.pdf-failed");
         }
     }
 

@@ -43,7 +43,8 @@ class GuestListImportServiceTest {
                         fileStorage,
                         new GuestListImportProperties(),
                         jobRunner,
-                        accessService);
+                        accessService,
+                        (key, arguments) -> key);
     }
 
     @Test

@@ -30,13 +30,12 @@ public class PaymentGatewayResolver
     public PaymentGateway resolve(Provider provider) {
         if (production && provider == Provider.MOCK) {
             throw new AppException(
-                    ErrorCode.INVALID_REQUEST, "Thanh toán MOCK không được phép trong production");
+                    ErrorCode.INVALID_REQUEST, "Mock payments are disabled in production");
         }
         PaymentGateway gateway = gateways.get(provider);
         if (gateway == null) {
             throw new AppException(
-                    ErrorCode.INVALID_REQUEST,
-                    "Nhà cung cấp thanh toán không được hỗ trợ: " + provider);
+                    ErrorCode.INVALID_REQUEST, "Unsupported payment provider: " + provider);
         }
         return gateway;
     }

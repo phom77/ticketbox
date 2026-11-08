@@ -98,7 +98,7 @@ public class Order extends BaseEntity {
         requireAwaitingPayment();
         if (expiresAt.isAfter(now))
             throw new org.ticketbox.ticketing.domain.DomainViolation(
-                    "INVALID_STATUS_TRANSITION", "Đơn hàng chưa hết hạn");
+                    "INVALID_STATUS_TRANSITION", "error.order.not-expired");
         status = Status.EXPIRED;
     }
 
@@ -107,11 +107,11 @@ public class Order extends BaseEntity {
         requireAwaitingPayment();
         if (!expiresAt.isAfter(now))
             throw new org.ticketbox.ticketing.domain.DomainViolation(
-                    "INVALID_STATUS_TRANSITION", "Đơn hàng đã hết hạn");
+                    "INVALID_STATUS_TRANSITION", "error.order.expired");
         java.util.Objects.requireNonNull(provider);
         if (reference == null || reference.isBlank())
             throw new org.ticketbox.ticketing.domain.DomainViolation(
-                    "INVALID_REQUEST", "Giao dịch thanh toán phải có mã tham chiếu");
+                    "INVALID_REQUEST", "error.order.payment-reference-required");
         status = Status.PAID;
         paidAt = now;
         paymentProvider = provider;
@@ -122,7 +122,7 @@ public class Order extends BaseEntity {
     private void requireAwaitingPayment() {
         if (status != Status.AWAITING_PAYMENT)
             throw new org.ticketbox.ticketing.domain.DomainViolation(
-                    "INVALID_STATUS_TRANSITION", "Chỉ có thể thay đổi đơn đang chờ thanh toán");
+                    "INVALID_STATUS_TRANSITION", "error.order.not-pending");
     }
 
     public java.util.List<OrderItem> getItems() {
@@ -133,12 +133,12 @@ public class Order extends BaseEntity {
         requireAwaitingPayment();
         if (!items.isEmpty())
             throw new org.ticketbox.ticketing.domain.DomainViolation(
-                    "INVALID_REQUEST", "Đơn hàng đã có chi tiết");
+                    "INVALID_REQUEST", "error.order.items-already-set");
         BigDecimal calculated =
                 lines.stream().map(OrderItem::getSubtotal).reduce(BigDecimal.ZERO, BigDecimal::add);
         if (totalAmount.compareTo(calculated) != 0)
             throw new org.ticketbox.ticketing.domain.DomainViolation(
-                    "INVALID_REQUEST", "Tổng đơn hàng phải khớp chi tiết");
+                    "INVALID_REQUEST", "error.order.total-mismatch");
         for (OrderItem line : lines) {
             line.setOrderId(getId());
             items.add(line);

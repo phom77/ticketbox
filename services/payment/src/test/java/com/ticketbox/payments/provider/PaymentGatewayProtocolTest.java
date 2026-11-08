@@ -21,14 +21,16 @@ class PaymentGatewayProtocolTest {
     void momoCreateUsesPersistedIdAndSignedQueryCorrelatesResponse() throws Exception {
         var mapper = new ObjectMapper();
         var captured = new AtomicReference<String>();
+        var description = new AtomicReference<String>();
         var server =
                 com.sun.net.httpserver.HttpServer.create(
                         new java.net.InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext(
                 "/create",
                 exchange -> {
-                    captured.set(
-                            mapper.readTree(exchange.getRequestBody()).path("requestId").asText());
+                    var request = mapper.readTree(exchange.getRequestBody());
+                    captured.set(request.path("requestId").asText());
+                    description.set(request.path("orderInfo").asText());
                     byte[] response =
                             "{\"payUrl\":\"https://fake.local/pay\",\"resultCode\":0}"
                                     .getBytes(java.nio.charset.StandardCharsets.UTF_8);
@@ -91,6 +93,7 @@ class PaymentGatewayProtocolTest {
                             null);
             gateway.initiatePayment(order, "persisted-request");
             assertThat(captured.get()).isEqualTo("persisted-request");
+            assertThat(description.get()).isEqualTo("Thanh toan ve TicketBox " + order.id());
             gateway.initiatePayment(order, "persisted-request");
             assertThat(captured.get()).isEqualTo("persisted-request");
             var query = gateway.queryPayment(order, "persisted-request", null);
@@ -132,6 +135,7 @@ class PaymentGatewayProtocolTest {
         mapper.readTree(result.rawPayload())
                 .fields()
                 .forEachRemaining(e -> params.put(e.getKey(), e.getValue().asText()));
+        assertThat(params.get("vnp_OrderInfo")).isEqualTo("Thanh toan don hang " + order.id());
         assertThat(params.get("vnp_ExpireDate"))
                 .isEqualTo(
                         deadline.atZoneSameInstant(java.time.ZoneId.of("Asia/Ho_Chi_Minh"))

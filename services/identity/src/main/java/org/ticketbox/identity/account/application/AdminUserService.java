@@ -33,7 +33,7 @@ public class AdminUserService {
                                 () ->
                                         new AppException(
                                                 ErrorCode.RESOURCE_NOT_FOUND,
-                                                "Không tìm thấy người dùng"));
+                                                "error.user.not-found"));
         return UserResponse.fromEntity(user);
     }
 
@@ -46,7 +46,7 @@ public class AdminUserService {
                                 () ->
                                         new AppException(
                                                 ErrorCode.RESOURCE_NOT_FOUND,
-                                                "Không tìm thấy người dùng"));
+                                                "error.user.not-found"));
         user.changeRole(role);
         return UserResponse.fromEntity(userRepository.save(user));
     }
@@ -60,7 +60,7 @@ public class AdminUserService {
                                 () ->
                                         new AppException(
                                                 ErrorCode.RESOURCE_NOT_FOUND,
-                                                "Không tìm thấy người dùng"));
+                                                "error.user.not-found"));
         user.changeActivity(isActive);
         return UserResponse.fromEntity(userRepository.save(user));
     }

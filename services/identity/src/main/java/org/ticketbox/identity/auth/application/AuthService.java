@@ -29,7 +29,7 @@ public class AuthService {
     @Transactional
     public AuthResponse.UserSummary register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.email())) {
-            throw new AppException(ErrorCode.EMAIL_ALREADY_EXISTS, "Email đã được đăng ký");
+            throw new AppException(ErrorCode.EMAIL_ALREADY_EXISTS, "error.email-already-exists");
         }
 
         User user =
@@ -56,14 +56,14 @@ public class AuthService {
                                 () ->
                                         new AppException(
                                                 ErrorCode.UNAUTHENTICATED,
-                                                "Email hoặc mật khẩu không đúng"));
+                                                "error.auth.invalid-credentials"));
 
         if (!user.isActive()) {
-            throw new AppException(ErrorCode.UNAUTHENTICATED, "Tài khoản đã bị vô hiệu hóa");
+            throw new AppException(ErrorCode.UNAUTHENTICATED, "error.auth.account-disabled");
         }
 
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
-            throw new AppException(ErrorCode.UNAUTHENTICATED, "Email hoặc mật khẩu không đúng");
+            throw new AppException(ErrorCode.UNAUTHENTICATED, "error.auth.invalid-credentials");
         }
 
         String token =
@@ -85,8 +85,7 @@ public class AuthService {
                         .orElseThrow(
                                 () ->
                                         new AppException(
-                                                ErrorCode.UNAUTHENTICATED,
-                                                "Không tìm thấy người dùng"));
+                                                ErrorCode.UNAUTHENTICATED, "error.user.not-found"));
         return CurrentUserResponse.from(user);
     }
 }

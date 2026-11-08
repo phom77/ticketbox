@@ -6,12 +6,12 @@ import jakarta.validation.constraints.NotNull;
 import java.time.OffsetDateTime;
 
 public record UpdateConcertRequest(
-        @NotBlank(message = "Tên concert không được để trống") String title,
+        @NotBlank(message = "{validation.concert.title-required}") String title,
         String description,
-        @NotBlank(message = "Tên địa điểm không được để trống") String venueName,
-        @NotBlank(message = "Địa chỉ địa điểm không được để trống") String venueAddress,
-        @NotNull(message = "Vui lòng chọn ngày diễn") OffsetDateTime eventDate,
+        @NotBlank(message = "{validation.concert.venue-name-required}") String venueName,
+        @NotBlank(message = "{validation.concert.venue-address-required}") String venueAddress,
+        @NotNull(message = "{validation.concert.event-date-required}") OffsetDateTime eventDate,
         OffsetDateTime doorsOpenAt,
-        @NotNull(message = "Vui lòng chọn ngày mở bán") OffsetDateTime saleStartAt,
+        @NotNull(message = "{validation.concert.sale-start-required}") OffsetDateTime saleStartAt,
         OffsetDateTime saleEndAt,
         String seatMapSvg) {}

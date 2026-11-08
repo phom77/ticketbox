@@ -35,7 +35,17 @@ class ArtistBioJobRecoveryTest {
 
     @BeforeEach
     void setUp() {
-        service = new ArtistBioJobService(jobRepository, fileStorage, concertPort, eventPublisher);
+        service =
+                new ArtistBioJobService(
+                        jobRepository, fileStorage, concertPort, eventPublisher, messages());
+    }
+
+    private org.ticketbox.catalog.artistbio.application.port.ArtistBioMessages messages() {
+        var source = new org.springframework.context.support.ResourceBundleMessageSource();
+        source.setBasename("messages");
+        source.setDefaultEncoding("UTF-8");
+        return new org.ticketbox.catalog.artistbio.infrastructure.ArtistBioMessageBundle(
+                source, "vi");
     }
 
     @Test

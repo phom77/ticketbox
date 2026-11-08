@@ -1,5 +1,7 @@
 package org.ticketbox.ticketing.order.infrastructure;
 
+import org.ticketbox.ticketing.application.port.FallbackTicketNames;
+
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.stereotype.Component;
@@ -29,6 +31,7 @@ import java.util.stream.Collectors;
 @Component
 @RequiredArgsConstructor
 public class OrderAdapter implements OrderPort {
+    private final FallbackTicketNames fallbackNames;
     private final org.ticketbox.ticketing.inventory.hold.infrastructure.PurchaseGuard purchaseGuard;
     private final OrderRepository orderRepository;
     private final OrderEventStore orderEvents;
@@ -70,18 +73,16 @@ public class OrderAdapter implements OrderPort {
                                 () ->
                                         new AppException(
                                                 ErrorCode.ORDER_NOT_FOUND,
-                                                "Không tìm thấy đơn hàng"));
+                                                "error.order-not-found"));
         long version = orderEvents.restore(order);
 
         if (!order.getUserId().equals(userId)) {
             // Do not disclose whether another customer's order exists.
-            throw new AppException(ErrorCode.ORDER_NOT_FOUND, "Không tìm thấy đơn hàng");
+            throw new AppException(ErrorCode.ORDER_NOT_FOUND, "error.order-not-found");
         }
 
         if (order.getStatus() != Order.Status.AWAITING_PAYMENT) {
-            throw new AppException(
-                    ErrorCode.INVALID_STATUS_TRANSITION,
-                    "Đơn hàng không ở trạng thái có thể thanh toán");
+            throw new AppException(ErrorCode.INVALID_STATUS_TRANSITION, "error.order.not-payable");
         }
 
         if (!order.getExpiresAt().isAfter(OffsetDateTime.now())) {
@@ -97,7 +98,7 @@ public class OrderAdapter implements OrderPort {
             orderEvents.record(order, version, OrderEventStore.Transition.OrderExpired);
             orderRepository.save(order);
             throw new AppException(
-                    ErrorCode.INVALID_STATUS_TRANSITION, "Thời hạn thanh toán đơn hàng đã hết");
+                    ErrorCode.INVALID_STATUS_TRANSITION, "error.order.payment-deadline-passed");
         }
 
         return toOrderView(order);
@@ -139,7 +140,7 @@ public class OrderAdapter implements OrderPort {
                                                                     item.getTicketTypeId(),
                                                                     ticketTypeNames.getOrDefault(
                                                                             item.getTicketTypeId(),
-                                                                            "Vé"),
+                                                                            fallbackNames.ticket()),
                                                                     item.getQuantity(),
                                                                     item.getUnitPrice(),
                                                                     item.getSubtotal()))
@@ -169,13 +170,11 @@ public class OrderAdapter implements OrderPort {
                                 () ->
                                         new AppException(
                                                 ErrorCode.ORDER_NOT_FOUND,
-                                                "Không tìm thấy đơn hàng"));
+                                                "error.order-not-found"));
         long version = orderEvents.restore(order);
 
         if (order.getStatus() != Order.Status.AWAITING_PAYMENT) {
-            throw new AppException(
-                    ErrorCode.INVALID_STATUS_TRANSITION,
-                    "Đơn hàng không ở trạng thái có thể thanh toán");
+            throw new AppException(ErrorCode.INVALID_STATUS_TRANSITION, "error.order.not-payable");
         }
 
         Order.PaymentProvider paymentProvider = Order.PaymentProvider.valueOf(provider);

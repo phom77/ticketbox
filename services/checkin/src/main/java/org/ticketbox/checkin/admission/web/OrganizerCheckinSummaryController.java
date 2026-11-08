@@ -30,7 +30,7 @@ public class OrganizerCheckinSummaryController {
     public ResponseEntity<ApiResponse<CheckinSummaryResponse>> getCheckinSummary(
             @PathVariable UUID concertId, Authentication authentication) {
         if (!concerts.isOwnedBy(concertId, UUID.fromString(authentication.getName()))) {
-            throw new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy concert");
+            throw new AppException(ErrorCode.RESOURCE_NOT_FOUND, "error.concert-not-found");
         }
         return ResponseEntity.ok(ApiResponse.success(checkinService.getCheckinSummary(concertId)));
     }

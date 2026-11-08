@@ -15,7 +15,7 @@ import {
   type StaffConcert,
   type StaffScanTicketResponse,
 } from '../../api/admin';
-import { commandMessage, isRequestCanceled } from '../../api/client';
+import { isRequestCanceled } from '../../api/client';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { ConcertPicker } from '../../components/admin/ConcertPicker';
 import { useToast } from '../../components/feedback/toast-context';
@@ -130,7 +130,7 @@ export function StaffCheckInPage() {
         gate: gate.trim() || 'WEB',
       });
       setScanResult(result.data);
-      const message = commandMessage(result.message, result.data.message);
+      const message = result.data.message;
       if (result.data.status === 'SUCCESS') {
         toast.success(message);
       } else {

@@ -41,7 +41,10 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleAppException(AppException ex) {
         ErrorCode errorCode = ex.getErrorCode();
         ApiResponse<Void> response =
-                ApiResponse.error(ErrorHttpMapping.status(errorCode).value(), ex.getMessage());
+                ApiResponse.errorWithArguments(
+                        ErrorHttpMapping.status(errorCode).value(),
+                        ex.getMessage(),
+                        ex.messageArguments());
         return ResponseEntity.status(ErrorHttpMapping.status(errorCode)).body(response);
     }
 
@@ -53,7 +56,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleResourceUnavailable(RuntimeException ex) {
         return ResponseEntity.status(503)
                 .header("Retry-After", "1")
-                .body(ApiResponse.error(503, "Hệ thống tạm thời bận. Vui lòng thử lại sau"));
+                .body(ApiResponse.error(503, "error.service-busy"));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -66,13 +69,13 @@ public class GlobalExceptionHandler {
                                         FieldError::getField,
                                         fe ->
                                                 Optional.ofNullable(fe.getDefaultMessage())
-                                                        .orElse("Giá trị không hợp lệ"),
+                                                        .orElse("error.invalid-value"),
                                         (existing, replacement) -> existing));
 
         ApiResponse<Void> response =
                 ApiResponse.error(
                         ErrorHttpMapping.status(ErrorCode.VALIDATION_FAILED).value(),
-                        ErrorCode.VALIDATION_FAILED.getMessage(),
+                        ErrorCode.VALIDATION_FAILED.getMessageKey(),
                         details);
 
         return ResponseEntity.badRequest().body(response);
@@ -91,7 +94,7 @@ public class GlobalExceptionHandler {
         ApiResponse<Void> response =
                 ApiResponse.error(
                         ErrorHttpMapping.status(ErrorCode.VALIDATION_FAILED).value(),
-                        ErrorCode.VALIDATION_FAILED.getMessage(),
+                        ErrorCode.VALIDATION_FAILED.getMessageKey(),
                         details);
         return ResponseEntity.badRequest().body(response);
     }
@@ -103,7 +106,7 @@ public class GlobalExceptionHandler {
         ApiResponse<Void> response =
                 ApiResponse.error(
                         ErrorHttpMapping.status(ErrorCode.INVALID_REQUEST).value(),
-                        "Dữ liệu JSON không hợp lệ");
+                        "error.invalid-json");
         return ResponseEntity.badRequest().body(response);
     }
 
@@ -112,7 +115,7 @@ public class GlobalExceptionHandler {
         ApiResponse<Void> response =
                 ApiResponse.error(
                         ErrorHttpMapping.status(ErrorCode.RESOURCE_NOT_FOUND).value(),
-                        "Không tìm thấy tài nguyên được yêu cầu");
+                        "error.route-not-found");
         return ResponseEntity.status(ErrorHttpMapping.status(ErrorCode.RESOURCE_NOT_FOUND))
                 .body(response);
     }
@@ -124,7 +127,7 @@ public class GlobalExceptionHandler {
         ApiResponse<Void> response =
                 ApiResponse.error(
                         ErrorHttpMapping.status(ErrorCode.INTERNAL_SERVER_ERROR).value(),
-                        ErrorCode.INTERNAL_SERVER_ERROR.getMessage());
+                        ErrorCode.INTERNAL_SERVER_ERROR.getMessageKey());
         return ResponseEntity.internalServerError().body(response);
     }
 }

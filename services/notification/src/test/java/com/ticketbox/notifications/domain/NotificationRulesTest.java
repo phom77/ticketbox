@@ -26,13 +26,15 @@ class NotificationRulesTest {
                         BigDecimal.TEN,
                         "",
                         "");
-        var email = Notification.compose(command, Notification.Channel.EMAIL);
+        var email = Notification.compose(command, Notification.Channel.EMAIL, "Subject", "Body");
         assertEquals(
                 email.messageId(),
-                Notification.compose(command, Notification.Channel.EMAIL).messageId());
+                Notification.compose(command, Notification.Channel.EMAIL, "Subject", "Body")
+                        .messageId());
         assertNotEquals(
                 email.messageId(),
-                Notification.compose(command, Notification.Channel.APP).messageId());
+                Notification.compose(command, Notification.Channel.APP, "Subject", "Body")
+                        .messageId());
         assertThrows(
                 IllegalArgumentException.class,
                 () ->

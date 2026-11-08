@@ -14,6 +14,7 @@ import org.ticketbox.catalog.application.error.ErrorCode;
 import org.ticketbox.catalog.application.port.Upload;
 import org.ticketbox.catalog.artistbio.application.dto.ArtistBioJobResponse;
 import org.ticketbox.catalog.artistbio.application.port.ArtistDocuments;
+import org.ticketbox.catalog.artistbio.application.port.ArtistBioMessages;
 import org.ticketbox.catalog.artistbio.application.port.ArtistPdfJobRepository;
 import org.ticketbox.catalog.artistbio.application.port.StoredArtistPdf;
 import org.ticketbox.catalog.artistbio.domain.ArtistPdfJob;
@@ -38,6 +39,7 @@ public class ArtistBioJobService {
     private final ArtistDocuments fileStorage;
     private final ConcertArtistBioPort concertPort;
     private final ApplicationEventPublisher eventPublisher;
+    private final ArtistBioMessages messages;
 
     @Value("${ticketbox.ai.recovery.pending-after:PT30S}")
     private Duration pendingRecoveryAfter = Duration.ofSeconds(30);
@@ -49,11 +51,13 @@ public class ArtistBioJobService {
             ArtistPdfJobRepository jobRepository,
             ArtistDocuments fileStorage,
             ConcertArtistBioPort concertPort,
-            ApplicationEventPublisher eventPublisher) {
+            ApplicationEventPublisher eventPublisher,
+            ArtistBioMessages messages) {
         this.jobRepository = jobRepository;
         this.fileStorage = fileStorage;
         this.concertPort = concertPort;
         this.eventPublisher = eventPublisher;
+        this.messages = messages;
     }
 
     @Transactional(readOnly = true)
@@ -126,13 +130,11 @@ public class ArtistBioJobService {
         concertPort.requireAccessibleConcert(job.getConcertId(), requesterId, admin);
         if (job.getStatus() != ArtistPdfJob.Status.FAILED) {
             throw new AppException(
-                    ErrorCode.ARTIST_BIO_JOB_NOT_READY,
-                    "Chỉ có thể chạy lại tác vụ giới thiệu nghệ sĩ đã thất bại");
+                    ErrorCode.ARTIST_BIO_JOB_NOT_READY, "error.artist-bio.retry-requires-failure");
         }
         Path storedPath = fileStorage.requireStoredPath(job.getFileUrl());
         if (!java.nio.file.Files.isRegularFile(storedPath)) {
-            throw new AppException(
-                    ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy file PDF nghệ sĩ đã lưu");
+            throw new AppException(ErrorCode.RESOURCE_NOT_FOUND, "error.artist-bio.pdf-not-found");
         }
         job.resetForRetry();
         ArtistPdfJob saved = jobRepository.save(job);
@@ -148,8 +150,7 @@ public class ArtistBioJobService {
                 || job.getResultBio() == null
                 || job.getResultBio().isBlank()) {
             throw new AppException(
-                    ErrorCode.ARTIST_BIO_JOB_NOT_READY,
-                    "Tác vụ giới thiệu nghệ sĩ phải hoàn tất trước khi áp dụng");
+                    ErrorCode.ARTIST_BIO_JOB_NOT_READY, "error.artist-bio.must-complete");
         }
         concertPort.applyArtistBio(
                 job.getConcertId(), job.getResultBio(), requesterId, admin, overwrite);
@@ -166,8 +167,7 @@ public class ArtistBioJobService {
             UUID concertId, String artistBio, UUID requesterId, boolean admin) {
         String cleaned = new ArtistBioTextCleaner().sanitizeGeneratedBio(artistBio);
         if (cleaned.isBlank()) {
-            throw new AppException(
-                    ErrorCode.INVALID_REQUEST, "Giới thiệu nghệ sĩ không được để trống");
+            throw new AppException(ErrorCode.INVALID_REQUEST, "error.artist-bio.blank");
         }
         concertPort.applyArtistBio(concertId, cleaned, requesterId, admin, true);
     }
@@ -197,9 +197,7 @@ public class ArtistBioJobService {
                         ArtistPdfJob.Status.PROCESSING, now.minus(processingTimeout))
                 .forEach(
                         job -> {
-                            job.fail(
-                                    "Xử lý giới thiệu nghệ sĩ quá thời gian. Hãy chạy lại tác vụ"
-                                            + " này.");
+                            job.fail(messages.text("artist-bio.job-timed-out"));
                             jobRepository.save(job);
                         });
     }
@@ -211,6 +209,6 @@ public class ArtistBioJobService {
                         () ->
                                 new AppException(
                                         ErrorCode.RESOURCE_NOT_FOUND,
-                                        "Không tìm thấy tác vụ giới thiệu nghệ sĩ"));
+                                        "error.artist-bio.job-not-found"));
     }
 }

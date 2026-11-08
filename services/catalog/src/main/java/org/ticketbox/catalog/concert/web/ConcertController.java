@@ -37,7 +37,7 @@ public class ConcertController {
         if (page < 0 || size < 1 || size > 100) {
             throw new org.ticketbox.catalog.application.error.AppException(
                     org.ticketbox.catalog.application.error.ErrorCode.INVALID_REQUEST,
-                    "Phân trang không hợp lệ");
+                    "error.pagination.invalid");
         }
         Pageable pageable = PageRequest.of(page, size, Sort.by("eventDate").ascending());
 

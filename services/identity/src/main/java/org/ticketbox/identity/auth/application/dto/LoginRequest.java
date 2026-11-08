@@ -4,6 +4,7 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 
 public record LoginRequest(
-        @NotBlank(message = "Vui lòng nhập email") @Email(message = "Email không hợp lệ")
+        @NotBlank(message = "{validation.email.required}")
+                @Email(message = "{validation.email.invalid}")
                 String email,
-        @NotBlank(message = "Vui lòng nhập mật khẩu") String password) {}
+        @NotBlank(message = "{validation.password.required}") String password) {}

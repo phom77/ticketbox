@@ -52,7 +52,7 @@ public class CheckinSyncHelper {
             return new SyncResultEntry(
                     entry.qrCode(),
                     same ? "ACCEPTED" : "SKIPPED",
-                    same ? "Lượt quét này đã được đồng bộ" : "Vé đã được check-in trên máy chủ");
+                    same ? "checkin.sync.already-synced" : "checkin.sync.already-checked-in");
         }
 
         int inserted =
@@ -68,12 +68,9 @@ public class CheckinSyncHelper {
                         entry.notes());
 
         if (inserted == 0) {
-            return new SyncResultEntry(
-                    entry.qrCode(),
-                    "SKIPPED",
-                    "Vé đã được check-in; bản ghi trên máy chủ được giữ nguyên");
+            return new SyncResultEntry(entry.qrCode(), "SKIPPED", "checkin.sync.existing-record");
         }
 
-        return new SyncResultEntry(entry.qrCode(), "ACCEPTED", "Đã ghi nhận check-in thành công");
+        return new SyncResultEntry(entry.qrCode(), "ACCEPTED", "checkin.sync.accepted");
     }
 }

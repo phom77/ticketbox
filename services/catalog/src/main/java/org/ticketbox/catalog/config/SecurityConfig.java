@@ -22,6 +22,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.ticketbox.catalog.web.ApiMessages;
 import org.ticketbox.catalog.web.ApiResponse;
 import org.ticketbox.catalog.web.security.JwtAuthenticationFilter;
 
@@ -35,6 +36,7 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final ObjectMapper objectMapper;
+    private final ApiMessages apiMessages;
 
     @Value(
             "${ticketbox.web.allowed-origins:http://localhost:5173,http://127.0.0.1:5173,http://localhost:8081,http://127.0.0.1:8081}")
@@ -65,12 +67,13 @@ public class SecurityConfig {
                                                             ApiResponse.error(
                                                                     HttpServletResponse
                                                                             .SC_UNAUTHORIZED,
-                                                                    "Vui lòng đăng nhập để tiếp"
-                                                                            + " tục");
+                                                                    "error.unauthenticated");
                                                     response.getWriter()
                                                             .write(
                                                                     objectMapper.writeValueAsString(
-                                                                            error));
+                                                                            apiMessages.localize(
+                                                                                    error, request,
+                                                                                    response)));
                                                 })
                                         .accessDeniedHandler(
                                                 (request, response, accessDeniedException) -> {
@@ -83,12 +86,13 @@ public class SecurityConfig {
                                                             ApiResponse.error(
                                                                     HttpServletResponse
                                                                             .SC_FORBIDDEN,
-                                                                    "Bạn không có quyền thực hiện"
-                                                                            + " thao tác này");
+                                                                    "error.unauthorized");
                                                     response.getWriter()
                                                             .write(
                                                                     objectMapper.writeValueAsString(
-                                                                            error));
+                                                                            apiMessages.localize(
+                                                                                    error, request,
+                                                                                    response)));
                                                 }))
                 .authorizeHttpRequests(
                         auth ->

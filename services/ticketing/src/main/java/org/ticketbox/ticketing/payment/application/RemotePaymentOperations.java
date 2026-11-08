@@ -53,7 +53,7 @@ public class RemotePaymentOperations {
                                     ? "MOCK"
                                     : name.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException error) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Cổng thanh toán không hợp lệ");
+            throw new AppException(ErrorCode.INVALID_REQUEST, "error.payment.invalid-gateway");
         }
         requireProvider(provider);
         // Checkout commits the intent locally. The dispatcher owns remote I/O.
@@ -104,8 +104,7 @@ public class RemotePaymentOperations {
 
     private void requireProvider(Provider provider) {
         if (provider == Provider.MOCK && environment.acceptsProfiles(Profiles.of("prod"))) {
-            throw new AppException(
-                    ErrorCode.INVALID_REQUEST, "Thanh toán MOCK không được phép trong production");
+            throw new AppException(ErrorCode.INVALID_REQUEST, "error.payment.mock-disabled");
         }
     }
 

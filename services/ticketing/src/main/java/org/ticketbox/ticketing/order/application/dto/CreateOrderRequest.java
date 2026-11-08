@@ -8,6 +8,6 @@ import java.util.List;
 import java.util.UUID;
 
 public record CreateOrderRequest(
-        @NotNull(message = "Vui lòng chọn concert") UUID concertId,
-        @NotEmpty(message = "Đơn hàng phải có ít nhất một hạng vé") @Valid
+        @NotNull(message = "{validation.concert.required}") UUID concertId,
+        @NotEmpty(message = "{validation.order.ticket-types-required}") @Valid
                 List<OrderItemRequest> items) {}

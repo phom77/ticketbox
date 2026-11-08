@@ -26,7 +26,7 @@ import {
   type ManagementApiScope,
 } from '../../api/admin';
 import type { ConcertDetail, Page } from '../../api/concerts';
-import { commandMessage, isRequestCanceled } from '../../api/client';
+import { isRequestCanceled } from '../../api/client';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { ConcertPicker } from '../../components/admin/ConcertPicker';
 import { useToast } from '../../components/feedback/toast-context';
@@ -269,7 +269,7 @@ export function AdminArtistBioPage({ apiScope = 'admin' }: { apiScope?: Manageme
     setUploading(true);
     try {
       const result = await submitArtistBioJob(uploadConcertId, file, apiScope);
-      toast.success(commandMessage(result.message, 'Đã tiếp nhận PDF để tạo giới thiệu nghệ sĩ.'));
+      toast.success('Đã tiếp nhận PDF để tạo giới thiệu nghệ sĩ.');
       setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       try {
@@ -309,7 +309,7 @@ export function AdminArtistBioPage({ apiScope = 'admin' }: { apiScope?: Manageme
     setRetrying(true);
     try {
       const result = await retryArtistBioJob(job.id, apiScope);
-      toast.success(commandMessage(result.message, 'Đã đưa tác vụ vào hàng chờ xử lý lại.'));
+      toast.success('Đã đưa tác vụ vào hàng chờ xử lý lại.');
       const updated = await getArtistBioJob(result.data.jobId, undefined, apiScope);
       setSelectedJob(updated);
       setLatestJob(updated);

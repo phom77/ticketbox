@@ -80,7 +80,7 @@ public class OrganizerRevenueController {
             @RequestParam(defaultValue = "day") String groupBy,
             Authentication authentication) {
         if (!"day".equalsIgnoreCase(groupBy)) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Hiện chỉ hỗ trợ groupBy=day");
+            throw new AppException(ErrorCode.INVALID_REQUEST, "error.revenue.unsupported-grouping");
         }
 
         UUID organizerId = getOrganizerId(authentication);

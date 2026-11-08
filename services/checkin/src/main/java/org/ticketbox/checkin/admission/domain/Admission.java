@@ -7,7 +7,7 @@ import java.util.UUID;
 public record Admission(UUID ticketId, UUID concertId) {
     public void requireConcert(UUID requestedConcert) {
         if (!concertId.equals(requestedConcert))
-            throw new DomainViolation("INVALID_REQUEST", "Vé không thuộc concert này");
+            throw new DomainViolation("INVALID_REQUEST", "checkin.wrong-concert");
     }
 
     public CheckinLog acceptedBy(

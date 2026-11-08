@@ -5,10 +5,11 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 public record RegisterRequest(
-        @NotBlank(message = "Vui lòng nhập email") @Email(message = "Email không hợp lệ")
+        @NotBlank(message = "{validation.email.required}")
+                @Email(message = "{validation.email.invalid}")
                 String email,
-        @NotBlank(message = "Vui lòng nhập mật khẩu")
-                @Size(min = 6, message = "Mật khẩu phải có ít nhất 6 ký tự")
+        @NotBlank(message = "{validation.password.required}")
+                @Size(min = 6, message = "{validation.password.min-size}")
                 String password,
-        @NotBlank(message = "Vui lòng nhập họ tên") String fullName,
+        @NotBlank(message = "{validation.full-name.required}") String fullName,
         String phone) {}

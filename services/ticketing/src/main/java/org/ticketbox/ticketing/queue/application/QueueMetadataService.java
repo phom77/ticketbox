@@ -32,6 +32,6 @@ public class QueueMetadataService {
                                         () ->
                                                 new AppException(
                                                         ErrorCode.CONCERT_NOT_FOUND,
-                                                        "Không tìm thấy concert")));
+                                                        "error.concert-not-found")));
     }
 }

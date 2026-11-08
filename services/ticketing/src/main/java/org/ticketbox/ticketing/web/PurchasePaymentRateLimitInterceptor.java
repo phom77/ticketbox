@@ -77,8 +77,7 @@ public class PurchasePaymentRateLimitInterceptor implements HandlerInterceptor {
                         : properties.globalPayment();
         if (!rateLimiter.tryConsume(
                 "rate-limit:global:" + bucket.name().toLowerCase(Locale.ROOT), global)) {
-            throw new AppException(
-                    ErrorCode.RATE_LIMIT_EXCEEDED, "Hệ thống đang bận. Vui lòng thử lại sau");
+            throw new AppException(ErrorCode.RATE_LIMIT_EXCEEDED, "error.rate-limit.service-busy");
         }
         return true;
     }

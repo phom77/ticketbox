@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.ticketbox.checkin.guestlist.application.port.BatchLogRepository;
+import org.ticketbox.checkin.guestlist.application.port.GuestListMessages;
 import org.ticketbox.checkin.guestlist.domain.BatchLog;
 
 import java.nio.file.Files;
@@ -22,16 +23,19 @@ public class GuestListJobRunner
     private final Job guestListImportJob;
     private final BatchLogRepository batchLogRepository;
     private final GuestListFileStorage fileStorage;
+    private final GuestListMessages messages;
 
     public GuestListJobRunner(
             JobLauncher jobLauncher,
             @Qualifier("guestListImportJob") Job guestListImportJob,
             BatchLogRepository batchLogRepository,
-            GuestListFileStorage fileStorage) {
+            GuestListFileStorage fileStorage,
+            GuestListMessages messages) {
         this.jobLauncher = jobLauncher;
         this.guestListImportJob = guestListImportJob;
         this.batchLogRepository = batchLogRepository;
         this.fileStorage = fileStorage;
+        this.messages = messages;
     }
 
     @Async("guestListImportExecutor")
@@ -59,7 +63,8 @@ public class GuestListJobRunner
                             log.setStatus(BatchLog.Status.FAILED);
                             log.setCompletedAt(OffsetDateTime.now());
                             log.setErrorDetail(
-                                    "Không thể khởi chạy job import: " + exception.getMessage());
+                                    messages.text(
+                                            "guest-import.launch-failed", exception.getMessage()));
                             try {
                                 Path source = Path.of(log.getFilePath());
                                 if (Files.exists(source)) {
@@ -71,8 +76,10 @@ public class GuestListJobRunner
                             } catch (Exception moveException) {
                                 log.setErrorDetail(
                                         log.getErrorDetail()
-                                                + "; Không thể di chuyển file: "
-                                                + moveException.getMessage());
+                                                + "; "
+                                                + messages.text(
+                                                        "guest-import.move-failed",
+                                                        moveException.getMessage()));
                             }
                             batchLogRepository.save(log);
                         });

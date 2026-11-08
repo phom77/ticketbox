@@ -12,7 +12,7 @@ import {
   type TicketTypeMutation,
 } from '../../api/admin';
 import type { ConcertDetail, TicketType as TicketTypeModel } from '../../api/concerts';
-import { commandMessage, isRequestCanceled } from '../../api/client';
+import { isRequestCanceled } from '../../api/client';
 import { AdminConfirmDialog } from '../../components/admin/AdminConfirmDialog';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { ConcertPicker } from '../../components/admin/ConcertPicker';
@@ -183,11 +183,11 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
     try {
       const payload = toPayload(form);
       if (editing) {
-        const result = await updateTicketType(editing.id, payload, apiScope);
-        toast.success(commandMessage(result.message, 'Đã cập nhật hạng vé.'));
+        await updateTicketType(editing.id, payload, apiScope);
+        toast.success('Đã cập nhật hạng vé.');
       } else {
-        const result = await createTicketType(selectedConcertId, payload, apiScope);
-        toast.success(commandMessage(result.message, 'Đã tạo hạng vé.'));
+        await createTicketType(selectedConcertId, payload, apiScope);
+        toast.success('Đã tạo hạng vé.');
       }
       setFormOpen(false);
       await loadTicketTypes();
@@ -201,9 +201,9 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
   async function toggleStatus(ticketType: TicketTypeModel) {
     setBusyId(ticketType.id);
     try {
-      const result = await updateTicketTypeStatus(ticketType.id, !ticketType.isActive, apiScope);
+      await updateTicketTypeStatus(ticketType.id, !ticketType.isActive, apiScope);
       const fallback = ticketType.isActive ? 'Đã tạm ngưng hạng vé.' : 'Đã kích hoạt hạng vé.';
-      toast.success(commandMessage(result.message, fallback));
+      toast.success(fallback);
       await loadTicketTypes();
     } catch (requestError) {
       toast.error(
@@ -218,8 +218,8 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
     if (!deleteTarget) return;
     setBusyId(deleteTarget.id);
     try {
-      const result = await deleteTicketType(deleteTarget.id, apiScope);
-      toast.success(commandMessage(result.message, 'Đã xóa hạng vé.'));
+      await deleteTicketType(deleteTarget.id, apiScope);
+      toast.success('Đã xóa hạng vé.');
       setDeleteTarget(null);
       await loadTicketTypes();
     } catch (requestError) {

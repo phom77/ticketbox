@@ -63,6 +63,8 @@ public class OrderConcurrencyTest {
 
     @Mock private org.ticketbox.ticketing.order.infrastructure.OrderEventStore orderEvents;
 
+    @Mock private org.ticketbox.ticketing.application.port.FallbackTicketNames fallbackNames;
+
     @InjectMocks private OrderService orderService;
 
     private UUID concertId;

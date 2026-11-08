@@ -136,10 +136,9 @@ public class Concert extends BaseEntity {
         if (allowed == null || !allowed.contains(newStatus)) {
             throw new org.ticketbox.catalog.domain.DomainViolation(
                     "INVALID_STATUS_TRANSITION",
-                    "Không thể chuyển trạng thái concert từ "
-                            + currentStatus
-                            + " sang "
-                            + newStatus);
+                    "error.concert.transition-not-allowed",
+                    currentStatus,
+                    newStatus);
         }
         status = newStatus;
     }

@@ -19,6 +19,7 @@ type JsonRequestOptions = {
 export const apiClient = axios.create({
   headers: {
     Accept: 'application/json',
+    'Accept-Language': 'vi',
     'Content-Type': 'application/json',
   },
 });

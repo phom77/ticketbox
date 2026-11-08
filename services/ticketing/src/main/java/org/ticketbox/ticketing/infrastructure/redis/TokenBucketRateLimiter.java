@@ -91,9 +91,7 @@ public class TokenBucketRateLimiter {
             return Long.valueOf(1L).equals(result);
         } catch (Exception ex) {
             log.warn("Redis rate limiter unavailable: {}", ex.getClass().getSimpleName());
-            throw new AppException(
-                    ErrorCode.REDIS_UNAVAILABLE,
-                    "Hệ thống điều tiết đang bận. Vui lòng thử lại sau");
+            throw new AppException(ErrorCode.REDIS_UNAVAILABLE, "error.rate-limiter-unavailable");
         }
     }
 }

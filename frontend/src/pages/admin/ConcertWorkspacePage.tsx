@@ -34,7 +34,7 @@ import {
 } from '../../api/admin';
 import type { ConcertDetail } from '../../api/concerts';
 import type { Order } from '../../api/orders';
-import { commandMessage, isRequestCanceled } from '../../api/client';
+import { isRequestCanceled } from '../../api/client';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { useToast } from '../../components/feedback/toast-context';
 
@@ -391,12 +391,9 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
     try {
       const result = await importGuestList(id, guestImportFile, apiScope, guestImportScheduled);
       toast.success(
-        commandMessage(
-          result.message,
-          guestImportScheduled
-            ? 'Đã xếp file CSV vào hàng chờ scheduler.'
-            : 'Đã import danh sách khách mời cho concert.',
-        ),
+        guestImportScheduled
+          ? 'Đã xếp file CSV vào hàng chờ scheduler.'
+          : 'Đã import danh sách khách mời cho concert.',
       );
       setGuestImportFile(null);
       if (guestImportScheduled) {

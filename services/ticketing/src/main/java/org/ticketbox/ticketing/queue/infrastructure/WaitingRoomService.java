@@ -460,8 +460,7 @@ return 1
                         Long.toString(Math.max(1, estimatedServiceSeconds)));
 
         if (raw == null || raw.isEmpty()) {
-            throw new AppException(
-                    ErrorCode.REDIS_UNAVAILABLE, "Phòng chờ tạm thời không khả dụng");
+            throw new AppException(ErrorCode.REDIS_UNAVAILABLE, "error.waiting-room.unavailable");
         }
 
         QueueStatus status = QueueStatus.valueOf(String.valueOf(raw.get(0)));
@@ -512,16 +511,15 @@ return 1
     private ConcertView validateConcertForWaitingRoom(UUID concertId) {
         ConcertView concert = metadata.get(concertId);
         if (!"ON_SALE".equals(concert.status())) {
-            throw new AppException(ErrorCode.CONCERT_NOT_ON_SALE, "Concert hiện không mở bán");
+            throw new AppException(ErrorCode.CONCERT_NOT_ON_SALE, "error.concert-not-on-sale");
         }
         OffsetDateTime now = OffsetDateTime.now();
         if (concert.saleStartAt() == null
                 || concert.saleStartAt().minus(waitingRoomOpenBefore).isAfter(now)) {
-            throw new AppException(
-                    ErrorCode.SALE_NOT_OPEN, "Phòng chờ mở trước thời điểm bán vé một giờ");
+            throw new AppException(ErrorCode.SALE_NOT_OPEN, "error.waiting-room.not-open");
         }
         if (concert.saleEndAt() != null && concert.saleEndAt().isBefore(now)) {
-            throw new AppException(ErrorCode.SALE_NOT_OPEN, "Thời gian bán vé đã kết thúc");
+            throw new AppException(ErrorCode.SALE_NOT_OPEN, "error.waiting-room.sale-ended");
         }
         return concert;
     }
@@ -538,9 +536,7 @@ return 1
         Boolean acquired =
                 redisTemplate.opsForValue().setIfAbsent(lockKey, lockToken, Duration.ofSeconds(30));
         if (!Boolean.TRUE.equals(acquired)) {
-            throw new AppException(
-                    ErrorCode.REDIS_UNAVAILABLE,
-                    "Phòng chờ đang chuẩn bị hàng đợi. Vui lòng thử lại");
+            throw new AppException(ErrorCode.REDIS_UNAVAILABLE, "error.waiting-room.preparing");
         }
         String sourceKey = "queue:draw-source:" + concertId;
         String stagingKey = "queue:draw-staging:" + concertId + ":" + lockToken;
@@ -596,7 +592,7 @@ return 1
                                         List.of(lockKey, sourceKey, stagingKey),
                                         args.toArray()))) {
                     throw new AppException(
-                            ErrorCode.REDIS_UNAVAILABLE, "Không thể hoàn tất hàng đợi");
+                            ErrorCode.REDIS_UNAVAILABLE, "error.waiting-room.cannot-complete");
                 }
             }
             Long published =
@@ -624,7 +620,8 @@ return 1
                             lockToken,
                             Integer.toString(randomized.size()));
             if (!Long.valueOf(1).equals(published))
-                throw new AppException(ErrorCode.REDIS_UNAVAILABLE, "Không thể hoàn tất hàng đợi");
+                throw new AppException(
+                        ErrorCode.REDIS_UNAVAILABLE, "error.waiting-room.cannot-complete");
         } finally {
             redisTemplate.execute(
                     RedisScript.of(
@@ -700,8 +697,7 @@ return 1
         String key = RedisKeyConstants.RATE_LIMIT_USER + userId + ":queue:" + action;
         if (!rateLimiter.tryConsume(key, policy)) {
             throw new AppException(
-                    ErrorCode.RATE_LIMIT_EXCEEDED,
-                    "Bạn gửi quá nhiều yêu cầu vào hàng chờ. Vui lòng thử lại sau");
+                    ErrorCode.RATE_LIMIT_EXCEEDED, "error.waiting-room.rate-limited");
         }
     }
 

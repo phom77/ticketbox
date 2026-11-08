@@ -24,7 +24,7 @@ import {
   type ManagementApiScope,
 } from '../../api/admin';
 import type { ConcertDetail, Page } from '../../api/concerts';
-import { commandMessage, isRequestCanceled } from '../../api/client';
+import { isRequestCanceled } from '../../api/client';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { ConcertPicker } from '../../components/admin/ConcertPicker';
 import { useToast } from '../../components/feedback/toast-context';
@@ -317,10 +317,7 @@ export function AdminGuestImportsPage({
       const scheduled = uploadMode === 'scheduled';
       const result = await importGuestList(uploadConcertId, file, apiScope, scheduled);
       toast.success(
-        commandMessage(
-          result.message,
-          scheduled ? 'Đã xếp file CSV vào hàng chờ scheduler.' : 'Đã tiếp nhận file CSV để xử lý.',
-        ),
+        scheduled ? 'Đã xếp file CSV vào hàng chờ scheduler.' : 'Đã tiếp nhận file CSV để xử lý.',
       );
       setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';

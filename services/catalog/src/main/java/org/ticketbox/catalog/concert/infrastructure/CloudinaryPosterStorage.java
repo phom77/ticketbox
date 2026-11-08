@@ -59,7 +59,7 @@ public class CloudinaryPosterStorage implements PosterStorage {
                     || !StringUtils.hasText(publicId)) {
                 throw new AppException(
                         ErrorCode.IMAGE_STORAGE_UNAVAILABLE,
-                        "Cloudinary trả về phản hồi upload không hợp lệ");
+                        "error.poster.invalid-upload-response");
             }
             return new StoredPoster(secureUrl, publicId);
         } catch (AppException exception) {
@@ -67,7 +67,7 @@ public class CloudinaryPosterStorage implements PosterStorage {
         } catch (IOException | RuntimeException exception) {
             log.error("Cloudinary poster upload failed for concert {}", concertId, exception);
             throw new AppException(
-                    ErrorCode.IMAGE_STORAGE_UNAVAILABLE, "Không thể tải poster concert lên");
+                    ErrorCode.IMAGE_STORAGE_UNAVAILABLE, "error.poster.upload-failed");
         }
     }
 
@@ -87,26 +87,22 @@ public class CloudinaryPosterStorage implements PosterStorage {
 
     private byte[] validateAndRead(Upload file) {
         if (file == null || file.isEmpty()) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Ảnh poster không được để trống");
+            throw new AppException(ErrorCode.INVALID_REQUEST, "error.poster.required");
         }
         if (file.getSize() > properties.maxFileSize().toBytes()) {
-            throw new AppException(
-                    ErrorCode.INVALID_REQUEST, "Ảnh poster không được vượt quá 5 MB");
+            throw new AppException(ErrorCode.INVALID_REQUEST, "error.poster.too-large");
         }
         if (!ALLOWED_CONTENT_TYPES.contains(file.getContentType())) {
-            throw new AppException(
-                    ErrorCode.INVALID_REQUEST, "Poster phải là ảnh JPEG, PNG hoặc WebP");
+            throw new AppException(ErrorCode.INVALID_REQUEST, "error.poster.unsupported-type");
         }
         try {
             byte[] bytes = file.getBytes();
             if (!matchesSignature(bytes, file.getContentType())) {
-                throw new AppException(
-                        ErrorCode.INVALID_REQUEST,
-                        "Nội dung file poster không khớp với định dạng ảnh");
+                throw new AppException(ErrorCode.INVALID_REQUEST, "error.poster.type-mismatch");
             }
             return bytes;
         } catch (IOException exception) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Không thể đọc ảnh poster");
+            throw new AppException(ErrorCode.INVALID_REQUEST, "error.poster.read-failed");
         }
     }
 
@@ -148,7 +144,7 @@ public class CloudinaryPosterStorage implements PosterStorage {
     private void ensureConfigured() {
         if (!isConfigured()) {
             throw new AppException(
-                    ErrorCode.IMAGE_STORAGE_UNAVAILABLE, "Cloudinary chưa được cấu hình");
+                    ErrorCode.IMAGE_STORAGE_UNAVAILABLE, "error.poster.storage-not-configured");
         }
     }
 

@@ -71,12 +71,12 @@ public class MomoPaymentGateway implements PaymentGateway {
     public PaymentInitiationResult initiatePayment(OrderView order, String requestId) {
         requireConfigured();
         String orderId = order.id().toString();
-        String orderInfo = "Thanh toan ve TicketBox " + orderId;
+        String orderInfo = ProviderOrderDescription.forMomo(orderId);
         String amount = order.totalAmount().setScale(0).toPlainString();
         String extraData = "";
         String requestType = "payWithMethod";
 
-        // Build rawSignature – fields phải đúng thứ tự alphabet theo docs MoMo
+        // MoMo requires the signature fields in alphabetical order.
         String rawSignature =
                 "accessKey="
                         + properties.accessKey()
@@ -131,9 +131,9 @@ public class MomoPaymentGateway implements PaymentGateway {
             String payUrl = json.path("payUrl").asText();
 
             if (payUrl == null || payUrl.isBlank()) {
-                String message = json.path("message").asText("MoMo không trả về payUrl");
+                String message = json.path("message").asText("MoMo did not return payUrl");
                 throw new AppException(
-                        ErrorCode.PAYMENT_GATEWAY_UNAVAILABLE, "Lỗi MoMo: " + message);
+                        ErrorCode.PAYMENT_GATEWAY_UNAVAILABLE, "MoMo error: " + message);
             }
 
             return new PaymentInitiationResult(provider(), payUrl, requestId, responseBody);
@@ -143,7 +143,7 @@ public class MomoPaymentGateway implements PaymentGateway {
         } catch (Exception ex) {
             throw new AppException(
                     ErrorCode.PAYMENT_GATEWAY_UNAVAILABLE,
-                    "Không thể khởi tạo thanh toán MoMo: " + ex.getMessage());
+                    "Could not initialize MoMo payment: " + ex.getMessage());
         }
     }
 
@@ -158,7 +158,7 @@ public class MomoPaymentGateway implements PaymentGateway {
             return PaymentWebhookResult.invalid("Missing MoMo signature", rawPayload);
         }
 
-        // Build rawSignature để verify – đúng thứ tự alphabet theo docs MoMo IPN
+        // MoMo IPN verification uses the same alphabetical field ordering.
         String rawSignature =
                 "accessKey="
                         + properties.accessKey()
@@ -286,11 +286,10 @@ public class MomoPaymentGateway implements PaymentGateway {
             throw notSubmitted;
         if (throwable instanceof io.github.resilience4j.circuitbreaker.CallNotPermittedException) {
             throw new com.ticketbox.payments.application.error.GatewayNotSubmittedException(
-                    "Cổng thanh toán MoMo tạm thời không khả dụng");
+                    "MoMo is temporarily unavailable");
         }
         throw new AppException(
-                ErrorCode.PAYMENT_GATEWAY_UNAVAILABLE,
-                "Cổng thanh toán MoMo tạm thời không khả dụng");
+                ErrorCode.PAYMENT_GATEWAY_UNAVAILABLE, "MoMo is temporarily unavailable");
     }
 
     @SuppressWarnings("unused")
@@ -301,11 +300,10 @@ public class MomoPaymentGateway implements PaymentGateway {
             throw notSubmitted;
         if (throwable instanceof io.github.resilience4j.circuitbreaker.CallNotPermittedException) {
             throw new com.ticketbox.payments.application.error.GatewayNotSubmittedException(
-                    "Cổng thanh toán MoMo tạm thời không khả dụng");
+                    "MoMo is temporarily unavailable");
         }
         throw new AppException(
-                ErrorCode.PAYMENT_GATEWAY_UNAVAILABLE,
-                "Cổng thanh toán MoMo tạm thời không khả dụng");
+                ErrorCode.PAYMENT_GATEWAY_UNAVAILABLE, "MoMo is temporarily unavailable");
     }
 
     private void requireConfigured() {
@@ -315,7 +313,7 @@ public class MomoPaymentGateway implements PaymentGateway {
                 || isBlank(properties.returnUrl())
                 || isBlank(properties.ipnUrl())) {
             throw new com.ticketbox.payments.application.error.GatewayNotSubmittedException(
-                    "Cấu hình MoMo chưa đầy đủ");
+                    "MoMo configuration is incomplete");
         }
     }
 
@@ -330,7 +328,7 @@ public class MomoPaymentGateway implements PaymentGateway {
             }
             return hash.toString();
         } catch (Exception ex) {
-            throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR, "Không thể ký dữ liệu MoMo");
+            throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR, "Could not sign MoMo data");
         }
     }
 

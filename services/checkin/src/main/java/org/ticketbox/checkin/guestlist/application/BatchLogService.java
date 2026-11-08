@@ -57,11 +57,11 @@ public class BatchLogService {
                                 () ->
                                         new AppException(
                                                 ErrorCode.RESOURCE_NOT_FOUND,
-                                                "Không tìm thấy lịch sử import"));
+                                                "error.guest-import.not-found"));
         if (log.getConcertId() != null) {
             accessService.requireAccess(log.getConcertId(), userId, admin);
         } else if (!admin) {
-            throw new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy lịch sử import");
+            throw new AppException(ErrorCode.RESOURCE_NOT_FOUND, "error.guest-import.not-found");
         }
         return toResponse(log);
     }

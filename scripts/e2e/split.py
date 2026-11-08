@@ -70,6 +70,54 @@ def login(role):
                    body={"email": role + "@ticketbox.com", "password": "password123"})["accessToken"]
 
 
+def verify_localized_responses():
+    for language, expected_locale, message in (
+        (None, "vi", "Vui lòng đăng nhập để tiếp tục"),
+        ("vi-VN", "vi", "Vui lòng đăng nhập để tiếp tục"),
+        ("en-US", "en", "Please sign in to continue"),
+    ):
+        headers = {} if language is None else {"Accept-Language": language}
+        req = urllib.request.Request(BASE + "/api/auth/me", headers=headers)
+        try:
+            urllib.request.urlopen(req, timeout=20)
+        except urllib.error.HTTPError as error:
+            assert error.code == 401, error.code
+            assert error.headers["Content-Language"] == expected_locale
+            vary = ",".join(error.headers.get_all("Vary", [])).lower()
+            assert "accept-language" in vary, vary
+            payload = json.load(error)
+            assert payload["code"] == 401 and payload["message"] == message, payload
+        else:
+            raise AssertionError("Anonymous authentication request unexpectedly succeeded")
+
+    for language, message in (("en", "Success"), ("vi", "Thành công")):
+        req = urllib.request.Request(
+            BASE + "/api/concerts", headers={"Accept-Language": language}
+        )
+        with urllib.request.urlopen(req, timeout=20) as response:
+            assert response.headers["Content-Language"] == language
+            vary = ",".join(response.headers.get_all("Vary", [])).lower()
+            assert "accept-language" in vary, vary
+            assert json.load(response)["message"] == message
+
+    def callback(language):
+        req = urllib.request.Request(
+            BASE + "/api/payments/webhooks/vnpay", headers={"Accept-Language": language}
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=20) as response:
+                return response.status, json.load(response)
+        except urllib.error.HTTPError as error:
+            return error.code, json.load(error)
+
+    status, payload = callback("vi")
+    assert (status, payload) == callback("en")
+    if status == 200:
+        assert {"RspCode", "Message"} <= payload.keys(), payload
+    else:
+        assert status == 503 and "message" in payload, (status, payload)
+
+
 def upload(path, token, filename, content, media):
     boundary="ticketbox-"+uuid.uuid4().hex
     body=(f"--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{filename}\"\r\n"
@@ -112,6 +160,8 @@ def main(*, source_outage=True):
     request("POST", "/api/admin/concerts", audience, {}, expected=(403,))
     request("GET", "/internal/split/stock", expected=(404,))
     check("Identity JWT and RBAC work across service boundaries")
+    verify_localized_responses()
+    check("Gateway preserves API language negotiation and provider callback acknowledgements")
 
     now = dt.datetime.now(dt.timezone.utc)
     concert = request("POST", "/api/admin/concerts", admin, {
@@ -187,11 +237,12 @@ def main(*, source_outage=True):
     assert sql("checkin", f"SELECT count(*) FROM tickets WHERE concert_id='{concert_id}' AND status='USED'") == "2"
     until(lambda: sql("ticketing", f"SELECT count(*) FROM tickets WHERE concert_id='{concert_id}' AND status='USED'") == "2")
     check("Replayed issuance snapshots preserve admissions and ticket status feedback")
-    csv=b"phone,full_name,category,sponsor_name,notes\n0901234567,Guest One,VIP,Partner,fixture\n"
+    csv = "phone,full_name,category,sponsor_name,notes\n0901234567,Nguyễn Ánh,VIP,Partner,fixture\n".encode("utf-8")
     imported=upload(f"/api/admin/concerts/{concert_id}/guest-lists/import",admin,"guests.csv",csv,"text/csv")
     until(lambda:request("GET",f"/api/admin/batch-logs/{imported['batchLogId']}",admin)["status"] in ("SUCCESS","PARTIAL","SKIPPED"))
     guests=request("GET",f"/api/staff/guestlist/list?concert_id={concert_id}",staff)
     assert len(guests)==1
+    assert guests[0]["fullName"] == "Nguyễn Ánh", guests
     upload(f"/api/admin/concerts/{concert_id}/guest-lists/import",admin,"guests.csv",csv,"text/csv")
     assert len(request("GET",f"/api/staff/guestlist/list?concert_id={concert_id}",staff))==1
     check("Check-in owns CSV processing and duplicate imports preserve one guest")

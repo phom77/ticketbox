@@ -4,7 +4,7 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 public record UpdateUserProfileRequest(
-        @Size(max = 255, message = "Họ tên không được vượt quá 255 ký tự")
-                @Pattern(regexp = ".*\\S.*", message = "Họ tên không được để trống")
+        @Size(max = 255, message = "{validation.full-name.max-size}")
+                @Pattern(regexp = ".*\\S.*", message = "{validation.full-name.blank}")
                 String fullName,
-        @Size(max = 20, message = "Số điện thoại không được vượt quá 20 ký tự") String phone) {}
+        @Size(max = 20, message = "{validation.phone.max-size}") String phone) {}

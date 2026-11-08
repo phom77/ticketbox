@@ -1,5 +1,7 @@
 package org.ticketbox.ticketing.order.application;
 
+import org.ticketbox.ticketing.application.port.FallbackTicketNames;
+
 import static org.ticketbox.ticketing.order.application.port.OrderEventRepository.Transition.OrderCancelled;
 import static org.ticketbox.ticketing.order.application.port.OrderEventRepository.Transition.OrderExpired;
 import static org.ticketbox.ticketing.order.application.port.OrderEventRepository.Transition.OrderPaid;
@@ -46,6 +48,7 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class OrderService {
 
+    private final FallbackTicketNames fallbackNames;
     private final PurchaseLock purchaseGuard;
     private final OrderEventRepository orderEvents;
     private final ConcertOrderPort concertOrderPort;
@@ -98,9 +101,7 @@ public class OrderService {
         String lockToken = UUID.randomUUID().toString();
         Boolean acquired = purchaseSessions.acquire(lockKey, lockToken);
         if (Boolean.FALSE.equals(acquired)) {
-            throw new AppException(
-                    ErrorCode.INVALID_REQUEST,
-                    "Một yêu cầu khác đang được xử lý. Vui lòng thử lại");
+            throw new AppException(ErrorCode.INVALID_REQUEST, "error.order.request-in-progress");
         }
 
         releaseUserLockAfterTransaction(lockKey, lockToken);
@@ -112,10 +113,10 @@ public class OrderService {
                                 () ->
                                         new AppException(
                                                 ErrorCode.CONCERT_NOT_FOUND,
-                                                "Không tìm thấy concert"));
+                                                "error.concert-not-found"));
 
         if (!"ON_SALE".equals(concert.status())) {
-            throw new AppException(ErrorCode.CONCERT_NOT_ON_SALE, "Concert hiện không mở bán");
+            throw new AppException(ErrorCode.CONCERT_NOT_ON_SALE, "error.concert-not-on-sale");
         }
 
         OffsetDateTime now = OffsetDateTime.now();
@@ -123,15 +124,15 @@ public class OrderService {
                 || (concert.saleEndAt() != null && concert.saleEndAt().isBefore(now))) {
             throw new AppException(
                     ErrorCode.SALE_NOT_OPEN,
-                    "Thời gian bán vé chưa bắt đầu hoặc đã kết thúc cho: " + concert.title());
+                    "error.order.sale-not-open-for-concert",
+                    concert.title());
         }
 
         purchaseGuard.lock(userId, request.concertId());
         queueAccessPort.validateAccess(request.concertId(), userId, queueAccessToken);
         if (request.items().stream().map(OrderItemRequest::ticketTypeId).distinct().count()
                 != request.items().size()) {
-            throw new AppException(
-                    ErrorCode.INVALID_REQUEST, "Mỗi hạng vé chỉ được xuất hiện một lần trong đơn");
+            throw new AppException(ErrorCode.INVALID_REQUEST, "error.order.duplicate-ticket-type");
         }
 
         List<UUID> ticketTypeIds =
@@ -186,17 +187,18 @@ public class OrderService {
             if (type == null) {
                 throw new AppException(
                         ErrorCode.TICKET_TYPE_NOT_IN_CONCERT,
-                        "Không tìm thấy hạng vé: " + itemRequest.ticketTypeId());
+                        "error.ticket-type.not-found-by-id",
+                        itemRequest.ticketTypeId());
             }
 
             if (!request.concertId().equals(type.concertId())) {
                 throw new AppException(
-                        ErrorCode.TICKET_TYPE_NOT_IN_CONCERT, "Hạng vé không thuộc concert này");
+                        ErrorCode.TICKET_TYPE_NOT_IN_CONCERT, "error.ticket-type-not-in-concert");
             }
 
             if (!type.isActive()) {
                 throw new AppException(
-                        ErrorCode.TICKET_TYPE_NOT_IN_CONCERT, "Hạng vé hiện không được mở bán");
+                        ErrorCode.TICKET_TYPE_NOT_IN_CONCERT, "error.ticket-type.inactive");
             }
 
             int alreadyOrdered =
@@ -208,15 +210,13 @@ public class OrderService {
             if (alreadyOrdered + itemRequest.quantity() > type.maxPerAccount()) {
                 throw new AppException(
                         ErrorCode.TICKET_LIMIT_EXCEEDED,
-                        "Bạn đã vượt quá giới hạn mua vé cho khu vực "
-                                + type.name()
-                                + " (tối đa: "
-                                + type.maxPerAccount()
-                                + ")");
+                        "error.order.section-purchase-limit",
+                        type.name(),
+                        type.maxPerAccount());
             }
 
             if (itemRequest.quantity() < 1)
-                throw new AppException(ErrorCode.INVALID_REQUEST, "Số lượng phải lớn hơn 0");
+                throw new AppException(ErrorCode.INVALID_REQUEST, "error.quantity.positive");
             inventoryDeltas.merge(type.id(), heldQty - itemRequest.quantity(), Integer::sum);
 
             BigDecimal unitPrice = type.price();
@@ -232,7 +232,9 @@ public class OrderService {
             else if (delta.getValue() < 0
                     && !inventory.reserve(delta.getKey(), -delta.getValue())) {
                 throw new AppException(
-                        ErrorCode.TICKET_SOLD_OUT, "Vé đã bán hết cho hạng vé " + delta.getKey());
+                        ErrorCode.TICKET_SOLD_OUT,
+                        "error.order.ticket-type-sold-out",
+                        delta.getKey());
             }
         }
         ticketHoldRepository.deleteByUserIdAndConcertId(userId, request.concertId());
@@ -339,7 +341,8 @@ public class OrderService {
                                                         String typeName =
                                                                 ticketTypeNames.getOrDefault(
                                                                         item.getTicketTypeId(),
-                                                                        "Không rõ hạng vé");
+                                                                        fallbackNames
+                                                                                .unknownTicketType());
                                                         return orderMapper.toItemResponse(
                                                                 item, typeName);
                                                     })
@@ -347,7 +350,7 @@ public class OrderService {
 
                             String concertTitle =
                                     concertTitles.getOrDefault(
-                                            order.getConcertId(), "Không rõ concert");
+                                            order.getConcertId(), fallbackNames.unknownConcert());
                             return orderMapper.toResponse(order, itemResponses, concertTitle);
                         })
                 .toList();
@@ -355,7 +358,7 @@ public class OrderService {
 
     public OrderResponse getOrderByIdempotencyKey(String key, UUID userId) {
         if (key == null || key.isBlank() || key.trim().length() > 128) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Idempotency-Key không hợp lệ");
+            throw new AppException(ErrorCode.INVALID_REQUEST, "error.idempotency-key.invalid");
         }
         Order order =
                 orderRepository
@@ -364,7 +367,7 @@ public class OrderService {
                                 () ->
                                         new AppException(
                                                 ErrorCode.ORDER_NOT_FOUND,
-                                                "Không tìm thấy đơn hàng"));
+                                                "error.order-not-found"));
         return getOrderDetail(order.getId(), userId);
     }
 
@@ -376,7 +379,7 @@ public class OrderService {
                                 () ->
                                         new AppException(
                                                 ErrorCode.ORDER_NOT_FOUND,
-                                                "Không tìm thấy đơn hàng"));
+                                                "error.order-not-found"));
 
         List<OrderItem> items = orderItemRepository.findByOrderId(order.getId());
 
@@ -387,7 +390,7 @@ public class OrderService {
                                 () ->
                                         new AppException(
                                                 ErrorCode.CONCERT_NOT_FOUND,
-                                                "Không tìm thấy concert"));
+                                                "error.concert-not-found"));
 
         List<UUID> ticketTypeIds = items.stream().map(OrderItem::getTicketTypeId).toList();
         List<TicketTypeView> ticketTypes = concertOrderPort.findTicketTypesByIds(ticketTypeIds);
@@ -401,7 +404,8 @@ public class OrderService {
                                 item -> {
                                     String typeName =
                                             ticketTypeNames.getOrDefault(
-                                                    item.getTicketTypeId(), "Không rõ hạng vé");
+                                                    item.getTicketTypeId(),
+                                                    fallbackNames.unknownTicketType());
                                     return orderMapper.toItemResponse(item, typeName);
                                 })
                         .toList();
@@ -494,13 +498,14 @@ public class OrderService {
                                                                     item,
                                                                     ticketTypeNames.getOrDefault(
                                                                             item.getTicketTypeId(),
-                                                                            "Không rõ hạng vé")))
+                                                                            fallbackNames
+                                                                                    .unknownTicketType())))
                                             .toList();
                             return orderMapper.toResponse(
                                     order,
                                     itemResponses,
                                     concertTitles.getOrDefault(
-                                            order.getConcertId(), "Không rõ concert"));
+                                            order.getConcertId(), fallbackNames.unknownConcert()));
                         })
                 .toList();
     }
@@ -513,7 +518,7 @@ public class OrderService {
                                 () ->
                                         new AppException(
                                                 ErrorCode.ORDER_NOT_FOUND,
-                                                "Không tìm thấy đơn hàng"));
+                                                "error.order-not-found"));
 
         List<OrderItem> items = orderItemRepository.findByOrderId(order.getId());
 
@@ -524,7 +529,7 @@ public class OrderService {
                                 () ->
                                         new AppException(
                                                 ErrorCode.CONCERT_NOT_FOUND,
-                                                "Không tìm thấy concert"));
+                                                "error.concert-not-found"));
 
         List<UUID> ticketTypeIds = items.stream().map(OrderItem::getTicketTypeId).toList();
         Map<UUID, String> ticketTypeNames =
@@ -539,7 +544,7 @@ public class OrderService {
                                                 item,
                                                 ticketTypeNames.getOrDefault(
                                                         item.getTicketTypeId(),
-                                                        "Không rõ hạng vé")))
+                                                        fallbackNames.unknownTicketType())))
                         .toList();
 
         return orderMapper.toResponse(order, itemResponses, concert.title());
@@ -553,7 +558,7 @@ public class OrderService {
                                 () ->
                                         new AppException(
                                                 ErrorCode.ORDER_NOT_FOUND,
-                                                "Không tìm thấy đơn hàng"));
+                                                "error.order-not-found"));
         if (!admin) {
             requireOwnedConcert(order.getConcertId(), requesterId);
         }
@@ -570,7 +575,7 @@ public class OrderService {
                                 () ->
                                         new AppException(
                                                 ErrorCode.CONCERT_NOT_FOUND,
-                                                "Không tìm thấy concert"));
+                                                "error.concert-not-found"));
 
         List<UUID> ticketTypeIds = items.stream().map(OrderItem::getTicketTypeId).toList();
         Map<UUID, String> ticketTypeNames =
@@ -585,7 +590,7 @@ public class OrderService {
                                                 item,
                                                 ticketTypeNames.getOrDefault(
                                                         item.getTicketTypeId(),
-                                                        "Không rõ hạng vé")))
+                                                        fallbackNames.unknownTicketType())))
                         .toList();
 
         return orderMapper.toResponse(order, itemResponses, concert.title());
@@ -593,7 +598,7 @@ public class OrderService {
 
     private void requireOwnedConcert(UUID concertId, UUID organizerId) {
         if (!concertOrderPort.isConcertOwnedBy(concertId, organizerId)) {
-            throw new AppException(ErrorCode.UNAUTHORIZED, "Bạn không quản lý concert này");
+            throw new AppException(ErrorCode.UNAUTHORIZED, "error.concert.not-managed");
         }
     }
 
@@ -605,18 +610,18 @@ public class OrderService {
                                 () ->
                                         new AppException(
                                                 ErrorCode.ORDER_NOT_FOUND,
-                                                "Không tìm thấy đơn hàng"));
+                                                "error.order-not-found"));
 
         if (order.getStatus() != Order.Status.AWAITING_PAYMENT) {
             throw new AppException(
                     ErrorCode.INVALID_STATUS_TRANSITION,
-                    "Chỉ có thể thanh toán lại đơn đang chờ thanh toán. Trạng thái hiện tại: "
-                            + order.getStatus());
+                    "error.order.retry-requires-pending",
+                    order.getStatus());
         }
 
         if (order.getExpiresAt().isBefore(OffsetDateTime.now())) {
             throw new AppException(
-                    ErrorCode.INVALID_STATUS_TRANSITION, "Thời hạn thanh toán đơn hàng đã hết");
+                    ErrorCode.INVALID_STATUS_TRANSITION, "error.order.payment-deadline-passed");
         }
 
         return toOrderResponse(order);
@@ -631,18 +636,18 @@ public class OrderService {
                                 () ->
                                         new AppException(
                                                 ErrorCode.ORDER_NOT_FOUND,
-                                                "Không tìm thấy đơn hàng"));
+                                                "error.order-not-found"));
         long version = orderEvents.restore(order);
 
         if (!order.getUserId().equals(userId)) {
-            throw new AppException(ErrorCode.ORDER_NOT_FOUND, "Không tìm thấy đơn hàng");
+            throw new AppException(ErrorCode.ORDER_NOT_FOUND, "error.order-not-found");
         }
 
         if (order.getStatus() != Order.Status.AWAITING_PAYMENT) {
             throw new AppException(
                     ErrorCode.INVALID_STATUS_TRANSITION,
-                    "Chỉ có thể hủy đơn đang chờ thanh toán. Trạng thái hiện tại: "
-                            + order.getStatus());
+                    "error.order.cancellation-requires-pending",
+                    order.getStatus());
         }
 
         purchaseGuard.lock(order.getUserId(), order.getConcertId());
@@ -677,7 +682,7 @@ public class OrderService {
                                 () ->
                                         new AppException(
                                                 ErrorCode.CONCERT_NOT_FOUND,
-                                                "Không tìm thấy concert"));
+                                                "error.concert-not-found"));
 
         List<OrderItemResponse> itemResponses =
                 items.stream()
@@ -685,7 +690,8 @@ public class OrderService {
                                 item -> {
                                     String typeName =
                                             ticketTypeNames.getOrDefault(
-                                                    item.getTicketTypeId(), "Không rõ hạng vé");
+                                                    item.getTicketTypeId(),
+                                                    fallbackNames.unknownTicketType());
                                     return orderMapper.toItemResponse(item, typeName);
                                 })
                         .toList();
@@ -722,7 +728,7 @@ public class OrderService {
                                 () ->
                                         new AppException(
                                                 ErrorCode.ORDER_NOT_FOUND,
-                                                "Không tìm thấy đơn hàng"));
+                                                "error.order-not-found"));
         long version = orderEvents.restore(order);
 
         if (order.getStatus() == Order.Status.PAID) {

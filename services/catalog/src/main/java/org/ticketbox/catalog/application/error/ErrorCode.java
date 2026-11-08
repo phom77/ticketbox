@@ -4,24 +4,24 @@ import lombok.Getter;
 
 @Getter
 public enum ErrorCode {
-    INVALID_REQUEST("Yêu cầu không hợp lệ"),
-    VALIDATION_FAILED("Dữ liệu chưa hợp lệ"),
-    UNAUTHORIZED("Bạn không có quyền thực hiện thao tác này"),
-    RESOURCE_NOT_FOUND("Không tìm thấy dữ liệu được yêu cầu"),
-    INTERNAL_SERVER_ERROR("Máy chủ đang gặp lỗi. Vui lòng thử lại sau"),
-    AI_PROVIDER_UNAVAILABLE("Dịch vụ AI tạm thời không khả dụng"),
-    IMAGE_STORAGE_UNAVAILABLE("Dịch vụ lưu trữ hình ảnh tạm thời không khả dụng"),
-    ARTIST_BIO_JOB_NOT_READY("Tác vụ giới thiệu nghệ sĩ chưa sẵn sàng"),
-    ARTIST_BIO_ALREADY_EXISTS("Concert đã có giới thiệu nghệ sĩ"),
-    INVALID_STATUS_TRANSITION("Không thể chuyển sang trạng thái này"),
-    CONCERT_NOT_DELETABLE("Chỉ có thể xóa concert ở trạng thái nháp"),
-    INVALID_DATE("Cấu hình ngày giờ không hợp lệ"),
-    RATE_LIMIT_EXCEEDED("Bạn thao tác quá nhanh. Vui lòng thử lại sau"),
-    REDIS_UNAVAILABLE("Hệ thống hàng chờ tạm thời không khả dụng");
+    INVALID_REQUEST("error.invalid-request"),
+    VALIDATION_FAILED("error.validation-failed"),
+    UNAUTHORIZED("error.unauthorized"),
+    RESOURCE_NOT_FOUND("error.resource-not-found"),
+    INTERNAL_SERVER_ERROR("error.internal-server-error"),
+    AI_PROVIDER_UNAVAILABLE("error.ai-provider-unavailable"),
+    IMAGE_STORAGE_UNAVAILABLE("error.image-storage-unavailable"),
+    ARTIST_BIO_JOB_NOT_READY("error.artist-bio-job-not-ready"),
+    ARTIST_BIO_ALREADY_EXISTS("error.artist-bio-already-exists"),
+    INVALID_STATUS_TRANSITION("error.invalid-status-transition"),
+    CONCERT_NOT_DELETABLE("error.concert-not-deletable"),
+    INVALID_DATE("error.invalid-date"),
+    RATE_LIMIT_EXCEEDED("error.rate-limit-exceeded"),
+    REDIS_UNAVAILABLE("error.redis-unavailable");
 
-    private final String message;
+    private final String messageKey;
 
-    ErrorCode(String message) {
-        this.message = message;
+    ErrorCode(String messageKey) {
+        this.messageKey = messageKey;
     }
 }

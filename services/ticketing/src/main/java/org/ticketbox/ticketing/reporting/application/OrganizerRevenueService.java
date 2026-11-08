@@ -135,7 +135,7 @@ public class OrganizerRevenueService {
                                 () ->
                                         new AppException(
                                                 ErrorCode.RESOURCE_NOT_FOUND,
-                                                "Không tìm thấy concert"));
+                                                "error.concert-not-found"));
 
         if (!COMPLETED_STATUS.equals(concert.status())) {
             throw new AppException(ErrorCode.CONCERT_NOT_COMPLETED);
@@ -172,8 +172,7 @@ public class OrganizerRevenueService {
 
     private void validateDateRange(LocalDate from, LocalDate to) {
         if (from.isAfter(to)) {
-            throw new AppException(
-                    ErrorCode.INVALID_REQUEST, "Ngày bắt đầu phải trước hoặc bằng ngày kết thúc");
+            throw new AppException(ErrorCode.INVALID_REQUEST, "error.revenue.invalid-date-range");
         }
     }
 }

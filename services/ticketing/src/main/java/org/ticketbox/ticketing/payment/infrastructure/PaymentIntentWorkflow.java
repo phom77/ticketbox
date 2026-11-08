@@ -62,13 +62,13 @@ public class PaymentIntentWorkflow implements PaymentWorkflowPort {
         if (found != null) {
             if (!found.provider().equals(provider))
                 throw new AppException(
-                        ErrorCode.INVALID_STATUS_TRANSITION, "Đơn hàng đã chọn cổng thanh toán");
+                        ErrorCode.INVALID_STATUS_TRANSITION,
+                        "error.payment.provider-already-selected");
             return found;
         }
         if (order.paymentUrl() != null || order.paymentProvider() != null)
             throw new AppException(
-                    ErrorCode.INVALID_STATUS_TRANSITION,
-                    "Phiên thanh toán cũ cần được đối soát trước chuyển đổi");
+                    ErrorCode.INVALID_STATUS_TRANSITION, "error.payment.reconciliation-required");
         UUID id = UUID.randomUUID();
         db.update(
                 "INSERT INTO"
@@ -178,7 +178,7 @@ WHERE order_id=? AND lease_owner=? AND state NOT IN ('SETTLED','REJECTED')
                 || result.occurredAt() == null
                 || result.transactionId() == null
                 || result.transactionId().isBlank())
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Kết quả thanh toán không hợp lệ");
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Invalid payment result");
         OrderView order =
                 orders.lockOrder(result.orderId())
                         .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
@@ -192,7 +192,9 @@ WHERE order_id=? AND lease_owner=? AND state NOT IN ('SETTLED','REJECTED')
                 || intent.amount().compareTo(result.amount()) != 0
                 || !intent.currency().equals(result.currency())
                 || intent.orderVersion() != result.orderVersion())
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Kết quả không khớp intent đã chốt");
+            throw new AppException(
+                    ErrorCode.INVALID_REQUEST,
+                    "The result does not match the committed payment intent");
         var collision =
                 db.queryForList(
                         "SELECT intent_id FROM ticketing_payment_inbox WHERE event_id=?",
@@ -218,7 +220,9 @@ WHERE order_id=? AND lease_owner=? AND state NOT IN ('SETTLED','REJECTED')
                         order.id());
         boolean already = List.of("SETTLED", "REJECTED").contains(row.get("state"));
         if (already && !Objects.equals(row.get("transaction_id"), result.transactionId()))
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Giao dịch khác đã xử lý intent này");
+            throw new AppException(
+                    ErrorCode.INVALID_REQUEST,
+                    "Another transaction already processed this payment intent");
         boolean accepted;
         if (already) accepted = "SETTLED".equals(row.get("state"));
         else {
@@ -226,7 +230,7 @@ WHERE order_id=? AND lease_owner=? AND state NOT IN ('SETTLED','REJECTED')
                     && (!Objects.equals(order.paymentRef(), result.transactionId())
                             || !Objects.equals(order.paymentProvider(), result.provider())))
                 throw new AppException(
-                        ErrorCode.INVALID_REQUEST, "Đơn hàng đã thanh toán bằng giao dịch khác");
+                        ErrorCode.INVALID_REQUEST, "The order was paid by another transaction");
             accepted = orders.settlePayment(order.id(), result.provider(), result.transactionId());
             db.update(
                     "UPDATE ticketing_payment_intents SET"

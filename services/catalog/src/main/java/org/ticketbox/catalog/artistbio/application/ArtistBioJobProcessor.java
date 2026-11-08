@@ -6,6 +6,7 @@ import org.ticketbox.catalog.application.error.AppException;
 import org.ticketbox.catalog.application.error.ErrorCode;
 import org.ticketbox.catalog.artistbio.application.port.ArtistBioGenerators;
 import org.ticketbox.catalog.artistbio.application.port.ArtistDocuments;
+import org.ticketbox.catalog.artistbio.application.port.ArtistBioMessages;
 import org.ticketbox.catalog.artistbio.application.port.ArtistPdfJobRepository;
 import org.ticketbox.catalog.artistbio.application.port.ExtractedPdf;
 import org.ticketbox.catalog.artistbio.application.port.PdfTextReader;
@@ -31,6 +32,7 @@ public class ArtistBioJobProcessor {
     private final ConcertArtistBioPort concertPort;
     private final TextLimits properties;
     private final TransactionTemplate transactionTemplate;
+    private final ArtistBioMessages messages;
 
     public ArtistBioJobProcessor(
             ArtistPdfJobRepository jobRepository,
@@ -40,7 +42,8 @@ public class ArtistBioJobProcessor {
             ArtistBioGenerators generatorResolver,
             ConcertArtistBioPort concertPort,
             TextLimits properties,
-            TransactionTemplate transactionTemplate) {
+            TransactionTemplate transactionTemplate,
+            ArtistBioMessages messages) {
         this.jobRepository = jobRepository;
         this.fileStorage = fileStorage;
         this.textExtractor = textExtractor;
@@ -49,6 +52,7 @@ public class ArtistBioJobProcessor {
         this.concertPort = concertPort;
         this.properties = properties;
         this.transactionTemplate = transactionTemplate;
+        this.messages = messages;
     }
 
     public void process(UUID jobId) {
@@ -153,11 +157,11 @@ public class ArtistBioJobProcessor {
 
     private String safeError(Exception exception) {
         String message =
-                exception instanceof AppException
-                        ? exception.getMessage()
-                        : "Tạo giới thiệu nghệ sĩ thất bại";
+                exception instanceof AppException failure
+                        ? messages.text(failure.getMessage(), failure.messageArguments())
+                        : messages.text("artist-bio.job-failed");
         if (message == null || message.isBlank()) {
-            message = "Tạo giới thiệu nghệ sĩ thất bại";
+            message = messages.text("artist-bio.job-failed");
         }
         return message.length() <= MAX_ERROR_LENGTH
                 ? message

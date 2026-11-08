@@ -4,16 +4,16 @@ import lombok.Getter;
 
 @Getter
 public enum ErrorCode {
-    INVALID_REQUEST("Yêu cầu không hợp lệ"),
-    VALIDATION_FAILED("Dữ liệu chưa hợp lệ"),
-    UNAUTHORIZED("Bạn không có quyền thực hiện thao tác này"),
-    RESOURCE_NOT_FOUND("Không tìm thấy dữ liệu được yêu cầu"),
-    INTERNAL_SERVER_ERROR("Máy chủ đang gặp lỗi. Vui lòng thử lại sau"),
-    INVALID_STATUS_TRANSITION("Không thể chuyển sang trạng thái này");
+    INVALID_REQUEST("error.invalid-request"),
+    VALIDATION_FAILED("error.validation-failed"),
+    UNAUTHORIZED("error.unauthorized"),
+    RESOURCE_NOT_FOUND("error.resource-not-found"),
+    INTERNAL_SERVER_ERROR("error.internal-server-error"),
+    INVALID_STATUS_TRANSITION("error.invalid-status-transition");
 
-    private final String message;
+    private final String messageKey;
 
-    ErrorCode(String message) {
-        this.message = message;
+    ErrorCode(String messageKey) {
+        this.messageKey = messageKey;
     }
 }

@@ -25,23 +25,22 @@ public class PdfBoxTextExtractor
     public ExtractedPdf extract(Path path) {
         try (PDDocument document = Loader.loadPDF(path.toFile())) {
             if (document.isEncrypted()) {
-                throw new AppException(ErrorCode.INVALID_REQUEST, "Không hỗ trợ PDF được mã hóa");
+                throw new AppException(ErrorCode.INVALID_REQUEST, "error.artist-bio.pdf-encrypted");
             }
             int pages = document.getNumberOfPages();
             if (pages > properties.getMaxPages()) {
-                throw new AppException(ErrorCode.INVALID_REQUEST, "PDF vượt quá số trang tối đa");
+                throw new AppException(
+                        ErrorCode.INVALID_REQUEST, "error.artist-bio.pdf-too-many-pages");
             }
             String text = new PDFTextStripper().getText(document);
             if (text == null || text.isBlank()) {
-                throw new AppException(
-                        ErrorCode.INVALID_REQUEST,
-                        "PDF không có văn bản trích xuất được; chưa hỗ trợ PDF dạng scan");
+                throw new AppException(ErrorCode.INVALID_REQUEST, "error.artist-bio.pdf-no-text");
             }
             return new ExtractedPdf(text, pages);
         } catch (AppException ex) {
             throw ex;
         } catch (IOException ex) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Không thể đọc nội dung PDF");
+            throw new AppException(ErrorCode.INVALID_REQUEST, "error.artist-bio.pdf-read-failed");
         }
     }
 }

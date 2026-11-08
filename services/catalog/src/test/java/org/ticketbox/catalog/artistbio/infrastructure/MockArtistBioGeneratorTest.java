@@ -7,7 +7,14 @@ import org.ticketbox.catalog.artistbio.application.ArtistBioGenerationRequest;
 
 class MockArtistBioGeneratorTest {
 
-    private final MockArtistBioGenerator generator = new MockArtistBioGenerator();
+    private final MockArtistBioGenerator generator = new MockArtistBioGenerator(messages());
+
+    private static org.springframework.context.MessageSource messages() {
+        var source = new org.springframework.context.support.ResourceBundleMessageSource();
+        source.setBasename("messages");
+        source.setDefaultEncoding("UTF-8");
+        return source;
+    }
 
     @Test
     void generate_MultiArtistCompositionKeepsSeparateSections() {

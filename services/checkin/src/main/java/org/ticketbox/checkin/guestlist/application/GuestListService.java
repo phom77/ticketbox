@@ -55,14 +55,12 @@ public class GuestListService {
                                 () ->
                                         new AppException(
                                                 ErrorCode.RESOURCE_NOT_FOUND,
-                                                "Không tìm thấy khách mời"));
+                                                "error.guest.not-found"));
         if (!guest.getConcertId().equals(concertId)) {
-            throw new AppException(ErrorCode.UNAUTHORIZED, "Khách mời không thuộc concert này");
+            throw new AppException(ErrorCode.UNAUTHORIZED, "error.guest.wrong-concert");
         }
         if (updated == 0 && guest.getCheckedInAt() == null) {
-            throw new AppException(
-                    ErrorCode.INVALID_STATUS_TRANSITION,
-                    "Khách mời không hoạt động nên không thể check-in");
+            throw new AppException(ErrorCode.INVALID_STATUS_TRANSITION, "error.guest.inactive");
         }
         return toResponse(guest);
     }

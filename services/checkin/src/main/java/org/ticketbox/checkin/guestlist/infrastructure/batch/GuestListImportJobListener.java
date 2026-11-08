@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.ticketbox.checkin.guestlist.application.port.BatchLogRepository;
+import org.ticketbox.checkin.guestlist.application.port.GuestListMessages;
 import org.ticketbox.checkin.guestlist.domain.BatchLog;
 
 import java.nio.file.Files;
@@ -19,11 +20,15 @@ public class GuestListImportJobListener implements JobExecutionListener {
 
     private final BatchLogRepository batchLogRepository;
     private final GuestListFileStorage fileStorage;
+    private final GuestListMessages messages;
 
     public GuestListImportJobListener(
-            BatchLogRepository batchLogRepository, GuestListFileStorage fileStorage) {
+            BatchLogRepository batchLogRepository,
+            GuestListFileStorage fileStorage,
+            GuestListMessages messages) {
         this.batchLogRepository = batchLogRepository;
         this.fileStorage = fileStorage;
+        this.messages = messages;
     }
 
     @Override
@@ -68,7 +73,9 @@ public class GuestListImportJobListener implements JobExecutionListener {
             }
         } catch (Exception ex) {
             log.setErrorDetail(
-                    append(log.getErrorDetail(), "Không thể di chuyển file: " + ex.getMessage()));
+                    append(
+                            log.getErrorDetail(),
+                            messages.text("guest-import.move-failed", ex.getMessage())));
         }
 
         log.setCompletedAt(OffsetDateTime.now());
@@ -81,7 +88,7 @@ public class GuestListImportJobListener implements JobExecutionListener {
                         .map(Throwable::getMessage)
                         .filter(value -> value != null && !value.isBlank())
                         .findFirst()
-                        .orElse("Import danh sách khách mời thất bại");
+                        .orElseGet(() -> messages.text("guest-import.failed"));
         return message.length() <= 4000 ? message : message.substring(0, 4000);
     }
 

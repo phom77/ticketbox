@@ -4,42 +4,42 @@ import lombok.Getter;
 
 @Getter
 public enum ErrorCode {
-    INVALID_REQUEST("Yêu cầu không hợp lệ"),
-    VALIDATION_FAILED("Dữ liệu chưa hợp lệ"),
-    UNAUTHENTICATED("Vui lòng đăng nhập để tiếp tục"),
-    UNAUTHORIZED("Bạn không có quyền thực hiện thao tác này"),
-    RESOURCE_NOT_FOUND("Không tìm thấy dữ liệu được yêu cầu"),
-    INTERNAL_SERVER_ERROR("Máy chủ đang gặp lỗi. Vui lòng thử lại sau"),
+    INVALID_REQUEST("error.invalid-request"),
+    VALIDATION_FAILED("error.validation-failed"),
+    UNAUTHENTICATED("error.unauthenticated"),
+    UNAUTHORIZED("error.unauthorized"),
+    RESOURCE_NOT_FOUND("error.resource-not-found"),
+    INTERNAL_SERVER_ERROR("error.internal-server-error"),
 
-    DUPLICATE_IDEMPOTENCY_KEY("Yêu cầu này đã được xử lý trước đó"),
-    EMAIL_ALREADY_EXISTS("Email đã được đăng ký"),
-    TICKET_SOLD_OUT("Vé đã bán hết"),
-    TICKET_LIMIT_EXCEEDED("Bạn đã vượt quá giới hạn mua vé"),
-    PAYMENT_GATEWAY_UNAVAILABLE("Cổng thanh toán tạm thời không khả dụng"),
-    AI_PROVIDER_UNAVAILABLE("Dịch vụ AI tạm thời không khả dụng"),
-    IMAGE_STORAGE_UNAVAILABLE("Dịch vụ lưu trữ hình ảnh tạm thời không khả dụng"),
-    ARTIST_BIO_JOB_NOT_READY("Tác vụ giới thiệu nghệ sĩ chưa sẵn sàng"),
-    ARTIST_BIO_ALREADY_EXISTS("Concert đã có giới thiệu nghệ sĩ"),
+    DUPLICATE_IDEMPOTENCY_KEY("error.duplicate-idempotency-key"),
+    EMAIL_ALREADY_EXISTS("error.email-already-exists"),
+    TICKET_SOLD_OUT("error.ticket-sold-out"),
+    TICKET_LIMIT_EXCEEDED("error.ticket-limit-exceeded"),
+    PAYMENT_GATEWAY_UNAVAILABLE("error.payment-gateway-unavailable"),
+    AI_PROVIDER_UNAVAILABLE("error.ai-provider-unavailable"),
+    IMAGE_STORAGE_UNAVAILABLE("error.image-storage-unavailable"),
+    ARTIST_BIO_JOB_NOT_READY("error.artist-bio-job-not-ready"),
+    ARTIST_BIO_ALREADY_EXISTS("error.artist-bio-already-exists"),
 
-    INVALID_STATUS_TRANSITION("Không thể chuyển sang trạng thái này"),
-    CONCERT_NOT_DELETABLE("Chỉ có thể xóa concert ở trạng thái nháp"),
-    CONCERT_HAS_TICKET_TYPES("Không thể xóa concert đã có hạng vé"),
-    INVALID_DATE("Cấu hình ngày giờ không hợp lệ"),
+    INVALID_STATUS_TRANSITION("error.invalid-status-transition"),
+    CONCERT_NOT_DELETABLE("error.concert-not-deletable"),
+    CONCERT_HAS_TICKET_TYPES("error.concert-has-ticket-types"),
+    INVALID_DATE("error.invalid-date"),
 
-    RATE_LIMIT_EXCEEDED("Bạn thao tác quá nhanh. Vui lòng thử lại sau"),
-    REDIS_UNAVAILABLE("Hệ thống hàng chờ tạm thời không khả dụng"),
+    RATE_LIMIT_EXCEEDED("error.rate-limit-exceeded"),
+    REDIS_UNAVAILABLE("error.redis-unavailable"),
 
-    CONCERT_NOT_FOUND("Không tìm thấy concert"),
-    CONCERT_NOT_COMPLETED("Concert chưa kết thúc"),
-    CONCERT_NOT_ON_SALE("Concert hiện không mở bán"),
-    TICKET_TYPE_NOT_IN_CONCERT("Hạng vé không thuộc concert này"),
-    SALE_NOT_OPEN("Thời gian bán vé chưa bắt đầu hoặc đã kết thúc"),
-    ORDER_NOT_FOUND("Không tìm thấy đơn hàng"),
-    TICKET_NOT_FOUND("Không tìm thấy vé");
+    CONCERT_NOT_FOUND("error.concert-not-found"),
+    CONCERT_NOT_COMPLETED("error.concert-not-completed"),
+    CONCERT_NOT_ON_SALE("error.concert-not-on-sale"),
+    TICKET_TYPE_NOT_IN_CONCERT("error.ticket-type-not-in-concert"),
+    SALE_NOT_OPEN("error.sale-not-open"),
+    ORDER_NOT_FOUND("error.order-not-found"),
+    TICKET_NOT_FOUND("error.ticket-not-found");
 
-    private final String message;
+    private final String messageKey;
 
-    ErrorCode(String message) {
-        this.message = message;
+    ErrorCode(String messageKey) {
+        this.messageKey = messageKey;
     }
 }

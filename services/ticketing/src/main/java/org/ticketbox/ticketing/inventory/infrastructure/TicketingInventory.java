@@ -58,14 +58,13 @@ public class TicketingInventory implements InventoryPort {
         positive(total);
         if (jdbc.update(
                         "UPDATE ticket_inventory SET total_quantity=?, available_qty=?,"
-                            + " revision=revision+1, updated_at=now() WHERE ticket_type_id=? AND"
-                            + " available_qty=total_quantity",
+                                + " revision=revision+1, updated_at=now() WHERE ticket_type_id=? AND"
+                                + " available_qty=total_quantity",
                         total,
                         total,
                         id)
                 != 1)
-            throw new AppException(
-                    ErrorCode.INVALID_REQUEST, "Không thể chỉnh sửa tồn kho đã được phân bổ");
+            throw new AppException(ErrorCode.INVALID_REQUEST, "error.stock.already-allocated");
     }
 
     @Override
@@ -75,8 +74,7 @@ public class TicketingInventory implements InventoryPort {
                                 + " updated_at=now() WHERE ticket_type_id=?",
                         active,
                         id)
-                != 1)
-            throw new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy tồn kho");
+                != 1) throw new AppException(ErrorCode.RESOURCE_NOT_FOUND, "error.stock.not-found");
     }
 
     private void positive(int quantity) {

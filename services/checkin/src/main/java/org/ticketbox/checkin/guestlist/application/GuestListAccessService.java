@@ -19,7 +19,7 @@ public class GuestListAccessService {
     public void requireAccess(UUID concertId, UUID userId, boolean admin) {
         boolean exists = admin ? concerts.exists(concertId) : concerts.isOwnedBy(concertId, userId);
         if (!exists) {
-            throw new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy concert");
+            throw new AppException(ErrorCode.RESOURCE_NOT_FOUND, "error.concert-not-found");
         }
     }
 }

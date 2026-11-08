@@ -40,14 +40,14 @@ public class ArtistBioGeneratorResolver
             default ->
                     throw new AppException(
                             ErrorCode.INVALID_REQUEST,
-                            "Nhà cung cấp AI không được hỗ trợ: " + properties.getProvider());
+                            "error.ai.provider-unsupported",
+                            properties.getProvider());
         };
     }
 
     private ArtistBioGenerator requireApiKey() {
         if (!hasApiKey()) {
-            throw new AppException(
-                    ErrorCode.AI_PROVIDER_UNAVAILABLE, "Chưa cấu hình API key cho AI");
+            throw new AppException(ErrorCode.AI_PROVIDER_UNAVAILABLE, "error.ai.api-key-missing");
         }
         return openAiCompatibleGenerator;
     }
@@ -56,7 +56,7 @@ public class ArtistBioGeneratorResolver
         if (hasProfile("local") || hasProfile("dev")) {
             return mockGenerator;
         }
-        throw new AppException(ErrorCode.AI_PROVIDER_UNAVAILABLE, "Chưa cấu hình API key cho AI");
+        throw new AppException(ErrorCode.AI_PROVIDER_UNAVAILABLE, "error.ai.api-key-missing");
     }
 
     private boolean hasApiKey() {

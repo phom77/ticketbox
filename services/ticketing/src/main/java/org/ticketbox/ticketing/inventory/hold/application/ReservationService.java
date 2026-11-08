@@ -52,7 +52,7 @@ public class ReservationService {
 
         Long expireSeconds = purchaseSessions.remainingSeconds(concertId, userId);
         if (expireSeconds == null || expireSeconds <= 0) {
-            throw new AppException(ErrorCode.UNAUTHORIZED, "Phiên mua vé của bạn đã hết hạn");
+            throw new AppException(ErrorCode.UNAUTHORIZED, "error.shopping-session.expired");
         }
         OffsetDateTime expiresAt = OffsetDateTime.now().plusSeconds(expireSeconds);
 
@@ -61,21 +61,22 @@ public class ReservationService {
         if (ticketTypes.isEmpty()) {
             throw new AppException(
                     ErrorCode.TICKET_TYPE_NOT_IN_CONCERT,
-                    "Không tìm thấy hạng vé: " + ticketTypeId);
+                    "error.ticket-type.not-found-by-id",
+                    ticketTypeId);
         }
         TicketTypeView type = ticketTypes.get(0);
         if (!concertId.equals(type.concertId())) {
             throw new AppException(
-                    ErrorCode.TICKET_TYPE_NOT_IN_CONCERT, "Hạng vé không thuộc concert này");
+                    ErrorCode.TICKET_TYPE_NOT_IN_CONCERT, "error.ticket-type-not-in-concert");
         }
         if (!type.isActive()) {
             throw new AppException(
-                    ErrorCode.TICKET_TYPE_NOT_IN_CONCERT, "Hạng vé hiện không được mở bán");
+                    ErrorCode.TICKET_TYPE_NOT_IN_CONCERT, "error.ticket-type.inactive");
         }
 
         removeStaleHold(userId, concertId, ticketTypeId, queueAccessToken);
         if (quantityRequest < 1)
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Số lượng phải lớn hơn 0");
+            throw new AppException(ErrorCode.INVALID_REQUEST, "error.quantity.positive");
         int alreadyOrdered =
                 orderItemRepository.sumQuantityByUserIdAndTicketTypeId(
                         userId, ticketTypeId, ACTIVE_STATUSES);
@@ -87,17 +88,15 @@ public class ReservationService {
         if (alreadyOrdered + alreadyHeld + quantityRequest > type.maxPerAccount()) {
             throw new AppException(
                     ErrorCode.TICKET_LIMIT_EXCEEDED,
-                    "Bạn đã vượt quá giới hạn giữ vé cho khu vực "
-                            + type.name()
-                            + " (tối đa: "
-                            + type.maxPerAccount()
-                            + ")");
+                    "error.order.section-hold-limit",
+                    type.name(),
+                    type.maxPerAccount());
         }
 
         boolean reserved = inventory.reserve(ticketTypeId, quantityRequest);
         if (!reserved) {
             throw new AppException(
-                    ErrorCode.TICKET_SOLD_OUT, "Vé đã bán hết cho khu vực " + type.name());
+                    ErrorCode.TICKET_SOLD_OUT, "error.hold.section-sold-out", type.name());
         }
 
         TicketHold hold;
@@ -134,15 +133,13 @@ public class ReservationService {
                         .orElseThrow(
                                 () ->
                                         new AppException(
-                                                ErrorCode.INVALID_REQUEST,
-                                                "Không tìm thấy vé đang giữ cho hạng vé này"));
+                                                ErrorCode.INVALID_REQUEST, "error.hold.not-found"));
 
         if (!java.util.Objects.equals(hold.getSessionToken(), queueAccessToken)) {
-            throw new AppException(ErrorCode.UNAUTHORIZED, "Vé đang giữ thuộc phiên mua khác");
+            throw new AppException(ErrorCode.UNAUTHORIZED, "error.hold.other-session");
         }
         if (quantityRequest < 1 || hold.getQuantity() < quantityRequest) {
-            throw new AppException(
-                    ErrorCode.INVALID_REQUEST, "Không thể bỏ giữ nhiều vé hơn số vé đang giữ");
+            throw new AppException(ErrorCode.INVALID_REQUEST, "error.hold.release-too-many");
         }
 
         inventory.release(ticketTypeId, quantityRequest);

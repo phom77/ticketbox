@@ -13,6 +13,8 @@ declare module 'axios' {
 
 export const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080').replace(/\/+$/, '');
 
+const apiLanguage = 'vi';
+
 type ApiEnvelope<T> = {
   code: number;
   message: string;
@@ -42,7 +44,7 @@ export function isRequestCanceled(error: unknown): boolean {
 
 export const api = axios.create({
   baseURL: apiBaseUrl,
-  headers: { 'Content-Type': 'application/json' },
+  headers: { 'Content-Type': 'application/json', 'Accept-Language': apiLanguage },
 });
 
 api.interceptors.request.use((config) => {
@@ -86,7 +88,7 @@ api.interceptors.response.use(
 );
 
 // Public reads deliberately omit Authorization so the shared proxy can cache them.
-export const publicApi = axios.create({ baseURL: apiBaseUrl });
+export const publicApi = axios.create({ baseURL: apiBaseUrl, headers: { 'Accept-Language': apiLanguage } });
 publicApi.interceptors.response.use(
   (response) => {
     const body = response.data;
@@ -132,13 +134,6 @@ export async function apiMultipartCommand<T>(
     headers: { 'Content-Type': 'multipart/form-data' },
     preserveEnvelope: true,
   });
-}
-
-export function commandMessage(serverMessage: string, fallback: string) {
-  const normalized = serverMessage.trim().toLowerCase();
-  return normalized && !['success', 'created', 'accepted', 'thành công', 'đã tạo thành công', 'đã tiếp nhận yêu cầu'].includes(normalized)
-    ? serverMessage
-    : fallback;
 }
 
 export async function apiHealthCheck() {

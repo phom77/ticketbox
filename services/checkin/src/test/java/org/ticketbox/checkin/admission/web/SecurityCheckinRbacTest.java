@@ -1,8 +1,12 @@
 package org.ticketbox.checkin.admission.web;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import org.junit.jupiter.api.Test;
@@ -15,12 +19,16 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
 import org.ticketbox.checkin.admission.application.CheckinService;
+import org.ticketbox.checkin.admission.application.dto.ScanTicketResponse;
+import org.ticketbox.checkin.admission.application.dto.SyncCheckinResponse;
 import org.ticketbox.checkin.config.SecurityConfig;
 import org.ticketbox.checkin.guestlist.application.GuestListService;
 import org.ticketbox.checkin.guestlist.web.StaffGuestListController;
 import org.ticketbox.checkin.infrastructure.security.JwtService;
 
+import java.time.OffsetDateTime;
 import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 
 @WebMvcTest(
@@ -48,6 +56,18 @@ class SecurityCheckinRbacTest {
                 staffId.toString(),
                 null,
                 Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role)));
+    }
+
+    @Test
+    void staffOnlyEndpointUsesEnglishForForbiddenResponseWhenRequested() throws Exception {
+        mockMvc.perform(
+                        get("/api/staff/concerts")
+                                .header("Accept-Language", "en")
+                                .with(authentication(auth("AUDIENCE"))))
+                .andExpect(status().isForbidden())
+                .andExpect(
+                        jsonPath("$.message")
+                                .value("You do not have permission to perform this action"));
     }
 
     @Test
@@ -174,26 +194,52 @@ class SecurityCheckinRbacTest {
     @Test
     void checkinEndpoints_WithStaff_ReturnSuccess() throws Exception {
         UsernamePasswordAuthenticationToken staff = auth("STAFF");
+        when(checkinService.scan(any(), eq(staffId)))
+                .thenReturn(
+                        new ScanTicketResponse(
+                                null,
+                                concertId,
+                                "FAILED",
+                                "checkin.qr-invalid",
+                                OffsetDateTime.now()));
+        when(checkinService.syncOfflineLogs(any(), eq(staffId)))
+                .thenReturn(
+                        new SyncCheckinResponse(
+                                1,
+                                1,
+                                0,
+                                0,
+                                List.of(
+                                        new SyncCheckinResponse.SyncResultEntry(
+                                                "test", "ACCEPTED", "checkin.sync.accepted"))));
 
         mockMvc.perform(
                         post("/api/staff/checkins/scan")
                                 .with(authentication(staff))
+                                .header("Accept-Language", "en")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(
                                         "{\"qrCode\":\"test\",\"concertId\":\""
                                                 + concertId
                                                 + "\",\"deviceId\":\"dev1\",\"gate\":\"A\"}"))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("FAILED"))
+                .andExpect(jsonPath("$.data.message").value("Invalid QR code"));
 
         mockMvc.perform(
                         post("/api/staff/checkins/sync")
                                 .with(authentication(staff))
+                                .header("Accept-Language", "vi-VN")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(
                                         "{\"concertId\":\""
                                                 + concertId
                                                 + "\",\"deviceId\":\"dev1\",\"logs\":[{\"qrCode\":\"test\",\"checkedAt\":\"2026-06-16T14:00:00Z\"}]}"))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.results[0].result").value("ACCEPTED"))
+                .andExpect(
+                        jsonPath("$.data.results[0].reason")
+                                .value("Đã ghi nhận check-in thành công"));
 
         mockMvc.perform(
                         get("/api/staff/concerts/" + concertId + "/checkin-dataset")

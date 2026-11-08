@@ -5,6 +5,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.ticketbox.catalog.application.error.AppException;
 import org.ticketbox.catalog.application.error.ErrorCode;
 import org.ticketbox.catalog.artistbio.application.port.ArtistBioGenerators;
+import org.ticketbox.catalog.artistbio.application.port.ArtistBioMessages;
 import org.ticketbox.catalog.artistbio.application.port.ArtistPdfJobRepository;
 import org.ticketbox.catalog.artistbio.domain.ArtistPdfJob;
 import org.ticketbox.catalog.concert.application.port.ConcertArtistBioPort;
@@ -40,16 +41,19 @@ public class ArtistBioComposerService {
     private final ConcertArtistBioPort concertPort;
     private final ArtistBioGenerators generatorResolver;
     private final ArtistBioTextCleaner textCleaner;
+    private final ArtistBioMessages messages;
 
     public ArtistBioComposerService(
             ArtistPdfJobRepository jobRepository,
             ConcertArtistBioPort concertPort,
             ArtistBioGenerators generatorResolver,
-            ArtistBioTextCleaner textCleaner) {
+            ArtistBioTextCleaner textCleaner,
+            ArtistBioMessages messages) {
         this.jobRepository = jobRepository;
         this.concertPort = concertPort;
         this.generatorResolver = generatorResolver;
         this.textCleaner = textCleaner;
+        this.messages = messages;
     }
 
     @Transactional
@@ -59,32 +63,27 @@ public class ArtistBioComposerService {
                 concertPort.requireAccessibleConcert(concertId, requesterId, admin);
         List<UUID> uniqueIds = sourceJobIds.stream().distinct().toList();
         if (uniqueIds.size() < 2) {
-            throw new AppException(
-                    ErrorCode.INVALID_REQUEST,
-                    "Vui lòng chọn ít nhất hai bản nháp đã hoàn tất để tổng hợp");
+            throw new AppException(ErrorCode.INVALID_REQUEST, "error.artist-bio.minimum-drafts");
         }
 
         Map<UUID, ArtistPdfJob> jobsById = new LinkedHashMap<>();
         jobRepository.findAllById(uniqueIds).forEach(job -> jobsById.put(job.getId(), job));
         if (jobsById.size() != uniqueIds.size()) {
             throw new AppException(
-                    ErrorCode.RESOURCE_NOT_FOUND,
-                    "Không tìm thấy một hoặc nhiều bản nháp AI đã chọn");
+                    ErrorCode.RESOURCE_NOT_FOUND, "error.artist-bio.drafts-not-found");
         }
 
         List<ArtistPdfJob> sources = uniqueIds.stream().map(jobsById::get).toList();
         for (ArtistPdfJob source : sources) {
             if (!concertId.equals(source.getConcertId())) {
                 throw new AppException(
-                        ErrorCode.INVALID_REQUEST,
-                        "Tất cả bản nháp đã chọn phải thuộc cùng một concert");
+                        ErrorCode.INVALID_REQUEST, "error.artist-bio.mixed-concerts");
             }
             if (source.getStatus() != ArtistPdfJob.Status.DONE
                     || source.getResultBio() == null
                     || source.getResultBio().isBlank()) {
                 throw new AppException(
-                        ErrorCode.ARTIST_BIO_JOB_NOT_READY,
-                        "Tất cả bản nháp AI đã chọn phải hoàn tất");
+                        ErrorCode.ARTIST_BIO_JOB_NOT_READY, "error.artist-bio.incomplete-drafts");
             }
         }
 
@@ -104,8 +103,7 @@ public class ArtistBioComposerService {
         String bio = textCleaner.sanitizeGeneratedBio(generated.bio());
         if (bio.isBlank()) {
             throw new AppException(
-                    ErrorCode.AI_PROVIDER_UNAVAILABLE,
-                    "Dịch vụ AI không trả về giới thiệu nghệ sĩ có thể sử dụng");
+                    ErrorCode.AI_PROVIDER_UNAVAILABLE, "error.artist-bio.empty-composition");
         }
         bio = ensureAllSourcesAreRepresented(bio, sources);
 
@@ -113,7 +111,8 @@ public class ArtistBioComposerService {
                 new ArtistPdfJob(
                         concertId,
                         sources.getFirst().getFileUrl(),
-                        "Tổng hợp " + sources.size() + " tài liệu nguồn",
+                        messages.text(
+                                "artist-bio.composed-source", Integer.toString(sources.size())),
                         requesterId,
                         checksum(uniqueIds));
         composed.startProcessing();
@@ -169,7 +168,7 @@ public class ArtistBioComposerService {
                     .append('\n');
             for (ArtistPdfJob source : group.sources()) {
                 sourceText
-                        .append("Nguon: ")
+                        .append("Source: ")
                         .append(source.getOriginalFileName())
                         .append('\n')
                         .append(source.getResultBio())
@@ -261,7 +260,8 @@ Preserve concrete facts from every selected source without listing duplicate cla
         }
         StringBuilder merged =
                 new StringBuilder(generatedBio.trim())
-                        .append("\n\nĐiểm bổ sung từ các hồ sơ đã chọn:");
+                        .append("\n\n")
+                        .append(messages.text("artist-bio.additional-points"));
         for (String sentence : missingSentences) {
             merged.append("\n- ").append(sentence);
         }

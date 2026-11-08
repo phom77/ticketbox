@@ -36,6 +36,8 @@ class OrderAdapterPaymentEligibilityTest {
 
     @Mock private org.ticketbox.ticketing.order.infrastructure.OrderEventStore orderEvents;
 
+    @Mock private org.ticketbox.ticketing.application.port.FallbackTicketNames fallbackNames;
+
     @InjectMocks private OrderAdapter orderAdapter;
 
     @Test
@@ -56,7 +58,7 @@ class OrderAdapterPaymentEligibilityTest {
 
         assertThatThrownBy(() -> orderAdapter.getPayableOrderForUser(orderId, userId))
                 .isInstanceOf(AppException.class)
-                .hasMessageContaining("Thời hạn thanh toán");
+                .hasMessage("error.order.payment-deadline-passed");
 
         assertThat(order.getStatus()).isEqualTo(Order.Status.EXPIRED);
         verify(inventory).release(ticketTypeId, 2);

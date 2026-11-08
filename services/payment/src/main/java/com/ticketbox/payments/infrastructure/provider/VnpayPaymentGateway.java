@@ -62,7 +62,7 @@ public class VnpayPaymentGateway implements PaymentGateway {
         params.put("vnp_Amount", toVnpayAmount(order.totalAmount()));
         params.put("vnp_CurrCode", "VND");
         params.put("vnp_TxnRef", providerRef);
-        params.put("vnp_OrderInfo", "Thanh toan don hang " + providerRef);
+        params.put("vnp_OrderInfo", ProviderOrderDescription.forVnpay(providerRef));
         params.put("vnp_OrderType", properties.orderTypeOrDefault());
         params.put("vnp_Locale", properties.localeOrDefault());
         params.put("vnp_ReturnUrl", properties.returnUrl());
@@ -239,11 +239,10 @@ public class VnpayPaymentGateway implements PaymentGateway {
             throw notSubmitted;
         if (throwable instanceof io.github.resilience4j.circuitbreaker.CallNotPermittedException) {
             throw new com.ticketbox.payments.application.error.GatewayNotSubmittedException(
-                    "Cổng thanh toán VNPAY tạm thời không khả dụng");
+                    "VNPay is temporarily unavailable");
         }
         throw new AppException(
-                ErrorCode.PAYMENT_GATEWAY_UNAVAILABLE,
-                "Cổng thanh toán VNPAY tạm thời không khả dụng");
+                ErrorCode.PAYMENT_GATEWAY_UNAVAILABLE, "VNPay is temporarily unavailable");
     }
 
     private void requireConfigured() {
@@ -252,7 +251,7 @@ public class VnpayPaymentGateway implements PaymentGateway {
                 || isBlank(properties.tmnCode())
                 || isBlank(properties.hashSecret())) {
             throw new com.ticketbox.payments.application.error.GatewayNotSubmittedException(
-                    "Cấu hình VNPAY chưa đầy đủ");
+                    "VNPay configuration is incomplete");
         }
     }
 
@@ -301,7 +300,7 @@ public class VnpayPaymentGateway implements PaymentGateway {
             }
             return hash.toString();
         } catch (Exception ex) {
-            throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR, "Không thể ký dữ liệu VNPAY");
+            throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR, "Could not sign VNPay data");
         }
     }
 

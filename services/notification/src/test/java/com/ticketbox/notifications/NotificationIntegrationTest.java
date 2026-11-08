@@ -43,6 +43,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 @SpringBootTest(
         properties = {
+            "ticketbox.i18n.notification-language=en",
             "notification.delivery-interval-ms=3600000",
             "management.health.mail.enabled=false",
             "spring.mail.host=localhost"
@@ -214,6 +215,13 @@ class NotificationIntegrationTest {
                                 Integer.class,
                                 id))
                 .isEqualTo(1);
+        assertThat(
+                        db.queryForList(
+                                "SELECT subject FROM notifications WHERE user_id=?",
+                                String.class,
+                                user))
+                .containsExactly(
+                        "Your tickets for Fixture are ready", "Your tickets for Fixture are ready");
         worker.deliver();
         assertThat(
                         db.queryForObject(
@@ -230,7 +238,10 @@ class NotificationIntegrationTest {
                                 String.class,
                                 email(user)))
                 .isEqualTo("SENT");
-        verify(smtp, times(1)).send(any(MimeMessage.class));
+        var delivered = org.mockito.ArgumentCaptor.forClass(MimeMessage.class);
+        verify(smtp, times(1)).send(delivered.capture());
+        assertThat(delivered.getValue().getSubject())
+                .isEqualTo("Your tickets for Fixture are ready");
     }
 
     @Test
@@ -238,7 +249,10 @@ class NotificationIntegrationTest {
         UUID user = UUID.randomUUID(), other = UUID.randomUUID(), operator = UUID.randomUUID();
         store.accept(NotificationCommands.decode(json.valueToTree(event(UUID.randomUUID(), user))));
         UUID id = email(user);
-        api.perform(get("/api/notifications")).andExpect(status().isUnauthorized());
+        api.perform(get("/api/notifications").header("Accept-Language", "en"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("Content-Language", "en"))
+                .andExpect(jsonPath("$.message").value("Please sign in to continue"));
         api.perform(
                         get("/api/admin/notifications")
                                 .header("Authorization", "Bearer " + jwt(user, "AUDIENCE")))

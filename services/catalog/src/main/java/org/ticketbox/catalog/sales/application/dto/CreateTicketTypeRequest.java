@@ -9,13 +9,11 @@ import jakarta.validation.constraints.Pattern;
 import java.math.BigDecimal;
 
 public record CreateTicketTypeRequest(
-        @NotBlank(message = "Tên hạng vé không được để trống") String name,
-        @NotNull(message = "Vui lòng nhập giá vé")
-                @DecimalMin(value = "0.0", message = "Giá vé không được âm")
+        @NotBlank(message = "{validation.ticket-type.name-required}") String name,
+        @NotNull(message = "{validation.ticket-type.price-required}")
+                @DecimalMin(value = "0.0", message = "{validation.ticket-type.price-negative}")
                 BigDecimal price,
-        @Min(value = 1, message = "Tổng số lượng phải ít nhất là 1") int totalQuantity,
-        @Min(value = 1, message = "Giới hạn mỗi tài khoản phải ít nhất là 1") int maxPerAccount,
-        @Pattern(
-                        regexp = "^#([A-Fa-f0-9]{6})$",
-                        message = "Màu khu vực phải là mã màu hex hợp lệ, ví dụ #E11D48")
+        @Min(value = 1, message = "{validation.ticket-type.total-min}") int totalQuantity,
+        @Min(value = 1, message = "{validation.ticket-type.account-limit-min}") int maxPerAccount,
+        @Pattern(regexp = "^#([A-Fa-f0-9]{6})$", message = "{validation.ticket-type.invalid-color}")
                 String zoneColor) {}
