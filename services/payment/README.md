@@ -2,7 +2,7 @@
 
 Independent Java 21 / Spring Boot application with its own PostgreSQL database and Flyway history. It owns provider attempts, signed callbacks/query, durable result delivery, audit and compensation reviews. Core alone owns stock, order eligibility and ticket issuance.
 
-Run with `docker compose up -d --build` from the repository root. Standalone verification: `bash backend/mvnw -f services/payment/pom.xml verify` (use `mvnw.cmd` on Windows).
+Run with `docker compose up -d --build` from the repository root. Standalone verification: `bash mvnw -f services/payment/pom.xml verify` (use `mvnw.cmd` on Windows).
 
 Core persists an immutable intent before sending it to this service. Payment persists an attempt before provider I/O, keeps the same request identity after uncertain results, then stores verified success with a result outbox entry. A worker sends the result to Core; only its persisted ACCEPTED ACK completes the attempt. Late money for an expired/cancelled order creates a compensation review instead of reviving stock.
 

@@ -1,18 +1,4 @@
 {
-  "coreLegacy": {
-    "reports": "backend/target/surefire-reports",
-    "requiredGroups": {
-      "legacy-modularity": {
-        "com.ticketbox.ModularityTest": []
-      },
-      "legacy-purchase": {
-        "com.ticketbox.PurchaseJourneyIntegrationTest": []
-      },
-      "legacy-provider-boundary": {
-        "com.ticketbox.module.payment.infrastructure.ProductionPaymentBoundaryTest": []
-      }
-    }
-  },
   "identity": {
     "reports": "services/identity/target/surefire-reports",
     "requiredGroups": {

@@ -4,7 +4,7 @@ import {execFileSync} from 'node:child_process';
 import assert from 'node:assert/strict';
 import {root,project,compose,docker,sql,databases,until,coreReady,request,pause} from './system.mjs';
 
-const directory=root+'/.artifacts/e2e/backups';mkdirSync(directory,{recursive:true});
+const directory=root+'/.artifacts/legacy-core/e2e/backups';mkdirSync(directory,{recursive:true});
 const proof={startedAt:new Date().toISOString(),passed:false,databases:[],localRpo:'Quiesced checkpoint: zero committed rows lost',localRtoTargetSeconds:300};
 const suffix=randomUUID().replaceAll('-','').slice(0,8);const started=performance.now();
 const digest=bytes=>createHash('sha256').update(bytes).digest('hex');
@@ -62,7 +62,7 @@ try {
  await until(()=>execFileSync('docker',['exec',validationRedis,'redis-cli','GET','e2e:restore-fixture'],{encoding:'utf8'}).trim()===fixture,30000);
  proof.redis={dumpSha256:digest(redis),restoredVolume:redisTarget,fixtureRecovered:true};
  const restoreMap=Object.fromEntries(proof.databases.map(d=>[d.name,d.restoredDatabase]));
- const overlay=root+'/.artifacts/e2e/restore-overlay.yml';
+ const overlay=root+'/.artifacts/legacy-core/e2e/restore-overlay.yml';
  writeFileSync(overlay,`services:
   core:
     environment:
@@ -106,6 +106,6 @@ volumes:
   try{docker(['stop','core','payment','notification']);}catch{}
   proof.recovery='Keep domain writers stopped. Original databases/volumes were not overwritten; inspect evidence, then start the standard remote compose configuration.';
  }
- proof.completedAt=new Date().toISOString();writeFileSync(root+'/.artifacts/e2e/restore.json',JSON.stringify(proof,null,2));
+ proof.completedAt=new Date().toISOString();writeFileSync(root+'/.artifacts/legacy-core/e2e/restore.json',JSON.stringify(proof,null,2));
  console.log(JSON.stringify({passed:proof.passed,databases:proof.databases.map(d=>({name:d.name,tables:d.tables.length})),seconds:proof.seconds,artifacts:proof.artifacts,redis:proof.redis},null,2));
 }

@@ -24,7 +24,6 @@ jobs:
           cache: maven
           cache-dependency-path: |
             pom.xml
-            backend/pom.xml
             services/identity/pom.xml
             services/catalog/pom.xml
             services/checkin/pom.xml
@@ -63,7 +62,6 @@ jobs:
           path: |
             .artifacts/verification/
             .artifacts/e2e/
-            backend/target/surefire-reports/
             services/identity/target/surefire-reports/
             services/catalog/target/surefire-reports/
             services/checkin/target/surefire-reports/

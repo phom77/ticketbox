@@ -342,10 +342,8 @@ services:
       interval: 2s
       retries: 30
 volumes:
-  core_data: null
   payment_data: null
   notification_data: null
-  core_artifacts: null
   redis_data: null
   rabbit_data: null
   grafana_data: null

@@ -4,7 +4,7 @@ import {execFileSync} from 'node:child_process';
 import assert from 'node:assert/strict';
 import {root,base,compose,token,docker,sql,pause,until,request,account,admission,order,ready,paid,internal,coreReady} from './system.mjs';
 
-mkdirSync(root+'/.artifacts/e2e',{recursive:true});
+mkdirSync(root+'/.artifacts/legacy-core/e2e',{recursive:true});
 const proof={startedAt:new Date().toISOString(),passed:false,checks:[]};
 const checks=proof.checks;
 try {
@@ -121,7 +121,7 @@ try {
 
  assert.equal(sql('core',"SELECT has_table_privilege('core_runtime','payment_attempts','SELECT') OR has_table_privilege('core_runtime','payment_logs','INSERT')"),'f');
  assert.equal((await fetch(base+'/internal/ticketing/payment-results')).status,404);
- const guard=['-f','scripts/e2e/fixtures/embedded-guard.yaml','up','-d','--no-deps','core'];docker(guard);
+ const guard=['-f','legacy/core/e2e/fixtures/embedded-guard.yaml','up','-d','--no-deps','core'];docker(guard);
  await until(()=>{const id=docker(['ps','-a','-q','core']).trim();return execFileSync('docker',['inspect','-f','{{.State.Status}}',id],{encoding:'utf8'}).trim()==='exited';},90000);
  assert(docker(['logs','--no-color','core']).includes('routing alone is unsafe'));
  docker(['up','-d','--no-deps','core']);await coreReady();
@@ -136,5 +136,5 @@ try {
  assert.equal(Number(sql('core',`SELECT count(*) FROM tickets WHERE concert_id='${concert.id}'`)),proof.orders.length);
  proof.passed=true;
 }finally{
- proof.completedAt=new Date().toISOString();writeFileSync(root+'/.artifacts/e2e/distributed-journey.json',JSON.stringify(proof,null,2));console.log(JSON.stringify(proof,null,2));
+ proof.completedAt=new Date().toISOString();writeFileSync(root+'/.artifacts/legacy-core/e2e/distributed-journey.json',JSON.stringify(proof,null,2));console.log(JSON.stringify(proof,null,2));
 }

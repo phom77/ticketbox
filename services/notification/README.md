@@ -2,7 +2,7 @@
 
 Independent Java 21 / Spring Boot application with its own PostgreSQL database and Flyway history. It owns notifications, command inbox, delivery state/leases and retry audit. It imports no Core entities or repositories.
 
-Run with `docker compose up -d --build` from the repository root. Standalone verification: `bash backend/mvnw -f services/notification/pom.xml verify` (use `mvnw.cmd` on Windows).
+Run with `docker compose up -d --build` from the repository root. Standalone verification: `bash mvnw -f services/notification/pom.xml verify` (use `mvnw.cmd` on Windows).
 
 Core publishes versioned commands through RabbitMQ (`notification.commands.v1`). The consumer commits inbox deduplication and APP/EMAIL rows together before acknowledgement. Email workers claim short database leases, fetch contact/PDF data through Core's internal API and send SMTP outside transactions. Expired claims recover; failed delivery backs off and eventually becomes FAILED. Admin retry records an audit entry and cannot resend SENT rows.
 

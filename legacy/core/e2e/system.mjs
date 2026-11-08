@@ -4,12 +4,12 @@ import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 
-export const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
-export const project=process.env.E2E_PROJECT||'ticketbox-e2e';
+export const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../../..');
+export const project=process.env.E2E_PROJECT||'ticketbox-e2e-core-legacy';
 assert(/^ticketbox-e2e(?:-[a-z0-9-]+)?$/.test(project),'Fault and restore tests require an isolated ticketbox-e2e project');
-const port=process.env.E2E_PORT||'18092';
+const port=process.env.E2E_PORT||'18093';
 export const base=`http://localhost:${port}`;
-export const compose=['compose','-p',project,'-f',process.env.E2E_COMPOSE_FILE||'compose.legacy.yaml'];
+export const compose=['compose','-p',project,'-f',process.env.E2E_COMPOSE_FILE||'legacy/core/compose.yaml'];
 export const token=process.env.PAYMENT_SERVICE_TOKEN||'ticketbox-local-payment-service-token-change-before-deploy';
 export const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 export function docker(args,options={}){return execFileSync('docker',[...compose,...args],{cwd:root,env:{...process.env,APP_PORT:port,APP_PUBLIC_URL:base,APP_ALLOWED_ORIGINS:base,PAYMENT_SERVICE_TOKEN:token},encoding:'utf8',maxBuffer:128*1024*1024,...options});}

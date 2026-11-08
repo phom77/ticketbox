@@ -19,7 +19,7 @@ Requires Docker Desktop with Compose v2. Run from the repository root:
 docker compose up -d --build
 ```
 
-Open **http://localhost:18091**. The first build downloads Java/Node dependencies; wait for Core startup before signing in. Check readiness at **http://localhost:18091/api/health**.
+Open **http://localhost:18091**. The first build downloads Java/Node dependencies. Check Ticketing readiness at **http://localhost:18091/api/health**, or run `node scripts/smoke.mjs` from the repository root to check the web app, concert listing, and demo sign-in.
 
 No host Java installation or prebuilt artifacts are needed. Compose includes the web gateway, six backend applications, six PostgreSQL databases, Redis, RabbitMQ and a local SMTP sink. Defaults use MOCK payment and mock artist biographies; external provider keys are optional. Copy `.env.example` to `.env` to customize addresses or integrations.
 
@@ -67,7 +67,7 @@ Identity owns accounts. Catalog owns concert metadata and AI jobs. Ticketing own
 
 Each Java service builds from its own source, tests and resources. The root Maven reactor verifies all six applications. Order events and stock changes commit together in Ticketing. Durable, versioned snapshots synchronize the Catalog and Check-in projections.
 
-For an existing Core database, follow the offline [service cutover guide](docs/service-extraction.md) before serving traffic with the new topology. The previous deployment is available through compose.legacy.yaml. Phase 5–6 is available in the isolated [replication and partitioning lab](docs/lab-replication-partitioning.md), including stale reads, primary checkout routing, manual switchover and measured query plans.
+The retired Core deployment and offline cutover runbook are in the [legacy archive](legacy/core/README.md). Phase 5–6 is available in the isolated [replication and partitioning lab](docs/lab-replication-partitioning.md), including stale reads, primary checkout routing, manual switchover and measured query plans.
 
 ## Stack
 
@@ -83,7 +83,7 @@ For an existing Core database, follow the offline [service cutover guide](docs/s
 ## Repository
 
 ```text
-backend/           Legacy Core application, migrations and integration tests
+backend/           Archived Core source, migrations and tests
 services/          Six independent applications, each with its own code, migrations and tests
 frontend/          React web application
 mobile-scanner/    Expo scanner and offline synchronization
@@ -93,13 +93,13 @@ scripts/           Verification, smoke and isolated end-to-end tests
 docs/              Architecture, development and API guides
 compose.yaml       Default six-service deployment
 compose.lab.yaml   Optional replication and partitioning lab override
-compose.legacy.yaml  Legacy Core deployment
+legacy/core/       Manual Core deployment and cutover tools
 ```
 
 ## Verification and documentation
 
 ```sh
-mvn -B -ntp clean verify                 # Six-service Maven reactor
+./mvnw -B -ntp clean verify              # Six-service Maven reactor
 pwsh -File scripts/ci/verify.ps1          # Java, image ownership, web and scanner checks
 pwsh -File scripts/e2e/run.ps1 -Build     # Isolated distributed workflow and fault tests
 ```

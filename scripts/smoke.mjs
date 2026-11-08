@@ -10,7 +10,7 @@ while (Date.now() < deadline && !ready) {
   } catch { /* Compose starts containers before Spring finishes booting. */ }
   if (!ready) await new Promise(resolve => setTimeout(resolve, 1000));
 }
-assert(ready, `Core did not become ready: ${base}`);
+assert(ready, `Ticketing did not become ready: ${base}`);
 async function request(path, options = {}) {
   const response = await fetch(base + path, { ...options, signal: AbortSignal.timeout(20000) });
   assert.equal(response.status, 200, `${path}: HTTP ${response.status}`);

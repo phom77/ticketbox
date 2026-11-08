@@ -39,20 +39,7 @@ Các acceptance script chỉ chạy với project ticketbox-e2e-*. Ví dụ dùn
 
 ## Chuyển dữ liệu đã có
 
-Các file compose.legacy.yaml và infra/nginx/gateway.legacy.conf giữ deployment Core trước khi tách. Source phải đã chạy V34. Build và khởi tạo schema các database đích trước, rồi thực hiện cutover trước khi phục vụ traffic vào deployment mới.
-
-~~~sh
-python scripts/migrate-split.py --source-project ticketbox --target-project ticketbox
-docker compose up -d
-~~~
-
-Script dừng gateway và toàn bộ writer, kiểm tra fingerprint dữ liệu seed đích, sao lưu source cùng các DB đích, rồi xuất dữ liệu. Nó giữ UUID, account hash/role, deadline, hold, idempotency key, payment intent/inbox, Order events, lịch sử soát vé, guest list, AI và batch jobs. Publication log được chia theo listener. Cutover dùng cùng Compose project để giữ Payment, Notification và Redis volume hiện hành, bao gồm shopping token.
-
-Mỗi DB được nhập trong một transaction. Trạng thái cutover chưa hoàn tất chặn service khởi động. Sau khi đối chiếu từng bảng và chuyển artifact volume, script fence writer Core và đánh dấu đích sẵn sàng. Manifest và backup ở .artifacts/migration/. Các service sau cutover cùng tiếp tục dùng Payment/Notification database đã tồn tại.
-
-Nếu import thất bại, giữ writer dừng và xem manifest cùng backup. Khi một số DB đã nhập thành công, cần khôi phục các DB đích từ bản *-before.dump và kiểm tra các marker trước khi diễn tập lại. Sau khi deployment mới nhận ghi, phục hồi cần bảo toàn những ghi mới đó. Core có startup fence để tránh mở lại nguồn dữ liệu đã chuyển quyền.
-
-Backup database có thể chứa thông tin cá nhân và dữ liệu thanh toán. Thư mục .artifacts/ đã được loại khỏi Git.
+Quy trình cutover từ Core V34 nằm trong [runbook legacy](../legacy/core/README.md#chuyển-dữ-liệu-đã-có).
 
 ## Bằng chứng kiểm thử
 

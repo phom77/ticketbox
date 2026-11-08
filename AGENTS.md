@@ -59,10 +59,11 @@ Read `GLOSSARY-MAP.md` and the owning service glossary before changing business 
   `scripts/ci/verify-service-boundaries.py`. Their pending-publication fixtures
   must pass after package changes.
 - Run the affected service's Maven verification and independent build gate.
-  Complete the root reactor, separate Core legacy suite and shared CI checks
-  before accepting the full architecture refactor.
+  Complete the root reactor and shared CI checks before accepting the full
+  architecture refactor.
 - Report source/build isolation, internal architecture checks and operational
   acceptance separately, with the evidence that actually ran.
 
-Core legacy lives in `backend/`. Apply service architecture changes to its
-owning service and keep legacy compatibility covered by its separate suite.
+Core legacy lives in `backend/`. Its deployment and verification are manual
+and documented in [the legacy runbook](legacy/core/README.md). Apply service
+architecture changes to the owning service.

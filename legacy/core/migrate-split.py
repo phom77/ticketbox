@@ -2,7 +2,7 @@
 
 Run after building and initializing the split databases, before serving split traffic.
 All source/target writers remain stopped if validation fails. Database backups are
-kept under .artifacts. The project names select existing Compose volumes explicitly.
+kept under .artifacts/legacy-core/. The project names select existing Compose volumes explicitly.
 """
 import argparse
 import datetime as dt
@@ -12,8 +12,10 @@ from pathlib import Path
 import re
 import subprocess
 
-ROOT = Path(__file__).resolve().parents[1]
-TABLES = json.loads((ROOT / "scripts/db/split-tables.json").read_text())
+LEGACY = Path(__file__).resolve().parent
+ROOT = LEGACY.parents[1]
+LEGACY_COMPOSE = LEGACY / "compose.yaml"
+TABLES = json.loads((LEGACY / "split-tables.json").read_text())
 WRITERS = ["gateway", "identity", "catalog", "ticketing", "checkin", "payment", "notification"]
 
 
@@ -26,7 +28,7 @@ def compose(project, file, *args, **kwargs):
 
 
 def sql(project, service, database, query, source=False):
-    file = "compose.legacy.yaml" if source else "compose.yaml"
+    file = LEGACY_COMPOSE if source else "compose.yaml"
     owner = "core_owner" if source else service + "_owner"
     return compose(project, file, "exec", "-T", service + "-db", "psql", "-X", "-At",
                    "-v", "ON_ERROR_STOP=1", "-U", owner, "-d", database, "-c", query).decode().strip()
@@ -47,8 +49,8 @@ def batch_sequence_restore(project):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--source-project", default="ticketbox")
-    parser.add_argument("--target-project", default="ticketbox")
+    parser.add_argument("--source-project", required=True)
+    parser.add_argument("--target-project", required=True)
     args = parser.parse_args()
     for name in [args.source_project, args.target_project]:
         if not re.fullmatch(r"[a-z0-9][a-z0-9-]+", name):
@@ -57,12 +59,12 @@ def main():
     target = args.target_project
     if source != target:
         raise ValueError("Use the same Compose project so existing Payment, Notification and Redis volumes remain authoritative")
-    directory = ROOT / ".artifacts/migration" / dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    directory = ROOT / ".artifacts/legacy-core/migration" / dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     directory.mkdir(parents=True)
     # Stop entrypoints and domain writers first. These commands retain all volumes.
     compose(target, "compose.yaml", "stop", *WRITERS)
-    compose(source, "compose.legacy.yaml", "stop", "gateway", "core", "payment", "notification")
-    compose(source, "compose.legacy.yaml", "up", "-d", "core-db")
+    compose(source, LEGACY_COMPOSE, "stop", "gateway", "core", "payment", "notification")
+    compose(source, LEGACY_COMPOSE, "up", "-d", "core-db")
     for service in TABLES:
         compose(target, "compose.yaml", "up", "-d", service + "-db")
 
@@ -87,7 +89,7 @@ def main():
             if actual != expected:
                 raise RuntimeError(f"{service}.{table} already has split writes. Refusing to overwrite it.")
 
-    source_dump = compose(source, "compose.legacy.yaml", "exec", "-T", "core-db", "pg_dump",
+    source_dump = compose(source, LEGACY_COMPOSE, "exec", "-T", "core-db", "pg_dump",
                           "-U", "core_owner", "-d", "ticketbox_core", "-Fc")
     (directory / "core.dump").write_bytes(source_dump)
     digest = hashlib.sha256(source_dump).hexdigest()
@@ -116,7 +118,7 @@ def main():
             if table == "event_publication":
                 predicate = " WHERE listener_id LIKE '%module.ai.%'" if service == "catalog" else " WHERE listener_id NOT LIKE '%module.ai.%'"
             query = f"COPY (SELECT * FROM public.{table}{predicate}) TO STDOUT WITH CSV"
-            data = compose(source, "compose.legacy.yaml", "exec", "-T", "core-db", "psql",
+            data = compose(source, LEGACY_COMPOSE, "exec", "-T", "core-db", "psql",
                            "-X", "-q", "-v", "ON_ERROR_STOP=1", "-U", "core_owner", "-d", "ticketbox_core", "-c", query)
             exported.append((table, data))
         exports[service] = exported
@@ -181,7 +183,7 @@ END $$;
         manifest["services"][service] = {"tables": counts}
         manifest_path.write_text(json.dumps(manifest, indent=2))
 
-    compose(source, "compose.legacy.yaml", "stop", "redis")
+    compose(source, LEGACY_COMPOSE, "stop", "redis")
     # Preserve artifact paths used by in-flight AI and CSV jobs.
     for service in ("catalog", "checkin"):
         compose(target, "compose.yaml", "create", "--no-build", service)

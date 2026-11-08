@@ -30,7 +30,7 @@ legacy publication replay, physical replica routing, provider callbacks and read
 
 ## Legacy deployment
 
-`backend/` builds and tests the Core application separately. The diagram and Core module descriptions below document the deployment selected by `compose.legacy.yaml`.
+`backend/` builds and tests the Core application separately. The diagram and Core module descriptions below document the archived deployment described in the [legacy runbook](../legacy/core/README.md).
 
 ```mermaid
 flowchart LR

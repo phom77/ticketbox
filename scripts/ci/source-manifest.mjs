@@ -6,8 +6,12 @@ import path from 'node:path';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
-const paths = git('ls-files', '--cached', '--others', '--exclude-standard', '-z').split('\0')
-  .filter(p => /^(backend\/|frontend\/|mobile-scanner\/|services\/|contracts\/|scripts\/|infra\/|\.github\/|pom\.xml$|compose(?:\.lab|\.legacy)?\.yaml$)/.test(p))
+const scope = [
+  '.mvn', 'mvnw', 'mvnw.cmd', 'pom.xml', 'compose.yaml', 'compose.lab.yaml',
+  'frontend', 'mobile-scanner', 'services', 'contracts', 'scripts', 'infra', '.github',
+];
+const paths = git('ls-files', '--cached', '--others', '--exclude-standard', '-z', '--', ...scope).split('\0')
+  .filter(Boolean)
   .filter(p => !p.split('/').some(part => ['node_modules', 'dist', 'target', '.expo', '.vite'].includes(part)))
   .filter(p => existsSync(path.join(root, p)))
   .sort();
@@ -22,7 +26,7 @@ for (const p of paths) {
 }
 process.stdout.write(JSON.stringify({
   commit: git('rev-parse', 'HEAD'), branch: git('branch', '--show-current'),
-  dirty: git('status', '--porcelain').split('\n').filter(Boolean),
+  dirty: git('status', '--porcelain', '--', ...scope).split('\n').filter(Boolean),
   sourceSha256: hash.digest('hex'), sourceFileCount: paths.length,
   node: process.version, platform: process.platform,
 }, null, 2));

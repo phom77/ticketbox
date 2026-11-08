@@ -35,24 +35,6 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Could not record source manifest' }
     $manifest.source = $source | ConvertFrom-Json
     if ($BackendMode -eq 'Docker') {
-        $backendPath = (Join-Path $repoPath 'backend').Replace('\', '/')
-        Invoke-Check 'core-legacy' $repoPath 'docker' @(
-            'run', '--rm', '--cpus', '4', '--memory', '3g', '--add-host', 'host.docker.internal:host-gateway',
-            '-v', '/var/run/docker.sock:/var/run/docker.sock',
-            '-v', 'ticketbox-maven-cache:/root/.m2', '-v', "${backendPath}:/workspace", '-w', '/workspace',
-            '-e', "TESTCONTAINERS_HOST_OVERRIDE=$TestcontainersHost", '-e', 'JAVA_TOOL_OPTIONS=-Dapi.version=1.44',
-            '-e', 'JWT_SECRET=ticketbox-test-fixture-secret-with-at-least-sixty-four-characters-local-only',
-            'maven:3.9.9-eclipse-temurin-21', 'mvn', '-B', '-ntp', 'clean', 'verify', '-DargLine=-Xmx1536m'
-        )
-    } else {
-        $wrapper = if ($IsWindows) { Join-Path $repoPath 'backend/mvnw.cmd' } else { Join-Path $repoPath 'backend/mvnw' }
-        if ($IsWindows) {
-            Invoke-Check 'core-legacy' (Join-Path $repoPath 'backend') $wrapper @('-B', '-ntp', 'clean', 'verify', '-DargLine=-Xmx1536m')
-        } else {
-            Invoke-Check 'core-legacy' (Join-Path $repoPath 'backend') 'bash' @($wrapper, '-B', '-ntp', 'clean', 'verify', '-DargLine=-Xmx1536m')
-        }
-    }
-    if ($BackendMode -eq 'Docker') {
         $serviceRepo = $repoPath.Replace('\', '/')
         Invoke-Check 'service-reactor' $repoPath 'docker' @(
             'run','--rm','--add-host','host.docker.internal:host-gateway',
@@ -62,10 +44,12 @@ try {
             'maven:3.9.9-eclipse-temurin-21','mvn','-B','-ntp','clean','verify'
         )
     } else {
-        $mavenCommand = if ($IsWindows) { $wrapper } else { 'bash' }
-        $mavenArguments = if ($IsWindows) { @() } else { @($wrapper) }
-        $mavenArguments += @('-B','-ntp','clean','verify')
-        Invoke-Check 'service-reactor' $repoPath $mavenCommand $mavenArguments
+        $mavenArguments = @('-B','-ntp','clean','verify')
+        if ($IsWindows) {
+            Invoke-Check 'service-reactor' $repoPath (Join-Path $repoPath 'mvnw.cmd') $mavenArguments
+        } else {
+            Invoke-Check 'service-reactor' $repoPath 'bash' (@((Join-Path $repoPath 'mvnw')) + $mavenArguments)
+        }
     }
     $pythonCommand = if ($IsWindows) { 'python' } else { 'python3' }
     Invoke-Check 'ci-unit' $repoPath $pythonCommand @(
@@ -73,9 +57,7 @@ try {
     )
     Invoke-Check 'java-reports' $repoPath $pythonCommand @('-B', 'scripts/ci/java_reports.py')
     $manifest.java = Get-Content -LiteralPath (Join-Path $outputPath 'java-reports.log') -Raw | ConvertFrom-Json
-    $manifest.outputs = [ordered]@{
-        coreJarSha256=(Get-FileHash (Join-Path $repoPath 'backend/target/ticketbox-api-0.0.1-SNAPSHOT.jar') -Algorithm SHA256).Hash
-    }
+    $manifest.outputs = [ordered]@{}
     foreach ($service in @('identity', 'catalog', 'checkin', 'ticketing', 'payment', 'notification')) {
         $jar = Join-Path $repoPath "services/$service/target/$service-service-0.0.1-SNAPSHOT.jar"
         $manifest.outputs["${service}JarSha256"] = (Get-FileHash $jar -Algorithm SHA256).Hash
@@ -85,7 +67,6 @@ try {
     }
     Invoke-Check 'compose-default' $repoPath 'docker' @('compose', '-f', 'compose.yaml', 'config', '--quiet')
     Invoke-Check 'compose-lab' $repoPath 'docker' @('compose', '-f', 'compose.yaml', '-f', 'compose.lab.yaml', '--profile', 'lab', 'config', '--quiet')
-    Invoke-Check 'compose-legacy' $repoPath 'docker' @('compose', '-f', 'compose.legacy.yaml', 'config', '--quiet')
     Invoke-Check 'frontend-install' (Join-Path $repoPath 'frontend') 'npm' @('ci', '--no-audit', '--no-fund')
     Invoke-Check 'frontend-lint' (Join-Path $repoPath 'frontend') 'npm' @('run', 'lint')
     Invoke-Check 'frontend-build' (Join-Path $repoPath 'frontend') 'npm' @('run', 'build')

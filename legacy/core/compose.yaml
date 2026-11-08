@@ -1,16 +1,16 @@
-name: ticketbox
+name: ticketbox-core-legacy
 
 services:
   gateway:
-    image: ticketbox-web:local
-    build: ./frontend
-    ports: ['${APP_BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-18091}:80']
-    volumes: [./infra/nginx/gateway.legacy.conf:/etc/nginx/nginx.conf:ro]
+    image: ticketbox-core-legacy-web:local
+    build: ../../frontend
+    ports: ['${APP_BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-18093}:80']
+    volumes: [./gateway.conf:/etc/nginx/nginx.conf:ro]
     depends_on: [core, payment, notification]
 
   core:
     image: ticketbox-core:local
-    build: ./backend
+    build: ../../backend
     cpus: 2
     mem_limit: 1536m
     stop_grace_period: 30s
@@ -32,7 +32,7 @@ services:
       RABBITMQ_USERNAME: ticketbox_local
       RABBITMQ_PASSWORD: broker-local-only
       JWT_SECRET: ${JWT_SECRET:-ticketbox-local-demo-secret-at-least-sixty-four-characters-change-before-deploy}
-      TICKETBOX_WEB_ALLOWED_ORIGINS: ${APP_ALLOWED_ORIGINS:-http://localhost:18091,http://127.0.0.1:18091}
+      TICKETBOX_WEB_ALLOWED_ORIGINS: ${APP_ALLOWED_ORIGINS:-http://localhost:18093,http://127.0.0.1:18093}
       TICKETBOX_PAYMENTS_MODE: remote
       TICKETBOX_PAYMENTS_URL: http://payment:8080
       TICKETBOX_PAYMENTS_SERVICE_TOKEN: ${PAYMENT_SERVICE_TOKEN:-ticketbox-local-payment-service-token-change-before-deploy}
@@ -58,8 +58,8 @@ services:
       payment-db: {condition: service_healthy}
 
   payment:
-    image: ticketbox-payment:local
-    build: ./services/payment
+    image: ticketbox-core-legacy-payment:local
+    build: ../../services/payment
     cpus: 1
     mem_limit: 768m
     stop_grace_period: 30s
@@ -69,27 +69,27 @@ services:
       PAYMENT_DATABASE_PASSWORD: payment-local-only
       PAYMENT_SERVICE_TOKEN: ${PAYMENT_SERVICE_TOKEN:-ticketbox-local-payment-service-token-change-before-deploy}
       CORE_API_URL: http://core:8080
-      PAYMENT_PUBLIC_URL: ${APP_PUBLIC_URL:-http://localhost:18091}
+      PAYMENT_PUBLIC_URL: ${APP_PUBLIC_URL:-http://localhost:18093}
       SPRING_PROFILES_ACTIVE: dev
       MOMO_PARTNER_CODE: ${MOMO_PARTNER_CODE:-}
       MOMO_ACCESS_KEY: ${MOMO_ACCESS_KEY:-}
       MOMO_SECRET_KEY: ${MOMO_SECRET_KEY:-}
       MOMO_API_ENDPOINT: ${MOMO_API_ENDPOINT:-https://test-payment.momo.vn/v2/gateway/api/create}
-      MOMO_RETURN_URL: ${MOMO_RETURN_URL:-http://localhost:18091/payment/result}
-      MOMO_IPN_URL: ${MOMO_IPN_URL:-http://localhost:18091/api/payments/webhooks/momo}
+      MOMO_RETURN_URL: ${MOMO_RETURN_URL:-http://localhost:18093/payment/result}
+      MOMO_IPN_URL: ${MOMO_IPN_URL:-http://localhost:18093/api/payments/webhooks/momo}
       VNPAY_TMN_CODE: ${VNPAY_TMN_CODE:-}
       VNPAY_HASH_SECRET: ${VNPAY_HASH_SECRET:-}
       VNPAY_PAY_URL: ${VNPAY_PAY_URL:-https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
-      VNPAY_RETURN_URL: ${VNPAY_RETURN_URL:-http://localhost:18091/payment/result}
-      VNPAY_IPN_URL: ${VNPAY_IPN_URL:-http://localhost:18091/api/payments/webhooks/vnpay}
+      VNPAY_RETURN_URL: ${VNPAY_RETURN_URL:-http://localhost:18093/payment/result}
+      VNPAY_IPN_URL: ${VNPAY_IPN_URL:-http://localhost:18093/api/payments/webhooks/vnpay}
       VNPAY_QUERY_URL: ${VNPAY_QUERY_URL:-}
       JAVA_TOOL_OPTIONS: -Xms64m -Xmx512m
     depends_on:
       payment-db: {condition: service_healthy}
 
   notification:
-    image: ticketbox-notification:local
-    build: ./services/notification
+    image: ticketbox-core-legacy-notification:local
+    build: ../../services/notification
     cpus: 1
     mem_limit: 768m
     stop_grace_period: 30s
@@ -119,7 +119,7 @@ services:
       POSTGRES_PASSWORD: core-owner-local-only
     volumes:
       - core_data:/var/lib/postgresql/data
-      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/10-runtime.sql:ro
+      - ./init.sql:/docker-entrypoint-initdb.d/10-runtime.sql:ro
     healthcheck:
       test: [CMD-SHELL, pg_isready -U core_owner -d ticketbox_core]
       interval: 2s
@@ -172,13 +172,13 @@ services:
   smtp:
     image: node:24-alpine
     command: [node, /app/server.cjs]
-    volumes: [./infra/smtp/server.cjs:/app/server.cjs:ro]
+    volumes: [../../infra/smtp/server.cjs:/app/server.cjs:ro]
 
   prometheus:
     image: prom/prometheus:v2.53.0
     profiles: [monitoring]
-    volumes: [./infra/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro]
-    ports: ['127.0.0.1:9090:9090']
+    volumes: [./prometheus.yml:/etc/prometheus/prometheus.yml:ro]
+    ports: ['127.0.0.1:${LEGACY_PROMETHEUS_PORT:-19090}:9090']
     depends_on: [core]
 
   grafana:
@@ -188,8 +188,8 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-ticketbox-local}
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./infra/monitoring/grafana:/etc/grafana/provisioning:ro
-    ports: ['127.0.0.1:3000:3000']
+      - ../../infra/monitoring/grafana:/etc/grafana/provisioning:ro
+    ports: ['127.0.0.1:${LEGACY_GRAFANA_PORT:-13000}:3000']
     depends_on: [prometheus]
 
 volumes:

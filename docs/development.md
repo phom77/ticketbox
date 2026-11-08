@@ -38,20 +38,19 @@ See [the scanner guide](../mobile-scanner/README.md) for Expo, physical-device a
 
 ## Verification
 
-The shared CI script runs the six-service Maven reactor, the separate Core legacy suite, image ownership checks, frontend lint/build and scanner typecheck. It also validates the default, lab and legacy Compose configurations. Docker must be available for Testcontainers. PowerShell 7, Python 3 and Node.js 24 are required for the shared checks.
+The shared CI script runs the six-service Maven reactor, image ownership checks, frontend lint/build and scanner typecheck. It also validates the default and lab Compose configurations. Docker must be available for Testcontainers. PowerShell 7, Python 3 and Node.js 24 are required for the shared checks.
 
 ```sh
 pwsh -File scripts/ci/verify.ps1
 ```
 
-By default Maven/Java 21 run in Docker, with `host.docker.internal` mapped to the Docker host for Testcontainers. With Java 21 installed locally, use `-BackendMode Local`. Surefire writes XML under each application's `target/surefire-reports/`. CI records those results and JAR hashes in `.artifacts/verification/verification.json`. [Required suites by function](../scripts/ci/java-suites.json) identifies each service and the separate `coreLegacy` group.
+By default Maven/Java 21 run in Docker, with `host.docker.internal` mapped to the Docker host for Testcontainers. With Java 21 installed locally, use `-BackendMode Local`. Surefire writes XML under each application's `target/surefire-reports/`. CI records those results and JAR hashes in `.artifacts/verification/verification.json`. [Required suites by function](../scripts/ci/java-suites.json) identifies the required suites for each of the six services.
 
 Run these checks from the repository root.
 
 ```sh
-mvn -B -ntp clean verify
-mvn -B -ntp -f services/ticketing/pom.xml clean verify
-mvn -B -ntp -f backend/pom.xml clean verify
+./mvnw -B -ntp clean verify
+./mvnw -B -ntp -f services/ticketing/pom.xml clean verify
 python3 scripts/ci/verify-service-boundaries.py --service ticketing
 ```
 
@@ -71,7 +70,7 @@ pwsh -File scripts/e2e/run.ps1 -Build
 pwsh -File scripts/e2e/run.ps1 -Restore
 ```
 
-These scripts use a separate `ticketbox-e2e` project on port 18092. They create fixtures, stop/restart services, simulate Redis state loss, check duplicate/late payments and verify database fencing. The optional restore rehearsal checkpoints writers and boots applications against restored databases and volumes. Test output stays in `.artifacts/e2e/`; test data and backup volumes are retained for investigation. The helper rejects project names outside its test namespace.
+These scripts use a separate `ticketbox-e2e` project on port 18092. They create fixtures, exercise checkout and admission, and stop source services to test LAN check-in. The optional restore rehearsal checkpoints writers and boots all six applications against restored databases. Test output stays in `.artifacts/e2e/`. The helper rejects project names outside its test namespace.
 
 Checkout recovery regression uses mocked API responses to test lost responses, reloads, failed attempts and late settlement at desktop/tablet/mobile viewports:
 
@@ -92,6 +91,6 @@ Add new Flyway migrations to the owning application's migration directory. Keep 
 
 Python acceptance scripts under `scripts/e2e/` exercise the six-service topology. Use an isolated `E2E_PROJECT` and `E2E_PORT`, or use the PowerShell E2E entry point.
 
-Follow the [service cutover guide](service-extraction.md) before migrating an existing Core database. Run the legacy topology with `docker compose -f compose.legacy.yaml up -d --build`. Local backup files and generated reports stay under `.artifacts/`.
+Core deployment, verification and cutover are documented in the [manual legacy runbook](../legacy/core/README.md).
 
 Phase 5–6: see [replication and partitioning lab](lab-replication-partitioning.md) for the `compose.lab.yaml` override, acceptance commands, switchover and benchmark evidence.
