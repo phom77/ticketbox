@@ -1,0 +1,12 @@
+schema: spec-driven
+
+context: |
+  Follow AGENTS.md and the change workflow in docs/development.md.
+  Link related accepted decisions and requirements. Continue in-flight work
+  under docs/superpowers/ in its existing artifacts.
+
+rules:
+  specs:
+    - Describe observable behavior, including applicable authorization, failure and recovery scenarios.
+  tasks:
+    - Name the affected repository checks and any contract or migration verification.

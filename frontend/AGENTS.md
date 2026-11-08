@@ -1,6 +1,9 @@
 # Frontend maintenance
 
 - Read `DESIGN_SYSTEM.md` and the closest existing components before editing UI.
+- Use the [frontend engineering guides](../docs/engineering/frontend.md) for
+  route and component ownership, state and data, accessibility, security,
+  performance, and verification.
 - Preserve the existing React, TypeScript, Vite and Tailwind setup.
 - Use the implemented tokens in `src/app/app.css`; do not change the visual theme during maintenance.
 - Reuse layouts, feedback components and API clients before adding alternatives.

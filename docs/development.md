@@ -36,6 +36,32 @@ Set `VITE_API_BASE_URL=http://localhost:18091` in `frontend/.env.local` before s
 
 See [the scanner guide](../mobile-scanner/README.md) for Expo, physical-device addressing and offline behavior.
 
+## Planning changes
+
+Use OpenSpec for new substantial changes to user journeys, business invariants,
+or HTTP, event, and data contracts. Keep small fixes and documentation updates
+in the regular review workflow. Continue in-flight work under
+[`docs/superpowers/`](superpowers/) using its existing plans and specs. Link
+relevant accepted requirements and ADRs from new proposals.
+
+1. Use `$openspec-explore` in Codex when the problem or constraints need discovery.
+   Use `$openspec-propose` to draft the proposal, design, testable spec deltas
+   and tasks under `openspec/changes/`.
+2. Get the proposal, requirements, design and tasks reviewed before applying.
+   Capture expected failures and compatibility risks as well as the happy path.
+   Record significant architectural decisions in [`docs/adr/`](adr/).
+3. After approval, use `$openspec-apply-change`. Run the checks below for the
+   affected areas and review the diff against the accepted requirements.
+   Run `openspec validate <change-id> --type change --strict` to check the
+   change artifacts.
+4. After acceptance, use `$openspec-archive-change` to archive the change and
+   update the durable specifications under `openspec/specs/`. Update the
+   project docs affected by the accepted change.
+
+This repository includes the OpenSpec configuration and Codex skills. Check
+your CLI with `openspec --version`. For installation options, see the
+[official OpenSpec guide](https://openspec.dev/docs/installation).
+
 ## Verification
 
 The shared CI script runs the six-service Maven reactor, image ownership checks, frontend lint/build and scanner typecheck. It also validates the default and lab Compose configurations. Docker must be available for Testcontainers. PowerShell 7, Python 3 and Node.js 24 are required for the shared checks.

@@ -108,6 +108,7 @@ Java integration tests require Docker. PowerShell 7 runs the shared verification
 
 - [Architecture and consistency](docs/architecture.md)
 - [Development and testing](docs/development.md)
+- [Engineering standards](docs/engineering/standards.md)
 - [API guide](docs/api.md)
 - [Mobile scanner](mobile-scanner/README.md)
 

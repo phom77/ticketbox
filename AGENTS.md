@@ -1,5 +1,24 @@
 # TicketBox project instructions
 
+## Development workflow
+
+- Start with the [core engineering rules](docs/engineering/core.md) and select
+  applicable guides from the [engineering handbook](docs/engineering/standards.md).
+  For Java services, see [backend engineering](docs/engineering/backend.md).
+  For web or scanner changes, see [frontend engineering](docs/engineering/frontend.md).
+  Web UI work also follows [frontend/AGENTS.md](frontend/AGENTS.md).
+- Use the checks in [Development and testing](docs/development.md). For review,
+  apply the [engineering checklist](docs/engineering/review-checklist.md).
+- For new substantial behavior or contract changes, use the
+  [OpenSpec workflow](docs/development.md#planning-changes). Get the proposal,
+  requirements, design and tasks reviewed before implementation. For small
+  fixes and documentation updates, inspect the scope, make the change, and
+  verify it with the relevant checks.
+- Keep existing specifications and accepted decisions as references. Continue
+  work already planned under `docs/superpowers/` in its existing artifacts.
+  Get approval before changing an engineering policy or making a significant
+  architecture, data ownership, security, or infrastructure decision.
+
 ## Java service architecture
 
 These conventions apply to Java code in `services/`. Task 6b of
