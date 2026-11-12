@@ -268,72 +268,33 @@ export function PublicLayout() {
 }
 
 function Footer({ homePath, homeLabel }: { homePath: string; homeLabel: string }) {
+  const { user } = useAuth();
+
   return (
     <footer className="site-footer">
       <div className="footer-grid page-width">
         <div className="footer-brand">
           <Logo to={homePath} label={homeLabel} />
           <p>Những đêm diễn khó quên, chỉ cách bạn một tấm vé.</p>
-          <div className="social-row" aria-label="Mạng xã hội">
-            <a href="#instagram" aria-label="Instagram">
-              ig
-            </a>
-            <a href="#facebook" aria-label="Facebook">
-              f
-            </a>
-            <a href="#tiktok" aria-label="TikTok">
-              ♪
-            </a>
-          </div>
         </div>
-        <FooterColumn
-          title="Khám phá"
-          items={['Buổi diễn', 'Nghệ sĩ', 'Địa điểm', 'Thẻ quà tặng']}
-        />
-        <FooterColumn
-          title="Hỗ trợ"
-          items={['Trung tâm trợ giúp', 'Liên hệ', 'Chính sách hoàn tiền', 'Khả năng tiếp cận']}
-        />
-        <div>
-          <p className="footer-title">Luôn cập nhật</p>
-          <p className="footer-copy">Thông tin mở bán mới và quyền truy cập sớm, gửi định kỳ.</p>
-          <form className="newsletter" onSubmit={(event) => event.preventDefault()}>
-            <label className="sr-only" htmlFor="newsletter-email">
-              Địa chỉ email
-            </label>
-            <input
-              id="newsletter-email"
-              type="email"
-              name="email"
-              autoComplete="email"
-              spellCheck={false}
-              placeholder="ban@example.com..."
-            />
-            <button type="submit" aria-label="Đăng ký">
-              →
-            </button>
-          </form>
-        </div>
+        {!user || user.role === 'AUDIENCE' || user.role === 'ORGANIZER' ? (
+          <nav aria-label="Điều hướng cuối trang">
+            <ul className="footer-links">
+              <li><Link to="/">Khám phá sự kiện</Link></li>
+              {user?.role === 'AUDIENCE' ? (
+                <>
+                  <li><Link to="/profile?tab=orders">Lịch sử đơn hàng</Link></li>
+                  <li><Link to="/my-tickets">Vé của tôi</Link></li>
+                </>
+              ) : null}
+              {!user ? <li><Link to="/login">Đăng nhập</Link></li> : null}
+            </ul>
+          </nav>
+        ) : null}
       </div>
       <div className="footer-bottom page-width">
-        <span>© 2026 TicketBox Vietnam</span>
-        <span>Quyền riêng tư · Điều khoản · Cookie</span>
+        © 2026 TicketBox Vietnam
       </div>
     </footer>
-  );
-}
-
-function FooterColumn({ title, items }: { title: string; items: string[] }) {
-  return (
-    <div>
-      <p className="footer-title">{title}</p>
-      <ul className="footer-links">
-        {items.map((item) => (
-          <li key={item}>
-            <a href={`#${item.toLowerCase().replace(/\s+/g, '-')}`}>{item}</a>
-          </li>
-        ))}
-      </ul>
-    </div>
   );
 }

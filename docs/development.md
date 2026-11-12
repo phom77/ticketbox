@@ -100,7 +100,7 @@ pwsh -File scripts/e2e/run.ps1 -Restore
 
 These scripts use a separate `ticketbox-e2e` project on port 18092. They create two organizations, exercise checkout and scoped operations, verify that unscoped staff routes are blocked over gateway and LAN, and stop Identity to test authorization failure. Check-in persistence tests still exercise admission concurrency and offline sync. The optional restore rehearsal checkpoints writers and boots all six applications against restored databases. Test output stays in `.artifacts/e2e/`. The helper rejects project names outside its test namespace.
 
-While the isolated stack is running, exercise organizer approval, invitations and organization selection in Chromium.
+While the isolated stack is running, use Chromium to exercise organizer approval, invitations, organization selection and mobile buyer checkout through MOCK payment and QR recovery.
 
 ```sh
 npm ci --prefix scripts/e2e

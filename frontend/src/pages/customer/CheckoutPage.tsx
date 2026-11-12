@@ -359,7 +359,7 @@ export function CheckoutPage() {
               Xem lại concert
             </Link>
           ) : null}
-          <Link className="button button-secondary" to="/profile">
+          <Link className="button button-secondary" to="/profile?tab=orders">
             Xem đơn hàng
           </Link>
         </div>
@@ -399,7 +399,7 @@ export function CheckoutPage() {
             onClick={() => setResumeRefreshKey(value => value + 1)}>
             Kiểm tra trạng thái đơn
           </button>
-          <Link className="text-link" to="/profile">Xem lịch sử đơn hàng</Link>
+          <Link className="text-link" to="/profile?tab=orders">Xem lịch sử đơn hàng</Link>
         </div>
       </section>
     );
@@ -589,7 +589,7 @@ export function CheckoutPage() {
                 onClick={() => setCreationRetry(value => value + 1)}>
                 Kiểm tra lại đơn
               </button>
-              <Link className="text-link" to="/profile">Xem lịch sử đơn hàng</Link>
+              <Link className="text-link" to="/profile?tab=orders">Xem lịch sử đơn hàng</Link>
             </div>
           ) : null}
         </div>

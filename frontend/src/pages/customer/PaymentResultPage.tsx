@@ -53,7 +53,7 @@ export function PaymentResultPage() {
         });
       } catch (requestError) {
         if (active && !isRequestCanceled(requestError)) {
-          navigate('/profile', { replace: true });
+          navigate('/profile?tab=orders', { replace: true });
         }
       }
     }
@@ -128,7 +128,7 @@ export function PaymentResultPage() {
         <p className="eyebrow"><span /> Không có kết quả thanh toán</p>
         <h1>Không thể khớp thanh toán này với đơn hàng.</h1>
         <p>Mở lịch sử đơn hàng để kiểm tra trạng thái thanh toán mới nhất.</p>
-        <Link className="button button-primary" to="/profile">Xem đơn hàng</Link>
+        <Link className="button button-primary" to="/profile?tab=orders">Xem đơn hàng</Link>
       </section>
     );
   }
@@ -143,7 +143,7 @@ export function PaymentResultPage() {
         <Link className="text-link" to={`/checkout?orderId=${encodeURIComponent(orderId)}`}>
           Quay lại đơn thanh toán
         </Link>
-        <Link className="text-link" to="/profile">Xem lịch sử đơn hàng</Link>
+        <Link className="text-link" to="/profile?tab=orders">Xem lịch sử đơn hàng</Link>
       </div>
     </section>
   );

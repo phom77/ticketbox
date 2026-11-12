@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api, ApiClientError } from '../../api/client';
 import { useAuth, type UserRole, type UserSummary } from '../../features/auth/AuthContext';
 import { QRCodeSVG } from 'qrcode.react';
@@ -94,7 +94,7 @@ export function ProfilePage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [orders, setOrders] = useState<OrderResponse[]>([]);
   const [tickets, setTickets] = useState<TicketResponse[]>([]);
-  const [activeTab, setActiveTab] = useState<ProfileTab>('profile');
+  const [searchParams, setSearchParams] = useSearchParams();
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [isEditing, setIsEditing] = useState(false);
@@ -104,6 +104,12 @@ export function ProfilePage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const showAudienceHistory = user?.role === 'AUDIENCE';
+  const tab = searchParams.get('tab');
+  const activeTab = showAudienceHistory && (tab === 'orders' || tab === 'tickets') ? tab : 'profile';
+
+  function selectTab(next: ProfileTab) {
+    setSearchParams(next === 'profile' ? {} : { tab: next }, { replace: true });
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -137,7 +143,6 @@ export function ProfilePage() {
         setPhone(profileData.phone ?? '');
         setOrders([]);
         setTickets([]);
-        setActiveTab('profile');
       } catch (error) {
         if (!cancelled) {
           const isForbidden = error instanceof ApiClientError && error.status === 403;
@@ -271,7 +276,7 @@ export function ProfilePage() {
           role="tab"
           aria-selected={activeTab === 'profile'}
           className={activeTab === 'profile' ? 'active' : ''}
-          onClick={() => setActiveTab('profile')}
+          onClick={() => selectTab('profile')}
         >
           Hồ sơ
         </button>
@@ -282,18 +287,18 @@ export function ProfilePage() {
               role="tab"
               aria-selected={activeTab === 'orders'}
               className={activeTab === 'orders' ? 'active' : ''}
-              onClick={() => setActiveTab('orders')}
+              onClick={() => selectTab('orders')}
             >
-              Orders ({orders.length})
+              Đơn hàng ({orders.length})
             </button>
             <button
               type="button"
               role="tab"
               aria-selected={activeTab === 'tickets'}
               className={activeTab === 'tickets' ? 'active' : ''}
-              onClick={() => setActiveTab('tickets')}
+              onClick={() => selectTab('tickets')}
             >
-              Tickets ({tickets.length})
+              Vé ({tickets.length})
             </button>
           </>
         ) : null}

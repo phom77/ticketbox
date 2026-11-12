@@ -35,7 +35,7 @@ const basketState={event:{id:concertId,title:concert.title,venue:concert.venueNa
 
 async function fixture(options={}) {
  const context=await browser.newContext({viewport:{width:1440,height:900}});
- await context.addCookies([{name:'ticketbox_auth_token',value:jwt,url:origin}]);
+ if(options.authenticated!==false) await context.addCookies([{name:'ticketbox_auth_token',value:jwt,url:origin}]);
  const page=await context.newPage();
  const state={attempt:'FAILED',committed:false,postKeys:[],cancelCalls:0,orderStatus:'AWAITING_PAYMENT',...options};
  const reply=(route,data,status=200)=>route.fulfill({status,contentType:'application/json',headers:{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'*'},body:JSON.stringify({code:status,data,message:status===409?'Request has already been processed':'OK'})});
@@ -44,6 +44,8 @@ async function fixture(options={}) {
   if(path.startsWith('/api/')) {
    if(req.method()==='OPTIONS')return route.fulfill({status:204,headers:{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'*','Access-Control-Allow-Methods':'*'}});
    if(path==='/api/auth/me')return reply(route,user);
+   if(path==='/api/users/me/profile')return reply(route,{...user,phone:null});
+   if(path==='/api/orders/my')return reply(route,[{...order,status:state.orderStatus}]);
    if(path==='/api/orders/by-idempotency-key')return reply(route,state.committed?{...order,status:state.orderStatus}:null,state.committed?200:404);
    if(path==='/api/orders'&&req.method()==='POST') {
     state.postKeys.push(req.headers()['idempotency-key']);
@@ -59,7 +61,10 @@ async function fixture(options={}) {
    }
    if(path==='/api/payments/providers') return reply(route,state.providers??['MOCK']);
    if(path===`/api/payments/${orderId}/status`)return reply(route,{orderId,orderStatus:state.orderStatus,provider:'MOCK',attemptId:'attempt',attemptState:state.attempt,paymentUrl:state.attempt==='READY'?'/mock-pay':null});
-   if(path===`/api/payments/${orderId}/initiate`) {state.attempt='FAILED';return reply(route,{orderId,provider:'MOCK',attemptId:'attempt',attemptState:'FAILED',paymentUrl:null});}
+   if(path===`/api/payments/${orderId}/initiate`) {
+    state.attempt=state.initiateState??'FAILED';
+    return reply(route,{orderId,provider:'MOCK',attemptId:'attempt',attemptState:state.attempt,paymentUrl:null},state.attempt==='PROCESSING'?202:200);
+   }
    if(path===`/api/concerts/${concertId}`)return reply(route,concert);
    if(path==='/api/concerts')return reply(route,{content:[],totalPages:0,totalElements:0});
    if(path.includes('/queue/'))return reply(route,{status:'WAITING',position:1,peopleAhead:0,estimatedWaitSeconds:1,queueAccessToken:null,sessionExpiresAt:null,waitingRoomCount:1,queueSize:1,activeShoppers:0});
@@ -80,6 +85,49 @@ const failedHeading=page=>page.getByRole('heading',{name:'Phiên thanh toán đ�
 const waitFor=async check=>{for(let n=0;n<100;n++){if(await check())return;await new Promise(r=>setTimeout(r,50));}throw Error('Timed out waiting for test condition');};
 try {
  {
+  const f=await fixture();await f.page.goto(origin);
+  const footer=f.page.getByRole('contentinfo');
+  await footer.getByRole('link',{name:'Quay lại sự kiện'}).waitFor();
+  for(const [width,height] of [[1440,900],[768,1024],[390,844]]) {
+   await f.page.setViewportSize({width,height});
+   assert(await footer.evaluate(node=>node.scrollWidth<=node.clientWidth+1));
+   await footer.screenshot({path:resolve(output,`buyer-footer-${width}.png`)});
+  }
+  assert.equal(await footer.locator('a[href^="#"], form').count(),0);
+  const history=footer.getByRole('link',{name:'Lịch sử đơn hàng',exact:true});
+  await history.focus();await f.page.keyboard.press('Enter');
+  await f.page.getByRole('region',{name:'Lịch sử đơn hàng'}).waitFor();
+  await f.page.reload();
+  await f.page.getByRole('link',{name:'Tiếp tục thanh toán'}).waitFor();
+  checks.push('Footer links reach real buyer destinations and order history stays selected after reload');await f.close();
+ }
+ {
+  const f=await fixture({authenticated:false});await f.page.goto(origin);
+  const footer=f.page.getByRole('contentinfo');
+  assert.equal(await footer.getByRole('link',{name:'Đăng nhập'}).getAttribute('href'),'/login');
+  assert.equal(await footer.getByRole('link',{name:/Lịch sử đơn hàng|Vé của tôi/}).count(),0);
+  checks.push('Signed-out footer keeps only public and sign-in destinations');await f.close();
+ }
+ {
+  const f=await fixture();await f.page.goto(origin+'/booking-confirmation');
+  const history=f.page.getByRole('link',{name:'Xem lịch sử đơn hàng'});
+  await history.waitFor();
+  await f.page.getByRole('heading',{name:'Chưa thể xác nhận đơn hàng'}).waitFor();
+  assert.equal(await f.page.getByText('Đặt vé thành công').count(),0);
+  await history.click();await f.page.getByRole('region',{name:'Lịch sử đơn hàng'}).waitFor();
+  assert.equal(f.state.postKeys.length,0);
+  checks.push('Opening confirmation without an order never claims settlement or creates a new order');await f.close();
+ }
+ {
+  const f=await fixture({orderStatus:'EXPIRED'});await f.page.goto(origin+`/payment/result?orderId=${orderId}`);
+  await f.page.getByRole('heading',{name:'Đơn hàng đã hết hạn'}).waitFor();
+  assert.equal(await f.page.getByRole('link',{name:'Thử thanh toán lại'}).count(),0);
+  await f.page.getByRole('link',{name:'Xem lịch sử đơn hàng'}).click();
+  await f.page.getByRole('region',{name:'Lịch sử đơn hàng'}).getByText('Hết hạn').waitFor();
+  assert.equal(f.state.postKeys.length,0);
+  checks.push('Expired payment returns direct buyers to the original order history');await f.close();
+ }
+ {
   const f=await fixture();await f.page.goto(origin+`/checkout?orderId=${orderId}`);
   await failedHeading(f.page).waitFor();
   assert.equal(await f.page.getByRole('button',{name:'Tiếp tục với thanh toán demo'}).count(),0);
@@ -96,6 +144,15 @@ try {
   const f=await fixture({attempt:'READY'});await f.page.goto(origin+`/checkout?orderId=${orderId}`);
   await f.page.getByRole('button',{name:'Tiếp tục với thanh toán demo'}).click();await failedHeading(f.page).waitFor();
   checks.push('FAILED returned by initiate switches to recovery panel');await f.close();
+ }
+ {
+  const f=await fixture({attempt:'READY',initiateState:'PROCESSING'});await f.page.goto(origin+`/checkout?orderId=${orderId}`);
+  await f.page.getByRole('button',{name:'Tiếp tục với thanh toán demo'}).click();
+  await f.page.waitForURL(`**/payment/result?orderId=${orderId}&pending=true`);
+  await f.page.getByText('Cổng thanh toán chưa trả kết quả rõ ràng.',{exact:false}).waitFor();
+  f.state.attempt='READY';await f.page.waitForURL(`**/checkout?orderId=${orderId}`);
+  assert.equal(f.state.postKeys.length,0);
+  checks.push('A 202 PROCESSING intent waits for the same order to become ready');await f.close();
  }
  {
   const f=await fixture();await f.page.goto(origin+`/payment/result?orderId=${orderId}`);await failedHeading(f.page).waitFor();
@@ -159,6 +216,7 @@ try {
   await f.page.getByRole('button',{name:'Hủy đơn và chọn vé lại'}).click();await f.page.getByRole('alert').waitFor();
   assert.equal(new URL(f.page.url()).pathname,'/checkout');f.state.orderStatus='PAID';
   await f.page.getByRole('button',{name:'Kiểm tra trạng thái đơn'}).click();await f.page.waitForURL('**/booking-confirmation');
+  await f.page.getByRole('link',{name:'Xem vé của tôi'}).waitFor();
   assert.equal(f.state.postKeys.length,0);
   checks.push('Late paid result wins cancellation: refresh opens confirmation and never starts new purchase');await f.close();
  }

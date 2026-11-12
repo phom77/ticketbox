@@ -167,6 +167,38 @@ try {
   }
   console.log('Draft preview, independent retries, publication, buyer gate and finance workspace passed.');
 
+  await audience.page.getByRole('link', { name: /Mua ngay|Vào phòng chờ/ }).click();
+  await audience.page.waitForURL(`**/concerts/${concert.id}/seats`, { timeout: 45_000 });
+  await audience.page.getByRole('button', { name: 'Thêm một vé GA' }).click();
+  await audience.page.getByRole('button', { name: 'Tiếp tục thanh toán' }).click();
+  await audience.page.waitForURL('**/checkout?orderId=*');
+  const pay = audience.page.getByRole('button', { name: 'Tiếp tục với thanh toán demo' });
+  await Promise.all([
+    audience.page.waitForURL(/\/(payment\/result|booking-confirmation)(\?|$)/),
+    pay.click(),
+  ]);
+  if (new URL(audience.page.url()).pathname !== '/booking-confirmation') {
+    await audience.page.waitForURL('**/checkout?orderId=*');
+    await pay.click();
+  }
+  await audience.page.getByRole('link', { name: 'Xem vé của tôi' }).waitFor();
+  await fits(audience.page, 'Booking confirmation at 390px');
+  await audience.page.goto('/profile?tab=orders');
+  await audience.page.getByRole('region', { name: 'Lịch sử đơn hàng' })
+    .getByRole('heading', { name: title }).waitFor();
+  await audience.page.goto('/my-tickets');
+  await audience.page.reload();
+  const ticketGroup = audience.page.locator('.ticket-concert-card').filter({ hasText: title });
+  const ticketSummary = ticketGroup.locator('.ticket-concert-summary');
+  await ticketSummary.waitFor();
+  if (await ticketSummary.getAttribute('aria-expanded') === 'false') await ticketSummary.click();
+  await ticketGroup.locator('.ticket-row').click();
+  const ticket = audience.page.getByRole('dialog', { name: title });
+  await ticket.getByText('Ticket QR code', { exact: true }).waitFor();
+  assert(await ticket.locator('svg.ticket-qr').isVisible());
+  await fits(audience.page, 'Recovered ticket at 390px');
+  console.log('Mobile buyer selected a ticket, paid with MOCK, recovered the order and opened the issued QR after reload.');
+
   console.log('Organization approval, invitation, grant guards and switching passed at 1440, 834 and 390 px.');
 } finally {
   await browser.close();

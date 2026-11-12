@@ -1,54 +1,32 @@
-import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import type { Order } from '../../api/orders';
 import { RemoteImage } from '../../components/RemoteImage';
 import { eventDate } from '../../data/formatters';
-import { events } from '../../data/demoEvents';
-import type { CheckoutState } from './CheckoutPage';
+import type { CheckoutEvent } from './CheckoutPage';
 
-type ConfirmationState = Partial<CheckoutState> & {
+type ConfirmationState = {
+  event?: CheckoutEvent;
   order?: Order;
 };
 
 export function BookingConfirmationPage() {
-  const [searchParams] = useSearchParams();
   const location = useLocation();
-  const failed = searchParams.get('status') === 'failed';
   const state = location.state as ConfirmationState | null;
-  const mockEvent = events[0];
-  const event = state?.event ?? {
-    id: String(mockEvent.id),
-    title: mockEvent.title,
-    venue: mockEvent.venue,
-    date: mockEvent.date,
-    image: mockEvent.image,
-  };
+  const order = state?.order;
+  const event = state?.event;
 
-  if (failed) {
+  if (!event || order?.status !== 'PAID') {
+    const expired = order?.status === 'EXPIRED' || (
+      order?.status === 'AWAITING_PAYMENT' && new Date(order.expiresAt).getTime() <= Date.now()
+    );
     return (
       <section className="confirmation-page page-width" aria-live="polite">
         <div className="confirmation-mark failed">!</div>
-        <p className="eyebrow">
-          <span /> Thanh toán chưa thành công
-        </p>
-        <h1>
-          Vé của bạn vẫn đang <em>chờ.</em>
-        </h1>
-        <p>
-          Không thể hoàn tất thanh toán. Chưa có khoản phí nào được ghi nhận. Hãy thử lại hoặc kiểm
-          tra lịch sử đơn hàng.
-        </p>
+        <h1>{expired ? 'Đơn hàng đã hết hạn' : 'Chưa thể xác nhận đơn hàng'}</h1>
+        <p>Kiểm tra trạng thái mới nhất trong lịch sử đơn hàng trước khi đặt vé lại.</p>
         <div className="confirmation-actions">
-          {state?.selection?.length ? (
-            <Link
-              className="button button-primary"
-              to="/checkout"
-              state={{ event, selection: state.selection }}
-            >
-              Thử thanh toán lại
-            </Link>
-          ) : null}
-          <Link className="button button-secondary" to="/profile">
-            Xem đơn hàng
+          <Link className="button button-primary" to="/profile?tab=orders">
+            Xem lịch sử đơn hàng
           </Link>
         </div>
       </section>
@@ -64,12 +42,12 @@ export function BookingConfirmationPage() {
       <h1>
         Bạn sẽ tham dự <em>{event.title}.</em>
       </h1>
-      <p>Thanh toán đã được xác nhận và vé của bạn đã sẵn sàng.</p>
+      <p>Thanh toán đã được xác nhận. Bạn có thể xem vé trong mục Vé của tôi.</p>
       <div className="confirmation-ticket">
         <RemoteImage src={event.image ?? undefined} alt="" width="360" height="240" />
         <div>
           <span>
-            {state?.order ? `Đơn ${state.order.id.slice(0, 8).toUpperCase()}` : 'Đơn đã xác nhận'}
+            Đơn {order.id.slice(0, 8).toUpperCase()}
           </span>
           <h2>{event.title}</h2>
           <p>{eventDate.format(new Date(event.date))}</p>
