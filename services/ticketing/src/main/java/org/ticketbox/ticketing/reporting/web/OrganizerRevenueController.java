@@ -11,9 +11,9 @@ import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -27,6 +27,8 @@ import org.ticketbox.ticketing.reporting.application.dto.SalesTrendResponse;
 import org.ticketbox.ticketing.reporting.application.dto.ZoneRevenueResponse;
 import org.ticketbox.ticketing.reporting.application.port.RevenueReportExporter;
 import org.ticketbox.ticketing.web.ApiResponse;
+import org.ticketbox.ticketing.web.security.OrganizationAccess;
+import org.ticketbox.ticketing.web.security.OrganizerPermission;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -34,6 +36,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
+@OrganizerPermission(OrganizerPermission.Grant.FINANCE)
 @RequestMapping("/api/organizer/concerts")
 @RequiredArgsConstructor
 public class OrganizerRevenueController {
@@ -45,8 +48,8 @@ public class OrganizerRevenueController {
     public ResponseEntity<ApiResponse<Page<OrganizerConcertResponse>>> getCompletedConcerts(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            Authentication authentication) {
-        UUID organizerId = getOrganizerId(authentication);
+            @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID organizationId) {
+        UUID organizerId = organizationId;
         Pageable pageable = PageRequest.of(page, size, Sort.by("eventDate").descending());
 
         return ResponseEntity.ok(
@@ -56,8 +59,8 @@ public class OrganizerRevenueController {
 
     @GetMapping("/{concertId}/revenue-summary")
     public ResponseEntity<ApiResponse<RevenueSummaryResponse>> getRevenueSummary(
-            @PathVariable UUID concertId, Authentication authentication) {
-        UUID organizerId = getOrganizerId(authentication);
+            @PathVariable UUID concertId, @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID organizationId) {
+        UUID organizerId = organizationId;
         return ResponseEntity.ok(
                 ApiResponse.success(
                         organizerRevenueService.getRevenueSummary(concertId, organizerId)));
@@ -65,8 +68,8 @@ public class OrganizerRevenueController {
 
     @GetMapping("/{concertId}/zone-revenue")
     public ResponseEntity<ApiResponse<List<ZoneRevenueResponse>>> getZoneRevenue(
-            @PathVariable UUID concertId, Authentication authentication) {
-        UUID organizerId = getOrganizerId(authentication);
+            @PathVariable UUID concertId, @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID organizationId) {
+        UUID organizerId = organizationId;
         return ResponseEntity.ok(
                 ApiResponse.success(
                         organizerRevenueService.getZoneRevenue(concertId, organizerId)));
@@ -78,12 +81,12 @@ public class OrganizerRevenueController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(defaultValue = "day") String groupBy,
-            Authentication authentication) {
+            @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID organizationId) {
         if (!"day".equalsIgnoreCase(groupBy)) {
             throw new AppException(ErrorCode.INVALID_REQUEST, "error.revenue.unsupported-grouping");
         }
 
-        UUID organizerId = getOrganizerId(authentication);
+        UUID organizerId = organizationId;
         return ResponseEntity.ok(
                 ApiResponse.success(
                         organizerRevenueService.getDailySalesTrend(
@@ -94,8 +97,8 @@ public class OrganizerRevenueController {
     public ResponseEntity<byte[]> exportRevenueReport(
             @PathVariable UUID concertId,
             @RequestParam String format,
-            Authentication authentication) {
-        UUID organizerId = getOrganizerId(authentication);
+            @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID organizationId) {
+        UUID organizerId = organizationId;
         RevenueReportExport report =
                 revenueReportExportService.export(concertId, organizerId, format);
 
@@ -110,9 +113,5 @@ public class OrganizerRevenueController {
                 .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
                 .header(HttpHeaders.CACHE_CONTROL, "no-store")
                 .body(report.content());
-    }
-
-    private UUID getOrganizerId(Authentication authentication) {
-        return UUID.fromString(authentication.getName());
     }
 }

@@ -1,3 +1,4 @@
+import { useOrganization } from '../../features/organizations/OrganizationProvider';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Eye, Filter, RefreshCw, Receipt, Ticket } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
@@ -186,6 +187,8 @@ function TicketTab({
   concerts: ConcertDetail[];
   apiScope: ManagementApiScope;
 }) {
+  const organization = useOrganization();
+  const canManageTickets = apiScope === 'admin' || !!organization?.selected?.grants.includes('EVENTS');
   const [concertId, setConcertId] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [tickets, setTickets] = useState<TicketType[]>([]);
@@ -287,14 +290,14 @@ function TicketTab({
                     <th>Loại vé</th>
                     <th>Ngày cấp</th>
                     <th>Trạng thái</th>
-                    <th>Thao tác</th>
+                    {canManageTickets ? <th>Thao tác</th> : null}
                   </tr>
                 </thead>
                 <tbody>
                   {tickets.length === 0 && !loading && (
                     <tr>
                       <td
-                        colSpan={6}
+                        colSpan={canManageTickets ? 6 : 5}
                         style={{ textAlign: 'center', color: 'var(--muted)', padding: '32px 0' }}
                       >
                         Không có vé nào.
@@ -322,22 +325,24 @@ function TicketTab({
                       <td>
                         <StatusBadge label={t.status} variant={ticketStatusVariant(t.status)} />
                       </td>
-                      <td>
-                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                          <select
-                            value={t.status}
-                            onChange={(e) => handleStatusChange(t.id, e.target.value)}
-                            disabled={savingId === t.id}
-                            style={{ fontSize: 11 }}
-                          >
-                            <option value="VALID">VALID</option>
-                            <option value="USED">USED</option>
-                            <option value="CANCELLED">CANCELLED</option>
-                            <option value="TRANSFERRED">TRANSFERRED</option>
-                          </select>
-                          {savingId === t.id && <RefreshCw size={12} className="spin" />}
-                        </div>
-                      </td>
+                      {canManageTickets ? (
+                        <td>
+                          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                            <select
+                              value={t.status}
+                              onChange={(e) => handleStatusChange(t.id, e.target.value)}
+                              disabled={savingId === t.id}
+                              style={{ fontSize: 11 }}
+                            >
+                              <option value="VALID">VALID</option>
+                              <option value="USED">USED</option>
+                              <option value="CANCELLED">CANCELLED</option>
+                              <option value="TRANSFERRED">TRANSFERRED</option>
+                            </select>
+                            {savingId === t.id && <RefreshCw size={12} className="spin" />}
+                          </div>
+                        </td>
+                      ) : null}
                     </tr>
                   ))}
                 </tbody>

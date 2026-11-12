@@ -2,8 +2,8 @@
 
 ## Contexts
 
-- [Identity](services/identity/GLOSSARY.md) owns accounts and roles.
-- [Catalog](services/catalog/GLOSSARY.md) owns concert information and sale configuration.
+- [Identity](services/identity/GLOSSARY.md) owns accounts, roles, organizations, membership and grants.
+- [Catalog](services/catalog/GLOSSARY.md) owns concert information, concert ownership and sale configuration.
 - [Ticketing](services/ticketing/GLOSSARY.md) owns shopping sessions, stock, orders and issued tickets.
 - [Check-in](services/checkin/GLOSSARY.md) owns admission decisions.
 - [Payment](services/payment/GLOSSARY.md) owns payment attempts and verified provider receipts.
@@ -13,6 +13,6 @@
 
 Catalog supplies sale configuration to Ticketing and concert information to Check-in.
 Ticketing supplies issued ticket snapshots to Check-in and payment intents to Payment.
-Payment supplies verified results to Ticketing. Check-in supplies admission feedback to Ticketing.
+Payment supplies verified results and reconciliation snapshots to Ticketing. Check-in supplies admission feedback to Ticketing.
 Ticketing requests confirmation and reminder messages from Notification. Identity supplies contact details.
 Each receiving context interprets the supplied data in its own model.

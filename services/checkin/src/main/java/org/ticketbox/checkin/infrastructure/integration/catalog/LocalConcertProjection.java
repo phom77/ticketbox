@@ -71,7 +71,7 @@ public class LocalConcertProjection
     public boolean isOwnedBy(UUID concertId, UUID organizerId) {
         return Boolean.TRUE.equals(
                 jdbc.queryForObject(
-                        "SELECT EXISTS(SELECT 1 FROM concerts WHERE id=? AND created_by=?)",
+                        "SELECT EXISTS(SELECT 1 FROM concerts WHERE id=? AND organization_id=?)",
                         Boolean.class,
                         concertId,
                         organizerId));
@@ -79,6 +79,6 @@ public class LocalConcertProjection
 
     public List<UUID> findConcertIdsOwnedBy(UUID organizerId) {
         return jdbc.queryForList(
-                "SELECT id FROM concerts WHERE created_by=?", UUID.class, organizerId);
+                "SELECT id FROM concerts WHERE organization_id=?", UUID.class, organizerId);
     }
 }

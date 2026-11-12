@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useState } from 'react';
 import {
   CalendarPlus,
   ChevronLeft,
@@ -146,7 +146,7 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
       setLoading(true);
       setError('');
       try {
-        setPageData(await getAdminConcerts(page, 10, status || undefined, signal, apiScope));
+        setPageData(await getAdminConcerts(page, 10, status || undefined, signal, apiScope, query));
       } catch (requestError) {
         if (!isRequestCanceled(requestError)) {
           setError(
@@ -159,7 +159,7 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
         if (!signal?.aborted) setLoading(false);
       }
     },
-    [apiScope, page, status],
+    [apiScope, page, query, status],
   );
 
   useEffect(() => {
@@ -197,27 +197,10 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
     }
   }, [searchParams]);
 
-  const counts = useMemo(() => {
-    const content = pageData?.content ?? [];
-    return {
-      total: pageData?.totalElements ?? 0,
-      onSale: content.filter((concert) => concert.status === 'ON_SALE').length,
-      draft: content.filter((concert) => concert.status === 'DRAFT').length,
-    };
-  }, [pageData]);
-
-  const filteredConcerts = useMemo(() => {
-    const content = pageData?.content ?? [];
-    const keyword = query.trim().toLocaleLowerCase('vi-VN');
-    if (!keyword) return content;
-    return content.filter((concert) =>
-      [concert.title, concert.venueName, concert.venueAddress, statusLabel(concert.status)]
-        .filter(Boolean)
-        .join(' ')
-        .toLocaleLowerCase('vi-VN')
-        .includes(keyword),
-    );
-  }, [pageData?.content, query]);
+  const filteredConcerts = pageData?.content ?? [];
+  const availableTransitions = (concert: ConcertDetail) => transitions[concert.status].filter(
+    (next) => apiScope === 'admin' || (next !== 'CANCELLED' && !(concert.status === 'DRAFT' && next === 'ON_SALE')),
+  );
 
   function openCreate() {
     setEditing(null);
@@ -359,18 +342,7 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
       />
 
       <section className="admin-inline-stats" aria-label="Tóm tắt concert">
-        <div>
-          <span>Tổng concert</span>
-          <strong>{counts.total}</strong>
-        </div>
-        <div>
-          <span>Đang bán trên trang này</span>
-          <strong>{counts.onSale}</strong>
-        </div>
-        <div>
-          <span>Bản nháp trên trang này</span>
-          <strong>{counts.draft}</strong>
-        </div>
+        <div><span>Buổi diễn phù hợp</span><strong>{pageData?.totalElements ?? '—'}</strong></div>
       </section>
 
       <div className="admin-toolbar">
@@ -380,7 +352,7 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
           <input
             type="search"
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => { setQuery(event.target.value); setPage(0); }}
             placeholder="Tìm concert, địa điểm..."
           />
         </label>
@@ -484,15 +456,15 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
                     </td>
                     <td>
                       <span className={`admin-status status-${concert.status.toLowerCase()}`}>
-                        {statusLabel(concert.status)}
+                        {apiScope === 'organizer' && concert.status === 'ON_SALE' ? 'Đã cấu hình mở bán' : statusLabel(concert.status)}
                       </span>
                     </td>
                     <td>
                       <ActionMenu
                         label="Chuyển trạng thái"
                         ariaLabel={`Đổi trạng thái ${concert.title}`}
-                        disabled={!transitions[concert.status].length || busyId === concert.id}
-                        options={transitions[concert.status].map((next) => ({
+                        disabled={!availableTransitions(concert).length || busyId === concert.id}
+                        options={availableTransitions(concert).map((next) => ({
                           value: next,
                           label: statusLabel(next),
                           destructive: next === 'CANCELLED',

@@ -7,18 +7,21 @@ import io.jsonwebtoken.security.Keys;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.ticketbox.identity.auth.application.port.SessionReader;
+import org.ticketbox.identity.auth.application.port.TokenIssuer;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
 
 import javax.crypto.SecretKey;
 
 @Service
-public class JwtService implements org.ticketbox.identity.auth.application.port.TokenIssuer {
+public class JwtService implements TokenIssuer, SessionReader {
 
     private final SecretKey secretKey;
     private final long expirationMs;
@@ -30,11 +33,13 @@ public class JwtService implements org.ticketbox.identity.auth.application.port.
         this.expirationMs = expirationMs;
     }
 
-    public String generateToken(UUID userId, String email, String role, String fullName) {
+    public String generateToken(
+            UUID userId, String email, String role, String fullName, long sessionVersion) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("email", email);
         claims.put("role", role);
         claims.put("fullName", fullName);
+        claims.put("sessionVersion", sessionVersion);
 
         return Jwts.builder()
                 .claims(claims)
@@ -52,6 +57,20 @@ public class JwtService implements org.ticketbox.identity.auth.application.port.
 
     public String extractRole(String token) {
         return extractClaim(token, claims -> claims.get("role", String.class));
+    }
+
+    @Override
+    public Optional<Session> read(String token) {
+        try {
+            Claims claims = extractAllClaims(token);
+            Long version = claims.get("sessionVersion", Long.class);
+            if (version == null || claims.getExpiration() == null) {
+                return Optional.empty();
+            }
+            return Optional.of(new Session(UUID.fromString(claims.getSubject()), version));
+        } catch (JwtException | IllegalArgumentException e) {
+            return Optional.empty();
+        }
     }
 
     private <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {

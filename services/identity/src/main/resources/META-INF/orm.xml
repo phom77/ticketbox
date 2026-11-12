@@ -38,6 +38,9 @@
             <basic name="isActive">
                 <column name="is_active" nullable="false" />
             </basic>
+            <basic name="sessionVersion">
+                <column name="session_version" nullable="false" />
+            </basic>
         </attributes>
     </entity>
 </entity-mappings>

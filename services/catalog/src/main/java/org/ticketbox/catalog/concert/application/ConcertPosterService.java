@@ -92,8 +92,8 @@ public class ConcertPosterService {
                                                 "error.concert.not-found-by-id",
                                                 concertId));
 
-        if (!isAdmin && !concert.getCreatedBy().equals(requesterId)) {
-            throw new AppException(ErrorCode.UNAUTHORIZED, "error.concert.edit-forbidden");
+        if (!isAdmin && !requesterId.equals(concert.getOrganizationId())) {
+            throw new AppException(ErrorCode.RESOURCE_NOT_FOUND, "error.concert.not-found-by-id", concertId);
         }
         if (concert.getStatus() == Concert.Status.COMPLETED
                 || concert.getStatus() == Concert.Status.CANCELLED) {

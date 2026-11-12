@@ -1,8 +1,5 @@
 package org.ticketbox.checkin.admission.web;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -19,16 +16,12 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
 import org.ticketbox.checkin.admission.application.CheckinService;
-import org.ticketbox.checkin.admission.application.dto.ScanTicketResponse;
-import org.ticketbox.checkin.admission.application.dto.SyncCheckinResponse;
 import org.ticketbox.checkin.config.SecurityConfig;
 import org.ticketbox.checkin.guestlist.application.GuestListService;
 import org.ticketbox.checkin.guestlist.web.StaffGuestListController;
 import org.ticketbox.checkin.infrastructure.security.JwtService;
 
-import java.time.OffsetDateTime;
 import java.util.Collections;
-import java.util.List;
 import java.util.UUID;
 
 @WebMvcTest(
@@ -192,27 +185,8 @@ class SecurityCheckinRbacTest {
     }
 
     @Test
-    void checkinEndpoints_WithStaff_ReturnSuccess() throws Exception {
+    void legacyCheckinRoutesAreDisabledForStaff() throws Exception {
         UsernamePasswordAuthenticationToken staff = auth("STAFF");
-        when(checkinService.scan(any(), eq(staffId)))
-                .thenReturn(
-                        new ScanTicketResponse(
-                                null,
-                                concertId,
-                                "FAILED",
-                                "checkin.qr-invalid",
-                                OffsetDateTime.now()));
-        when(checkinService.syncOfflineLogs(any(), eq(staffId)))
-                .thenReturn(
-                        new SyncCheckinResponse(
-                                1,
-                                1,
-                                0,
-                                0,
-                                List.of(
-                                        new SyncCheckinResponse.SyncResultEntry(
-                                                "test", "ACCEPTED", "checkin.sync.accepted"))));
-
         mockMvc.perform(
                         post("/api/staff/checkins/scan")
                                 .with(authentication(staff))
@@ -222,9 +196,7 @@ class SecurityCheckinRbacTest {
                                         "{\"qrCode\":\"test\",\"concertId\":\""
                                                 + concertId
                                                 + "\",\"deviceId\":\"dev1\",\"gate\":\"A\"}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("FAILED"))
-                .andExpect(jsonPath("$.data.message").value("Invalid QR code"));
+                .andExpect(status().isForbidden());
 
         mockMvc.perform(
                         post("/api/staff/checkins/sync")
@@ -235,52 +207,49 @@ class SecurityCheckinRbacTest {
                                         "{\"concertId\":\""
                                                 + concertId
                                                 + "\",\"deviceId\":\"dev1\",\"logs\":[{\"qrCode\":\"test\",\"checkedAt\":\"2026-06-16T14:00:00Z\"}]}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.results[0].result").value("ACCEPTED"))
-                .andExpect(
-                        jsonPath("$.data.results[0].reason")
-                                .value("Đã ghi nhận check-in thành công"));
+                .andExpect(status().isForbidden());
 
         mockMvc.perform(
                         get("/api/staff/concerts/" + concertId + "/checkin-dataset")
                                 .with(authentication(staff)))
-                .andExpect(status().isOk());
+                .andExpect(status().isForbidden());
 
         mockMvc.perform(get("/api/staff/concerts").with(authentication(staff)))
-                .andExpect(status().isOk());
+                .andExpect(status().isForbidden());
 
         mockMvc.perform(
                         get("/api/staff/concerts/" + concertId + "/overview")
                                 .with(authentication(staff)))
-                .andExpect(status().isOk());
+                .andExpect(status().isForbidden());
 
         mockMvc.perform(
                         get("/api/staff/concerts/" + concertId + "/tickets")
                                 .with(authentication(staff)))
-                .andExpect(status().isOk());
+                .andExpect(status().isForbidden());
 
         mockMvc.perform(
                         get("/api/staff/guestlist?concert_id=" + concertId + "&phone=0901234567")
                                 .with(authentication(staff)))
-                .andExpect(status().isOk());
+                .andExpect(status().isForbidden());
 
         mockMvc.perform(
                         get("/api/staff/concerts/" + concertId + "/checkins")
                                 .with(authentication(staff)))
-                .andExpect(status().isOk());
+                .andExpect(status().isForbidden());
+        org.mockito.Mockito.verifyNoInteractions(checkinService, guestListService);
     }
 
     @Test
-    void getCheckins_WithOrganizerAndAdmin_ReturnSuccess() throws Exception {
+    void legacyHistoryIsDisabledForOrganizerAndAdmin() throws Exception {
         mockMvc.perform(
                         get("/api/staff/concerts/" + concertId + "/checkins")
                                 .with(authentication(auth("ORGANIZER"))))
-                .andExpect(status().isOk());
+                .andExpect(status().isForbidden());
 
         mockMvc.perform(
                         get("/api/staff/concerts/" + concertId + "/checkins")
                                 .with(authentication(auth("ADMIN"))))
-                .andExpect(status().isOk());
+                .andExpect(status().isForbidden());
 
         mockMvc.perform(
                         get("/api/staff/concerts/" + concertId + "/checkins")

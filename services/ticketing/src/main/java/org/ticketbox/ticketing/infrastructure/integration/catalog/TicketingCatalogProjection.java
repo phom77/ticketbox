@@ -91,14 +91,14 @@ public class TicketingCatalogProjection
     @Override
     public List<UUID> findConcertIdsOwnedBy(UUID organizerId) {
         return jdbc.queryForList(
-                "SELECT id FROM concerts WHERE created_by=?", UUID.class, organizerId);
+                "SELECT id FROM concerts WHERE organization_id=?", UUID.class, organizerId);
     }
 
     @Override
     public boolean isConcertOwnedBy(UUID concertId, UUID organizerId) {
         return Boolean.TRUE.equals(
                 jdbc.queryForObject(
-                        "SELECT EXISTS(SELECT 1 FROM concerts WHERE id=? AND created_by=?)",
+                        "SELECT EXISTS(SELECT 1 FROM concerts WHERE id=? AND organization_id=?)",
                         Boolean.class,
                         concertId,
                         organizerId));
@@ -131,7 +131,7 @@ public class TicketingCatalogProjection
     public Optional<ConcertReportingView> findOwnedConcert(UUID concertId, UUID organizerId) {
         return jdbc
                 .query(
-                        "SELECT " + REPORT_COLUMNS + " FROM concerts WHERE id=? AND created_by=?",
+                        "SELECT " + REPORT_COLUMNS + " FROM concerts WHERE id=? AND organization_id=?",
                         REPORT,
                         concertId,
                         organizerId)
@@ -149,7 +149,7 @@ public class TicketingCatalogProjection
 
     @Override
     public Page<ConcertReportingView> findCompletedConcerts(UUID organizerId, Pageable pageable) {
-        String filter = " FROM concerts WHERE created_by=? AND status='COMPLETED'";
+        String filter = " FROM concerts WHERE organization_id=? AND status='COMPLETED'";
         var rows =
                 jdbc.query(
                         "SELECT "

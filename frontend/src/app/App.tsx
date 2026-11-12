@@ -1,10 +1,14 @@
+import { ReconciliationPage } from '../pages/organizer/ReconciliationPage';
+import { OrganizationProvider, RequireOrganizationGrant } from '../features/organizations/OrganizationProvider';
+import { AdminOrganizationsPage } from '../pages/admin/AdminOrganizationsPage';
+import { OrganizationMembersPage } from '../pages/organizer/OrganizationMembersPage';
 import { useLayoutEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { OperationsLayout } from '../components/layout/OperationsLayout';
 import { PublicLayout } from '../components/layout/PublicLayout';
 import { ToastProvider } from '../components/feedback/ToastProvider';
 import { AuthProvider } from '../features/auth/AuthContext';
-import { GuestOrAudienceRoute, ProtectedRoute } from '../features/auth/ProtectedRoute';
+import { CatalogueRoute, ProtectedRoute } from '../features/auth/ProtectedRoute';
 import { AdminArtistBioPage } from '../pages/admin/AdminArtistBioPage';
 import { AdminConcertsPage } from '../pages/admin/AdminConcertsPage';
 import { ConcertWorkspacePage } from '../pages/admin/ConcertWorkspacePage';
@@ -28,16 +32,12 @@ import { ConcertDetailPage } from '../pages/public/ConcertDetailPage';
 import { HomePage } from '../pages/public/HomePage';
 import { LoginPage } from '../pages/public/LoginPage';
 import { RegisterPage } from '../pages/public/RegisterPage';
-import { StaffCheckInPage } from '../pages/staff/StaffCheckInPage';
-import { StaffGuestsPage } from '../pages/staff/StaffGuestsPage';
-import { StaffHistoryPage } from '../pages/staff/StaffHistoryPage';
-import { StaffOverviewPage } from '../pages/staff/StaffOverviewPage';
 
 const audiencePage = (page: React.ReactNode) => (
   <ProtectedRoute allowedRoles={['AUDIENCE']} redirectUnauthorized>{page}</ProtectedRoute>
 );
 
-const cataloguePage = (page: React.ReactNode) => <GuestOrAudienceRoute>{page}</GuestOrAudienceRoute>;
+const cataloguePage = (page: React.ReactNode) => <CatalogueRoute>{page}</CatalogueRoute>;
 
 export function App() {
   return (
@@ -48,7 +48,7 @@ export function App() {
           <Routes>
             <Route element={<PublicLayout />}>
               <Route path="/" element={cataloguePage(<HomePage />)} />
-              <Route path="/concerts/:id" element={cataloguePage(<ConcertDetailPage />)} />
+              <Route path="/concerts/:id" element={<ConcertDetailPage />} />
               <Route path="/concerts/:id/waiting-room" element={audiencePage(<WaitingRoomPage />)} />
               <Route path="/concerts/:id/seats" element={audiencePage(<SeatSelectionPage />)} />
               <Route path="/checkout" element={audiencePage(<CheckoutPage />)} />
@@ -75,40 +75,44 @@ export function App() {
               <Route path="ticket-types" element={<AdminTicketTypesPage />} />
               <Route path="guests" element={<AdminGuestImportsPage />} />
               <Route path="orders" element={<AdminOrdersPage />} />
+              <Route path="reconciliation" element={<ReconciliationPage scope="admin" />} />
               <Route path="notifications" element={<AdminNotificationsPage />} />
               <Route path="users" element={<AdminUsersPage />} />
+              <Route path="organizations" element={<AdminOrganizationsPage />} />
               <Route path="batch-logs" element={<Navigate to="/admin/guests" replace />} />
             </Route>
             <Route
               path="/organizer"
               element={
-                <ProtectedRoute allowedRoles={['ORGANIZER']}>
-                  <OperationsLayout mode="organizer" />
+                <ProtectedRoute>
+                  <OrganizationProvider>
+                    <OperationsLayout mode="organizer" />
+                  </OrganizationProvider>
                 </ProtectedRoute>
               }
             >
               <Route index element={<OrganizerOverviewPage />} />
-              <Route path="concerts" element={<AdminConcertsPage apiScope="organizer" />} />
-              <Route path="concerts/:id" element={<ConcertWorkspacePage apiScope="organizer" />} />
-              <Route path="ticket-types" element={<AdminTicketTypesPage apiScope="organizer" />} />
-              <Route path="guests" element={<AdminGuestImportsPage apiScope="organizer" uploadMode="scheduled" />} />
-              <Route path="artist-bio" element={<AdminArtistBioPage apiScope="organizer" />} />
-              <Route path="revenue" element={<OrganizerRevenuePage />} />
-              <Route path="orders" element={<AdminOrdersPage apiScope="organizer" />} />
+              <Route path="concerts" element={<RequireOrganizationGrant grant="EVENTS"><AdminConcertsPage apiScope="organizer" /></RequireOrganizationGrant>} />
+              <Route path="concerts/:id/preview" element={<RequireOrganizationGrant grant="EVENTS"><ConcertDetailPage preview /></RequireOrganizationGrant>} />
+              <Route path="concerts/:id" element={<RequireOrganizationGrant grant="EVENTS"><ConcertWorkspacePage apiScope="organizer" /></RequireOrganizationGrant>} />
+              <Route path="ticket-types" element={<RequireOrganizationGrant grant="EVENTS"><AdminTicketTypesPage apiScope="organizer" /></RequireOrganizationGrant>} />
+              <Route path="guests" element={<RequireOrganizationGrant grant="EVENTS"><AdminGuestImportsPage apiScope="organizer" uploadMode="scheduled" /></RequireOrganizationGrant>} />
+              <Route path="artist-bio" element={<RequireOrganizationGrant grant="EVENTS"><AdminArtistBioPage apiScope="organizer" /></RequireOrganizationGrant>} />
+              <Route path="reconciliation" element={<RequireOrganizationGrant grant="FINANCE"><ReconciliationPage scope="organizer" /></RequireOrganizationGrant>} />
+              <Route path="revenue" element={<RequireOrganizationGrant grant="FINANCE"><OrganizerRevenuePage /></RequireOrganizationGrant>} />
+              <Route path="orders" element={<RequireOrganizationGrant grant="FINANCE"><AdminOrdersPage apiScope="organizer" /></RequireOrganizationGrant>} />
+              <Route path="members" element={<RequireOrganizationGrant grant="MEMBERS"><OrganizationMembersPage /></RequireOrganizationGrant>} />
             </Route>
-            <Route
-              path="/staff"
-              element={
-                <ProtectedRoute allowedRoles={['STAFF']}>
-                  <OperationsLayout mode="staff" />
-                </ProtectedRoute>
-              }
-            >
-              <Route index element={<StaffOverviewPage />} />
-              <Route path="check-in" element={<StaffCheckInPage />} />
-              <Route path="guests" element={<StaffGuestsPage />} />
-              <Route path="history" element={<StaffHistoryPage />} />
-            </Route>
+            <Route path="/staff/*" element={
+              <ProtectedRoute allowedRoles={['STAFF']}>
+                <main className="route-forbidden page-width">
+                  <div className="state-panel" role="status">
+                    <h1>Soát vé chưa mở</h1>
+                    <p>Tính năng sẽ mở cùng phiên bản máy quét mới.</p>
+                  </div>
+                </main>
+              </ProtectedRoute>
+            } />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>

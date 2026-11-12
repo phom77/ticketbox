@@ -56,7 +56,7 @@ export function PublicLayout() {
 
   const homePath = getRoleHome(user?.role);
   const homeLabel = getRoleHomeLabel(user?.role);
-  const canBrowseCatalogue = !user || user.role === 'AUDIENCE';
+  const canBrowseCatalogue = !user || user.role === 'AUDIENCE' || user.role === 'ORGANIZER';
   const isAudience = user?.role === 'AUDIENCE';
 
   function logOut() {
@@ -106,7 +106,7 @@ export function PublicLayout() {
                 </NavLink>
               ) : null}
               {user?.role === 'ADMIN' ? <NavLink to="/admin">Quản trị</NavLink> : null}
-              {user?.role === 'ORGANIZER' ? (
+              {user ? (
                 <NavLink to="/organizer">Không gian nhà tổ chức</NavLink>
               ) : null}
               {user?.role === 'STAFF' ? <NavLink to="/staff">Vận hành cổng</NavLink> : null}
@@ -164,7 +164,7 @@ export function PublicLayout() {
                           Quản trị
                         </Link>
                       ) : null}
-                      {user.role === 'ORGANIZER' ? (
+                      {user ? (
                         <Link to="/organizer" onClick={() => setMenuOpen(false)}>
                           Không gian nhà tổ chức
                         </Link>
@@ -229,7 +229,7 @@ export function PublicLayout() {
                   Quản trị
                 </NavLink>
               ) : null}
-              {user?.role === 'ORGANIZER' ? (
+              {user ? (
                 <NavLink to="/organizer" onClick={() => setMobileOpen(false)}>
                   Không gian nhà tổ chức
                 </NavLink>

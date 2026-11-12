@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Identity organization access v1",
+  "description": "Success response of GET /internal/split/v1/organization-access/{id}. Send the existing service token and the caller's bearer token. A separate GET /internal/split/v1/platform-access returns 204 for a current platform administrator.",
+  "type": "object",
+  "required": ["accountId", "organizationId", "grants"],
+  "properties": {
+    "accountId": {"type": "string", "format": "uuid"},
+    "organizationId": {"type": "string", "format": "uuid"},
+    "grants": {
+      "type": "array",
+      "items": {"enum": ["MEMBERS", "EVENTS", "FINANCE"]},
+      "minItems": 1,
+      "uniqueItems": true
+    }
+  }
+}

@@ -68,7 +68,8 @@ public class AuthService {
 
         String token =
                 jwtService.generateToken(
-                        user.getId(), user.getEmail(), user.getRole().name(), user.getFullName());
+                        user.getId(), user.getEmail(), user.getRole().name(), user.getFullName(),
+                        user.getSessionVersion());
         long expiresIn = jwtService.getExpirationMs() / 1000; // in seconds
 
         AuthResponse.UserSummary userSummary =

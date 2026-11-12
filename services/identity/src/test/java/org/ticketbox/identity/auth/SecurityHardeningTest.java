@@ -18,6 +18,7 @@ import org.ticketbox.identity.account.domain.User;
 import org.ticketbox.identity.account.web.AdminUserController;
 import org.ticketbox.identity.config.SecurityConfig;
 import org.ticketbox.identity.infrastructure.security.JwtService;
+import org.ticketbox.identity.web.security.SessionAccess;
 
 import java.util.Collections;
 
@@ -32,6 +33,7 @@ class SecurityHardeningTest {
     @MockBean private UserRepository userRepository;
 
     @MockBean private AdminUserService adminUserService;
+    @MockBean private SessionAccess sessions;
 
     private UsernamePasswordAuthenticationToken createAuthToken(User.Role role) {
         String userId = "11111111-1111-1111-1111-111111111111";
@@ -61,6 +63,7 @@ class SecurityHardeningTest {
     void adminUsersEndpoint_WithAdminRole_ReturnsOk() throws Exception {
         mockMvc.perform(
                         get("/api/admin/users")
+                                .header("Authorization", "Bearer fixture")
                                 .with(authentication(createAuthToken(User.Role.ADMIN))))
                 .andExpect(status().isOk());
     }

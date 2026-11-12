@@ -22,6 +22,7 @@ import org.ticketbox.catalog.artistbio.application.ArtistBioJobService;
 import org.ticketbox.catalog.artistbio.application.dto.ArtistBioJobResponse;
 import org.ticketbox.catalog.config.SecurityConfig;
 import org.ticketbox.catalog.infrastructure.security.JwtService;
+import org.ticketbox.catalog.web.security.OrganizationAccess;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -49,7 +50,8 @@ class ArtistBioJobControllerTest {
                 .thenReturn(new PageImpl<>(List.of(response(concertId))));
 
         mockMvc.perform(
-                        get("/api/admin/artist-bio-jobs")
+                        get("/api/organizer/manage/artist-bio-jobs")
+                                .requestAttr(OrganizationAccess.ORGANIZATION, organizerId)
                                 .param("concertId", concertId.toString())
                                 .param("status", "DONE")
                                 .with(authentication(auth(organizerId, "ORGANIZER"))))

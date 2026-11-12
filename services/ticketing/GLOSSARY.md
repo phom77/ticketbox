@@ -4,7 +4,7 @@
 
 **Order**
 
-A customer's priced ticket purchase, with line items and a payment deadline.
+A customer's priced ticket purchase, with line items and a payment deadline. The organization recorded at creation determines attribution for reconciliation.
 
 **Order item**
 
@@ -25,3 +25,7 @@ A ticket created for a settled order and eligible for admission.
 **Stock**
 
 The available, held and allocated quantities of a ticket type.
+
+**Verified collection**
+
+Money confirmed by Payment. It can include a late payment for an order that Ticketing could no longer settle.

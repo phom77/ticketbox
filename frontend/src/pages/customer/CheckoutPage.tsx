@@ -7,6 +7,7 @@ import {
   completeMockPayment,
   getOrder,
   getPaymentStatus,
+  getPaymentProviders,
   initiatePayment,
   type Order,
   type PaymentProvider,
@@ -69,13 +70,13 @@ const paymentOptions: Array<{
   {
     value: 'VNPAY',
     title: 'VNPAY',
-    copy: 'Tiếp tục an toàn sang trang thanh toán sandbox của VNPAY.',
+    copy: 'Tiếp tục sang trang thanh toán VNPAY.',
     badge: 'VNPAY',
   },
   {
     value: 'MOMO',
     title: 'MoMo',
-    copy: 'Tiếp tục an toàn sang trang thanh toán sandbox của MoMo.',
+    copy: 'Tiếp tục sang trang thanh toán MoMo.',
     badge: 'MoMo',
   },
 ];
@@ -94,8 +95,14 @@ export function CheckoutPage() {
   const [resumeRefreshKey, setResumeRefreshKey] = useState(0);
   const storedAdmission = event ? getStoredQueueAdmission(event.id) : null;
   const queueAccessToken = state?.queueAccessToken ?? storedAdmission?.queueAccessToken;
-  const [provider, setProvider] = useState<PaymentProvider>('MOCK');
+  const [requestedProvider, setProvider] = useState<PaymentProvider>('MOCK');
+  const [providers, setProviders] = useState<PaymentProvider[] | null>(null);
+  const [providerError, setProviderError] = useState('');
+  const [providerReload, setProviderReload] = useState(0);
   const [lockedProvider, setLockedProvider] = useState<PaymentProvider | null>(null);
+  const allowed = providers ?? [];
+  const preferred = lockedProvider ?? requestedProvider;
+  const provider = allowed.includes(preferred) ? preferred : (lockedProvider ? null : allowed[0] ?? null);
   const [processing, setProcessing] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [creatingOrder, setCreatingOrder] = useState(false);
@@ -112,6 +119,18 @@ export function CheckoutPage() {
   const displayedTotal =
     createdOrder?.totalAmount ??
     selection.reduce((total, item) => total + item.price * item.quantity, 0);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setProviders(null);
+    setProviderError('');
+    void getPaymentProviders(controller.signal).then((result) => {
+      if (!controller.signal.aborted) setProviders(result);
+    }).catch(() => {
+      if (!controller.signal.aborted) setProviderError('Không thể tải cổng thanh toán.');
+    });
+    return () => controller.abort();
+  }, [providerReload]);
 
   useEffect(() => {
     const activeResumeOrderId = resumeOrderId ?? '';
@@ -426,6 +445,11 @@ export function CheckoutPage() {
       return;
     }
 
+    if (!provider) {
+      setError('Cổng thanh toán chưa sẵn sàng.');
+      return;
+    }
+
     setProcessing(true);
 
     try {
@@ -484,7 +508,7 @@ export function CheckoutPage() {
   }
 
   const paymentDisabled =
-    processing || cancelling || creatingOrder || !createdOrder || paymentFailed || paymentCountdown.isExpired;
+    processing || cancelling || creatingOrder || !createdOrder || paymentFailed || paymentCountdown.isExpired || !provider;
 
   async function leaveCheckout() {
     if (!event) return;
@@ -598,8 +622,15 @@ export function CheckoutPage() {
                     : 'Bạn có 15 phút kể từ khi đơn hàng được tạo.'}
               </p>
             </div>
+            {providers === null && !providerError ? <p role="status">Đang tải cổng thanh toán…</p> : null}
+            {providerError || (providers !== null && !provider) ? (
+              <p role="alert">{providerError || 'Cổng thanh toán chưa sẵn sàng.'}{' '}
+                <button type="button" className="button button-secondary"
+                  onClick={() => setProviderReload((value) => value + 1)}>Thử lại</button>
+              </p>
+            ) : null}
             <div className="payment-options">
-              {paymentOptions.map((option) => (
+              {paymentOptions.filter((option) => allowed.includes(option.value)).map((option) => (
                 <label
                   className={`payment-option ${provider === option.value ? 'selected' : ''}`}
                   key={option.value}
@@ -668,7 +699,7 @@ export function CheckoutPage() {
                   : `Đang mở ${provider}...`
                 : paymentCountdown.isExpired
                   ? 'Đã hết thời gian thanh toán'
-                  : `Tiếp tục với ${provider === 'MOCK' ? 'thanh toán demo' : provider}`}
+                  : provider ? `Tiếp tục với ${provider === 'MOCK' ? 'thanh toán demo' : provider}` : 'Chưa có cổng thanh toán'}
           </button>
           <p className="secure-note">Kiểm tra tổng tiền và hoàn tất thanh toán trước khi thời gian giữ vé kết thúc.</p>
         </aside>

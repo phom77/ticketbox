@@ -18,6 +18,8 @@ public interface UserRepository {
 
     java.util.Optional<User> findById(java.util.UUID id);
 
+    Optional<User> findByIdForUpdate(java.util.UUID id);
+
     void delete(User entity);
 
     void deleteById(java.util.UUID id);

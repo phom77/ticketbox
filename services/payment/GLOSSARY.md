@@ -14,6 +14,10 @@ The provider-facing progress and attributed transaction for a payment intent.
 
 Provider evidence whose signature and reported result have been checked.
 
+**Reconciliation snapshot**
+
+The versioned reporting facts for a payment attempt, including verified collection and recorded refund evidence when available. Ticketing receives it through a separate outbox.
+
 **Compensation review**
 
 An operator case for money that cannot settle the intended order.

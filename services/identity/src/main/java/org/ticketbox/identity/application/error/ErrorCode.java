@@ -7,6 +7,8 @@ public enum ErrorCode {
     INVALID_REQUEST("error.invalid-request"),
     VALIDATION_FAILED("error.validation-failed"),
     UNAUTHENTICATED("error.unauthenticated"),
+    FORBIDDEN("error.forbidden"),
+    CONFLICT("error.conflict"),
     RESOURCE_NOT_FOUND("error.resource-not-found"),
     INTERNAL_SERVER_ERROR("error.internal-server-error"),
 

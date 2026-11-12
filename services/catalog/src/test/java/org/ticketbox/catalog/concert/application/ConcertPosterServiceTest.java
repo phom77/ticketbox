@@ -50,7 +50,8 @@ class ConcertPosterServiceTest {
         ownerId = UUID.randomUUID();
         concert = new Concert();
         ReflectionTestUtils.setField(concert, "id", concertId);
-        concert.setCreatedBy(ownerId);
+        concert.setCreatedBy(UUID.randomUUID());
+        concert.assignOrganization(ownerId);
         concert.setStatus(Concert.Status.DRAFT);
         file =
                 new TestUpload(
@@ -96,7 +97,7 @@ class ConcertPosterServiceTest {
     }
 
     @Test
-    void replacePoster_DifferentOrganizerIsForbidden() {
+    void replacePoster_DifferentOrganizationIsNotDisclosed() {
         when(concertRepository.findById(concertId)).thenReturn(Optional.of(concert));
 
         AppException exception =
@@ -104,7 +105,7 @@ class ConcertPosterServiceTest {
                         AppException.class,
                         () -> service.replacePoster(concertId, file, UUID.randomUUID(), false));
 
-        assertEquals(ErrorCode.UNAUTHORIZED, exception.getErrorCode());
+        assertEquals(ErrorCode.RESOURCE_NOT_FOUND, exception.getErrorCode());
         verify(posterStorage, never()).upload(any(), any());
     }
 

@@ -25,7 +25,13 @@
       "type": [
         "object",
         "null"
-      ]
+      ],
+      "properties": {
+        "organization_id": {
+          "type": ["string", "null"],
+          "format": "uuid"
+        }
+      }
     },
     "types": {
       "type": "array",

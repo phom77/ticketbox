@@ -79,8 +79,8 @@ public class ArtistBioJobService {
     }
 
     @Transactional
-    public ArtistPdfJob submit(UUID concertId, Upload file, UUID requesterId, boolean admin) {
-        concertPort.requireAccessibleConcert(concertId, requesterId, admin);
+    public ArtistPdfJob submit(UUID concertId, Upload file, UUID actorId, UUID organizationId, boolean admin) {
+        concertPort.requireAccessibleConcert(concertId, organizationId, admin);
 
         StoredArtistPdf stored = fileStorage.store(concertId, file);
         try {
@@ -99,7 +99,7 @@ public class ArtistBioJobService {
                             concertId,
                             stored.path().toString(),
                             stored.originalFileName(),
-                            requesterId,
+                            actorId,
                             stored.checksum());
             ArtistPdfJob saved = jobRepository.save(job);
             eventPublisher.publishEvent(new ArtistBioJobSubmittedEvent(saved.getId()));
@@ -144,8 +144,9 @@ public class ArtistBioJobService {
 
     @Transactional
     public ArtistBioJobResponse apply(
-            UUID jobId, UUID requesterId, boolean admin, boolean overwrite) {
+            UUID jobId, UUID actorId, UUID organizationId, boolean admin, boolean overwrite) {
         ArtistPdfJob job = requireJob(jobId);
+        concertPort.requireAccessibleConcert(job.getConcertId(), organizationId, admin);
         if (job.getStatus() != ArtistPdfJob.Status.DONE
                 || job.getResultBio() == null
                 || job.getResultBio().isBlank()) {
@@ -153,8 +154,8 @@ public class ArtistBioJobService {
                     ErrorCode.ARTIST_BIO_JOB_NOT_READY, "error.artist-bio.must-complete");
         }
         concertPort.applyArtistBio(
-                job.getConcertId(), job.getResultBio(), requesterId, admin, overwrite);
-        job.markApplied(requesterId);
+                job.getConcertId(), job.getResultBio(), organizationId, admin, overwrite);
+        job.markApplied(actorId);
         return ArtistBioJobResponse.from(jobRepository.save(job));
     }
 

@@ -50,6 +50,8 @@ public class Concert extends BaseEntity {
 
     private UUID createdBy;
 
+    private UUID organizationId;
+
     public void setTitle(String title) {
         this.title = title;
     }
@@ -108,6 +110,13 @@ public class Concert extends BaseEntity {
 
     public void setCreatedBy(UUID createdBy) {
         this.createdBy = createdBy;
+    }
+
+    public void assignOrganization(UUID organizationId) {
+        if (this.organizationId != null) {
+            throw new IllegalStateException("The concert already has an organization");
+        }
+        this.organizationId = java.util.Objects.requireNonNull(organizationId);
     }
 
     private static final java.util.Map<Concert.Status, java.util.Set<Concert.Status>>

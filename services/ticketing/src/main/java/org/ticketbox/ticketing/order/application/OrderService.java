@@ -441,11 +441,6 @@ public class OrderService {
             return listAllOrders(concertId, status);
         }
 
-        List<UUID> ownedConcertIds = concertOrderPort.findConcertIdsOwnedBy(requesterId);
-        if (ownedConcertIds.isEmpty()) {
-            return Collections.emptyList();
-        }
-
         List<Order> orders;
         if (concertId != null) {
             requireOwnedConcert(concertId, requesterId);
@@ -454,12 +449,15 @@ public class OrderService {
                 Order.Status orderStatus = Order.Status.valueOf(status);
                 orders = orders.stream().filter(order -> order.getStatus() == orderStatus).toList();
             }
-        } else if (status != null) {
-            orders =
-                    orderRepository.findByConcertIdInAndStatusOrderByCreatedAtDesc(
-                            ownedConcertIds, Order.Status.valueOf(status));
         } else {
-            orders = orderRepository.findByConcertIdInOrderByCreatedAtDesc(ownedConcertIds);
+            List<UUID> ownedConcertIds = concertOrderPort.findConcertIdsOwnedBy(requesterId);
+            if (ownedConcertIds.isEmpty()) {
+                return Collections.emptyList();
+            }
+            orders = status == null
+                    ? orderRepository.findByConcertIdInOrderByCreatedAtDesc(ownedConcertIds)
+                    : orderRepository.findByConcertIdInAndStatusOrderByCreatedAtDesc(
+                            ownedConcertIds, Order.Status.valueOf(status));
         }
 
         return toOrderResponses(orders);
@@ -559,8 +557,8 @@ public class OrderService {
                                         new AppException(
                                                 ErrorCode.ORDER_NOT_FOUND,
                                                 "error.order-not-found"));
-        if (!admin) {
-            requireOwnedConcert(order.getConcertId(), requesterId);
+        if (!admin && !concertOrderPort.isConcertOwnedBy(order.getConcertId(), requesterId)) {
+            throw new AppException(ErrorCode.ORDER_NOT_FOUND, "error.order-not-found");
         }
         return toOrderResponse(order);
     }
@@ -598,7 +596,7 @@ public class OrderService {
 
     private void requireOwnedConcert(UUID concertId, UUID organizerId) {
         if (!concertOrderPort.isConcertOwnedBy(concertId, organizerId)) {
-            throw new AppException(ErrorCode.UNAUTHORIZED, "error.concert.not-managed");
+            throw new AppException(ErrorCode.RESOURCE_NOT_FOUND, "error.concert-not-found");
         }
     }
 

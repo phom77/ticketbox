@@ -173,8 +173,8 @@ public class TicketService {
                                         new AppException(
                                                 ErrorCode.TICKET_NOT_FOUND,
                                                 "error.ticket-not-found"));
-        if (!admin) {
-            requireOwnedConcert(t.getConcertId(), requesterId);
+        if (!admin && !concertOrderPort.isConcertOwnedBy(t.getConcertId(), requesterId)) {
+            throw new AppException(ErrorCode.TICKET_NOT_FOUND, "error.ticket-not-found");
         }
 
         t.setStatus(Ticket.Status.valueOf(newStatus));
@@ -211,7 +211,7 @@ public class TicketService {
 
     private void requireOwnedConcert(UUID concertId, UUID organizerId) {
         if (!concertOrderPort.isConcertOwnedBy(concertId, organizerId)) {
-            throw new AppException(ErrorCode.UNAUTHORIZED, "error.concert.not-managed");
+            throw new AppException(ErrorCode.CONCERT_NOT_FOUND, "error.concert-not-found");
         }
     }
 }

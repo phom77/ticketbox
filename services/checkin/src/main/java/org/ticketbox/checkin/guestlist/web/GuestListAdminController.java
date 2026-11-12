@@ -69,13 +69,15 @@ public class GuestListAdminController {
             @PathVariable UUID concertId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String query,
+            @RequestParam(defaultValue = "false") boolean activeOnly,
             Authentication authentication) {
         PageRequest pageable =
                 PageRequest.of(
-                        page, Math.min(Math.max(size, 1), 100), Sort.by("fullName").ascending());
+                        page, Math.min(Math.max(size, 1), 100), Sort.by("fullName").ascending().and(Sort.by("id")));
         return ApiResponse.success(
                 managementService.list(
-                        concertId, userId(authentication), isAdmin(authentication), pageable));
+                        concertId, userId(authentication), isAdmin(authentication), query, activeOnly, pageable));
     }
 
     @GetMapping("/batch-logs")

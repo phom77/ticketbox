@@ -26,6 +26,10 @@ public class PaymentFacade {
         this.gateways = gateways;
     }
 
+    public List<String> availableProviders() {
+        return gateways.available();
+    }
+
     public Snapshot submit(Intent intent) {
         Provider provider;
         try {
@@ -33,7 +37,7 @@ public class PaymentFacade {
         } catch (RuntimeException error) {
             throw new PaymentRejection(PaymentRejection.Kind.INVALID_REQUEST, "Unknown provider");
         }
-        PaymentGateway gateway = gateways.resolve(provider);
+        PaymentGateway gateway = gateways.forNewAttempt(provider);
         var attempt = store.prepare(intent);
         if (!"CREATED".equals(attempt.state())) return attempt.snapshot();
         if (!creates.tryAcquire())
@@ -71,7 +75,7 @@ public class PaymentFacade {
     }
 
     public void mock(UUID order, boolean success) {
-        gateways.resolve(Provider.MOCK);
+        gateways.forNewAttempt(Provider.MOCK);
         var a = store.find(order);
         var result =
                 store.receive(

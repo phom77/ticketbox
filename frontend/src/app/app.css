@@ -3758,3 +3758,46 @@ body,
   .zone-price small { justify-self: start; }
   .quantity-control { grid-column: 2; grid-row: 1 / span 2; }
 }
+
+.organization-panel {
+  min-height: 0;
+  margin-block: 1rem;
+  padding: clamp(1rem, 3vw, 1.5rem);
+  border-radius: 12px;
+}
+.organization-panel h2 { margin: 0 0 .75rem; }
+.organization-panel p { margin-block: .5rem; }
+.organization-panel code { overflow-wrap: anywhere; }
+.organization-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 1rem;
+  margin-block: .75rem;
+}
+.organization-form > .admin-field { flex: 1 1 16rem; min-width: 0; }
+.organization-form > button { flex: 0 0 auto; min-height: 44px; }
+.organization-list { padding: 0; margin: .75rem 0; list-style: none; }
+.organization-list > li { padding-block: .75rem; border-bottom: 1px solid var(--line); }
+.organization-grants { display: grid; gap: .4rem; border: 0; margin: 0; padding: 0; }
+.organization-grants legend { margin-bottom: .25rem; font-weight: 700; }
+.organization-grants label { display: flex; gap: .5rem; align-items: center; }
+.organization-context select {
+  max-width: min(35vw, 22rem);
+  min-height: 36px;
+  color: var(--cream);
+  background: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding-inline: .5rem;
+}
+.organization-context select:focus-visible {
+  outline: 2px solid var(--coral);
+  outline-offset: 2px;
+}
+@media (max-width: 720px) {
+  .operations-context.organization-context { display: grid; }
+  .organization-context > span { display: none; }
+  .organization-form { align-items: start; flex-direction: column; }
+  .organization-form > .admin-field { flex-basis: auto; width: 100%; }
+}

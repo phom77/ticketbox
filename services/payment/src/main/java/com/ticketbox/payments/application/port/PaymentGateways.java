@@ -4,4 +4,8 @@ import com.ticketbox.payments.domain.Provider;
 
 public interface PaymentGateways {
     PaymentGateway resolve(Provider provider);
+
+    PaymentGateway forNewAttempt(Provider provider);
+
+    java.util.List<String> available();
 }

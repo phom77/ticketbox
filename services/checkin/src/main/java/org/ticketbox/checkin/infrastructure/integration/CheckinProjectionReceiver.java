@@ -20,7 +20,7 @@ public class CheckinProjectionReceiver
         CONCERT(
                 "concerts",
                 "id,title,description,artist_bio,venue_name,venue_address,event_date,doors_open_at,sale_start_at,"
-                    + "sale_end_at,status,seat_map_svg,poster_url,created_by,created_at,updated_at,poster_public_id,is_public"),
+                    + "sale_end_at,status,seat_map_svg,poster_url,created_by,created_at,updated_at,poster_public_id,is_public,organization_id"),
         TICKET_TYPE(
                 "ticket_types",
                 "id,concert_id,name,price,total_quantity,available_qty,max_per_account,zone_color,is_active,created_at,updated_at",

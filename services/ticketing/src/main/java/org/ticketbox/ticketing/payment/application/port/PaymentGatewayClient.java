@@ -8,6 +8,8 @@ import java.util.*;
 public interface PaymentGatewayClient {
     PaymentSnapshot submit(PaymentIntent intent);
 
+    List<String> availableProviders();
+
     void mock(UUID order, boolean success);
 
     Map webhook(String provider, Map<String, String> body);

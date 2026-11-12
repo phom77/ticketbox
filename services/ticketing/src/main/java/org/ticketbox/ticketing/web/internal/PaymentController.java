@@ -21,6 +21,12 @@ import java.util.stream.Collectors;
 public class PaymentController {
     private final RemotePaymentOperations paymentService;
 
+    @GetMapping("/providers")
+    public ResponseEntity<ApiResponse<java.util.List<String>>> providers() {
+        return ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore())
+                .body(ApiResponse.success(paymentService.availableProviders()));
+    }
+
     @PostMapping("/{orderId}/initiate")
     public ResponseEntity<ApiResponse<PaymentInitiationResponse>> initiatePayment(
             @PathVariable UUID orderId,

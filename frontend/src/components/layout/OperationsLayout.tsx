@@ -1,3 +1,5 @@
+import type { OrganizationGrant } from '../../api/organizations';
+import { useOrganization } from '../../features/organizations/OrganizationProvider';
 import { useState } from 'react';
 import {
   BarChart3,
@@ -12,7 +14,6 @@ import {
   Receipt,
   ScanLine,
   Settings,
-  Sparkles,
   Ticket,
   UserCog,
   Users,
@@ -27,16 +28,18 @@ type NavigationItem = {
   label: string;
   icon: typeof BarChart3;
   end?: boolean;
+  grant?: OrganizationGrant;
 };
 
 const adminNavigation: NavigationItem[] = [
   { to: '/admin', label: 'Tổng quan', icon: BarChart3, end: true },
   { to: '/admin/concerts', label: 'Buổi diễn', icon: CalendarDays },
   { to: '/admin/ticket-types', label: 'Hạng vé', icon: Ticket },
+  { to: '/admin/reconciliation', label: 'Đối soát', icon: CircleDollarSign },
   { to: '/admin/orders', label: 'Đơn hàng & vé', icon: Receipt },
   { to: '/admin/guests', label: 'Khách mời', icon: Users },
-  { to: '/admin/artist-bio', label: 'Tiểu sử nghệ sĩ AI', icon: Sparkles },
   { to: '/admin/notifications', label: 'Thông báo', icon: Bell },
+  { to: '/admin/organizations', label: 'Tổ chức', icon: Users },
   { to: '/admin/users', label: 'Người dùng', icon: UserCog },
 ];
 
@@ -49,12 +52,13 @@ const staffNavigation: NavigationItem[] = [
 
 const organizerNavigation: NavigationItem[] = [
   { to: '/organizer', label: 'Tổng quan', icon: BarChart3, end: true },
-  { to: '/organizer/concerts', label: 'Buổi diễn', icon: CalendarDays },
-  { to: '/organizer/ticket-types', label: 'Hạng vé', icon: Ticket },
-  { to: '/organizer/orders', label: 'Đơn hàng & vé', icon: Receipt },
-  { to: '/organizer/guests', label: 'Khách mời', icon: Users },
-  { to: '/organizer/artist-bio', label: 'Tiểu sử nghệ sĩ AI', icon: Sparkles },
-  { to: '/organizer/revenue', label: 'Doanh thu', icon: CircleDollarSign },
+  { to: '/organizer/concerts', grant: 'EVENTS', label: 'Buổi diễn', icon: CalendarDays },
+  { to: '/organizer/ticket-types', grant: 'EVENTS', label: 'Hạng vé', icon: Ticket },
+  { to: '/organizer/reconciliation', grant: 'FINANCE', label: 'Đối soát', icon: CircleDollarSign },
+  { to: '/organizer/orders', grant: 'FINANCE', label: 'Đơn hàng & vé', icon: Receipt },
+  { to: '/organizer/guests', grant: 'EVENTS', label: 'Khách mời', icon: Users },
+  { to: '/organizer/revenue', grant: 'FINANCE', label: 'Doanh thu', icon: CircleDollarSign },
+  { to: '/organizer/members', grant: 'MEMBERS', label: 'Thành viên', icon: UserCog },
 ];
 
 function roleLabel(role: UserSummary['role']) {
@@ -65,6 +69,7 @@ function roleLabel(role: UserSummary['role']) {
 
 export function OperationsLayout({ mode }: { mode: 'admin' | 'organizer' | 'staff' }) {
   const { user, logout } = useAuth();
+  const organization = useOrganization();
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -73,7 +78,7 @@ export function OperationsLayout({ mode }: { mode: 'admin' | 'organizer' | 'staf
     mode === 'admin'
       ? adminNavigation
       : mode === 'organizer'
-        ? organizerNavigation
+        ? organizerNavigation.filter((item) => !item.grant || organization?.selected?.grants.includes(item.grant))
         : staffNavigation;
   const workspaceHome =
     mode === 'admin' ? '/admin' : mode === 'organizer' ? '/organizer' : '/staff';
@@ -146,7 +151,7 @@ export function OperationsLayout({ mode }: { mode: 'admin' | 'organizer' | 'staf
           >
             {mobileOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
-          <div className="operations-context">
+          <div className={mode === 'organizer' ? 'operations-context organization-context' : 'operations-context'}>
             <span>
               {mode === 'admin'
                 ? 'Quản lý vận hành'
@@ -154,7 +159,21 @@ export function OperationsLayout({ mode }: { mode: 'admin' | 'organizer' | 'staf
                   ? 'Không gian nhà tổ chức'
                   : 'Vận hành tại cổng'}
             </span>
-            <strong>TicketBox Vietnam</strong>
+            {mode === 'organizer' && organization?.memberships.length ? (
+              <select
+                aria-label="Tổ chức đang làm việc"
+                value={organization.selected?.id ?? ''}
+                onChange={(event) => {
+                  organization.choose(event.target.value);
+                  navigate('/organizer');
+                }}
+                disabled={organization.loading}
+              >
+                {organization.memberships.map((membership) => (
+                  <option key={membership.id} value={membership.id}>{membership.name}</option>
+                ))}
+              </select>
+            ) : <strong>TicketBox Vietnam</strong>}
           </div>
           <div className="operations-account">
             <button
@@ -165,7 +184,7 @@ export function OperationsLayout({ mode }: { mode: 'admin' | 'organizer' | 'staf
               <span className="operations-avatar">{user?.fullName.slice(0, 2).toUpperCase()}</span>
               <span>
                 <strong>{user?.fullName}</strong>
-                <small>{user ? roleLabel(user.role) : ''}</small>
+                <small>{mode === 'organizer' ? 'Nhà tổ chức' : user ? roleLabel(user.role) : ''}</small>
               </span>
               <ChevronDown aria-hidden="true" size={16} />
             </button>
@@ -188,7 +207,7 @@ export function OperationsLayout({ mode }: { mode: 'admin' | 'organizer' | 'staf
           </div>
         </header>
         <main className="operations-content">
-          <div key={location.pathname} className="route-transition">
+          <div key={`${location.pathname}:${organization?.selected?.id ?? ''}`} className="route-transition">
             <Outlet />
           </div>
         </main>

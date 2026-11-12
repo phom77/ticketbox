@@ -48,6 +48,7 @@ ticketbox:
     max-file-size: ${CLOUDINARY_MAX_FILE_SIZE:5MB}
 split:
   token: ${SPLIT_SERVICE_TOKEN}
+  identity-url: ${SPLIT_IDENTITY_URL:http://identity:8080}
   ticketing-url: http://ticketing:8080
   checkin-url: http://checkin:8080
 management:

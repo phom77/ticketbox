@@ -58,9 +58,9 @@ public class ArtistBioComposerService {
 
     @Transactional
     public ArtistPdfJob compose(
-            UUID concertId, List<UUID> sourceJobIds, UUID requesterId, boolean admin) {
+            UUID concertId, List<UUID> sourceJobIds, UUID actorId, UUID organizationId, boolean admin) {
         ConcertArtistBioView concert =
-                concertPort.requireAccessibleConcert(concertId, requesterId, admin);
+                concertPort.requireAccessibleConcert(concertId, organizationId, admin);
         List<UUID> uniqueIds = sourceJobIds.stream().distinct().toList();
         if (uniqueIds.size() < 2) {
             throw new AppException(ErrorCode.INVALID_REQUEST, "error.artist-bio.minimum-drafts");
@@ -113,7 +113,7 @@ public class ArtistBioComposerService {
                         sources.getFirst().getFileUrl(),
                         messages.text(
                                 "artist-bio.composed-source", Integer.toString(sources.size())),
-                        requesterId,
+                        actorId,
                         checksum(uniqueIds));
         composed.startProcessing();
         composed.complete(bio, generated.provider(), generated.model(), sourceText.length());

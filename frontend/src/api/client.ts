@@ -47,11 +47,20 @@ export const api = axios.create({
   headers: { 'Content-Type': 'application/json', 'Accept-Language': apiLanguage },
 });
 
+let requestOrganization: string | null = null;
+
+export function setRequestOrganization(id: string | null) {
+  requestOrganization = id;
+}
+
 api.interceptors.request.use((config) => {
   const token = getAuthToken();
   if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (requestOrganization && config.url?.startsWith('/api/organizer/')) {
+    config.headers['X-Organization-Id'] = requestOrganization;
+  }
   return config;
-});
+}, undefined, { synchronous: true });
 
 api.interceptors.response.use(
   (response) => {

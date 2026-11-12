@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import DOMPurify from 'dompurify';
 import { isRequestCanceled } from '../../api/client';
+import { getConcertPreview } from '../../api/publication';
+import { useAuth } from '../../features/auth/AuthContext';
 import {
   getConcert,
   getConcerts,
@@ -14,7 +16,8 @@ import { EventCard } from '../../components/EventCard';
 import { RemoteImage } from '../../components/RemoteImage';
 import { currency } from '../../data/formatters';
 
-export function ConcertDetailPage() {
+export function ConcertDetailPage({ preview = false }: { preview?: boolean }) {
+  const { user } = useAuth();
   const { id } = useParams();
   const [concert, setConcert] = useState<ConcertDetail | null>(null);
   const [ticketTypes, setTicketTypes] = useState<TicketType[]>([]);
@@ -30,11 +33,14 @@ export function ConcertDetailPage() {
     let active = true;
     setLoading(true);
     setError(null);
-    Promise.all([getConcert(id, controller.signal), getConcerts(0, 4, controller.signal)])
+    const requests = preview
+      ? Promise.all([getConcertPreview(id, controller.signal), Promise.resolve({ content: [] as ConcertSummary[] })])
+      : Promise.all([getConcert(id, controller.signal), getConcerts(0, 4, controller.signal)]);
+    requests
       .then(async ([detail, page]) => {
         if (!active) return;
-        const currentTicketTypes = detail.ticketTypes?.length
-          ? detail.ticketTypes
+        const currentTicketTypes = preview || detail.ticketTypes?.length
+          ? detail.ticketTypes ?? []
           : await getConcertTicketTypes(detail.id, controller.signal);
         if (!active) return;
         setConcert(detail);
@@ -52,7 +58,7 @@ export function ConcertDetailPage() {
       active = false;
       controller.abort();
     };
-  }, [id, reloadKey]);
+  }, [id, preview, reloadKey]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1_000);
@@ -124,7 +130,8 @@ export function ConcertDetailPage() {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(concertDate);
-  const canEnterWaitingRoom = concert.status === 'ON_SALE' && !saleEnded && !waitingRoomNotOpen;
+  const canBuy = !preview && (!user || user.role === 'AUDIENCE');
+  const canEnterWaitingRoom = canBuy && concert.status === 'ON_SALE' && !saleEnded && !waitingRoomNotOpen;
 
   return (
     <>
@@ -132,12 +139,12 @@ export function ConcertDetailPage() {
         <RemoteImage src={concert.posterUrl ?? undefined} alt="" width="1800" height="1000" />
         <div className="detail-overlay" />
         <div className="detail-hero-content page-width">
-          <Link className="back-link" to="/">
-            ← Tất cả concert
+          <Link className="back-link" to={preview ? `/organizer/concerts/${id}` : "/"}>
+            {preview ? "← Về buổi diễn" : "← Tất cả concert"}
           </Link>
           <div className="detail-title">
             <p className="eyebrow">
-              <span /> Live tại Việt Nam · {concert.status.replace('_', ' ')}
+              <span /> {preview ? 'Xem trước dành cho ban tổ chức' : 'Live tại Việt Nam'}
             </p>
             <h1>{concert.title}</h1>
             <p className="artist-line">
@@ -248,7 +255,9 @@ export function ConcertDetailPage() {
             <strong>{concert.venueAddress}</strong>
           </div>
 
-          {canEnterWaitingRoom ? (
+          {!canBuy ? (
+            <p>{preview ? 'Chế độ xem trước' : 'Đăng nhập bằng tài khoản người mua để mua vé.'}</p>
+          ) : canEnterWaitingRoom ? (
             <Link
               className="button button-primary button-block"
               to={`/concerts/${concert.id}/waiting-room`}

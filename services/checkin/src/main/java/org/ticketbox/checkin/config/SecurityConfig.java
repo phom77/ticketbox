@@ -138,16 +138,13 @@ public class SecurityConfig {
                                         .requestMatchers("/api/admin/concerts/*/reminders/send")
                                         .hasRole("ADMIN")
                                         .requestMatchers("/api/admin/**")
-                                        .hasAnyRole("ADMIN", "ORGANIZER")
+                                        .hasRole("ADMIN")
                                         .requestMatchers("/api/organizer/**")
-                                        .hasRole("ORGANIZER")
+                                        .authenticated()
                                         .requestMatchers("/api/queue/**")
                                         .hasRole("AUDIENCE")
-                                        .requestMatchers(
-                                                HttpMethod.GET, "/api/staff/concerts/*/checkins")
-                                        .hasAnyRole("STAFF", "ORGANIZER", "ADMIN")
                                         .requestMatchers("/api/staff/**")
-                                        .hasRole("STAFF")
+                                        .denyAll()
                                         .requestMatchers("/api/reservations/**")
                                         .hasRole("AUDIENCE")
                                         .requestMatchers("/api/orders/**")
@@ -173,7 +170,7 @@ public class SecurityConfig {
         configuration.setAllowedMethods(
                 List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(
-                List.of("Authorization", "Content-Type", "Idempotency-Key", "Queue-Access-Token"));
+                List.of("Authorization", "Content-Type", "Idempotency-Key", "Queue-Access-Token", "X-Organization-Id"));
         configuration.setExposedHeaders(List.of("Content-Disposition"));
         configuration.setAllowCredentials(true);
 

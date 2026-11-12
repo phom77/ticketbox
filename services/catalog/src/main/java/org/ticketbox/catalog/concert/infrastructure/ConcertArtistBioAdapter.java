@@ -31,7 +31,7 @@ public class ConcertArtistBioAdapter implements ConcertArtistBioPort {
     public ConcertArtistBioView requireAccessibleConcert(
             UUID concertId, UUID requesterId, boolean admin) {
         Concert concert = requireEntity(concertId);
-        if (!admin && !concert.getCreatedBy().equals(requesterId)) {
+        if (!admin && (requesterId == null || !requesterId.equals(concert.getOrganizationId()))) {
             throw new AppException(ErrorCode.RESOURCE_NOT_FOUND, "error.concert-not-found");
         }
         return toView(concert);
@@ -45,8 +45,10 @@ public class ConcertArtistBioAdapter implements ConcertArtistBioPort {
 
     @Override
     @Transactional(readOnly = true)
-    public List<UUID> findConcertIdsOwnedBy(UUID organizerId) {
-        return concertRepository.findByCreatedBy(organizerId).stream().map(Concert::getId).toList();
+    public List<UUID> findConcertIdsOwnedBy(UUID organizationId) {
+        if (organizationId == null) return List.of();
+        return concertRepository.findByOrganizationId(organizationId).stream()
+                .map(Concert::getId).toList();
     }
 
     @Override
@@ -54,7 +56,7 @@ public class ConcertArtistBioAdapter implements ConcertArtistBioPort {
     public void applyArtistBio(
             UUID concertId, String artistBio, UUID requesterId, boolean admin, boolean overwrite) {
         Concert concert = requireEntity(concertId);
-        if (!admin && !concert.getCreatedBy().equals(requesterId)) {
+        if (!admin && (requesterId == null || !requesterId.equals(concert.getOrganizationId()))) {
             throw new AppException(ErrorCode.RESOURCE_NOT_FOUND, "error.concert-not-found");
         }
         if (!overwrite && concert.getArtistBio() != null && !concert.getArtistBio().isBlank()) {

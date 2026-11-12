@@ -232,7 +232,7 @@ VALUES(?,?,?,?,?,?,?,?,?,?,'CREATED') ON CONFLICT DO NOTHING
             return new WebhookAck("97", "Transaction missing");
         db.update(
                 "UPDATE payment_attempts SET"
-                    + " state='SETTLEMENT_PENDING',provider_transaction_id=?,raw_payload=?,lease_owner=NULL,lease_until=NULL,updated_at=now()"
+                    + " state='SETTLEMENT_PENDING',provider_transaction_id=?,verified_at=now(),raw_payload=?,lease_owner=NULL,lease_until=NULL,updated_at=now()"
                     + " WHERE order_id=?",
                 receipt.providerRef(),
                 receipt.rawPayload(),

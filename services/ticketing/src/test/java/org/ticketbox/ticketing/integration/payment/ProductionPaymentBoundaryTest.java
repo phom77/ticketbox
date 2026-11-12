@@ -15,6 +15,19 @@ import java.util.UUID;
 
 class ProductionPaymentBoundaryTest {
     @Test
+    void stagingRejectsMomoBeforeCreatingAnIntent() {
+        var workflow = mock(PaymentWorkflowPort.class);
+        var remote = mock(PaymentRemoteClient.class);
+        var environment = new MockEnvironment();
+        environment.setActiveProfiles("staging");
+        var operations = new RemotePaymentOperations(workflow, remote, environment);
+
+        assertThatThrownBy(() -> operations.initiatePayment(UUID.randomUUID(), "MOMO", UUID.randomUUID()))
+                .isInstanceOf(AppException.class);
+        verifyNoInteractions(workflow, remote);
+    }
+
+    @Test
     void productionRejectsDefaultAndExplicitMockBeforeCreatingAnIntentOrCallingPayment() {
         var workflow = mock(PaymentWorkflowPort.class);
         var remote = mock(PaymentRemoteClient.class);

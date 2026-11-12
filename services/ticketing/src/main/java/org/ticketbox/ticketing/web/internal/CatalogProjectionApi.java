@@ -2,6 +2,7 @@ package org.ticketbox.ticketing.web.internal;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.ticketbox.ticketing.application.port.CatalogSnapshots;
 
@@ -14,7 +15,8 @@ public class CatalogProjectionApi {
     }
 
     @PostMapping("/internal/split/catalog")
-    public void catalog(@RequestBody JsonNode envelope) {
+    public ResponseEntity<Void> catalog(@RequestBody JsonNode envelope) {
         snapshots.catalog(envelope);
+        return ResponseEntity.ok().header("X-Catalog-Consumer", "ticketing").build();
     }
 }

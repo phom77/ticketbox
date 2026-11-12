@@ -125,7 +125,10 @@ public class VnpayPaymentGateway implements PaymentGateway {
         boolean success =
                 "00".equals(params.get("vnp_ResponseCode"))
                         && "00".equals(params.get("vnp_TransactionStatus"));
-        String providerRef = params.getOrDefault("vnp_TransactionNo", params.get("vnp_TxnRef"));
+        String providerRef = params.get("vnp_TransactionNo");
+        if (success && (isBlank(providerRef) || "0".equals(providerRef))) {
+            return PaymentWebhookResult.invalid("Missing VNPAY transaction reference", rawPayload);
+        }
 
         return new PaymentWebhookResult(
                 true,
@@ -218,10 +221,11 @@ public class VnpayPaymentGateway implements PaymentGateway {
             boolean success =
                     "00".equals(json.path("vnp_ResponseCode").asText())
                             && "00".equals(json.path("vnp_TransactionStatus").asText());
+            String transaction = json.path("vnp_TransactionNo").asText();
             return new com.ticketbox.payments.domain.PaymentQueryResult(
-                    verified,
+                    verified && (!success || (!transaction.isBlank() && !"0".equals(transaction))),
                     success,
-                    json.path("vnp_TransactionNo").asText(),
+                    transaction,
                     fromVnpayAmount(json.path("vnp_Amount").asText()),
                     raw,
                     "00".equals(json.path("vnp_ResponseCode").asText())
@@ -245,6 +249,25 @@ public class VnpayPaymentGateway implements PaymentGateway {
                 ErrorCode.PAYMENT_GATEWAY_UNAVAILABLE, "VNPay is temporarily unavailable");
     }
 
+    @Override
+    public boolean ready(boolean staging) {
+        return !isBlank(properties.payUrl()) && !isBlank(properties.returnUrl())
+                && !isBlank(properties.tmnCode()) && !isBlank(properties.hashSecret())
+                && (!staging || (https(properties.payUrl()) && https(properties.returnUrl())
+                        && https(properties.ipnUrl()) && https(queryUrl)));
+    }
+
+    private boolean https(String value) {
+        if (isBlank(value)) return false;
+        try {
+            var uri = java.net.URI.create(value);
+            return "https".equalsIgnoreCase(uri.getScheme()) && uri.getHost() != null
+                    && uri.getUserInfo() == null;
+        } catch (IllegalArgumentException invalid) {
+            return false;
+        }
+    }
+
     private void requireConfigured() {
         if (isBlank(properties.payUrl())
                 || isBlank(properties.returnUrl())
@@ -263,7 +286,7 @@ public class VnpayPaymentGateway implements PaymentGateway {
 
     private BigDecimal fromVnpayAmount(String amount) {
         if (amount == null || amount.isBlank()) {
-            return BigDecimal.ZERO;
+            return null;
         }
         try {
             return new BigDecimal(amount)

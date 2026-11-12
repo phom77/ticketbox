@@ -15,11 +15,7 @@ export function PaymentResultPage() {
   const navigate = useNavigate();
   const [message, setMessage] = useState('Đang xác nhận thanh toán của bạn với TicketBox...');
   const orderId = searchParams.get('orderId') ?? searchParams.get('vnp_TxnRef');
-  const isVnpayFailure =
-    searchParams.has('vnp_ResponseCode') && searchParams.get('vnp_ResponseCode') !== '00';
-  const isMomoFailure = searchParams.has('resultCode') && searchParams.get('resultCode') !== '0';
   const awaitingSession = searchParams.get('pending') === 'true';
-  const providerReportedFailure = isVnpayFailure || isMomoFailure;
 
   useEffect(() => {
     const activeOrderId = orderId ?? '';
@@ -70,8 +66,7 @@ export function PaymentResultPage() {
           ]);
           if (!active) return;
 
-          // Server status and gateway webhook are authoritative. A browser return code
-          // is only a hint; payment can still be confirmed asynchronously.
+          // The browser return locates the order. Settlement uses the server's verified state.
           if (order.status === 'PAID') {
             await finish(order, false);
             return;
@@ -95,8 +90,7 @@ export function PaymentResultPage() {
             return;
           }
 
-          if (payment.attemptState === 'FAILED' ||
-              (providerReportedFailure && payment.attemptState !== 'UNKNOWN' && payment.attemptState !== 'PROCESSING')) {
+          if (payment.attemptState === 'FAILED') {
             resumePayment(true);
             return;
           }
@@ -125,7 +119,7 @@ export function PaymentResultPage() {
       active = false;
       controller.abort();
     };
-  }, [navigate, orderId, providerReportedFailure, awaitingSession]);
+  }, [navigate, orderId, awaitingSession]);
 
   if (!orderId) {
     return (

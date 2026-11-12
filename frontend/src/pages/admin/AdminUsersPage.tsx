@@ -155,8 +155,12 @@ export function AdminUsersPage() {
                         <strong className="admin-table-primary">{user.fullName}</strong>
                         <span className="admin-table-secondary">{user.email}</span>
                         <span className="admin-table-secondary">
-                          {user.phone ?? user.id.slice(0, 8)}
+                          {user.phone}
                         </span>
+                        <details className="admin-table-secondary">
+                          <summary>Mã tài khoản</summary>
+                          <code>{user.id}</code>
+                        </details>
                       </td>
                       <td>
                         <label className="sr-only" htmlFor={`role-${user.id}`}>

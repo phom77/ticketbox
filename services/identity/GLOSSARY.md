@@ -12,7 +12,11 @@ An account allowed to join a sale and buy tickets.
 
 **Organizer**
 
-An account allowed to manage concerts it owns.
+A member authorized to manage concerts owned by its organization.
+
+**Organization**
+
+A group approved by TicketBox to operate concerts. Membership connects an account to one organization. Grants on that membership authorize member management, event management or finance.
 
 **Staff**
 

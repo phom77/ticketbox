@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.http.HttpMethod.POST;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
@@ -57,7 +58,8 @@ class CatalogPublisherIntegrationTest {
         RestClient.Builder http = RestClient.builder();
         receivers = MockRestServiceServer.bindTo(http).build();
         publisher =
-                new CatalogPublisher(jdbc, http.build(), new ObjectMapper(), TICKETING, CHECKIN);
+                new CatalogPublisher(jdbc, http.build(), new ObjectMapper(), TICKETING, CHECKIN,
+                        org.mockito.Mockito.mock(org.ticketbox.catalog.application.port.ReadCache.class));
     }
 
     @Test
@@ -80,12 +82,12 @@ FROM sale_config_outbox o JOIN concerts c ON c.id=o.concert_id WHERE o.concert_i
                     .expect(requestTo(TICKETING + PATH))
                     .andExpect(method(POST))
                     .andExpect(content().json(baseline, true))
-                    .andRespond(withSuccess());
+                    .andRespond(withSuccess().header("X-Catalog-Consumer", "ticketing"));
             receivers
                     .expect(requestTo(CHECKIN + PATH))
                     .andExpect(method(POST))
                     .andExpect(content().json(baseline, true))
-                    .andRespond(withSuccess());
+                    .andRespond(withSuccess().header("X-Catalog-Consumer", "checkin"));
             publisher.publish();
             receivers.verify();
             assertThat(acknowledged(id, "ticketing_version")).isTrue();
@@ -93,6 +95,27 @@ FROM sale_config_outbox o JOIN concerts c ON c.id=o.concert_id WHERE o.concert_i
         } finally {
             jdbc.execute("ALTER TABLE ticket_types DROP COLUMN local_type_field");
             jdbc.execute("ALTER TABLE concerts DROP COLUMN local_concert_field");
+        }
+    }
+
+    @Test
+    void publishesOrganizationOwnershipToBothProjections() {
+        UUID concert = pendingConcert();
+        UUID organization = UUID.randomUUID();
+        try {
+            jdbc.update("UPDATE concerts SET organization_id = ? WHERE id = ?", organization, concert);
+            receivers.expect(requestTo(TICKETING + PATH))
+                    .andExpect(jsonPath("$.concert.organization_id").value(organization.toString()))
+                    .andRespond(withSuccess().header("X-Catalog-Consumer", "ticketing"));
+            receivers.expect(requestTo(CHECKIN + PATH))
+                    .andExpect(jsonPath("$.concert.organization_id").value(organization.toString()))
+                    .andRespond(withSuccess().header("X-Catalog-Consumer", "checkin"));
+            publisher.publish();
+            receivers.verify();
+            assertThat(acknowledged(concert, "ticketing_version")).isTrue();
+            assertThat(acknowledged(concert, "checkin_version")).isTrue();
+        } finally {
+            jdbc.update("UPDATE concerts SET organization_id = NULL WHERE id = ?", concert);
         }
     }
 
@@ -107,17 +130,42 @@ FROM sale_config_outbox o JOIN concerts c ON c.id=o.concert_id WHERE o.concert_i
         receivers.reset();
 
         receivers.expect(requestTo(TICKETING + PATH)).andRespond(withServerError());
-        receivers.expect(requestTo(CHECKIN + PATH)).andRespond(withSuccess());
+        receivers.expect(requestTo(CHECKIN + PATH)).andRespond(withSuccess().header("X-Catalog-Consumer", "checkin"));
         publisher.publish();
         receivers.verify();
         assertThat(acknowledged(id, "ticketing_version")).isFalse();
         assertThat(acknowledged(id, "checkin_version")).isTrue();
         receivers.reset();
 
-        receivers.expect(requestTo(TICKETING + PATH)).andRespond(withSuccess());
+        receivers.expect(requestTo(TICKETING + PATH)).andRespond(withSuccess().header("X-Catalog-Consumer", "ticketing"));
         publisher.publish();
         receivers.verify();
         assertThat(acknowledged(id, "ticketing_version")).isTrue();
+    }
+
+    @Test
+    void activationVersionIsFixedAndAcknowledgedIndependently() {
+        UUID id = pendingConcert();
+        jdbc.update("UPDATE concerts SET status='DRAFT', organization_id=? WHERE id=?", UUID.randomUUID(), id);
+        try {
+            jdbc.update("UPDATE concerts SET status='ON_SALE' WHERE id=?", id);
+            Long activation = jdbc.queryForObject(
+                    "SELECT activation_version FROM sale_config_outbox WHERE concert_id=?", Long.class, id);
+            assertThat(activation).isPositive();
+            jdbc.update("UPDATE concerts SET updated_at=now() WHERE id=?", id);
+            assertThat(jdbc.queryForObject(
+                    "SELECT activation_version FROM sale_config_outbox WHERE concert_id=?", Long.class, id))
+                    .isEqualTo(activation);
+            receivers.expect(requestTo(TICKETING + PATH))
+                    .andRespond(withSuccess().header("X-Catalog-Consumer", "checkin"));
+            receivers.expect(requestTo(CHECKIN + PATH)).andRespond(withSuccess().header("X-Catalog-Consumer", "checkin"));
+            publisher.publish();
+            receivers.verify();
+            assertThat(acknowledged(id, "ticketing_version")).isFalse();
+            assertThat(acknowledged(id, "checkin_version")).isTrue();
+        } finally {
+            jdbc.update("UPDATE concerts SET status='ON_SALE', organization_id=NULL WHERE id=?", id);
+        }
     }
 
     @Test
@@ -132,11 +180,11 @@ FROM sale_config_outbox o JOIN concerts c ON c.id=o.concert_id WHERE o.concert_i
         receivers
                 .expect(requestTo(TICKETING + PATH))
                 .andExpect(content().json(expected, true))
-                .andRespond(withSuccess());
+                .andRespond(withSuccess().header("X-Catalog-Consumer", "ticketing"));
         receivers
                 .expect(requestTo(CHECKIN + PATH))
                 .andExpect(content().json(expected, true))
-                .andRespond(withSuccess());
+                .andRespond(withSuccess().header("X-Catalog-Consumer", "checkin"));
         publisher.publish();
         receivers.verify();
     }

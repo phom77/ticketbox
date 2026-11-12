@@ -6,7 +6,7 @@ export function AdminPageHeader({
   description,
   actions,
 }: {
-  eyebrow: string;
+  eyebrow?: string;
   title: string;
   description: string;
   actions?: ReactNode;
@@ -14,7 +14,7 @@ export function AdminPageHeader({
   return (
     <header className="admin-page-header">
       <div className="admin-page-header-copy">
-        <p>{eyebrow}</p>
+        {eyebrow ? <p>{eyebrow}</p> : null}
         <h1>{title}</h1>
         <span>{description}</span>
       </div>

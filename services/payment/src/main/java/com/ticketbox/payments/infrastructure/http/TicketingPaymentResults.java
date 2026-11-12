@@ -31,6 +31,11 @@ public class TicketingPaymentResults implements PaymentResults {
                         .build();
     }
 
+    public void deliverReconciliation(com.ticketbox.payments.application.dto.ReconciliationSnapshot snapshot) {
+        ticketing.post().uri("/internal/ticketing/payment-reconciliation")
+                .body(snapshot).retrieve().toBodilessEntity();
+    }
+
     public Ack deliver(String payload) throws Exception {
         var result = json.readValue(payload, Result.class);
         return ticketing

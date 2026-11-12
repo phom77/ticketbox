@@ -18,6 +18,7 @@ import com.ticketbox.payments.domain.Provider;
 import com.ticketbox.payments.infrastructure.persistence.PaymentStore;
 import com.ticketbox.payments.infrastructure.provider.MockPaymentGateway;
 import com.ticketbox.payments.infrastructure.provider.PaymentGatewayResolver;
+import com.ticketbox.payments.infrastructure.worker.PaymentReconciliationPublisher;
 
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,7 +41,8 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
 
 @SpringBootTest(
-        properties = {"payment.worker-interval-ms=3600000", "payment.query-interval-ms=3600000"})
+        properties = {"payment.worker-interval-ms=3600000", "payment.query-interval-ms=3600000",
+                "payment.reconciliation-interval-ms=3600000"})
 @AutoConfigureMockMvc
 @Testcontainers
 @DirtiesContext
@@ -52,6 +54,8 @@ class PaymentIntegrationTest {
 
     static final AtomicInteger coreStatus = new AtomicInteger(200);
     static final AtomicReference<String> decision = new AtomicReference<>("ACCEPTED");
+    static final AtomicInteger reportStatus = new AtomicInteger(204);
+    static final AtomicReference<com.fasterxml.jackson.databind.JsonNode> reported = new AtomicReference<>();
     static final HttpServer core = startCore();
 
     static HttpServer startCore() {
@@ -82,6 +86,15 @@ class PaymentIntegrationTest {
                         request.getResponseBody().write(bytes);
                         request.close();
                     });
+            http.createContext("/internal/ticketing/payment-reconciliation", request -> {
+                if (!TOKEN.equals(request.getRequestHeaders().getFirst("X-Service-Token"))) {
+                    request.sendResponseHeaders(401, -1);
+                } else {
+                    reported.set(new ObjectMapper().readTree(request.getRequestBody()));
+                    request.sendResponseHeaders(reportStatus.get(), -1);
+                }
+                request.close();
+            });
             http.start();
             return http;
         } catch (Exception error) {
@@ -101,6 +114,7 @@ class PaymentIntegrationTest {
     @Autowired PaymentFacade facade;
     @Autowired PaymentStore store;
     @Autowired PaymentSettlementService workers;
+    @Autowired PaymentReconciliationPublisher reconciliation;
     @Autowired JdbcTemplate db;
     @Autowired MockMvc api;
     @Autowired ObjectMapper json;
@@ -108,9 +122,11 @@ class PaymentIntegrationTest {
 
     @BeforeEach
     void clear() {
-        db.execute("TRUNCATE payment_audit,refund_reviews,payment_result_outbox,payment_attempts");
+        db.execute("TRUNCATE payment_audit,refund_reviews,payment_result_outbox,payment_reconciliation_outbox,payment_attempts");
         coreStatus.set(200);
         decision.set("ACCEPTED");
+        reportStatus.set(204);
+        reported.set(null);
     }
 
     @AfterAll
@@ -313,6 +329,32 @@ class PaymentIntegrationTest {
                 .isEqualTo(1);
         assertThat(db.queryForObject("SELECT state FROM refund_reviews", String.class))
                 .isEqualTo("RESOLVED_MANUALLY");
+        reconciliation.publish();
+        assertThat(reported.get().path("collectedAmount").asLong()).isEqualTo(250000);
+        assertThat(reported.get().path("refundAmount").asLong()).isEqualTo(250000);
+        assertThat(reported.get().path("refundReference").asText()).isEqualTo("External fixture refund reference");
+    }
+
+    @Test
+    void reconciliationRetriesWithoutDelayingSettlementAndSendsLatestRevision() {
+        var i = intent();
+        facade.submit(i);
+        reportStatus.set(503);
+        reconciliation.publish();
+        var first = reported.get();
+        assertThat(first.path("state").asText()).isEqualTo("READY");
+        assertThat(db.queryForObject("SELECT delivered_revision FROM payment_reconciliation_outbox", Long.class)).isZero();
+        money(i);
+        workers.results();
+        assertThat(state(i)).isEqualTo("SUCCEEDED");
+        reportStatus.set(204);
+        reconciliation.publish();
+        var latest = reported.get();
+        assertThat(latest.path("revision").asLong()).isGreaterThan(first.path("revision").asLong());
+        assertThat(latest.path("state").asText()).isEqualTo("SUCCEEDED");
+        assertThat(latest.path("verifiedAt").asText()).isNotBlank();
+        assertThat(latest.path("collectedAmount").asLong()).isEqualTo(250000);
+        assertThat(db.queryForObject("SELECT delivered_revision = revision FROM payment_reconciliation_outbox", Boolean.class)).isTrue();
     }
 
     @Test
@@ -324,6 +366,9 @@ class PaymentIntegrationTest {
         facade.submit(i);
         facade.submit(i);
         assertThat(state(i)).isEqualTo("UNKNOWN");
+        reconciliation.publish();
+        assertThat(reported.get().path("state").asText()).isEqualTo("UNKNOWN");
+        assertThat(reported.get().path("collectedAmount").isNull()).isTrue();
         verify(gateway, times(1)).initiatePayment(any(OrderView.class), eq(i.requestId()));
         db.update("UPDATE payment_attempts SET next_query_at=now()");
         var claim = store.claimQueries(1).getFirst();

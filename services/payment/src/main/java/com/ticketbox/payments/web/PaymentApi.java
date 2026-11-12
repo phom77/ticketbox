@@ -24,6 +24,11 @@ public class PaymentApi {
         this.store = store;
     }
 
+    @GetMapping("/internal/providers")
+    public List<String> providers() {
+        return facade.availableProviders();
+    }
+
     @PostMapping("/internal/intents")
     public Snapshot create(@RequestBody Intent intent) {
         return facade.submit(intent);

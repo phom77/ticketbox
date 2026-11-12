@@ -19,6 +19,15 @@ public interface JpaGuestListRepository
 
     Page<GuestList> findByConcertId(UUID concertId, Pageable pageable);
 
+    @Query("""
+            select g from GuestList g where g.concertId = :concertId
+              and (:activeOnly = false or g.isActive = true)
+              and (:query = '' or locate(lower(:query), lower(g.fullName)) > 0
+                or locate(:query, g.phone) > 0 or locate(lower(:query), lower(g.category)) > 0
+                or locate(lower(:query), lower(g.sponsorName)) > 0)
+            """)
+    Page<GuestList> search(UUID concertId, String query, boolean activeOnly, Pageable pageable);
+
     Optional<GuestList> findByConcertIdAndPhone(UUID concertId, String phone);
 
     java.util.List<GuestList> findAllByConcertId(UUID concertId);

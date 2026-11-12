@@ -1,5 +1,5 @@
 """Acceptance checks for the six-service deployment, using isolated Compose data."""
-import concurrent.futures
+import csv
 import datetime as dt
 import json
 import os
@@ -10,6 +10,7 @@ import time
 import urllib.error
 import urllib.request
 import uuid
+from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parents[2]
 PROJECT = os.environ.get("E2E_PROJECT", "ticketbox-e2e-split")
@@ -154,33 +155,113 @@ def main(*, source_outage=True):
     until(lambda: request("GET", "/api/health"))
     admin = until(lambda: login("admin"))
     staff = login("staff")
+    organizer = login("organizer")
     audience = login("audience")
     until(lambda: request("GET", "/api/concerts"))
-    until(lambda: request("GET", "/api/staff/concerts?status=ON_SALE", staff))
     request("POST", "/api/admin/concerts", audience, {}, expected=(403,))
     request("GET", "/internal/split/stock", expected=(404,))
     check("Identity JWT and RBAC work across service boundaries")
     verify_localized_responses()
     check("Gateway preserves API language negotiation and provider callback acknowledgements")
 
+    organizer_id = request("GET", "/api/auth/me", organizer)["id"]
+    audience_id = request("GET", "/api/auth/me", audience)["id"]
+    run_id = uuid.uuid4().hex
+    first_org = request("POST", "/api/admin/organizations", admin, {
+        "name": f"First {run_id}", "initialManagerId": organizer_id,
+    }, expected=(201,))["id"]
+    second_org = request("POST", "/api/admin/organizations", admin, {
+        "name": f"Second {run_id}", "initialManagerId": audience_id,
+    }, expected=(201,))["id"]
+    first_scope = {"X-Organization-Id": first_org}
+    second_scope = {"X-Organization-Id": second_org}
+    invitation = request("POST", f"/api/organizations/{second_org}/invitations", audience, {
+        "accountId": organizer_id, "grants": ["FINANCE"],
+    }, expected=(201,))
+    request("POST", "/api/organizations/invitations/accept", organizer, {"code": invitation["code"]})
+    assert {item["id"] for item in request("GET", "/api/organizations", organizer)} >= {first_org, second_org}
+
     now = dt.datetime.now(dt.timezone.utc)
-    concert = request("POST", "/api/admin/concerts", admin, {
-        "title": "Split acceptance " + str(uuid.uuid4()), "venueName": "LAN arena",
+    event = {
+        "title": f"First concert {run_id}", "venueName": "Test arena",
         "venueAddress": "Test fixture", "eventDate": (now + dt.timedelta(days=7)).isoformat(),
         "saleStartAt": (now - dt.timedelta(minutes=1)).isoformat(),
         "saleEndAt": (now + dt.timedelta(days=1)).isoformat(),
-    }, expected=(201,))
-    concert_id = concert["id"]
-    ticket_type = request("POST", f"/api/admin/concerts/{concert_id}/ticket-types", admin, {
+    }
+    concerts = "/api/organizer/manage/concerts"
+    concert_id = request("POST", concerts, organizer, event, expected=(201,), headers=first_scope)["id"]
+    second_concert = request("POST", concerts, audience, {
+        **event, "title": f"Second concert {run_id}",
+    }, expected=(201,), headers=second_scope)["id"]
+    for service in ("ticketing", "checkin"):
+        assert until(lambda: sql(service, f"SELECT organization_id FROM concerts WHERE id='{concert_id}'") == first_org)
+        assert until(lambda: sql(service, f"SELECT organization_id FROM concerts WHERE id='{second_concert}'") == second_org)
+    first_list = request("GET", concerts, organizer, headers=first_scope)
+    second_list = request("GET", concerts, organizer, headers=second_scope)
+    assert first_list["totalElements"] == second_list["totalElements"] == 1
+    assert [item["id"] for item in first_list["content"]] == [concert_id]
+    assert [item["id"] for item in second_list["content"]] == [second_concert]
+    request("GET", f"{concerts}/{second_concert}", organizer, expected=(404,), headers=first_scope)
+    request("GET", f"{concerts}/{second_concert}", organizer, expected=(403,), headers=second_scope)
+    request("GET", f"{concerts}/{concert_id}", audience, expected=(403,), headers=first_scope)
+    request("GET", "/api/admin/concerts", organizer, expected=(403,))
+    check("Catalog and its projections isolate two organizations and validate operation grants")
+
+    assert request("GET", concerts + "?query=Second&size=1", organizer, headers=first_scope)["totalElements"] == 0
+    assert request("GET", concerts + "?query=Second&size=1", organizer, headers=second_scope)["totalElements"] == 1
+    newer = request("POST", concerts, organizer, {**event, "title": f"Newer draft {run_id}"},
+                    expected=(201,), headers=first_scope)["id"]
+    assert request("GET", concerts + "?size=1", organizer, headers=first_scope)["content"][0]["id"] == newer
+    matched = request("GET", concerts + "?query=First&size=1", organizer, headers=first_scope)
+    assert matched["totalElements"] == 1 and matched["content"][0]["id"] == concert_id
+    preview = f"{concerts}/{concert_id}/preview"
+    req = urllib.request.Request(BASE + preview, headers={**first_scope, "Authorization": "Bearer " + organizer})
+    with urllib.request.urlopen(req, timeout=20) as response:
+        assert "no-store" in response.headers["Cache-Control"]
+        assert json.load(response)["data"]["id"] == concert_id
+    request("GET", preview, audience, headers=second_scope, expected=(404,))
+    public = f"/api/concerts/{concert_id}"
+    request("GET", public, expected=(404,))
+    publication = f"{concerts}/{concert_id}/publication"
+    readiness = request("GET", publication, organizer, headers=first_scope)
+    assert readiness["status"] == "DRAFT" and readiness["issues"], readiness
+    request("POST", publication, organizer, headers=first_scope, expected=(422,))
+    ticket_type = request("POST", f"{concerts}/{concert_id}/ticket-types", organizer, {
         "name": "GA", "price": 100000, "totalQuantity": 20, "maxPerAccount": 4, "zoneColor": "#123456",
-    }, expected=(201,))
+    }, expected=(201,), headers=first_scope)
     type_id = ticket_type["id"]
-    request("PATCH", f"/api/admin/concerts/{concert_id}/status", admin, {"status": "ON_SALE"})
+    request("PATCH", f"{concerts}/{concert_id}/status", organizer, {"status": "ON_SALE"},
+            headers=first_scope, expected=(400, 409))
+    if source_outage:
+        compose("stop", "ticketing", "checkin")
+    try:
+        published = request("POST", publication, organizer, headers=first_scope)
+        activation = published["versions"]["activationVersion"]
+        assert activation and published["issues"] == [], published
+        assert request("POST", publication, organizer, headers=first_scope)["versions"]["activationVersion"] == activation
+        if source_outage:
+            assert published["versions"]["ticketingVersion"] < activation
+            request("GET", public, expected=(404,))
+    finally:
+        if source_outage:
+            compose("start", "ticketing")
+    try:
+        assert until(lambda: request("GET", public)["id"] == concert_id)
+        versions = request("GET", publication, organizer, headers=first_scope)["versions"]
+        assert versions["ticketingVersion"] >= activation
+        if source_outage:
+            assert versions["checkinVersion"] < activation, versions
+    finally:
+        if source_outage:
+            compose("start", "checkin")
+    assert until(lambda: request("GET", publication, organizer, headers=first_scope)["versions"]["checkinVersion"] >= activation)
+    request("GET", public, organizer)
+    request("POST", f"/api/queue/concerts/{concert_id}/join", organizer, expected=(403,))
     assert sql("ticketing", f"SELECT status FROM concerts WHERE id='{concert_id}'") == "ON_SALE"
     request("PUT",f"/api/admin/ticket-types/{type_id}",admin,{
         "name":"GA","price":200000,"totalQuantity":20,"maxPerAccount":4,"zoneColor":"#123456"
     },expected=(400,409))
-    check("Catalog activates acknowledged configurations and rejects price edits during sales")
+    check("Scoped draft preview, idempotent publication, separate acknowledgments and buyer gate work through the gateway")
 
     request("POST", f"/api/queue/concerts/{concert_id}/join", audience)
     access = until(lambda: request("GET", f"/api/queue/concerts/{concert_id}/status", audience).get("queueAccessToken"))
@@ -192,60 +273,109 @@ def main(*, source_outage=True):
         "concertId": concert_id, "items": [{"ticketTypeId": type_id, "quantity": 2}],
     }, expected=(201,), headers=purchase_headers)
     order_id = order["id"]
-    request("POST", f"/api/payments/{order_id}/initiate", audience, {"provider": "MOCK"}, expected=(200, 202))
+    assert "MOCK" in request("GET", "/api/payments/providers", audience)
+    if source_outage:
+        compose("stop", "payment")
+    try:
+        request("POST", f"/api/payments/{order_id}/initiate", audience, {"provider": "MOCK"},
+                expected=(202,) if source_outage else (200, 202))
+        assert sql("ticketing", f"SELECT count(*) FROM ticketing_payment_intents WHERE order_id='{order_id}'") == "1"
+    finally:
+        if source_outage:
+            compose("start", "payment")
     until(lambda: request("GET", f"/api/payments/{order_id}/status", audience).get("attemptState") == "READY")
     request("POST", f"/api/mock-payments/{order_id}/success", audience)
     until(lambda: request("GET", f"/api/payments/{order_id}/status", audience).get("orderStatus") == "PAID")
     request("POST", f"/api/mock-payments/{order_id}/success", audience)
     assert sql("ticketing", f"SELECT count(*) FROM tickets WHERE concert_id='{concert_id}'") == "2"
     assert sql("ticketing", f"SELECT replay_order('{order_id}') ->> 'status'") == "PAID"
+    assert sql("ticketing", f"SELECT organization_id FROM orders WHERE id='{order_id}'") == first_org
     until(lambda: sql("notification", f"SELECT count(*) FROM notifications WHERE reference_id='{order_id}' AND channel='EMAIL' AND status='SENT'") == "1")
-    check("Ticketing ES, separate Payment DB and Notification settle and deliver once")
+    check("Ticketing persists the intent during a Payment outage, then settles and delivers once")
 
-    dataset = until(lambda: (lambda data: data if data["totalCount"] == 2 else None)(
-        request("GET", f"/api/staff/concerts/{concert_id}/checkin-dataset", staff)))
-    codes = [row["qrCode"] for row in dataset["tickets"]]
-    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as workers:
-        results = list(workers.map(lambda device: request("POST", "/api/staff/checkins/scan", staff, {
-            "concertId": concert_id, "qrCode": codes[0], "deviceId": device, "gate": "GA",
-        }), ["device-a", "device-b"]))
-    assert sorted(result["status"] for result in results) == ["FAILED", "SUCCESS"]
-    assert sql("checkin", f"SELECT count(*) FROM checkin_logs WHERE concert_id='{concert_id}'") == "1"
-    check("Two scanners racing for one QR produce one accepted admission")
+    orders = "/api/organizer/manage/orders"
+    assert request("GET", f"{orders}/{order_id}", organizer, headers=first_scope)["id"] == order_id
+    request("GET", f"{orders}/{order_id}", organizer, expected=(404,), headers=second_scope)
+    assert request("GET", orders, organizer, headers=second_scope) == []
+    request("PATCH", f"{concerts}/{concert_id}/status", organizer, {"status": "CANCELLED"},
+            headers=first_scope, expected=(400, 409))
+    assert request("GET", public)["status"] == "ON_SALE"
+    request("PATCH", f"{concerts}/{concert_id}/status", organizer, {"status": "COMPLETED"}, headers=first_scope)
+    request("GET", f"/api/organizer/concerts/{concert_id}/revenue-summary", organizer, headers=first_scope)
+    request("GET", f"/api/organizer/concerts/{concert_id}/revenue-summary", organizer,
+            expected=(404,), headers=second_scope)
+    today = dt.datetime.now(ZoneInfo("Asia/Ho_Chi_Minh")).date()
+    period = f"from={today}&to={today + dt.timedelta(days=1)}&basis=ATTEMPT"
+    report = "/api/organizer/reconciliation"
+    def collected():
+        data = request("GET", f"{report}?{period}", organizer, headers=first_scope)
+        return data if data["totals"]["verifiedCollections"] == 200000 else None
+    summary = until(collected)
+    row, = summary["content"]
+    assert row["orderId"] == order_id and row["organizationId"] == first_org and row["transactionId"]
+    assert summary["totals"]["paidOrderSales"] == 200000
+    assert request("GET", f"{report}?{period}", organizer, headers=second_scope)["content"] == []
+    assert request("GET", f"{report}?{period}&concertId={second_concert}", organizer, headers=first_scope)["content"] == []
+    assert request("GET", f"/api/admin/reconciliation?{period}&organizationId={first_org}", admin)["content"] == [row]
+    request("GET", f"/api/admin/reconciliation?{period}", organizer, expected=(403,))
+    req = urllib.request.Request(BASE + f"{report}/export?{period}",
+                                 headers={**first_scope, "Authorization": "Bearer " + organizer})
+    with urllib.request.urlopen(req, timeout=20) as response:
+        assert response.headers.get_content_type() == "text/csv"
+        exported, = list(csv.DictReader(response.read().decode().splitlines()))
+        assert exported["order_id"] == row["orderId"] and exported["transaction_id"] == row["transactionId"]
+        assert exported["collected_vnd"] == str(row["collectedAmount"])
+    PROOF["reconciliation"] = {"orderId": order_id, "organizationId": first_org, "period": period,
+                               "transactionId": row["transactionId"], "collectedAmount": row["collectedAmount"]}
+    check("Reconciliation preserves ownership across replay, isolates finance scopes and exports the same amounts")
+    request("PUT", f"/api/organizations/{second_org}/members/{organizer_id}", audience, {"grants": []})
+    request("GET", orders, organizer, expected=(403,), headers=second_scope)
+    check("Ticketing scopes orders and reporting and honors revocation with the same token")
+
+    for base in (BASE, CHECKIN_BASE):
+        request("GET", f"/api/staff/concerts/{concert_id}/checkin-dataset", staff, expected=(403,), base=base)
+        request("POST", "/api/staff/checkins/scan", staff, {}, expected=(403,), base=base)
+    assert sql("checkin", f"SELECT count(*) FROM checkin_logs WHERE concert_id='{concert_id}'") == "0"
+    request("GET", f"{concerts}/{concert_id}/checkin-summary", organizer, headers=first_scope)
+    request("GET", f"{concerts}/{second_concert}/checkin-summary", organizer, expected=(404,), headers=first_scope)
+    check("Check-in scopes organizer summaries and blocks deferred staff routes on gateway and LAN")
 
     if source_outage:
-        compose("stop", "identity", "catalog", "ticketing")
-    try:
-        payload = {"concertId": concert_id, "deviceId": "offline-device", "logs": [{
-            "qrCode": codes[1], "checkedAt": now.isoformat(timespec="milliseconds"), "gate": "VIP", "notes": None,
-        }]}
-        first = request("POST", "/api/staff/checkins/sync", staff, payload, base=CHECKIN_BASE)
-        repeated = request("POST", "/api/staff/checkins/sync", staff, payload, base=CHECKIN_BASE)
-        assert first["accepted"] == repeated["accepted"] == 1
-        assert sql("checkin", f"SELECT count(*) FROM checkin_logs WHERE concert_id='{concert_id}'") == "2"
-    finally:
-        if source_outage:
-            compose("start", "identity", "catalog", "ticketing")
-    if source_outage:
-        check("LAN Check-in works during source outage and repeated offline sync is idempotent")
-    else:
-        check("Repeated offline sync is idempotent")
+        compose("stop", "identity")
+        try:
+            request("GET", concerts, organizer, expected=(503,), headers=first_scope)
+            request("GET", f"{orders}/{order_id}", organizer, expected=(503,), headers=first_scope)
+            request("GET", f"/api/orders/{order_id}", audience)
+        finally:
+            compose("start", "identity")
+        until(lambda: login("admin"))
+        check("Privileged routes fail closed during Identity outage while buyer order access works")
 
-    until(lambda: request("GET", "/api/health"))
-    sql("ticketing", f"UPDATE checkin_ticket_outbox SET delivered_version=0 WHERE ticket_id IN (SELECT id FROM tickets WHERE concert_id='{concert_id}')")
-    until(lambda: sql("ticketing", f"SELECT count(*) FROM checkin_ticket_outbox o JOIN tickets t ON t.id=o.ticket_id WHERE t.concert_id='{concert_id}' AND delivered_version<version") == "0")
-    assert sql("checkin", f"SELECT count(*) FROM tickets WHERE concert_id='{concert_id}' AND status='USED'") == "2"
-    until(lambda: sql("ticketing", f"SELECT count(*) FROM tickets WHERE concert_id='{concert_id}' AND status='USED'") == "2")
-    check("Replayed issuance snapshots preserve admissions and ticket status feedback")
-    csv = "phone,full_name,category,sponsor_name,notes\n0901234567,Nguyễn Ánh,VIP,Partner,fixture\n".encode("utf-8")
-    imported=upload(f"/api/admin/concerts/{concert_id}/guest-lists/import",admin,"guests.csv",csv,"text/csv")
+    guest_csv = "phone,full_name,category,sponsor_name,notes\n0901234567,Nguyễn Ánh,VIP,Partner,fixture\n".encode("utf-8")
+    imported=upload(f"/api/admin/concerts/{concert_id}/guest-lists/import",admin,"guests.csv",guest_csv,"text/csv")
     until(lambda:request("GET",f"/api/admin/batch-logs/{imported['batchLogId']}",admin)["status"] in ("SUCCESS","PARTIAL","SKIPPED"))
-    guests=request("GET",f"/api/staff/guestlist/list?concert_id={concert_id}",staff)
-    assert len(guests)==1
-    assert guests[0]["fullName"] == "Nguyễn Ánh", guests
-    upload(f"/api/admin/concerts/{concert_id}/guest-lists/import",admin,"guests.csv",csv,"text/csv")
-    assert len(request("GET",f"/api/staff/guestlist/list?concert_id={concert_id}",staff))==1
-    check("Check-in owns CSV processing and duplicate imports preserve one guest")
+    guests = f"{concerts}/{concert_id}/guest-lists"
+    entries = request("GET", guests, organizer, headers=first_scope)["content"]
+    assert len(entries) == 1 and entries[0]["fullName"] == "Nguyễn Ánh", entries
+    request("GET", guests, audience, expected=(404,), headers=second_scope)
+    request("GET", f"/api/organizer/manage/batch-logs/{imported['batchLogId']}",
+            audience, expected=(404,), headers=second_scope)
+    upload(f"/api/admin/concerts/{concert_id}/guest-lists/import",admin,"guests.csv",guest_csv,"text/csv")
+    assert len(request("GET", guests, organizer, headers=first_scope)["content"]) == 1
+    large_csv = "phone,full_name,category,sponsor_name,notes\n" + "".join(
+        f"09{number:08d},{'ZZZ Target' if number == 110 else f'AAA Guest {number:03d}'},VIP,Partner,fixture\n"
+        for number in range(111))
+    large_import = upload(f"/api/admin/concerts/{second_concert}/guest-lists/import", admin, "large.csv",
+                          large_csv.encode(), "text/csv")
+    until(lambda: request("GET", f"/api/admin/batch-logs/{large_import['batchLogId']}", admin)["status"] == "SUCCESS")
+    other_guests = f"{concerts}/{second_concert}/guest-lists"
+    unfiltered = request("GET", f"{other_guests}?size=100", audience, headers=second_scope)
+    assert unfiltered["totalElements"] == 111 and len(unfiltered["content"]) == 100
+    filtered = request("GET", f"{other_guests}?query=Target&size=1", audience, headers=second_scope)
+    assert filtered["totalElements"] == 1 and filtered["content"][0]["fullName"] == "ZZZ Target"
+    assert request("GET", f"{other_guests}?query=Absent", audience, headers=second_scope)["totalElements"] == 0
+    check("Guest filters search beyond the first 100 rows and return matching totals")
+    check("Check-in scopes guest data and import results and deduplicates imports")
 
     job=upload(f"/api/admin/concerts/{concert_id}/artist-bio-jobs",admin,"press-kit.pdf",press_kit(),"application/pdf")
     completed=until(lambda:(lambda value:value if value["status"]=="DONE" else None)(

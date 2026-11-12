@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -28,6 +29,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 @Testcontainers
 @SpringBootTest(classes = IdentityApplication.class)
@@ -130,6 +133,132 @@ class IdentityIntegrationTest {
         mvc.perform(get("/api/auth/me").header("Authorization", "Bearer invalid"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.message").value("Vui lòng đăng nhập để tiếp tục"));
+    }
+
+    @Test
+    void organizationGrantsAreBoundToTheAccountAndCurrentMembership() throws Exception {
+        UUID organizer = accountId("organizer@ticketbox.com");
+        UUID buyer = accountId("audience@ticketbox.com");
+        String adminToken = login("admin@ticketbox.com");
+        String organizerToken = login("organizer@ticketbox.com");
+        String buyerToken = login("audience@ticketbox.com");
+
+        UUID first = createOrganization(adminToken, "Scope test A", organizer);
+        UUID second = createOrganization(adminToken, "Scope test B", organizer);
+        assertThat(createOrganization(adminToken, "Scope test A", organizer)).isEqualTo(first);
+        var invitation = mvc.perform(post("/api/organizations/{id}/invitations", first)
+                        .header("Authorization", organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(java.util.Map.of(
+                                "accountId", buyer, "grants", java.util.List.of("FINANCE")))))
+                .andExpect(status().isCreated()).andReturn().getResponse();
+        String code = json.readTree(invitation.getContentAsString()).path("data").path("code").asText();
+        String accept = json.writeValueAsString(java.util.Map.of("code", code));
+
+        mvc.perform(post("/api/organizations/invitations/accept").header("Authorization", organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON).content(accept))
+                .andExpect(status().isNotFound());
+        try (var callers = Executors.newFixedThreadPool(2)) {
+            var firstAccept = callers.submit(() -> acceptInvitation(buyerToken, accept));
+            var secondAccept = callers.submit(() -> acceptInvitation(buyerToken, accept));
+            assertThat(firstAccept.get(10, TimeUnit.SECONDS)).isEqualTo(200);
+            assertThat(secondAccept.get(10, TimeUnit.SECONDS)).isEqualTo(200);
+        }
+        mvc.perform(get("/internal/split/v1/organization-access/{id}", first)
+                        .header("X-Service-Token", SERVICE_TOKEN).header("Authorization", buyerToken))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.grants[0]").value("FINANCE"));
+        mvc.perform(get("/internal/split/v1/organization-access/{id}", second)
+                        .header("X-Service-Token", SERVICE_TOKEN).header("Authorization", buyerToken))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/internal/split/v1/organization-access/{id}", first)
+                        .header("Authorization", buyerToken))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(put("/api/organizations/{id}/members/{accountId}", first, organizer)
+                        .header("Authorization", organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"grants\":[]}"))
+                .andExpect(status().isConflict());
+        setActive(adminToken, buyer, false);
+        try {
+            mvc.perform(get("/internal/split/v1/organization-access/{id}", first)
+                            .header("X-Service-Token", SERVICE_TOKEN).header("Authorization", buyerToken))
+                    .andExpect(status().isUnauthorized());
+        } finally {
+            setActive(adminToken, buyer, true);
+        }
+        mvc.perform(get("/internal/split/v1/organization-access/{id}", first)
+                        .header("X-Service-Token", SERVICE_TOKEN).header("Authorization", buyerToken))
+                .andExpect(status().isUnauthorized());
+        String renewed = login("audience@ticketbox.com");
+        mvc.perform(get("/internal/split/v1/organization-access/{id}", first)
+                        .header("X-Service-Token", SERVICE_TOKEN).header("Authorization", renewed))
+                .andExpect(status().isOk());
+        mvc.perform(put("/api/organizations/{id}/members/{accountId}", first, buyer)
+                        .header("Authorization", organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"grants\":[]}"))
+                .andExpect(status().isOk());
+        mvc.perform(get("/internal/split/v1/organization-access/{id}", first)
+                        .header("X-Service-Token", SERVICE_TOKEN).header("Authorization", renewed))
+                .andExpect(status().isForbidden());
+        assertThat(jdbc.queryForObject("""
+                        SELECT count(*) FROM organization_audit
+                        WHERE organization_id = ? AND action = 'INVITATION_ACCEPTED'
+                        """, Integer.class, first)).isEqualTo(1);
+    }
+
+    private void setActive(String admin, UUID account, boolean active) throws Exception {
+        mvc.perform(put("/api/admin/users/{id}/status", account).header("Authorization", admin)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"isActive\":" + active + "}"))
+                .andExpect(status().isOk());
+    }
+
+    private int acceptInvitation(String token, String body) throws Exception {
+        return mvc.perform(post("/api/organizations/invitations/accept").header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andReturn().getResponse().getStatus();
+    }
+
+    @Test
+    void platformCanRecoverAnOrganizationWithNoActiveManager() throws Exception {
+        UUID organizer = accountId("organizer@ticketbox.com");
+        UUID replacement = accountId("audience@ticketbox.com");
+        String admin = login("admin@ticketbox.com");
+        UUID organization = createOrganization(admin, "Recovery fixture", organizer);
+        String body = json.writeValueAsString(java.util.Map.of("accountId", replacement));
+
+        mvc.perform(put("/api/admin/organizations/{id}/manager", organization)
+                        .header("Authorization", admin).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isConflict());
+        setActive(admin, organizer, false);
+        try {
+            mvc.perform(put("/api/admin/organizations/{id}/manager", organization)
+                            .header("Authorization", admin).contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isOk());
+            mvc.perform(get("/api/organizations/{id}/members", organization)
+                            .header("Authorization", login("audience@ticketbox.com")))
+                    .andExpect(status().isOk());
+        } finally {
+            setActive(admin, organizer, true);
+        }
+    }
+
+    private UUID createOrganization(String token, String name, UUID manager) throws Exception {
+        var response = mvc.perform(post("/api/admin/organizations")
+                        .header("Authorization", token).contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(java.util.Map.of(
+                                "name", name, "initialManagerId", manager))))
+                .andExpect(status().isCreated()).andReturn().getResponse();
+        return UUID.fromString(json.readTree(response.getContentAsString()).path("data").path("id").asText());
+    }
+
+    private UUID accountId(String email) {
+        return jdbc.queryForObject("SELECT id FROM users WHERE email = ?", UUID.class, email);
+    }
+
+    private String login(String email) throws Exception {
+        var response = mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(java.util.Map.of("email", email, "password", "password123"))))
+                .andExpect(status().isOk()).andReturn().getResponse();
+        return "Bearer " + json.readTree(response.getContentAsString()).path("data").path("accessToken").asText();
     }
 
     @Test

@@ -45,7 +45,7 @@ public class TicketTypeService {
     public List<TicketTypeResponse> getTicketTypesForAdmin(
             UUID concertId, UUID requesterId, boolean isAdmin) {
         Concert concert = getConcertOrThrow(concertId);
-        verifyConcertOwnership(concert, requesterId, isAdmin);
+        verifyConcertOwnership(concert, requesterId, isAdmin, "error.concert-not-found");
         return getTicketTypes(concertId);
     }
 
@@ -109,7 +109,7 @@ public class TicketTypeService {
     public TicketTypeResponse createTicketType(
             UUID concertId, CreateTicketTypeRequest request, UUID requesterId, boolean isAdmin) {
         Concert concert = lockConcertOrThrow(concertId);
-        verifyConcertOwnership(concert, requesterId, isAdmin);
+        verifyConcertOwnership(concert, requesterId, isAdmin, "error.concert-not-found");
         TicketType ticketType = ticketTypeMapper.toEntity(request);
         ticketType.setConcertId(concertId);
         ticketType.setAvailableQty(request.totalQuantity());
@@ -125,7 +125,7 @@ public class TicketTypeService {
             UUID id, UpdateTicketTypeRequest request, UUID requesterId, boolean isAdmin) {
         TicketType ticketType = getTicketTypeOrThrow(id);
         Concert concert = lockConcertOrThrow(ticketType.getConcertId());
-        verifyConcertOwnership(concert, requesterId, isAdmin);
+        verifyConcertOwnership(concert, requesterId, isAdmin, "error.ticket-type.not-found");
 
         if (inventory.available(id) < ticketType.getTotalQuantity()) {
             throw new AppException(ErrorCode.INVALID_REQUEST, "error.ticket-type.sale-started");
@@ -147,7 +147,7 @@ public class TicketTypeService {
             UUID id, boolean isActive, UUID requesterId, boolean isAdmin) {
         TicketType ticketType = getTicketTypeOrThrow(id);
         Concert concert = lockConcertOrThrow(ticketType.getConcertId());
-        verifyConcertOwnership(concert, requesterId, isAdmin);
+        verifyConcertOwnership(concert, requesterId, isAdmin, "error.ticket-type.not-found");
         ticketType.setActive(isActive);
         TicketType saved = ticketTypeRepository.saveAndFlush(ticketType);
         evictTicketTypeCaches(ticketType.getConcertId());
@@ -158,7 +158,7 @@ public class TicketTypeService {
     public void deleteTicketType(UUID id, UUID requesterId, boolean isAdmin) {
         TicketType ticketType = getTicketTypeOrThrow(id);
         Concert concert = lockConcertOrThrow(ticketType.getConcertId());
-        verifyConcertOwnership(concert, requesterId, isAdmin);
+        verifyConcertOwnership(concert, requesterId, isAdmin, "error.ticket-type.not-found");
 
         if (inventory.available(id) < ticketType.getTotalQuantity()) {
             throw new AppException(ErrorCode.INVALID_REQUEST, "error.ticket-type.already-sold");
@@ -203,9 +203,9 @@ public class TicketTypeService {
         }
     }
 
-    private void verifyConcertOwnership(Concert concert, UUID requesterId, boolean isAdmin) {
-        if (!isAdmin && !concert.getCreatedBy().equals(requesterId)) {
-            throw new AppException(ErrorCode.UNAUTHORIZED, "error.ticket-type.edit-forbidden");
+    private void verifyConcertOwnership(Concert concert, UUID requesterId, boolean isAdmin, String notFound) {
+        if (!isAdmin && !requesterId.equals(concert.getOrganizationId())) {
+            throw new AppException(ErrorCode.RESOURCE_NOT_FOUND, notFound);
         }
     }
 

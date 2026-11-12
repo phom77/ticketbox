@@ -24,9 +24,14 @@ public class GuestListManagementService {
 
     public Page<GuestListEntryResponse> list(
             UUID concertId, UUID userId, boolean admin, Pageable pageable) {
+        return list(concertId, userId, admin, null, false, pageable);
+    }
+
+    public Page<GuestListEntryResponse> list(UUID concertId, UUID userId, boolean admin,
+            String query, boolean activeOnly, Pageable pageable) {
         accessService.requireAccess(concertId, userId, admin);
         return guestListRepository
-                .findByConcertId(concertId, pageable)
+                .search(concertId, query == null ? "" : query.strip(), activeOnly, pageable)
                 .map(
                         guest ->
                                 new GuestListEntryResponse(

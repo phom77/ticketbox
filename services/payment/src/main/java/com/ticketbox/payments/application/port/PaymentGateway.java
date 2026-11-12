@@ -11,6 +11,10 @@ import java.util.Map;
 public interface PaymentGateway {
     Provider provider();
 
+    default boolean ready(boolean staging) {
+        return true;
+    }
+
     PaymentInitiationResult initiatePayment(OrderView order);
 
     default PaymentInitiationResult initiatePayment(OrderView order, String requestId) {

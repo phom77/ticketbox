@@ -34,6 +34,7 @@ ticketbox:
     stable-age: ${GUEST_LIST_STABLE_AGE:30s}
 split:
   token: ${SPLIT_SERVICE_TOKEN}
+  identity-url: ${SPLIT_IDENTITY_URL:http://identity:8080}
   ticketing-url: http://ticketing:8080
 management:
   endpoints:

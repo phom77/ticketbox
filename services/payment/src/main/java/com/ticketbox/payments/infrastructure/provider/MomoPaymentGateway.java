@@ -306,6 +306,16 @@ public class MomoPaymentGateway implements PaymentGateway {
                 ErrorCode.PAYMENT_GATEWAY_UNAVAILABLE, "MoMo is temporarily unavailable");
     }
 
+    @Override
+    public boolean ready(boolean staging) {
+        try {
+            requireConfigured();
+            return true;
+        } catch (com.ticketbox.payments.application.error.GatewayNotSubmittedException unavailable) {
+            return false;
+        }
+    }
+
     private void requireConfigured() {
         if (isBlank(properties.partnerCode())
                 || isBlank(properties.accessKey())

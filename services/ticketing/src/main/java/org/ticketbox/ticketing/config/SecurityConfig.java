@@ -113,7 +113,7 @@ public class SecurityConfig {
                                         .permitAll()
                                         .requestMatchers("/internal/notifications/**")
                                         .permitAll()
-                                        .requestMatchers("/internal/ticketing/payment-results")
+                                        .requestMatchers("/internal/ticketing/payment-results", "/internal/ticketing/payment-reconciliation")
                                         .permitAll()
                                         .requestMatchers("/api/payments/webhooks/**")
                                         .permitAll()
@@ -138,9 +138,9 @@ public class SecurityConfig {
                                         .requestMatchers("/api/admin/concerts/*/reminders/send")
                                         .hasRole("ADMIN")
                                         .requestMatchers("/api/admin/**")
-                                        .hasAnyRole("ADMIN", "ORGANIZER")
+                                        .hasRole("ADMIN")
                                         .requestMatchers("/api/organizer/**")
-                                        .hasRole("ORGANIZER")
+                                        .authenticated()
                                         .requestMatchers("/api/queue/**")
                                         .hasRole("AUDIENCE")
                                         .requestMatchers(
@@ -173,7 +173,7 @@ public class SecurityConfig {
         configuration.setAllowedMethods(
                 List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(
-                List.of("Authorization", "Content-Type", "Idempotency-Key", "Queue-Access-Token"));
+                List.of("Authorization", "Content-Type", "Idempotency-Key", "Queue-Access-Token", "X-Organization-Id"));
         configuration.setExposedHeaders(List.of("Content-Disposition"));
         configuration.setAllowCredentials(true);
 

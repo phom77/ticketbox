@@ -97,7 +97,8 @@ class AuthServiceTest {
                         eq(sampleUser.getId()),
                         eq(sampleUser.getEmail()),
                         eq(sampleUser.getRole().name()),
-                        eq(sampleUser.getFullName())))
+                        eq(sampleUser.getFullName()),
+                        eq(sampleUser.getSessionVersion())))
                 .thenReturn("jwt_token");
         when(jwtService.getExpirationMs()).thenReturn(3600000L); // 1 hour
 
@@ -116,7 +117,8 @@ class AuthServiceTest {
                         eq(sampleUser.getId()),
                         eq(sampleUser.getEmail()),
                         eq(sampleUser.getRole().name()),
-                        eq(sampleUser.getFullName()));
+                        eq(sampleUser.getFullName()),
+                        eq(sampleUser.getSessionVersion()));
     }
 
     @Test

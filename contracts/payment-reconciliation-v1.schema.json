@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ticketbox:payment-reconciliation:v1",
+  "type": "object",
+  "required": ["schemaVersion", "intentId", "orderId", "revision", "provider", "state", "requestedAmount", "attemptedAt", "changedAt"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "intentId": {"type": "string", "format": "uuid"},
+    "orderId": {"type": "string", "format": "uuid"},
+    "revision": {"type": "integer", "minimum": 1},
+    "provider": {"enum": ["MOCK", "MOMO", "VNPAY"]},
+    "state": {"enum": ["CREATED", "PROCESSING", "READY", "UNKNOWN", "FAILED", "SETTLEMENT_PENDING", "SUCCEEDED", "RECONCILIATION_REQUIRED", "REVIEW_REQUIRED"]},
+    "requestedAmount": {"type": "integer", "minimum": 0, "maximum": 999999999999},
+    "transactionId": {"type": ["string", "null"], "minLength": 1},
+    "collectedAmount": {"type": ["integer", "null"], "minimum": 0, "maximum": 999999999999},
+    "attemptedAt": {"type": "string", "format": "date-time"},
+    "verifiedAt": {"type": ["string", "null"], "format": "date-time"},
+    "refundAmount": {"type": ["integer", "null"], "minimum": 0, "maximum": 999999999999},
+    "refundReference": {"type": ["string", "null"], "minLength": 1},
+    "changedAt": {"type": "string", "format": "date-time"}
+  }
+}

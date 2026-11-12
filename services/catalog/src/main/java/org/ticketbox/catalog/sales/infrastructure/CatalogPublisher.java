@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -21,18 +22,21 @@ public class CatalogPublisher {
     private final ObjectMapper json;
     private final String ticketing;
     private final String checkin;
+    private final org.ticketbox.catalog.application.port.ReadCache readCache;
 
     public CatalogPublisher(
             JdbcTemplate jdbc,
             RestClient http,
             ObjectMapper json,
             @Value("${split.ticketing-url}") String ticketing,
-            @Value("${split.checkin-url}") String checkin) {
+            @Value("${split.checkin-url}") String checkin,
+            org.ticketbox.catalog.application.port.ReadCache readCache) {
         this.jdbc = jdbc;
         this.http = http;
         this.json = json;
         this.ticketing = ticketing;
         this.checkin = checkin;
+        this.readCache = readCache;
     }
 
     @Scheduled(fixedDelayString = "${split.config-interval-ms:2000}")
@@ -44,8 +48,8 @@ SELECT concert_id FROM sale_config_outbox
 WHERE ticketing_version<version OR checkin_version<version ORDER BY concert_id LIMIT 100
 """,
                         UUID.class)) {
-            tryDeliver(id, ticketing, "ticketing_version");
-            tryDeliver(id, checkin, "checkin_version");
+            tryDeliver(id, ticketing, "ticketing");
+            tryDeliver(id, checkin, "checkin");
         }
     }
 
@@ -56,13 +60,13 @@ WHERE ticketing_version<version OR checkin_version<version ORDER BY concert_id L
 SELECT concert_id FROM sale_config_outbox WHERE ticketing_version<version ORDER BY concert_id
 """,
                         UUID.class)) {
-            deliver(id, ticketing, "ticketing_version");
+            deliver(id, ticketing, "ticketing");
         }
     }
 
-    private void tryDeliver(UUID id, String destination, String ackColumn) {
+    private void tryDeliver(UUID id, String destination, String consumer) {
         try {
-            deliver(id, destination, ackColumn);
+            deliver(id, destination, consumer);
         } catch (RuntimeException failure) {
             LOG.warn(
                     "Catalog configuration {} for {} will retry: {}",
@@ -72,7 +76,8 @@ SELECT concert_id FROM sale_config_outbox WHERE ticketing_version<version ORDER 
         }
     }
 
-    private void deliver(UUID id, String destination, String ackColumn) {
+    private void deliver(UUID id, String destination, String consumer) {
+        String ackColumn = consumer + "_version";
         // The legacy v1 receivers upsert a full row. Keep this field list stable as the producer
         // evolves.
         JsonNode envelope =
@@ -85,7 +90,7 @@ SELECT jsonb_build_object('id',o.concert_id,'version',o.version,'deleted',c.id I
     'doors_open_at',c.doors_open_at,'sale_start_at',c.sale_start_at,'sale_end_at',c.sale_end_at,
     'status',c.status,'seat_map_svg',c.seat_map_svg,'poster_url',c.poster_url,'created_by',c.created_by,
     'created_at',c.created_at,'updated_at',c.updated_at,'poster_public_id',c.poster_public_id,
-    'is_public',c.is_public) END,
+    'is_public',c.is_public,'organization_id',c.organization_id) END,
   'types',COALESCE((SELECT jsonb_agg(jsonb_build_object(
     'id',t.id,'concert_id',t.concert_id,'name',t.name,'price',t.price,
     'total_quantity',t.total_quantity,'available_qty',t.available_qty,'max_per_account',t.max_per_account,
@@ -109,21 +114,23 @@ WHERE o.concert_id=? AND o.%s<o.version
         var response =
                 http.post()
                         .uri(destination + "/internal/split/catalog")
+                        // A restarted container may acquire a different address between deliveries.
+                        .header(HttpHeaders.CONNECTION, "close")
                         .body(envelope)
                         .retrieve()
                         .toBodilessEntity();
-        if (!response.getStatusCode().is2xxSuccessful()) {
+        if (!response.getStatusCode().is2xxSuccessful()
+                || !consumer.equals(response.getHeaders().getFirst("X-Catalog-Consumer"))) {
             throw new IllegalStateException(
-                    "Catalog receiver returned " + response.getStatusCode());
+                    "Catalog acknowledgment did not identify the " + consumer + " receiver");
         }
-        jdbc.update(
-                "UPDATE sale_config_outbox SET "
-                        + ackColumn
-                        + "=GREATEST("
-                        + ackColumn
-                        + ",?) WHERE concert_id=?",
-                envelope.required("version").asLong(),
-                id);
+        long version = envelope.required("version").asLong();
+        int updated = jdbc.update(
+                "UPDATE sale_config_outbox SET " + ackColumn + "=? WHERE concert_id=? AND " + ackColumn + "<?",
+                version, id, version);
+        if (updated > 0 && "ticketing".equals(consumer)) {
+            readCache.evictAfterCommit(id);
+        }
     }
 
     @Scheduled(fixedDelayString = "${split.stock-interval-ms:2000}")

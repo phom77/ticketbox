@@ -84,7 +84,6 @@ def main():
         staff=until(lambda:request("POST","/api/auth/login",body={"email":"staff@ticketbox.com","password":"password123"})["accessToken"])
         until(lambda:request("GET","/api/concerts"))
         until(lambda:request("GET","/api/orders/my",audience) is not None)
-        until(lambda:request("GET","/api/staff/concerts?status=ON_SALE",staff))
         if args.replica_outage_only:
             order=json.loads(lab.sql("ticketing","SELECT jsonb_build_object('id',id,'key',idempotency_key) FROM orders WHERE user_id='00000000-0000-0000-0000-000000000003' ORDER BY created_at DESC LIMIT 1"))
             proof["sqlLag"]=[lab.lag("ticketing")]
@@ -143,13 +142,14 @@ def main():
         lab.caught_up("ticketing")
         assert oid in [o["id"] for o in request("GET","/api/orders/my",audience)]
         check("Stale order history coexists with primary checkout, idempotency recovery, payment and replay")
-        dataset=until(lambda:request("GET",f"/api/staff/concerts/{cid}/checkin-dataset",staff).get("tickets"))
-        scan=request("POST","/api/staff/checkins/scan",staff,{"concertId":cid,"qrCode":dataset[0]["qrCode"],"deviceId":"lab-device","gate":"GA"})
-        assert scan["status"]=="SUCCESS"
-        repeated=request("POST","/api/staff/checkins/scan",staff,{"concertId":cid,"qrCode":dataset[0]["qrCode"],"deviceId":"lab-device","gate":"GA"})
-        assert repeated["status"]=="FAILED"
-        assert lab.sql("checkin",f"SELECT count(*) FROM scan_audit WHERE concert_id='{cid}'")=="1"
-        check("Real accepted scan reaches monthly audit; repeat scan preserves unique admission")
+        try:
+            request("GET", f"/api/staff/concerts/{cid}/checkin-dataset", staff)
+        except urllib.error.HTTPError as error:
+            assert error.code == 403, error.code
+        else:
+            raise AssertionError("Unscoped staff dataset unexpectedly succeeded")
+        assert lab.sql("checkin", f"SELECT count(*) FROM scan_audit WHERE concert_id='{cid}'") == "0"
+        check("Unscoped staff access remains disabled with lab partitions")
         proof["constraints"]={}
         for service in ("ticketing","checkin"):
             result=lab.sql(service,(ROOT/f"scripts/db/verify-lab-{service}.sql").read_text().replace("\\set ON_ERROR_STOP on", ""))

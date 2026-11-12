@@ -1,4 +1,4 @@
-import { ArrowUpRight, Bell, CalendarDays, Sparkles, Ticket, UserCog, Users } from 'lucide-react';
+import { ArrowUpRight, Bell, CalendarDays, Ticket, UserCog, Users } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../features/auth/AuthContext';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
@@ -21,12 +21,6 @@ const workspaces = [
     title: 'Khách mời',
     copy: 'Nhập danh sách CSV và theo dõi danh sách được duyệt.',
     icon: Users,
-  },
-  {
-    to: '/admin/artist-bio',
-    title: 'AI Artist Bio',
-    copy: 'Tải hồ sơ báo chí PDF, rà soát giới thiệu do AI tạo và áp dụng vào concert.',
-    icon: Sparkles,
   },
   {
     to: '/admin/notifications',

@@ -13,6 +13,8 @@ public interface GuestListRepository {
 
     Page<GuestList> findByConcertId(UUID concertId, Pageable pageable);
 
+    Page<GuestList> search(UUID concertId, String query, boolean activeOnly, Pageable pageable);
+
     Optional<GuestList> findByConcertIdAndPhone(UUID concertId, String phone);
 
     java.util.List<GuestList> findAllByConcertId(UUID concertId);

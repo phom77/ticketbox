@@ -11,6 +11,8 @@ public final class ErrorHttpMapping {
             case INVALID_REQUEST -> HttpStatus.BAD_REQUEST;
             case VALIDATION_FAILED -> HttpStatus.BAD_REQUEST;
             case UNAUTHENTICATED -> HttpStatus.UNAUTHORIZED;
+            case FORBIDDEN -> HttpStatus.FORBIDDEN;
+            case CONFLICT -> HttpStatus.CONFLICT;
             case RESOURCE_NOT_FOUND -> HttpStatus.NOT_FOUND;
             case INTERNAL_SERVER_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;
             case EMAIL_ALREADY_EXISTS -> HttpStatus.CONFLICT;

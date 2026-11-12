@@ -20,6 +20,7 @@ import java.util.UUID;
 public class AdminUserService {
 
     private final UserRepository userRepository;
+    private final org.ticketbox.identity.account.application.port.AccountAccessAudit audit;
 
     public Page<UserResponse> listUsers(Pageable pageable) {
         return userRepository.findAll(pageable).map(UserResponse::fromEntity);
@@ -38,30 +39,36 @@ public class AdminUserService {
     }
 
     @Transactional
-    public UserResponse updateUserRole(UUID id, User.Role role) {
+    public UserResponse updateUserRole(UUID actor, UUID id, User.Role role) {
         User user =
                 userRepository
-                        .findById(id)
+                        .findByIdForUpdate(id)
                         .orElseThrow(
                                 () ->
                                         new AppException(
                                                 ErrorCode.RESOURCE_NOT_FOUND,
                                                 "error.user.not-found"));
-        user.changeRole(role);
+        if (user.getRole() != role) {
+            user.changeRole(role);
+            audit.record(actor, id, "ROLE_CHANGED", role.name());
+        }
         return UserResponse.fromEntity(userRepository.save(user));
     }
 
     @Transactional
-    public UserResponse updateUserStatus(UUID id, boolean isActive) {
+    public UserResponse updateUserStatus(UUID actor, UUID id, boolean isActive) {
         User user =
                 userRepository
-                        .findById(id)
+                        .findByIdForUpdate(id)
                         .orElseThrow(
                                 () ->
                                         new AppException(
                                                 ErrorCode.RESOURCE_NOT_FOUND,
                                                 "error.user.not-found"));
-        user.changeActivity(isActive);
+        if (user.isActive() != isActive) {
+            user.changeActivity(isActive);
+            audit.record(actor, id, "STATUS_CHANGED", Boolean.toString(isActive));
+        }
         return UserResponse.fromEntity(userRepository.save(user));
     }
 }

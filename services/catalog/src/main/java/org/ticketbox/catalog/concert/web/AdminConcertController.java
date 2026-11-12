@@ -36,10 +36,11 @@ public class AdminConcertController {
     @GetMapping
     public ResponseEntity<ApiResponse<Page<ConcertDetailResponse>>> listAllConcerts(
             @RequestParam(required = false) Concert.Status status,
+            @RequestParam(required = false) String query,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
-        Page<ConcertDetailResponse> concerts = concertService.getAllConcerts(status, pageable);
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending().and(Sort.by("id")));
+        Page<ConcertDetailResponse> concerts = concertService.searchConcerts(null, status, query, pageable);
         return ResponseEntity.ok(ApiResponse.success(concerts));
     }
 

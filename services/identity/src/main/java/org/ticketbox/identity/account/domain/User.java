@@ -28,6 +28,8 @@ public class User extends BaseEntity {
 
     private boolean isActive = true;
 
+    private long sessionVersion;
+
     public void setActive(boolean active) {
         isActive = active;
     }
@@ -64,11 +66,18 @@ public class User extends BaseEntity {
     }
 
     public void changeRole(Role role) {
-        this.role = java.util.Objects.requireNonNull(role);
+        java.util.Objects.requireNonNull(role);
+        if (this.role != role) {
+            this.role = role;
+            sessionVersion++;
+        }
     }
 
     public void changeActivity(boolean active) {
-        isActive = active;
+        if (isActive != active) {
+            isActive = active;
+            sessionVersion++;
+        }
     }
 
     public void updateProfile(String name, String phone) {

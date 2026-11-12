@@ -23,12 +23,13 @@ import org.ticketbox.catalog.concert.application.ConcertService;
 import org.ticketbox.catalog.concert.application.dto.ConcertDetailResponse;
 import org.ticketbox.catalog.config.SecurityConfig;
 import org.ticketbox.catalog.infrastructure.security.JwtService;
+import org.ticketbox.catalog.web.security.OrganizationAccess;
 
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
-@WebMvcTest(controllers = AdminConcertController.class)
+@WebMvcTest(controllers = {AdminConcertController.class, OrganizerConcertController.class})
 @Import(SecurityConfig.class)
 class AdminConcertPosterControllerTest {
 
@@ -54,8 +55,9 @@ class AdminConcertPosterControllerTest {
                 .thenReturn(response(concertId, organizerId, "https://cloudinary/poster.jpg"));
 
         mockMvc.perform(
-                        multipart("/api/admin/concerts/{id}/poster", concertId)
+                        multipart("/api/organizer/manage/concerts/{id}/poster", concertId)
                                 .file(file)
+                                .requestAttr(OrganizationAccess.ORGANIZATION, organizerId)
                                 .with(
                                         request -> {
                                             request.setMethod("PUT");

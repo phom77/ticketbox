@@ -2,6 +2,7 @@ package org.ticketbox.checkin.web.internal;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.ticketbox.checkin.application.port.ProjectionSnapshots;
 
@@ -15,8 +16,9 @@ public class ProjectionApi {
     }
 
     @PostMapping("/catalog")
-    public void catalog(@RequestBody JsonNode envelope) {
+    public ResponseEntity<Void> catalog(@RequestBody JsonNode envelope) {
         receiver.catalog(envelope);
+        return ResponseEntity.ok().header("X-Catalog-Consumer", "checkin").build();
     }
 
     @PostMapping("/tickets")

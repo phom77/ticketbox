@@ -1,3 +1,5 @@
+import { PublicationPanel } from '../../features/organizations/PublicationPanel';
+import { useOrganization } from '../../features/organizations/OrganizationProvider';
 import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   CalendarDays,
@@ -27,13 +29,10 @@ import {
   uploadConcertPoster,
   type ArtistBioJob,
   type BatchLog,
-  type CheckinSummary,
   type ConcertMutation,
-  type GuestListEntry,
   type ManagementApiScope,
 } from '../../api/admin';
 import type { ConcertDetail } from '../../api/concerts';
-import type { Order } from '../../api/orders';
 import { isRequestCanceled } from '../../api/client';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { useToast } from '../../components/feedback/toast-context';
@@ -103,16 +102,51 @@ function parseWorkspaceTab(value: string | null): WorkspaceTab {
   return tabs.some((item) => item.id === value) ? (value as WorkspaceTab) : 'overview';
 }
 
+function useWorkspaceSection<T>(enabled: boolean, fetchSection: (signal: AbortSignal) => Promise<T>) {
+  const [data, setData] = useState<T | null>(null);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(enabled);
+  const [revision, setRevision] = useState(0);
+  const retry = useCallback(() => setRevision((value) => value + 1), []);
+
+  useEffect(() => {
+    if (!enabled) return;
+    const controller = new AbortController();
+    setData(null);
+    setError('');
+    setLoading(true);
+    void fetchSection(controller.signal).then((result) => {
+      if (!controller.signal.aborted) setData(result);
+    }).catch((failure: unknown) => {
+      if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : 'Không tải được dữ liệu.');
+    }).finally(() => {
+      if (!controller.signal.aborted) setLoading(false);
+    });
+    return () => controller.abort();
+  }, [enabled, fetchSection, revision]);
+
+  return { data, error, loading, retry };
+}
+
+function SectionStatus({ error, loading, retry }: { error: string; loading: boolean; retry: () => void }) {
+  if (loading) return <p role="status">Đang tải dữ liệu…</p>;
+  if (!error) return null;
+  return <p role="alert">{error} <button type="button" className="admin-secondary-action" onClick={retry}>Thử lại</button></p>;
+}
+
+const workspaceStatus: Record<ConcertDetail['status'], string> = {
+  DRAFT: 'Bản nháp', ON_SALE: 'Đã cấu hình mở bán', SOLD_OUT: 'Hết vé',
+  COMPLETED: 'Đã diễn ra', CANCELLED: 'Đã hủy',
+};
+
 export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: ManagementApiScope }) {
   const { id } = useParams();
+  const organization = useOrganization();
+  const canViewOrders = apiScope === 'admin' || !!organization?.selected?.grants.includes('FINANCE');
   const [searchParams, setSearchParams] = useSearchParams();
   const toast = useToast();
   const [tab, setTab] = useState<WorkspaceTab>(() => parseWorkspaceTab(searchParams.get('tab')));
   const [concert, setConcert] = useState<ConcertDetail | null>(null);
-  const [guests, setGuests] = useState<GuestListEntry[]>([]);
-  const [guestTotal, setGuestTotal] = useState(0);
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [checkin, setCheckin] = useState<CheckinSummary | null>(null);
   const [artistJobs, setArtistJobs] = useState<ArtistBioJob[]>([]);
   const [selectedArtistSourceIds, setSelectedArtistSourceIds] = useState<string[]>([]);
   const [combiningArtistSources, setCombiningArtistSources] = useState(false);
@@ -126,6 +160,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
   const [uploadingPoster, setUploadingPoster] = useState(false);
   const [guestQuery, setGuestQuery] = useState('');
   const [activeOnly, setActiveOnly] = useState(false);
+  const [guestPageIndex, setGuestPageIndex] = useState(0);
   const [guestImportFile, setGuestImportFile] = useState<File | null>(null);
   const [guestImportScheduled, setGuestImportScheduled] = useState(false);
   const [guestImporting, setGuestImporting] = useState(false);
@@ -153,22 +188,11 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
       setLoading(true);
       setError('');
       try {
-        const [nextConcert, guestPage, nextOrders, nextCheckin, artistPage] = await Promise.all([
-          getManagedConcert(id, signal, apiScope),
-          getConcertGuestList(id, 0, 100, signal, apiScope),
-          getAdminOrders({ concertId: id }, apiScope),
-          getManagedCheckinSummary(id, signal, apiScope),
-          getArtistBioJobs({ concertId: id, page: 0, size: 5 }, signal, apiScope),
-        ]);
+        const nextConcert = await getManagedConcert(id, signal, apiScope);
+        if (signal?.aborted) return;
         setConcert(nextConcert);
         setForm(toForm(nextConcert));
         setArtistBioDraft(nextConcert.artistBio ?? '');
-        setGuests(guestPage.content);
-        setGuestTotal(guestPage.totalElements);
-        setOrders(nextOrders);
-        setCheckin(nextCheckin);
-        setArtistJobs(artistPage.content);
-        setSelectedArtistSourceIds([]);
       } catch (requestError) {
         if (!isRequestCanceled(requestError))
           setError(
@@ -189,15 +213,27 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
     return () => controller.abort();
   }, [load]);
 
-  const refreshGuests = useCallback(
-    async (signal?: AbortSignal) => {
-      if (!id) return;
-      const refreshed = await getConcertGuestList(id, 0, 100, signal, apiScope);
-      setGuests(refreshed.content);
-      setGuestTotal(refreshed.totalElements);
-    },
-    [apiScope, id],
-  );
+  const guestSection = useWorkspaceSection(!!id, useCallback(
+    (signal: AbortSignal) => getConcertGuestList(id!, guestPageIndex, 20, signal, apiScope,
+      { query: guestQuery, activeOnly }),
+    [id, guestPageIndex, apiScope, guestQuery, activeOnly],
+  ));
+  const orderSection = useWorkspaceSection(!!id && canViewOrders, useCallback(
+    (signal: AbortSignal) => getAdminOrders({ concertId: id }, apiScope, signal), [id, apiScope],
+  ));
+  const checkinSection = useWorkspaceSection(!!id, useCallback(
+    (signal: AbortSignal) => getManagedCheckinSummary(id!, signal, apiScope), [id, apiScope],
+  ));
+  const artistSection = useWorkspaceSection(!!id && tab === 'artist', useCallback(
+    (signal: AbortSignal) => getArtistBioJobs({ concertId: id, page: 0, size: 5 }, signal, apiScope),
+    [id, apiScope],
+  ));
+  useEffect(() => {
+    if (artistSection.data) setArtistJobs(artistSection.data.content);
+  }, [artistSection.data]);
+  const { retry: refreshGuests } = guestSection;
+  const guestTotal = guestSection.data?.totalElements;
+  const checkin = checkinSection.data;
 
   useEffect(() => {
     if (!activeGuestImportId) return;
@@ -212,9 +248,9 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
           return;
         }
         if (batch.status === 'SUCCESS' || batch.status === 'PARTIAL') {
-          await refreshGuests(controller.signal);
+          refreshGuests();
           if (!controller.signal.aborted) {
-            toast.success('Danh sĂ¡ch khĂ¡ch má»i Ä‘Ã£ Ä‘Æ°á»£c cáº­p nháº­t.');
+            toast.success('Danh sách khách mời đã được cập nhật.');
           }
         }
         if (!controller.signal.aborted) setActiveGuestImportId('');
@@ -223,7 +259,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
           toast.error(
             requestError instanceof Error
               ? requestError.message
-              : 'KhĂ´ng thá»ƒ cáº­p nháº­t tráº¡ng thĂ¡i import khĂ¡ch má»i.',
+              : 'Không thể cập nhật trạng thái nhập khách mời.',
           );
           setActiveGuestImportId('');
         }
@@ -248,24 +284,10 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
       ) ?? { inventory: 0, available: 0 },
     [concert],
   );
-  const paidOrders = useMemo(() => orders.filter((order) => order.status === 'PAID'), [orders]);
-  const revenue = useMemo(
-    () => paidOrders.reduce((total, order) => total + order.totalAmount, 0),
-    [paidOrders],
-  );
-  const visibleGuests = useMemo(() => {
-    const query = guestQuery.trim().toLocaleLowerCase('vi');
-    return guests.filter(
-      (guest) =>
-        (!activeOnly || guest.active) &&
-        (!query ||
-          [guest.fullName, guest.phone, guest.category, guest.sponsorName]
-            .filter(Boolean)
-            .join(' ')
-            .toLocaleLowerCase('vi')
-            .includes(query)),
-    );
-  }, [activeOnly, guestQuery, guests]);
+  const orders = orderSection.data;
+  const paidOrders = orders?.filter((order) => order.status === 'PAID') ?? [];
+  const revenue = paidOrders.reduce((total, order) => total + order.totalAmount, 0);
+  const visibleGuests = guestSection.data?.content ?? [];
 
   async function saveDetails(event: FormEvent) {
     event.preventDefault();
@@ -397,7 +419,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
       );
       setGuestImportFile(null);
       if (guestImportScheduled) {
-        await refreshGuests();
+        refreshGuests();
       } else {
         setActiveGuestImportId(result.data.batchLogId);
       }
@@ -428,7 +450,6 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
     );
 
   const root = managementRoot(apiScope);
-  const activeGuests = guests.filter((guest) => guest.active).length;
 
   return (
     <>
@@ -438,10 +459,14 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
         description={`${concert.venueName} · ${dateTime.format(new Date(concert.eventDate))}`}
         actions={
           <span className={`admin-status status-${concert.status.toLowerCase()}`}>
-            {concert.status.replace('_', ' ')}
+            {workspaceStatus[concert.status]}
           </span>
         }
       />
+
+      {apiScope === 'organizer' && tab === 'overview' && id ? (
+        <PublicationPanel id={id} updatedAt={concert.updatedAt} onPublished={() => void load()} />
+      ) : null}
 
       <section className="concert-workspace-hero">
         <img
@@ -462,7 +487,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
         </div>
         <div>
           <span>Trạng thái vận hành</span>
-          <strong>{concert.status.replace('_', ' ')}</strong>
+          <strong>{workspaceStatus[concert.status]}</strong>
           <p>
             {ticketStats.available} / {ticketStats.inventory} vé còn khả dụng
           </p>
@@ -470,7 +495,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
       </section>
 
       <nav className="concert-workspace-tabs" aria-label="Quản lý concert">
-        {tabs.map((item) => {
+        {tabs.filter((item) => item.id !== 'artist').map((item) => {
           const Icon = item.icon;
           return (
             <button
@@ -496,16 +521,18 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
           />
           <Metric
             icon={<Users size={19} />}
-            label="Khách mời active"
-            value={`${activeGuests} / ${guestTotal}`}
+            label="Khách mời theo bộ lọc"
+            value={guestTotal === undefined ? "Chưa có dữ liệu" : String(guestTotal)}
             onOpen={() => selectTab('guests')}
           />
-          <Metric
-            icon={<ReceiptText size={19} />}
-            label="Doanh thu đã thanh toán"
-            value={money.format(revenue)}
-            onOpen={() => selectTab('operations')}
-          />
+          {canViewOrders ? (
+            <Metric
+              icon={<ReceiptText size={19} />}
+              label="Doanh thu đã thanh toán"
+              value={orders ? money.format(revenue) : "Chưa có dữ liệu"}
+              onOpen={() => selectTab('operations')}
+            />
+          ) : null}
           <Metric
             icon={<ClipboardCheck size={19} />}
             label="Đã check-in"
@@ -529,17 +556,12 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
               </li>
               <li
                 className={
-                  artistJobs.some((job) => job.status === 'DONE') || concert.artistBio ? 'done' : ''
+                  concert.artistBio ? 'done' : ''
                 }
               >
-                {artistJobs.some((job) => job.status === 'DONE') || concert.artistBio
+                {concert.artistBio
                   ? 'Đã có nội dung nghệ sĩ'
                   : 'Có thể bổ sung Artist Bio'}
-              </li>
-              <li className={activeGuests ? 'done' : ''}>
-                {activeGuests
-                  ? `${activeGuests} khách mời đang hiệu lực`
-                  : 'Chưa có Guest List active'}
               </li>
             </ul>
           </section>
@@ -713,7 +735,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
           <div className="concert-card-heading">
             <div>
               <span>Danh sách khách mời</span>
-              <h2>{guestTotal} khách mời đã nhập</h2>
+              <h2>{guestTotal === undefined ? 'Danh sách khách mời' : `${guestTotal} khách phù hợp`}</h2>
             </div>
             <Link
               className="admin-secondary-action"
@@ -763,18 +785,19 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
           <div className="concert-workspace-toolbar">
             <input
               value={guestQuery}
-              onChange={(e) => setGuestQuery(e.target.value)}
+              onChange={(e) => { setGuestQuery(e.target.value); setGuestPageIndex(0); }}
               placeholder="Tìm tên, số điện thoại, hạng hoặc đơn vị mời..."
             />
             <label>
               <input
                 type="checkbox"
                 checked={activeOnly}
-                onChange={(e) => setActiveOnly(e.target.checked)}
+                onChange={(e) => { setActiveOnly(e.target.checked); setGuestPageIndex(0); }}
               />{' '}
               Chỉ khách hiệu lực
             </label>
           </div>
+          <SectionStatus {...guestSection} />
           <div className="admin-table-wrap">
             <table className="admin-table">
               <thead>
@@ -821,7 +844,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
                     <td>{guest.notes ?? '—'}</td>
                   </tr>
                 ))}
-                {!visibleGuests.length ? (
+                {guestSection.data && !visibleGuests.length ? (
                   <tr>
                     <td colSpan={6} className="concert-empty-row">
                       Chưa có khách mời phù hợp.
@@ -831,6 +854,15 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
               </tbody>
             </table>
           </div>
+          {guestSection.data && guestSection.data.totalPages > 1 ? (
+            <div className="organization-form">
+              <button type="button" className="admin-secondary-action" disabled={guestPageIndex === 0}
+                onClick={() => setGuestPageIndex((page) => page - 1)}>Trang trước</button>
+              <span>Trang {guestPageIndex + 1} / {guestSection.data.totalPages}</span>
+              <button type="button" className="admin-secondary-action" disabled={guestSection.data.last}
+                onClick={() => setGuestPageIndex((page) => page + 1)}>Trang sau</button>
+            </div>
+          ) : null}
         </section>
       ) : null}
 
@@ -842,57 +874,62 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
                 <span>Check-in</span>
                 <h2>Vận hành tại cổng</h2>
               </div>
-              <Link className="admin-secondary-action" to={`${root}/orders?concertId=${id}`}>
-                Xem vé
-              </Link>
+              {canViewOrders ? (
+                <Link className="admin-secondary-action" to={`${root}/orders?concertId=${id}`}>Xem vé</Link>
+              ) : null}
             </div>
-            <dl className="concert-definition-list">
+            <SectionStatus {...checkinSection} />
+            {checkin ? <dl className="concert-definition-list">
               <div>
                 <dt>Tổng vé</dt>
-                <dd>{checkin?.totalTickets ?? 0}</dd>
+                <dd>{checkin.totalTickets}</dd>
               </div>
               <div>
                 <dt>Đã vào cổng</dt>
-                <dd>{checkin?.checkedIn ?? 0}</dd>
+                <dd>{checkin.checkedIn}</dd>
               </div>
               <div>
                 <dt>Online / Offline</dt>
                 <dd>
-                  {checkin ? `${checkin.onlineCheckins} / ${checkin.offlineCheckins}` : '0 / 0'}
+                  {`${checkin.onlineCheckins} / ${checkin.offlineCheckins}`}
                 </dd>
               </div>
-            </dl>
+            </dl> : null}
           </section>
-          <section className="concert-workspace-card">
-            <div className="concert-card-heading">
-              <div>
-                <span>Đơn hàng</span>
-                <h2>{orders.length} đơn phát sinh</h2>
+          {canViewOrders ? (
+            <section className="concert-workspace-card">
+              <div className="concert-card-heading">
+                <div>
+                  <span>Đơn hàng</span>
+                  <h2>{orders ? `${orders.length} đơn phát sinh` : 'Đơn hàng'}</h2>
+                </div>
+                <Link className="admin-secondary-action" to={`${root}/orders?concertId=${id}`}>
+                  Xem đơn hàng
+                </Link>
               </div>
-              <Link className="admin-secondary-action" to={`${root}/orders?concertId=${id}`}>
-                Xem đơn hàng
-              </Link>
-            </div>
-            <dl className="concert-definition-list">
-              <div>
-                <dt>Đã thanh toán</dt>
-                <dd>{paidOrders.length}</dd>
-              </div>
-              <div>
-                <dt>Chờ thanh toán</dt>
-                <dd>{orders.filter((order) => order.status === 'AWAITING_PAYMENT').length}</dd>
-              </div>
-              <div>
-                <dt>Doanh thu</dt>
-                <dd>{money.format(revenue)}</dd>
-              </div>
-            </dl>
-          </section>
+              <SectionStatus {...orderSection} />
+              {orders ? <dl className="concert-definition-list">
+                <div>
+                  <dt>Đã thanh toán</dt>
+                  <dd>{paidOrders.length}</dd>
+                </div>
+                <div>
+                  <dt>Chờ thanh toán</dt>
+                  <dd>{orders.filter((order) => order.status === 'AWAITING_PAYMENT').length}</dd>
+                </div>
+                <div>
+                  <dt>Doanh thu</dt>
+                  <dd>{money.format(revenue)}</dd>
+                </div>
+              </dl> : null}
+            </section>
+          ) : null}
         </section>
       ) : null}
 
       {tab === 'artist' ? (
         <section className="concert-workspace-card artist-content-workspace">
+          <SectionStatus {...artistSection} />
           <div className="concert-card-heading">
             <div>
               <span>Nghệ sĩ & nội dung công khai</span>

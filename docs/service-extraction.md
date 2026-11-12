@@ -14,9 +14,15 @@ Catalog ghi metadata cùng sale_config_outbox trong một transaction. Một c�
 
 Sau khi transaction chỉnh cấu hình bán commit, API đợi Ticketing ACK trước khi trả thành công. Nếu liên lạc thất bại, cấu hình đã lưu vẫn được worker gửi lại. Người vận hành kiểm tra trạng thái đã lưu trước khi tạo lại một tài nguyên.
 
+Lệnh mở bán của organizer trả trạng thái đã lưu để workspace theo dõi. Catalog chỉ công khai sự kiện mới khi `ticketing_version` đạt `activation_version`. Workspace hiển thị `checkin_version` riêng. Catalog kiểm tra `X-Catalog-Consumer` trước khi ghi từng ACK. Khi triển khai cuốn chiếu, cập nhật Ticketing và Check-in trước Catalog để cả hai trả được header này.
+
 Giá, số lượng và việc thêm/xóa hạng vé được chỉnh ở trạng thái DRAFT. Bật/tắt hạng vé trong thời gian bán vẫn được hỗ trợ. Quy tắc này ngăn thay đổi cấu hình hàng đang có phân bổ qua hai database. Ticketing chỉ resize stock còn nguyên vẹn. Catalog phục vụ bản sao availability cập nhật định kỳ, với cache hiện có.
 
 Ticketing ghi checkin_ticket_outbox cùng transaction phát hành hoặc cập nhật vé. Check-in ghi projection và version cùng transaction, rồi trả ACK. Gửi lại snapshot VALID không xóa một lượt đã được chấp nhận. Check-in phát admission outbox về Ticketing để cập nhật trạng thái vé cho các màn hình lịch sử. Quyền quyết định tại cổng thuộc Check-in.
+
+## Đối soát thanh toán
+
+Ticketing chụp mã tổ chức từ concert vào đơn trong transaction tạo đơn. Payment gửi snapshot đối soát theo mã intent và phiên bản đến Ticketing qua outbox riêng. Báo cáo và CSV dùng cùng phạm vi tổ chức, buổi diễn và kỳ theo giờ Việt Nam. Platform có bộ lọc riêng cho giao dịch thiếu mã tổ chức hoặc chưa có đơn khớp. Khi đối soát sau restore, kiểm tra snapshot đã nhận, mã giao dịch và số tiền trước khi tiếp tục vận hành.
 
 ## Soát vé trên LAN
 
@@ -30,7 +36,7 @@ Khi thiết bị mất cả kết nối đến authority, app lưu lượt quét
 
 ~~~sh
 export E2E_PROJECT=ticketbox-e2e-split E2E_PORT=18096 APP_PORT=18096 CHECKIN_PORT=18097
-docker compose -p "$E2E_PROJECT" up -d --build
+docker compose -p "$E2E_PROJECT" -f compose.yaml up -d --build
 python scripts/e2e/split.py
 python scripts/e2e/split-restore.py
 ~~~

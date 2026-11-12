@@ -15,6 +15,8 @@ Copy `.env.example` to `.env` only when overriding demo defaults. If changing th
 
 The SMTP sink accepts email locally without forwarding it. Its private HTTP endpoint `http://smtp:8080/stats` reports accepted message/PDF counts. MoMo/VNPAY require merchant credentials and publicly reachable signed callbacks; local MOCK checkout requires neither.
 
+For a separate staging deployment, set `TICKETBOX_PAYMENT_PROFILE=staging` for the shared Payment and Ticketing profiles. Use the staging secret store for `VNPAY_TMN_CODE` and `VNPAY_HASH_SECRET`. Set `VNPAY_PAY_URL` and `VNPAY_QUERY_URL` to the merchant's sandbox endpoints. Set `VNPAY_RETURN_URL` and `VNPAY_IPN_URL` to the staging HTTPS origin at `/payment/result` and `/api/payments/webhooks/vnpay`, and register the IPN with the merchant. Confirm `GET /api/payments/providers` returns only `VNPAY` as a buyer before running the checkout. The provider list is empty until the VNPAY settings pass readiness checks.
+
 ```sh
 docker compose up -d --scale payment=2
 docker compose --profile monitoring up -d
@@ -96,7 +98,15 @@ pwsh -File scripts/e2e/run.ps1 -Build
 pwsh -File scripts/e2e/run.ps1 -Restore
 ```
 
-These scripts use a separate `ticketbox-e2e` project on port 18092. They create fixtures, exercise checkout and admission, and stop source services to test LAN check-in. The optional restore rehearsal checkpoints writers and boots all six applications against restored databases. Test output stays in `.artifacts/e2e/`. The helper rejects project names outside its test namespace.
+These scripts use a separate `ticketbox-e2e` project on port 18092. They create two organizations, exercise checkout and scoped operations, verify that unscoped staff routes are blocked over gateway and LAN, and stop Identity to test authorization failure. Check-in persistence tests still exercise admission concurrency and offline sync. The optional restore rehearsal checkpoints writers and boots all six applications against restored databases. Test output stays in `.artifacts/e2e/`. The helper rejects project names outside its test namespace.
+
+While the isolated stack is running, exercise organizer approval, invitations and organization selection in Chromium.
+
+```sh
+npm ci --prefix scripts/e2e
+npx --prefix scripts/e2e playwright install chromium
+node scripts/e2e/organization-workspace.mjs
+```
 
 Checkout recovery regression uses mocked API responses to test lost responses, reloads, failed attempts and late settlement at desktop/tablet/mobile viewports:
 

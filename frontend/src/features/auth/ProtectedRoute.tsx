@@ -54,8 +54,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
   return <>{children}</>;
 };
 
-/** Public catalogue pages are for visitors and audience accounts only. */
-export const GuestOrAudienceRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const CatalogueRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading } = useAuth();
 
   if (loading) {
@@ -67,7 +66,7 @@ export const GuestOrAudienceRoute: React.FC<{ children: React.ReactNode }> = ({ 
     );
   }
 
-  if (user && user.role !== 'AUDIENCE') {
+  if (user && user.role !== 'AUDIENCE' && user.role !== 'ORGANIZER') {
     return <Navigate to={getRoleHome(user.role)} replace />;
   }
 

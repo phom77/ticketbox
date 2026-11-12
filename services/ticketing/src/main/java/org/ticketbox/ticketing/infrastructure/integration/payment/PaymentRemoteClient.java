@@ -32,6 +32,12 @@ public class PaymentRemoteClient
                         .build();
     }
 
+    @Override
+    public List<String> availableProviders() {
+        String[] providers = http.get().uri("/internal/providers").retrieve().body(String[].class);
+        return providers == null ? List.of() : List.of(providers);
+    }
+
     public PaymentSnapshot submit(PaymentIntent intent) {
         var snapshot =
                 http.post()

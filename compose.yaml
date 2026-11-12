@@ -27,7 +27,7 @@ services:
       PAYMENT_SERVICE_TOKEN: ${PAYMENT_SERVICE_TOKEN:-ticketbox-local-payment-service-token-change-before-deploy}
       CORE_API_URL: http://ticketing:8080
       PAYMENT_PUBLIC_URL: ${APP_PUBLIC_URL:-http://localhost:18091}
-      SPRING_PROFILES_ACTIVE: dev
+      SPRING_PROFILES_ACTIVE: ${TICKETBOX_PAYMENT_PROFILE:-dev}
       MOMO_PARTNER_CODE: ${MOMO_PARTNER_CODE:-}
       MOMO_ACCESS_KEY: ${MOMO_ACCESS_KEY:-}
       MOMO_SECRET_KEY: ${MOMO_SECRET_KEY:-}
@@ -258,6 +258,7 @@ services:
     mem_limit: 1200m
     stop_grace_period: 30s
     environment:
+      SPRING_PROFILES_ACTIVE: ${TICKETBOX_PAYMENT_PROFILE:-dev}
       DATABASE_URL: jdbc:postgresql://ticketing-db:5432/ticketbox_ticketing
       DATABASE_USER: ticketing_runtime
       DATABASE_PASSWORD: ticketing-runtime-local-only

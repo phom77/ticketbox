@@ -70,6 +70,10 @@ export function getOrderByIdempotencyKey(key: string) {
   });
 }
 
+export function getPaymentProviders(signal?: AbortSignal) {
+  return api.get<unknown, PaymentProvider[]>('/api/payments/providers', { signal });
+}
+
 export function initiatePayment(orderId: string, provider: PaymentProvider) {
   return api.post<unknown, PaymentInitiation>(
     `/api/payments/${encodeURIComponent(orderId)}/initiate`,

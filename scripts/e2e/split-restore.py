@@ -99,6 +99,23 @@ try:
     wait_http("/api/admin/orders",token)
     wait_http("/api/concerts")
     wait_http("/api/admin/notifications",token)
+    e2e = json.loads((ROOT/".artifacts/e2e/split-journey.json").read_text())["reconciliation"]
+    order_id = str(uuid.UUID(e2e["orderId"]))
+    report_path = f"/api/admin/reconciliation?{e2e['period']}&organizationId={e2e['organizationId']}"
+    report_before = wait_http(report_path, token)["data"]
+    assert len(report_before["content"]) == 1
+    assert report_before["content"][0]["transactionId"] == e2e["transactionId"]
+    assert report_before["totals"]["verifiedCollections"] == e2e["collectedAmount"]
+    sql("payment", restored["payment"], f"""UPDATE payment_reconciliation_outbox SET delivered_revision=0, next_attempt_at=now()
+        WHERE intent_id=(SELECT intent_id FROM payment_attempts WHERE order_id='{order_id}')""")
+    deadline = time.monotonic() + 60
+    while sql("payment", restored["payment"], f"""SELECT delivered_revision=revision FROM payment_reconciliation_outbox
+          WHERE intent_id=(SELECT intent_id FROM payment_attempts WHERE order_id='{order_id}')""") != "t":
+        if time.monotonic() > deadline:
+            raise AssertionError("Restored reconciliation delivery did not finish")
+        time.sleep(1)
+    assert wait_http(report_path, token)["data"] == report_before, "Restore duplicated a reconciliation row"
+    proof["reconciliationAfterReplay"] = True
     time.sleep(4)
     assert mail_stats()["accepted"]==mail_before,"Restore resent historical mail"
     proof["noHistoricalResend"]=True

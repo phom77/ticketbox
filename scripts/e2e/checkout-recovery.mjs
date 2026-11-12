@@ -57,6 +57,7 @@ async function fixture(options={}) {
     if(req.method()==='DELETE') {state.cancelCalls++;if(state.cancelConflict)return reply(route,null,409);state.orderStatus='CANCELLED';}
     return reply(route,{...order,status:state.orderStatus});
    }
+   if(path==='/api/payments/providers') return reply(route,state.providers??['MOCK']);
    if(path===`/api/payments/${orderId}/status`)return reply(route,{orderId,orderStatus:state.orderStatus,provider:'MOCK',attemptId:'attempt',attemptState:state.attempt,paymentUrl:state.attempt==='READY'?'/mock-pay':null});
    if(path===`/api/payments/${orderId}/initiate`) {state.attempt='FAILED';return reply(route,{orderId,provider:'MOCK',attemptId:'attempt',attemptState:'FAILED',paymentUrl:null});}
    if(path===`/api/concerts/${concertId}`)return reply(route,concert);
@@ -99,6 +100,21 @@ try {
  {
   const f=await fixture();await f.page.goto(origin+`/payment/result?orderId=${orderId}`);await failedHeading(f.page).waitFor();
   checks.push('Server FAILED return redirects to failed checkout without relying on provider query hints');await f.close();
+ }
+ for (const responseCode of ['00','24']) {
+  const f=await fixture({attempt:'READY',providers:['VNPAY']});
+  await f.page.goto(origin+`/payment/result?vnp_TxnRef=${orderId}&vnp_ResponseCode=${responseCode}`);
+  await f.page.getByText('Đã nhận kết quả từ cổng thanh toán. Đang chờ TicketBox xác nhận đơn hàng...').waitFor();
+  f.state.orderStatus='PAID';
+  await f.page.waitForURL('**/booking-confirmation');await f.close();
+ }
+ checks.push('VNPAY browser return stays pending for either return code until the server confirms');
+ {
+  const f=await fixture({attempt:'READY',providers:[]});
+  await f.page.goto(origin+`/checkout?orderId=${orderId}`);
+  await f.page.getByText('Cổng thanh toán chưa sẵn sàng.').waitFor();
+  assert(await f.page.getByRole('button',{name:'Chưa có cổng thanh toán'}).isDisabled());
+  checks.push('An unready provider profile shows a retry and blocks payment');await f.close();
  }
  {
   const f=await fixture({createMode:'lost',attempt:'READY'});await startCreate(f.page);

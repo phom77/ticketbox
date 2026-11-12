@@ -1,6 +1,8 @@
 package org.ticketbox.identity.account.infrastructure.persistence;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
 import org.ticketbox.identity.account.domain.User;
 
 import java.util.Optional;
@@ -12,4 +14,8 @@ public interface JpaUserRepository
     Optional<User> findByEmail(String email);
 
     boolean existsByEmail(String email);
+
+    @Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select u from User u where u.id = :id")
+    Optional<User> findByIdForUpdate(UUID id);
 }

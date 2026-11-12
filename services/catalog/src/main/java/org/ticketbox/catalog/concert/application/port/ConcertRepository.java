@@ -3,6 +3,7 @@ package org.ticketbox.catalog.concert.application.port;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.ticketbox.catalog.concert.domain.Concert;
+import org.ticketbox.catalog.concert.application.dto.SalePublication;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -20,14 +21,18 @@ public interface ConcertRepository {
 
     Page<Concert> findByStatus(Concert.Status status, Pageable pageable);
 
-    Optional<Concert> findByIdAndCreatedBy(UUID id, UUID createdBy);
+    Optional<SalePublication.Versions> publication(UUID id);
 
-    Page<Concert> findByCreatedByAndStatus(
-            UUID createdBy, Concert.Status status, Pageable pageable);
+    Page<Concert> search(UUID organizationId, Concert.Status status, String query, Pageable pageable);
 
-    Page<Concert> findByCreatedBy(UUID createdBy, Pageable pageable);
+    Optional<Concert> findByIdAndCreatedBy(UUID id, UUID organizationId);
 
-    List<Concert> findByCreatedBy(UUID createdBy);
+    Page<Concert> findByOrganizationIdAndStatus(
+            UUID organizationId, Concert.Status status, Pageable pageable);
+
+    Page<Concert> findByOrganizationId(UUID organizationId, Pageable pageable);
+
+    List<Concert> findByOrganizationId(UUID organizationId);
 
     Optional<Concert> findByIdAndStatusIn(UUID id, List<Concert.Status> statuses);
 

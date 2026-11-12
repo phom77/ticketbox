@@ -94,6 +94,9 @@
             <basic name="createdBy">
                 <column name="created_by" nullable="false" />
             </basic>
+            <basic name="organizationId">
+                <column name="organization_id" updatable="false" />
+            </basic>
         </attributes>
     </entity>
     <entity class="org.ticketbox.catalog.artistbio.domain.ArtistPdfJob" access="FIELD" metadata-complete="true">

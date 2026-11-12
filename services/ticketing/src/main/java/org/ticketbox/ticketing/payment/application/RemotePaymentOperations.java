@@ -14,6 +14,7 @@ import org.ticketbox.ticketing.payment.application.port.PaymentGatewayClient;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
@@ -50,12 +51,15 @@ public class RemotePaymentOperations {
             provider =
                     Provider.valueOf(
                             name == null || name.isBlank()
-                                    ? "MOCK"
+                                    ? (staging() ? "VNPAY" : "MOCK")
                                     : name.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException error) {
             throw new AppException(ErrorCode.INVALID_REQUEST, "error.payment.invalid-gateway");
         }
         requireProvider(provider);
+        if (staging() && !availableProviders().contains(provider.name())) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "error.payment.provider-unavailable");
+        }
         // Checkout commits the intent locally. The dispatcher owns remote I/O.
         var intent = workflow.prepare(order, user, provider.name());
         var progress = workflow.owned(order, user);
@@ -102,7 +106,21 @@ public class RemotePaymentOperations {
         remote.mock(id, false);
     }
 
+    public List<String> availableProviders() {
+        return remote.availableProviders().stream()
+                .filter(provider -> !staging() || "VNPAY".equals(provider))
+                .filter(provider -> !environment.acceptsProfiles(Profiles.of("prod")) || !"MOCK".equals(provider))
+                .toList();
+    }
+
+    private boolean staging() {
+        return environment.acceptsProfiles(Profiles.of("staging"));
+    }
+
     private void requireProvider(Provider provider) {
+        if (staging() && provider != Provider.VNPAY) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "error.payment.invalid-gateway");
+        }
         if (provider == Provider.MOCK && environment.acceptsProfiles(Profiles.of("prod"))) {
             throw new AppException(ErrorCode.INVALID_REQUEST, "error.payment.mock-disabled");
         }

@@ -198,9 +198,11 @@ export function getAdminConcerts(
   status?: ConcertStatus,
   signal?: AbortSignal,
   scope: ManagementApiScope = 'admin',
+  query?: string,
 ) {
   const params = new URLSearchParams({ page: String(page), size: String(size) });
   if (status) params.set('status', status);
+  if (query?.trim()) params.set('query', query.trim());
   return apiGet<Page<ConcertDetail>>(`${managementBase(scope)}/concerts?${params}`, signal);
 }
 
@@ -367,9 +369,13 @@ export function getConcertGuestList(
   size = 20,
   signal?: AbortSignal,
   scope: ManagementApiScope = 'admin',
+  filters: { query?: string; activeOnly?: boolean } = {},
 ) {
+  const params = new URLSearchParams({ page: String(page), size: String(size) });
+  if (filters.query?.trim()) params.set('query', filters.query.trim());
+  if (filters.activeOnly) params.set('activeOnly', 'true');
   return apiGet<Page<GuestListEntry>>(
-    `${managementBase(scope)}/concerts/${encodeURIComponent(concertId)}/guest-lists?page=${page}&size=${size}`,
+    `${managementBase(scope)}/concerts/${encodeURIComponent(concertId)}/guest-lists?${params}`,
     signal,
   );
 }
@@ -521,12 +527,13 @@ export function getManagedCheckinSummary(
 export function getAdminOrders(
   params?: { concertId?: string; status?: OrderStatus },
   scope: ManagementApiScope = 'admin',
+  signal?: AbortSignal,
 ) {
   const query = new URLSearchParams();
   if (params?.concertId) query.set('concertId', params.concertId);
   if (params?.status) query.set('status', params.status);
   const qs = query.toString();
-  return apiGet<Order[]>(`${managementBase(scope)}/orders${qs ? `?${qs}` : ''}`);
+  return apiGet<Order[]>(`${managementBase(scope)}/orders${qs ? `?${qs}` : ''}`, signal);
 }
 
 export function getAdminOrderDetail(orderId: string, scope: ManagementApiScope = 'admin') {

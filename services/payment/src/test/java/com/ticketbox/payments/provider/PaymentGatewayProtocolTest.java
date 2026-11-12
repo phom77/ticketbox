@@ -7,12 +7,19 @@ import com.ticketbox.payments.config.MomoProperties;
 import com.ticketbox.payments.config.VnpayProperties;
 import com.ticketbox.payments.domain.OrderView;
 import com.ticketbox.payments.infrastructure.provider.MomoPaymentGateway;
+import com.ticketbox.payments.infrastructure.provider.MockPaymentGateway;
+import com.ticketbox.payments.infrastructure.provider.PaymentGatewayResolver;
 import com.ticketbox.payments.infrastructure.provider.VnpayPaymentGateway;
+import com.ticketbox.payments.domain.Provider;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.env.MockEnvironment;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.util.Map;
+import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -101,6 +108,80 @@ class PaymentGatewayProtocolTest {
             assertThat(query.success()).isTrue();
             assertThat(query.amount()).isEqualByComparingTo(order.totalAmount());
             assertThat(query.transactionId()).isEqualTo("1234");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void stagingListsOnlyVnpayWithCompleteHttpsConfiguration() {
+        var gateway = new VnpayPaymentGateway(new VnpayProperties("https://sandbox.example/pay",
+                "https://staging.example/payment/result", "https://staging.example/api/payments/webhooks/vnpay",
+                "tmn", "secret", "vn", "other"));
+        var mock = new MockPaymentGateway("http://localhost:8080");
+        var environment = new MockEnvironment();
+        environment.setActiveProfiles("staging");
+        var resolver = new PaymentGatewayResolver(List.of(gateway, mock), environment);
+        assertThat(resolver.available()).isEmpty();
+        assertThatThrownBy(() -> resolver.forNewAttempt(Provider.MOCK)).hasMessageContaining("disabled");
+        assertThatThrownBy(() -> resolver.forNewAttempt(Provider.VNPAY)).hasMessageContaining("incomplete");
+        ReflectionTestUtils.setField(gateway, "queryUrl", "https://sandbox.example/query");
+        assertThat(resolver.available()).containsExactly("VNPAY");
+        assertThat(resolver.forNewAttempt(Provider.VNPAY)).isSameAs(gateway);
+    }
+
+    @Test
+    void vnpaySignedQueryVerifiesMerchantOrderAndTransactionIdentity() throws Exception {
+        var mapper = new ObjectMapper();
+        var variant = new AtomicReference<>("valid");
+        var request = new AtomicReference<com.fasterxml.jackson.databind.JsonNode>();
+        var server = com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/query", exchange -> {
+            var query = mapper.readTree(exchange.getRequestBody());
+            request.set(query);
+            var fields = new LinkedHashMap<String, String>();
+            fields.put("vnp_ResponseId", "fixture-response");
+            fields.put("vnp_Command", "querydr");
+            fields.put("vnp_ResponseCode", "00");
+            fields.put("vnp_Message", "success");
+            fields.put("vnp_TmnCode", "merchant".equals(variant.get()) ? "wrong" : "tmn");
+            fields.put("vnp_TxnRef", "order".equals(variant.get()) ? UUID.randomUUID().toString() : query.path("vnp_TxnRef").asText());
+            fields.put("vnp_Amount", "25000000");
+            fields.put("vnp_BankCode", "fixture-bank");
+            fields.put("vnp_PayDate", "20261112120000");
+            fields.put("vnp_TransactionNo", "transaction".equals(variant.get()) ? "0" : "1234");
+            fields.put("vnp_TransactionType", "01");
+            fields.put("vnp_TransactionStatus", "00");
+            fields.put("vnp_OrderInfo", "fixture");
+            fields.put("vnp_PromotionCode", "");
+            fields.put("vnp_PromotionAmount", "");
+            fields.put("vnp_SecureHash", "signature".equals(variant.get()) ? "invalid"
+                    : hmac("HmacSHA512", "secret", String.join("|", fields.values())));
+            byte[] response = mapper.writeValueAsBytes(fields);
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, response.length);
+            try (var body = exchange.getResponseBody()) {
+                body.write(response);
+            }
+        });
+        server.start();
+        try {
+            var gateway = new VnpayPaymentGateway(new VnpayProperties("https://sandbox.example/pay",
+                    "https://staging.example/return", null, "tmn", "secret", "vn", "other"));
+            ReflectionTestUtils.setField(gateway, "queryUrl", "http://127.0.0.1:" + server.getAddress().getPort() + "/query");
+            var order = new OrderView(UUID.randomUUID(), UUID.randomUUID(), BigDecimal.valueOf(250000),
+                    "AWAITING_PAYMENT", null, null, null);
+            String initiation = "{\"vnp_CreateDate\":\"20261112115900\"}";
+            var result = gateway.queryPayment(order, "fixture-request", initiation);
+            assertThat(result.verified()).isTrue();
+            assertThat(result.success()).isTrue();
+            assertThat(result.amount()).isEqualByComparingTo(order.totalAmount());
+            assertThat(result.transactionId()).isEqualTo("1234");
+            assertThat(request.get().path("vnp_TransactionDate").asText()).isEqualTo("20261112115900");
+            for (String invalid : List.of("merchant", "order", "transaction", "signature")) {
+                variant.set(invalid);
+                assertThat(gateway.queryPayment(order, "fixture-request", initiation).verified()).as(invalid).isFalse();
+            }
         } finally {
             server.stop(0);
         }
