@@ -126,7 +126,7 @@ Phí cần nguồn dữ liệu xác thực trước khi hiển thị. Kế toán
 
 ## A5. Người mua và scanner
 
-**OpenSpec đề xuất.** `buyer-recovery-and-gate-operations`. Tách thay đổi giao diện nhỏ khỏi thay đổi quyết định cho vào cổng.
+**OpenSpec đề xuất.** `buyer-recovery-and-support`. Phần quyết định cho vào cổng và scanner đã được chuyển sang đợt phát triển scanner riêng theo quyết định A1.
 
 **Điểm chạm.** [Đăng nhập](../../../frontend/src/pages/public/LoginPage.tsx), [footer](../../../frontend/src/components/layout/PublicLayout.tsx), [checkout](../../../frontend/src/pages/customer/CheckoutPage.tsx), [kết quả thanh toán](../../../frontend/src/pages/customer/PaymentResultPage.tsx), [scanner](../../../mobile-scanner/src/screens/ScannerHomeScreen.tsx), [lưu trữ scanner](../../../mobile-scanner/src/database/database.ts) và [hướng dẫn scanner](../../../mobile-scanner/README.md).
 
@@ -208,6 +208,14 @@ Phí cần nguồn dữ liệu xác thực trước khi hiển thị. Kế toán
 - [x] Compose cô lập chạy profile `staging` với hai cấu hình. Thiếu cấu hình thì từ chối trước intent/attempt. Cấu hình HTTPS giả lập chỉ công bố VNPAY. [Kết quả kiểm tra cấu hình](../../../.artifacts/verification/organizer-publishing-reconciliation/staging-profile-fixture.json)
 - [x] Chạy bộ CI chung trên cây nguồn cuối cùng. Cả 16 bước đều có mã thoát 0, gồm 211 test Java, build độc lập sáu service, frontend lint/build và scanner typecheck. OpenSpec strict pass cả ba change. [Kết quả CI](../../../.artifacts/verification/organizer-publishing-reconciliation/verification.json)
 - [ ] Triển khai staging và đối soát hai tổ chức với bằng chứng VNPAY sandbox. Quyết định merchant bán thật ở A0.
+
+### Review A4 và A5 · 12/11/2026
+
+- [x] Soạn proposal, design, spec và checklist cho [A4](../../../openspec/changes/order-support-and-event-refunds/proposal.md) và [A5](../../../openspec/changes/buyer-recovery-and-support/proposal.md). OpenSpec strict pass cả năm change.
+- [x] Sửa các liên kết và form footer chưa hoạt động. Điều hướng về đúng lịch sử đơn và dùng thông tin đơn đã xác nhận khi hiển thị kết quả. Frontend lint/build và 16 ca Chromium pass. [Kết quả Chromium](../../../.artifacts/verification/a5-buyer-ui/results.json)
+- [x] Chromium qua gateway cục bộ ở 390 px chọn vé, thanh toán MOCK, tìm lại đơn và mở QR vé đã phát hành sau reload. [Kết quả gateway](../../../.artifacts/verification/a5-buyer-ui/gateway-browser.log)
+- [ ] Review chính sách A4 cho pilot. Đề xuất hoàn toàn đơn trên merchant console, hai admin tham gia yêu cầu và duyệt, hồ sơ vé đã soát hoặc chuyển nhượng xử lý thủ công. Hoãn và hủy chặn bán cùng lượt vào cổng online sau khi hai service xác nhận. Đơn đã khởi tạo thanh toán tiếp tục theo hạn đã cấp. [Design A4](../../../openspec/changes/order-support-and-event-refunds/design.md)
+- [ ] Review A5 cho đặt lại mật khẩu qua email và vô hiệu hóa phiên mua cũ trên HTTP lẫn hàng chờ riêng. Cần kênh hỗ trợ và URL điều kiện mua/hoàn đã duyệt cho staging. [Design A5](../../../openspec/changes/buyer-recovery-and-support/design.md)
 
 ## Kiểm tra trước khi đóng mỗi change
 
