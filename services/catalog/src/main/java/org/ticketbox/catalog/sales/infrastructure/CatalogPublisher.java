@@ -90,7 +90,8 @@ SELECT jsonb_build_object('id',o.concert_id,'version',o.version,'deleted',c.id I
     'doors_open_at',c.doors_open_at,'sale_start_at',c.sale_start_at,'sale_end_at',c.sale_end_at,
     'status',c.status,'seat_map_svg',c.seat_map_svg,'poster_url',c.poster_url,'created_by',c.created_by,
     'created_at',c.created_at,'updated_at',c.updated_at,'poster_public_id',c.poster_public_id,
-    'is_public',c.is_public,'organization_id',c.organization_id) END,
+    'is_public',c.is_public,'organization_id',c.organization_id,'sales_suspended',c.sales_suspended,
+    'resumed_admission_at',c.resumed_admission_at) END,
   'types',COALESCE((SELECT jsonb_agg(jsonb_build_object(
     'id',t.id,'concert_id',t.concert_id,'name',t.name,'price',t.price,
     'total_quantity',t.total_quantity,'available_qty',t.available_qty,'max_per_account',t.max_per_account,

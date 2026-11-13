@@ -14,6 +14,7 @@ public final class ErrorHttpMapping {
             case RESOURCE_NOT_FOUND -> HttpStatus.NOT_FOUND;
             case INTERNAL_SERVER_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;
             case AI_PROVIDER_UNAVAILABLE -> HttpStatus.SERVICE_UNAVAILABLE;
+            case DISRUPTION_SOURCE_UNAVAILABLE -> HttpStatus.SERVICE_UNAVAILABLE;
             case IMAGE_STORAGE_UNAVAILABLE -> HttpStatus.SERVICE_UNAVAILABLE;
             case ARTIST_BIO_JOB_NOT_READY -> HttpStatus.CONFLICT;
             case ARTIST_BIO_ALREADY_EXISTS -> HttpStatus.CONFLICT;

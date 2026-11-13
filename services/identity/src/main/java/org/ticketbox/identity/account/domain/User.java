@@ -80,6 +80,11 @@ public class User extends BaseEntity {
         }
     }
 
+    public void resetPassword(String passwordHash) {
+        this.passwordHash = java.util.Objects.requireNonNull(passwordHash);
+        sessionVersion++;
+    }
+
     public void updateProfile(String name, String phone) {
         if (name != null) fullName = name.trim();
         if (phone != null) this.phone = phone.trim();

@@ -11,7 +11,7 @@ const {chromium}=await import(process.env.PLAYWRIGHT_MODULE
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'../..');
 const output=resolve(root,process.env.CHECKOUT_UI_OUTPUT||'.artifacts/e2e/checkout');
 mkdirSync(output,{recursive:true});
-const dist=resolve(root,'frontend/dist');
+const dist=resolve(root,process.env.CHECKOUT_UI_DIST||'frontend/dist');
 const server=createServer((req,res)=>{
  const pathname=new URL(req.url,'http://localhost').pathname;
  const path=resolve(dist,'.'+pathname);
@@ -37,13 +37,21 @@ async function fixture(options={}) {
  const context=await browser.newContext({viewport:{width:1440,height:900}});
  if(options.authenticated!==false) await context.addCookies([{name:'ticketbox_auth_token',value:jwt,url:origin}]);
  const page=await context.newPage();
- const state={attempt:'FAILED',committed:false,postKeys:[],cancelCalls:0,orderStatus:'AWAITING_PAYMENT',...options};
+ const state={attempt:'FAILED',committed:false,postKeys:[],cancelCalls:0,orderStatus:'AWAITING_PAYMENT',resetRequests:[],resetConfirmations:[],...options};
  const reply=(route,data,status=200)=>route.fulfill({status,contentType:'application/json',headers:{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'*'},body:JSON.stringify({code:status,data,message:status===409?'Request has already been processed':'OK'})});
  await page.route('**/*',async route=>{
   const req=route.request(),url=new URL(req.url()),path=url.pathname;
   if(path.startsWith('/api/')) {
    if(req.method()==='OPTIONS')return route.fulfill({status:204,headers:{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'*','Access-Control-Allow-Methods':'*'}});
-   if(path==='/api/auth/me')return reply(route,user);
+   if(path==='/api/auth/me')return reply(route,user,state.authStatus??200);
+   if(path==='/api/auth/password-reset') {
+    state.resetRequests.push(req.postDataJSON());
+    return reply(route,null,state.resetRequestStatus??202);
+   }
+   if(path==='/api/auth/password-reset/confirm') {
+    state.resetConfirmations.push({body:req.postDataJSON(),referer:req.headers().referer});
+    return reply(route,null,state.resetConfirmStatus??200);
+   }
    if(path==='/api/users/me/profile')return reply(route,{...user,phone:null});
    if(path==='/api/orders/my')return reply(route,[{...order,status:state.orderStatus}]);
    if(path==='/api/orders/by-idempotency-key')return reply(route,state.committed?{...order,status:state.orderStatus}:null,state.committed?200:404);
@@ -65,7 +73,7 @@ async function fixture(options={}) {
     state.attempt=state.initiateState??'FAILED';
     return reply(route,{orderId,provider:'MOCK',attemptId:'attempt',attemptState:state.attempt,paymentUrl:null},state.attempt==='PROCESSING'?202:200);
    }
-   if(path===`/api/concerts/${concertId}`)return reply(route,concert);
+   if(path===`/api/concerts/${concertId}`)return reply(route,{...concert,organizationName:state.organizationName});
    if(path==='/api/concerts')return reply(route,{content:[],totalPages:0,totalElements:0});
    if(path.includes('/queue/'))return reply(route,{status:'WAITING',position:1,peopleAhead:0,estimatedWaitSeconds:1,queueAccessToken:null,sessionExpiresAt:null,waitingRoomCount:1,queueSize:1,activeShoppers:0});
    if(path.includes('/notifications'))return reply(route,{count:0,content:[]});
@@ -83,7 +91,77 @@ async function startCreate(page) {
 }
 const failedHeading=page=>page.getByRole('heading',{name:'Phiên thanh toán đã thất bại'});
 const waitFor=async check=>{for(let n=0;n<100;n++){if(await check())return;await new Promise(r=>setTimeout(r,50));}throw Error('Timed out waiting for test condition');};
+async function checkBuyerInformation(destination) {
+ for(const [name,value] of [['Hỗ trợ TicketBox',process.env.VITE_SUPPORT_URL],['Điều kiện mua và hoàn vé',process.env.VITE_TERMS_URL]]) {
+  const link=destination.getByRole('link',{name,exact:true});
+  if(value?.startsWith('https://')) {
+   assert.equal(await link.getAttribute('href'),new URL(value).href);
+   await link.focus();assert(await link.evaluate(node=>node===document.activeElement));
+  } else assert.equal(await link.count(),0);
+ }
+}
 try {
+ {
+  const f=await fixture({authenticated:false});await f.page.goto(origin+'/login');
+  await f.page.getByRole('link',{name:'Quên mật khẩu?'}).click();
+  await f.page.waitForURL('**/forgot-password');
+  for(const email of ['buyer@example.test','missing@example.test']) {
+   await f.page.getByLabel('Địa chỉ email').fill(email);
+   await f.page.getByRole('button',{name:'Gửi liên kết đặt lại mật khẩu'}).click();
+   await f.page.getByText('Nếu email đủ điều kiện, TicketBox sẽ gửi hướng dẫn đặt lại mật khẩu.').waitFor();
+   assert.deepEqual(f.state.resetRequests.at(-1),{email});
+   await f.page.reload();
+  }
+  checks.push('Password reset email requests present the same acceptance state');await f.close();
+ }
+ {
+  const f=await fixture();const token='fixture+reset/token';
+  await f.page.goto(origin+`/reset-password#token=${encodeURIComponent(token)}`);
+  await f.page.getByRole('heading',{name:'Tạo mật khẩu mới'}).waitFor();
+  assert.equal(new URL(f.page.url()).hash,'');
+  assert.equal(await f.page.locator('meta[name="referrer"]').getAttribute('content'),'no-referrer');
+  assert.equal(await f.page.evaluate(value=>[...Object.values(localStorage),...Object.values(sessionStorage)].some(item=>item.includes(value)),token),false);
+  const password=f.page.getByLabel('Mật khẩu mới',{exact:true});
+  const confirmation=f.page.getByLabel('Xác nhận mật khẩu mới');
+  const save=f.page.getByRole('button',{name:'Lưu mật khẩu mới'});
+  for(const [width,height] of [[1440,900],[768,1024],[390,844]]) {
+   await f.page.setViewportSize({width,height});
+   assert(await f.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+   await f.page.screenshot({path:resolve(output,`reset-password-${width}.png`)});
+  }
+  const long='ệ'.repeat(25);
+  await password.fill(long);await confirmation.fill(long);await save.click();
+  await f.page.getByRole('alert').waitFor();assert.equal(f.state.resetConfirmations.length,0);
+  await password.fill('password-new');await confirmation.fill('password-typo');await save.click();
+  await f.page.getByText('Mật khẩu xác nhận không khớp.').waitFor();assert.equal(f.state.resetConfirmations.length,0);
+  await confirmation.fill('password-new');await save.click();
+  await f.page.getByRole('heading',{name:'Mật khẩu đã được cập nhật'}).waitFor();
+  assert.deepEqual(f.state.resetConfirmations,[{body:{token,password:'password-new'},referer:undefined}]);
+  assert.equal((await f.page.context().cookies()).some(cookie=>cookie.name==='ticketbox_auth_token'),false);
+  await f.page.getByRole('link',{name:'Đăng nhập'}).click();await f.page.waitForURL('**/login');
+  assert.equal(await f.page.locator('meta[name="referrer"]').count(),0);
+  checks.push('Reset token stays in memory and submits without a referrer; validated password forces sign-in');await f.close();
+ }
+ {
+  const f=await fixture({authStatus:401,resetConfirmStatus:410});
+  await f.page.goto(origin+'/reset-password#token=expired-fixture');
+  await f.page.getByLabel('Mật khẩu mới',{exact:true}).fill('password-new');
+  await f.page.getByLabel('Xác nhận mật khẩu mới').fill('password-new');
+  await f.page.getByRole('button',{name:'Lưu mật khẩu mới'}).click();
+  await f.page.getByText('Liên kết đặt lại mật khẩu không hợp lệ hoặc đã hết hạn.').waitFor();
+  await f.page.getByRole('link',{name:'Yêu cầu liên kết mới'}).click();await f.page.waitForURL('**/forgot-password');
+  assert.equal(await f.page.locator('meta[name="referrer"]').count(),0);
+  checks.push('Invalid or expired links offer a fresh request and remove route-scoped metadata');await f.close();
+ }
+ {
+  const f=await fixture({authenticated:false,organizationName:'Ban tổ chức hòa nhạc thử nghiệm'});
+  await f.page.goto(origin+`/concerts/${concertId}`);
+  await f.page.getByText('Ban tổ chức hòa nhạc thử nghiệm',{exact:true}).waitFor();
+  await f.page.setViewportSize({width:390,height:844});
+  await checkBuyerInformation(f.page.getByRole('contentinfo'));
+  await checkBuyerInformation(f.page.locator('.booking-card'));
+  checks.push('Published organizer is rendered and support/policy links require HTTPS configuration');await f.close();
+ }
  {
   const f=await fixture();await f.page.goto(origin);
   const footer=f.page.getByRole('contentinfo');
@@ -142,7 +220,9 @@ try {
  }
  {
   const f=await fixture({attempt:'READY'});await f.page.goto(origin+`/checkout?orderId=${orderId}`);
-  await f.page.getByRole('button',{name:'Tiếp tục với thanh toán demo'}).click();await failedHeading(f.page).waitFor();
+  const pay=f.page.getByRole('button',{name:'Tiếp tục với thanh toán demo'});
+  await pay.waitFor();await checkBuyerInformation(f.page.locator('.order-summary'));
+  await pay.click();await failedHeading(f.page).waitFor();
   checks.push('FAILED returned by initiate switches to recovery panel');await f.close();
  }
  {

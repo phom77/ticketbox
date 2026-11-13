@@ -22,6 +22,8 @@ public interface OrganizationStore {
 
     Optional<Organization> findByName(String name);
 
+    Optional<String> displayName(UUID id);
+
     List<Organization> organizations();
 
     boolean lock(UUID organizationId);

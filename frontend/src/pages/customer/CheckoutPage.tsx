@@ -13,6 +13,7 @@ import {
   type PaymentProvider,
 } from '../../api/orders';
 import { clearStoredQueueAdmission, getStoredQueueAdmission, leaveQueue } from '../../api/queue';
+import { BuyerInformationLinks } from '../../components/BuyerInformationLinks';
 import { RemoteImage } from '../../components/RemoteImage';
 import { useToast } from '../../components/feedback/toast-context';
 import { checkoutRequestKey, clearCheckoutRequest, createOrRecoverOrder } from '../../features/ticket/checkoutRecovery';
@@ -702,6 +703,7 @@ export function CheckoutPage() {
                   : provider ? `Tiếp tục với ${provider === 'MOCK' ? 'thanh toán demo' : provider}` : 'Chưa có cổng thanh toán'}
           </button>
           <p className="secure-note">Kiểm tra tổng tiền và hoàn tất thanh toán trước khi thời gian giữ vé kết thúc.</p>
+          <BuyerInformationLinks />
         </aside>
       </form>
     </div>

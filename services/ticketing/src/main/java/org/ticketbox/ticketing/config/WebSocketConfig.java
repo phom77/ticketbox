@@ -43,6 +43,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void configureClientOutboundChannel(ChannelRegistration registration) {
         registration.taskExecutor().corePoolSize(4).maxPoolSize(8).queueCapacity(8192);
+        registration.interceptors(jwtStompChannelInterceptor.outbound());
     }
 
     @Override

@@ -67,9 +67,14 @@ class NotificationIntegrationTest {
     static HttpServer startCore() {
         try {
             var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-            server.createContext(
-                    "/internal/notifications/",
-                    request -> {
+            com.sun.net.httpserver.HttpHandler sessions = request -> {
+                int status = request.getRequestHeaders().getFirst("Authorization") == null ? 401 : 204;
+                request.sendResponseHeaders(status, -1);
+                request.close();
+            };
+            server.createContext("/internal/split/v1/audience-session", sessions);
+            server.createContext("/internal/split/v1/platform-access", sessions);
+            com.sun.net.httpserver.HttpHandler contact = request -> {
                         int status =
                                 "test-internal-token-with-at-least-32-characters"
                                                 .equals(
@@ -90,7 +95,9 @@ class NotificationIntegrationTest {
                         request.sendResponseHeaders(status, bytes.length);
                         request.getResponseBody().write(bytes);
                         request.close();
-                    });
+                    };
+            server.createContext("/internal/notifications/", contact);
+            server.createContext("/internal/split/users/", contact);
             server.start();
             return server;
         } catch (Exception exception) {
@@ -109,6 +116,8 @@ class NotificationIntegrationTest {
         p.add("spring.rabbitmq.password", rabbit::getAdminPassword);
         p.add("notification.jwt-secret", () -> SECRET);
         p.add("notification.core-url", () -> "http://127.0.0.1:" + core.getAddress().getPort());
+        p.add("notification.identity-url", () -> "http://127.0.0.1:" + core.getAddress().getPort());
+        p.add("notification.identity-token", () -> "test-internal-token-with-at-least-32-characters");
         p.add(
                 "notification.service-token",
                 () -> "test-internal-token-with-at-least-32-characters");
@@ -267,9 +276,14 @@ class NotificationIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.read").value(true));
         db.update("UPDATE notifications SET status='FAILED',attempts=5 WHERE id=?", id);
+        String actionId = UUID.randomUUID().toString();
         api.perform(
                         post("/api/admin/notifications/" + id + "/retry")
+                                .header("Idempotency-Key", actionId)
                                 .header("Authorization", "Bearer " + jwt(operator, "ADMIN")))
+                .andExpect(status().isOk());
+        api.perform(post("/api/admin/notifications/" + id + "/retry").header("Idempotency-Key", actionId)
+                        .header("Authorization", "Bearer " + jwt(operator, "ADMIN")))
                 .andExpect(status().isOk());
         assertThat(
                         db.queryForObject(

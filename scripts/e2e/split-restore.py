@@ -99,7 +99,8 @@ try:
     wait_http("/api/admin/orders",token)
     wait_http("/api/concerts")
     wait_http("/api/admin/notifications",token)
-    e2e = json.loads((ROOT/".artifacts/e2e/split-journey.json").read_text())["reconciliation"]
+    journey = json.loads((ROOT/".artifacts/e2e/split-journey.json").read_text())
+    e2e = journey["reconciliation"]
     order_id = str(uuid.UUID(e2e["orderId"]))
     report_path = f"/api/admin/reconciliation?{e2e['period']}&organizationId={e2e['organizationId']}"
     report_before = wait_http(report_path, token)["data"]
@@ -116,6 +117,17 @@ try:
         time.sleep(1)
     assert wait_http(report_path, token)["data"] == report_before, "Restore duplicated a reconciliation row"
     proof["reconciliationAfterReplay"] = True
+    if journey.get("refundCaseId"):
+        refund_id = str(uuid.UUID(journey["refundCaseId"]))
+        sql("payment", restored["payment"], f"UPDATE refund_result_outbox SET delivered_at=NULL,next_attempt_at=now() WHERE case_id='{refund_id}'")
+        deadline = time.monotonic() + 60
+        while sql("payment", restored["payment"], f"SELECT delivered_at IS NOT NULL FROM refund_result_outbox WHERE case_id='{refund_id}'") != "t":
+            if time.monotonic() > deadline:
+                raise AssertionError("Restored refund delivery did not finish")
+            time.sleep(1)
+        assert sql("ticketing", restored["ticketing"], f"SELECT count(*) FROM order_events WHERE order_id='{order_id}' AND event_type='OrderRefunded'") == "1"
+        assert sql("notification", restored["notification"], f"SELECT count(*) FROM notifications WHERE reference_id='{order_id}' AND event_type='ORDER_REFUNDED' AND channel='EMAIL'") == "1"
+        proof["refundAfterReplay"] = True
     time.sleep(4)
     assert mail_stats()["accepted"]==mail_before,"Restore resent historical mail"
     proof["noHistoricalResend"]=True

@@ -13,6 +13,10 @@ public interface JpaUserRepository
                 JpaRepository<User, UUID> {
     Optional<User> findByEmail(String email);
 
+    @Override
+    @Query(value = "SELECT * FROM users WHERE lower(email)=lower(:email) ORDER BY id LIMIT 2", nativeQuery = true)
+    java.util.List<User> findTop2ByEmailIgnoreCase(String email);
+
     boolean existsByEmail(String email);
 
     @Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)

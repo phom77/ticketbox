@@ -25,6 +25,9 @@ public record NotificationCommand(
         Objects.requireNonNull(userId);
         Objects.requireNonNull(aggregateId);
         if (!"ticketing.order-confirmed".equals(eventType)
+                && !"ticketing.order-refunded".equals(eventType)
+                && !"ticketing.event-cancelled".equals(eventType)
+                && !"ticketing.event-postponed".equals(eventType)
                 && !"concert.reminder-requested".equals(eventType)) {
             throw new IllegalArgumentException("Unknown event type");
         }
@@ -33,7 +36,7 @@ public record NotificationCommand(
         }
         if (!aggregateId.equals(payloadReference))
             throw new IllegalArgumentException("Invalid notification reference");
-        if ("ticketing.order-confirmed".equals(eventType)
+        if (("ticketing.order-confirmed".equals(eventType) || "ticketing.order-refunded".equals(eventType))
                 && (amount == null || amount.signum() < 0)) {
             throw new IllegalArgumentException("Invalid order payload");
         }
@@ -42,4 +45,12 @@ public record NotificationCommand(
     public boolean paymentConfirmed() {
         return "ticketing.order-confirmed".equals(eventType);
     }
+
+    public boolean orderRefunded() {
+        return "ticketing.order-refunded".equals(eventType);
+    }
+
+    public boolean eventCancelled() { return "ticketing.event-cancelled".equals(eventType); }
+
+    public boolean eventPostponed() { return "ticketing.event-postponed".equals(eventType); }
 }

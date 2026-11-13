@@ -94,6 +94,12 @@ public class Order extends BaseEntity {
         status = Status.CANCELLED;
     }
 
+    public void refund() {
+        if (status != Status.PAID) throw new org.ticketbox.ticketing.domain.DomainViolation(
+                "INVALID_STATUS_TRANSITION", "error.order.refund-not-eligible");
+        status = Status.REFUNDED;
+    }
+
     public void expire(OffsetDateTime now) {
         requireAwaitingPayment();
         if (expiresAt.isAfter(now))

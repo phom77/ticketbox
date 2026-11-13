@@ -113,7 +113,8 @@ public class SecurityConfig {
                                         .permitAll()
                                         .requestMatchers("/internal/notifications/**")
                                         .permitAll()
-                                        .requestMatchers("/internal/ticketing/payment-results", "/internal/ticketing/payment-reconciliation")
+                                        .requestMatchers("/internal/ticketing/payment-results", "/internal/ticketing/payment-reconciliation",
+                                                "/internal/ticketing/refund-results")
                                         .permitAll()
                                         .requestMatchers("/api/payments/webhooks/**")
                                         .permitAll()

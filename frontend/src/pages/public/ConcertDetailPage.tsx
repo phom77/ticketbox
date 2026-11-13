@@ -13,6 +13,7 @@ import {
   type TicketType,
 } from '../../api/concerts';
 import { EventCard } from '../../components/EventCard';
+import { BuyerInformationLinks } from '../../components/BuyerInformationLinks';
 import { RemoteImage } from '../../components/RemoteImage';
 import { currency } from '../../data/formatters';
 
@@ -254,6 +255,12 @@ export function ConcertDetailPage({ preview = false }: { preview?: boolean }) {
             <span>Địa điểm</span>
             <strong>{concert.venueAddress}</strong>
           </div>
+          {!preview && concert.organizationName?.trim() ? (
+            <div className="booking-detail">
+              <span>Ban tổ chức</span>
+              <strong>{concert.organizationName}</strong>
+            </div>
+          ) : null}
 
           {!canBuy ? (
             <p>{preview ? 'Chế độ xem trước' : 'Đăng nhập bằng tài khoản người mua để mua vé.'}</p>
@@ -276,6 +283,7 @@ export function ConcertDetailPage({ preview = false }: { preview?: boolean }) {
             </button>
           )}
           <p className="secure-note">Thanh toán bảo mật · Đối tác vé chính thức</p>
+          {!preview ? <BuyerInformationLinks /> : null}
         </aside>
       </section>
       <section className="venue-section">

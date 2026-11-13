@@ -76,6 +76,16 @@ public class PaymentApi {
         return store.reviews();
     }
 
+    @GetMapping("/internal/reviews/{order}")
+    public Object support(@PathVariable UUID order) {
+        return store.support(order);
+    }
+
+    @GetMapping("/internal/reviews/pending-refunds")
+    public Object pendingRefunds(@RequestParam int page, @RequestParam int size) {
+        return store.pendingRefunds(page, size);
+    }
+
     public record Review(UUID actionId, UUID actorId, String action, String detail, UUID caseId) {}
 
     @PostMapping("/internal/reviews/{order}")

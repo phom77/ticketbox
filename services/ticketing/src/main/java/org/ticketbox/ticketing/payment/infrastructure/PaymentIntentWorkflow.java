@@ -69,6 +69,10 @@ public class PaymentIntentWorkflow implements PaymentWorkflowPort {
         if (order.paymentUrl() != null || order.paymentProvider() != null)
             throw new AppException(
                     ErrorCode.INVALID_STATUS_TRANSITION, "error.payment.reconciliation-required");
+        boolean suspended = Boolean.TRUE.equals(db.queryForObject("""
+                SELECT c.sales_suspended FROM concerts c JOIN orders o ON o.concert_id=c.id WHERE o.id=? FOR SHARE OF c
+                """, Boolean.class, orderId));
+        if (suspended) throw new AppException(ErrorCode.CONCERT_NOT_ON_SALE);
         UUID id = UUID.randomUUID();
         db.update(
                 "INSERT INTO"

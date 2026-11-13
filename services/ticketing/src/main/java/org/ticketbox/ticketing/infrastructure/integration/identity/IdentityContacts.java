@@ -31,4 +31,20 @@ public class IdentityContacts implements UserContactPort {
             return Optional.empty();
         }
     }
+
+    @Override
+    public Optional<UUID> findAccountIdByEmail(String email) {
+        try {
+            var result = http.post().uri(identity + "/internal/split/users/lookup")
+                    .body(java.util.Map.of("email", email)).retrieve().body(AccountId.class);
+            return Optional.ofNullable(result).map(AccountId::id);
+        } catch (HttpClientErrorException.NotFound absent) {
+            return Optional.empty();
+        } catch (org.springframework.web.client.RestClientException unavailable) {
+            throw new org.ticketbox.ticketing.application.error.AppException(
+                    org.ticketbox.ticketing.application.error.ErrorCode.SUPPORT_SOURCE_UNAVAILABLE);
+        }
+    }
+
+    private record AccountId(UUID id) {}
 }

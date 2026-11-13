@@ -14,6 +14,8 @@ public final class ErrorHttpMapping {
             case UNAUTHORIZED -> HttpStatus.FORBIDDEN;
             case RESOURCE_NOT_FOUND -> HttpStatus.NOT_FOUND;
             case INTERNAL_SERVER_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;
+            case SUPPORT_SOURCE_UNAVAILABLE -> HttpStatus.SERVICE_UNAVAILABLE;
+            case REFUND_CONFLICT -> HttpStatus.CONFLICT;
             case DUPLICATE_IDEMPOTENCY_KEY -> HttpStatus.CONFLICT;
             case EMAIL_ALREADY_EXISTS -> HttpStatus.CONFLICT;
             case TICKET_SOLD_OUT -> HttpStatus.CONFLICT;

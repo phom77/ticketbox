@@ -13,7 +13,8 @@ public final class NotificationCommands {
         if (!event.path("schemaVersion").isInt())
             throw new IllegalArgumentException("Unsupported schema version");
         JsonNode payload = event.path("payload");
-        boolean payment = "ticketing.order-confirmed".equals(event.path("eventType").asText());
+        String type = event.path("eventType").asText();
+        boolean order = "ticketing.order-confirmed".equals(type) || "ticketing.order-refunded".equals(type);
         return new NotificationCommand(
                 event.path("schemaVersion").asInt(),
                 UUID.fromString(event.path("eventId").asText()),
@@ -22,7 +23,7 @@ public final class NotificationCommands {
                 UUID.fromString(event.path("userId").asText()),
                 UUID.fromString(event.path("aggregateId").asText()),
                 event.path("correlationId").asText(),
-                UUID.fromString(payload.path(payment ? "orderId" : "concertId").asText()),
+                UUID.fromString(payload.path(order ? "orderId" : "concertId").asText()),
                 payload.path("concertTitle").asText("TicketBox"),
                 payload.path("amount").isNumber() ? payload.path("amount").decimalValue() : null,
                 payload.path("eventDate").asText(),

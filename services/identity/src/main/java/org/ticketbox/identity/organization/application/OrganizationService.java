@@ -76,6 +76,10 @@ public class OrganizationService {
         return store.organizations();
     }
 
+    public java.util.Optional<String> displayName(UUID id) {
+        return store.displayName(id);
+    }
+
     public List<Member> members(UUID actor, UUID organization) {
         requireManager(actor, organization);
         return store.members(organization);

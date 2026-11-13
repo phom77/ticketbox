@@ -8,6 +8,7 @@ import re
 import subprocess
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import uuid
 from zoneinfo import ZoneInfo
@@ -47,7 +48,8 @@ def request(method, path, token=None, body=None, expected=(200,), headers=None, 
     except urllib.error.HTTPError as error:
         assert error.code in expected, (method, path, error.code, error.read().decode()[:500])
         return None
-    payload = json.load(response)
+    raw = response.read()
+    payload = json.loads(raw) if raw else {}
     assert response.status in expected, (path, response.status, payload)
     return payload.get("data", payload)
 
@@ -149,6 +151,190 @@ def press_kit():
 def check(name):
     PROOF["checks"].append(name)
     print(name, flush=True)
+
+
+def verify_password_recovery(run_id):
+    email = f"recovery-{run_id}@example.test"
+    old_password = "fixture-old-pass"
+    new_password = "fixture-new-pass"
+    account = request("POST", "/api/auth/register", body={
+        "email": email, "fullName": "Recovery Fixture", "password": old_password,
+    }, expected=(201,))
+    login_body = {"email": email, "password": old_password}
+    old_token = request("POST", "/api/auth/login", body=login_body)["accessToken"]
+    path = "/api/auth/password-reset"
+    compose("stop", "notification")
+    try:
+        assert request("POST", path, body={"email": email}, expected=(202,)) == {}
+        assert request("POST", path, body={"email": f"missing-{run_id}@example.test"}, expected=(202,)) == {}
+        token = os.environ.get("SPLIT_SERVICE_TOKEN", "ticketbox-local-split-service-token-change-before-deploy")
+        claim = json.loads(compose("exec", "-T", "smtp", "node", "-e", """
+            fetch('http://identity:8080/internal/split/password-reset/mail/claim', {
+                method: 'POST', headers: {'X-Service-Token': process.argv[1]}
+            }).then(response => response.json()).then(result => process.stdout.write(JSON.stringify(result)))
+            """, token))
+        assert claim["email"] == email
+        confirm = {"token": claim["token"], "password": new_password}
+        request("POST", path + "/confirm", body=confirm, expected=(204,))
+        request("POST", path + "/confirm", body=confirm, expected=(400,))
+        request("POST", "/api/auth/login", body=login_body, expected=(401,))
+        for resource in ("/api/auth/me", "/api/users/me/profile", "/api/orders/my", "/api/tickets/my", "/api/payments/providers"):
+            request("GET", resource, old_token, expected=(401,))
+        new_token = request("POST", "/api/auth/login", body={**login_body, "password": new_password})["accessToken"]
+        assert request("GET", "/api/orders/my", new_token) == []
+    finally:
+        compose("start", "notification")
+    until(lambda: request("GET", "/api/notifications", new_token) is not None)
+    request("GET", "/api/notifications", old_token, expected=(401,))
+    user_id = str(uuid.UUID(account["id"]))
+    compose("stop", "smtp")
+    try:
+        request("POST", path, body={"email": email}, expected=(202,))
+        assert until(lambda: sql("identity", f"SELECT encrypted_token IS NOT NULL AND lease_id IS NULL "
+                                 f"AND next_attempt_at>clock_timestamp() FROM password_resets WHERE account_id='{user_id}'") == "t")
+    finally:
+        compose("start", "smtp")
+    assert until(lambda: sql("identity", f"SELECT encrypted_token IS NULL FROM password_resets WHERE account_id='{user_id}'") == "t")
+    assert request("GET", "/api/notifications", new_token)["content"] == []
+    check("Password reset is single-use, revokes the old buyer session and retries a failed SMTP delivery outside notification feeds")
+
+
+def verify_order_refund(run_id, admin, organizer, order, ticket_type, organization, period):
+    email = f"refund-approver-{run_id}@example.test"
+    password = "fixture-admin-pass"
+    account = request("POST", "/api/auth/register", body={"email": email, "fullName": "Refund Approver", "password": password}, expected=(201,))
+    request("PUT", f"/api/admin/users/{account['id']}/role", admin, {"role": "ADMIN"})
+    approver = request("POST", "/api/auth/login", body={"email": email, "password": password})["accessToken"]
+    path = f"/api/admin/orders/{order}/refunds"
+    def action(kind, **fields):
+        return {"actionId": str(uuid.uuid4()), "action": kind, "detail": "Isolated refund fixture", **fields}
+
+    requested = action("REQUEST")
+    request("POST", path, organizer, requested, expected=(403,))
+    case = request("POST", path, admin, requested)
+    case_id = str(uuid.UUID(case["id"]))
+    assert case["state"] == "REQUESTED"
+    assert request("POST", path, admin, requested)["id"] == case_id
+    pending = request("GET", "/api/admin/orders/support/queue?kind=PENDING_REFUND", admin)
+    assert any(item["sourceId"] == case_id for item in pending["content"])
+    approval = action("APPROVE", caseId=case_id)
+    request("POST", path, admin, approval, expected=(409,))
+    compose("stop", "checkin")
+    try:
+        request("POST", path, approver, approval, expected=(503,))
+        assert sql("payment", f"SELECT state FROM refund_reviews WHERE request_id='{case_id}'") == "HOLD_PENDING"
+    finally:
+        compose("start", "checkin")
+    assert until(lambda: request("POST", path, approver, approval)["state"] == "APPROVED")
+    assert sql("checkin", f"SELECT count(*) FROM tickets WHERE refund_case_id='{case_id}' AND status='VALID'") == "2"
+    inventory_query = f"SELECT available_qty FROM ticket_inventory WHERE ticket_type_id='{ticket_type}'"
+    stock = sql("ticketing", inventory_query)
+    confirmation = action("CONFIRM", caseId=case_id, amount=case["amount"], externalReference=f"FIXTURE-{run_id}",
+                          occurredAt=dt.datetime.now(dt.timezone.utc).isoformat())
+    request("POST", path, approver, {**confirmation, "amount": case["amount"] + 1}, expected=(400,))
+    assert request("POST", path, approver, confirmation)["state"] == "RESOLVED_MANUALLY"
+    assert request("POST", path, approver, confirmation)["state"] == "RESOLVED_MANUALLY"
+    request("POST", path, approver, action("ABORT", caseId=case_id), expected=(409,))
+    until(lambda: sql("ticketing", f"SELECT replay_order('{order}')->>'status'") == "REFUNDED")
+    until(lambda: sql("checkin", f"SELECT count(*) FROM tickets WHERE refund_case_id='{case_id}' AND status='CANCELLED'") == "2")
+    until(lambda: sql("notification", f"SELECT count(*) FROM notifications WHERE reference_id='{order}' AND event_type='ORDER_REFUNDED' AND channel='EMAIL' AND status='SENT'") == "1")
+    assert sql("ticketing", inventory_query) == stock
+    report = f"/api/admin/reconciliation?{period}&organizationId={organization}"
+    assert until(lambda: request("GET", report, admin)["content"][0]["refundReference"] == confirmation["externalReference"])
+    assert sql("ticketing", f"SELECT count(*) FROM order_events WHERE order_id='{order}' AND event_type='OrderRefunded'") == "1"
+    PROOF["refundCaseId"] = case_id
+    check("Two admins approve a full refund, held tickets are revoked, and replay preserves stock and sends one notice")
+
+
+def verify_event_disruption(run_id, admin, manager, scope, concert):
+    management = f"/api/organizer/manage/concerts/{concert}"
+    public = f"/api/concerts/{concert}"
+    admin_concert = f"/api/admin/concerts/{concert}"
+    path = admin_concert + "/disruption"
+    tier = request("POST", management + "/ticket-types", manager, {
+        "name": "GA", "price": 100000, "totalQuantity": 12, "maxPerAccount": 4, "zoneColor": "#123456",
+    }, expected=(201,), headers=scope)["id"]
+    request("POST", management + "/publication", manager, headers=scope)
+    until(lambda: request("GET", public)["id"] == concert)
+
+    def buyer_session(suffix):
+        login_data = {"email": f"disruption-{suffix}-{run_id}@example.test", "password": "fixture-buyer-pass"}
+        account = request("POST", "/api/auth/register", body={**login_data, "fullName": "Disruption Fixture"}, expected=(201,))
+        buyer = request("POST", "/api/auth/login", body=login_data)["accessToken"]
+        queue = f"/api/queue/concerts/{concert}"
+        request("POST", queue + "/join", buyer)
+        token = until(lambda: request("GET", queue + "/status", buyer).get("queueAccessToken"))
+        return account["id"], buyer, {"Queue-Access-Token": token, "Idempotency-Key": str(uuid.uuid4())}
+
+    order_data = {"concertId": concert, "items": [{"ticketTypeId": tier, "quantity": 1}]}
+    reserve = f"/api/reservations/concerts/{concert}/ticket-types/{tier}/reserve"
+
+    def order_for(suffix, *, initiate=True):
+        account, buyer, headers = buyer_session(suffix)
+        request("POST", reserve, buyer, {"quantity": 1}, headers=headers)
+        order = request("POST", "/api/orders", buyer, order_data, headers=headers, expected=(201,))["id"]
+        if initiate:
+            request("POST", f"/api/payments/{order}/initiate", buyer, {"provider": "MOCK"}, expected=(200, 202))
+            until(lambda: request("GET", f"/api/payments/{order}/status", buyer)["attemptState"] == "READY")
+        return account, buyer, order
+
+    def settle(buyer, order):
+        request("POST", f"/api/mock-payments/{order}/success", buyer)
+        until(lambda: request("GET", f"/api/payments/{order}/status", buyer)["orderStatus"] == "PAID")
+
+    def email_sent(account, event):
+        return sql("notification", f"SELECT count(*) FROM notifications WHERE user_id='{account}' AND event_type='{event}'"
+                   " AND channel='EMAIL' AND status='SENT'") == "1"
+
+    account, buyer, order = order_for("first")
+    settle(buyer, order)
+    assert request("GET", path + "/impact?size=1", admin)["content"][0]["orderId"] == order
+    request("GET", path + "/impact", manager, expected=(403,))
+    now = dt.datetime.now(dt.timezone.utc)
+    existing = request("GET", management, manager, headers=scope)
+    metadata = {key: existing.get(key) for key in ("title", "venueName", "venueAddress", "eventDate",
+                "doorsOpenAt", "saleStartAt", "saleEndAt")}
+    request("PUT", management, manager, {**metadata, "description": "Updated metadata"}, headers=scope)
+    rescheduled = {**metadata, "eventDate": (now + dt.timedelta(days=8)).isoformat()}
+    request("PUT", management, manager, rescheduled, headers=scope, expected=(400,))
+    request("PUT", admin_concert, admin, rescheduled, expected=(400,))
+    postpone = {"actionId": str(uuid.uuid4()), "kind": "POSTPONE", "reason": "Isolated postponement fixture",
+                "eventDate": (now + dt.timedelta(days=8)).isoformat(), "saleStartAt": (now - dt.timedelta(minutes=1)).isoformat(),
+                "saleEndAt": (now + dt.timedelta(days=1)).isoformat()}
+    request("POST", path, manager, postpone, expected=(403,))
+    assert request("POST", path, admin, postpone)["id"] == postpone["actionId"]
+    assert request("POST", path, admin, postpone)["id"] == postpone["actionId"]
+    until(lambda: request("GET", path, admin)["state"] == "PAUSED")
+    request("GET", public, expected=(404,))
+    assert sql("checkin", f"SELECT sales_suspended FROM concerts WHERE id='{concert}'") == "t"
+    assert sql("checkin", f"SELECT status FROM tickets WHERE concert_id='{concert}' AND user_id='{account}'") == "VALID"
+    until(lambda: email_sent(account, "EVENT_POSTPONED"))
+    resume = path + "/" + postpone["actionId"] + "/resume"
+    assert request("POST", resume, admin)["id"] == postpone["actionId"]
+    assert request("POST", resume, admin)["id"] == postpone["actionId"]
+    until(lambda: request("GET", path, admin)["state"] == "RESUMED")
+    assert request("GET", public)["id"] == concert
+    assert sql("checkin", f"SELECT NOT sales_suspended AND resumed_admission_at>now() FROM concerts WHERE id='{concert}'") == "t"
+
+    second_account, second_buyer, second_order = order_for("second")
+    _, third_buyer, third_order = order_for("third", initiate=False)
+    _, queued_buyer, queued_headers = buyer_session("queued")
+    request("PATCH", admin_concert + "/status", admin, {"status": "CANCELLED"}, expected=(400,))
+    cancel = {"actionId": str(uuid.uuid4()), "kind": "CANCEL", "reason": "Isolated cancellation fixture"}
+    assert request("POST", path, admin, cancel)["id"] == cancel["actionId"]
+    assert request("POST", path, admin, cancel)["id"] == cancel["actionId"]
+    until(lambda: request("GET", path, admin)["state"] == "CANCELLED")
+    request("GET", public, expected=(404,))
+    request("POST", reserve, queued_buyer, {"quantity": 1}, headers=queued_headers, expected=(400,))
+    request("POST", "/api/orders", queued_buyer, order_data, headers=queued_headers, expected=(400,))
+    request("POST", f"/api/payments/{third_order}/initiate", third_buyer, {"provider": "MOCK"}, expected=(400,))
+    settle(second_buyer, second_order)
+    for order_id in (order, second_order):
+        until(lambda: sql("payment", f"SELECT count(*) FROM refund_reviews WHERE order_id='{order_id}' AND state='REQUESTED'") == "1")
+    until(lambda: {item["orderId"] for item in request("GET", path + "/impact", admin)["content"] if item["casePrepared"]}
+          == {order, second_order})
+    until(lambda: email_sent(account, "EVENT_CANCELLED") and email_sent(second_account, "EVENT_CANCELLED"))
+    check("Postponement preserves valid tickets, cancellation blocks holds, orders and new intents, and an existing intent settles into its own refund case")
 
 
 def main(*, source_outage=True):
@@ -256,6 +442,7 @@ def main(*, source_outage=True):
             compose("start", "checkin")
     assert until(lambda: request("GET", publication, organizer, headers=first_scope)["versions"]["checkinVersion"] >= activation)
     request("GET", public, organizer)
+    assert request("GET", public)["organizationName"] == f"First {run_id}"
     request("POST", f"/api/queue/concerts/{concert_id}/join", organizer, expected=(403,))
     assert sql("ticketing", f"SELECT status FROM concerts WHERE id='{concert_id}'") == "ON_SALE"
     request("PUT",f"/api/admin/ticket-types/{type_id}",admin,{
@@ -328,8 +515,37 @@ def main(*, source_outage=True):
     PROOF["reconciliation"] = {"orderId": order_id, "organizationId": first_org, "period": period,
                                "transactionId": row["transactionId"], "collectedAmount": row["collectedAmount"]}
     check("Reconciliation preserves ownership across replay, isolates finance scopes and exports the same amounts")
+    for filters in ({"orderId": order_id}, {"buyerEmail": " AUDIENCE@TicketBox.com "}, {"transactionRef": row["transactionId"]}):
+        support = orders + "/support?" + urllib.parse.urlencode({**filters, "size": 1})
+        found = request("GET", support, organizer, headers=first_scope)
+        assert found["totalElements"] == 1 and found["content"][0]["id"] == order_id
+        assert request("GET", support + "&page=1", organizer, headers=first_scope)["content"] == []
+        assert request("GET", support, organizer, headers=second_scope)["totalElements"] == 0
+    check("Order support matches exact IDs, email and transaction references inside organization scope")
+    support_detail = f"{orders}/{order_id}/support"
+    for section in ("tickets", "payment", "delivery"):
+        request("GET", f"{support_detail}/{section}", organizer, expected=(404,), headers=second_scope)
+    assert len(request("GET", f"{support_detail}/tickets", organizer, headers=first_scope)) == 2
+    assert request("GET", f"{support_detail}/payment", organizer, headers=first_scope)["attempt"]["transactionId"] == row["transactionId"]
+    email_status, = request("GET", f"{support_detail}/delivery", organizer, headers=first_scope)
+    assert email_status["status"] == "SENT"
+    queue = "/api/admin/orders/support/queue"
+    request("GET", queue + "?kind=UNKNOWN_PAYMENT", organizer, expected=(403,))
+    for kind in ("UNKNOWN_PAYMENT", "MISSING_TICKETS", "PENDING_REFUND", "FAILED_EMAIL"):
+        request("GET", queue + "?kind=" + kind, admin)
+    email_id = str(uuid.UUID(email_status["id"]))
+    sql("notification", f"UPDATE notifications SET status='FAILED' WHERE id='{email_id}'")
+    failed_emails = request("GET", queue + "?kind=FAILED_EMAIL", admin)["content"]
+    assert any(item["sourceId"] == email_id and item["orderId"] == order_id and item["retryable"] for item in failed_emails)
+    retry_key = str(uuid.uuid4())
+    for _ in range(2):
+        request("POST", f"/api/admin/notifications/{email_id}/retry", admin, headers={"Idempotency-Key": retry_key})
+    assert sql("notification", f"SELECT count(*) FROM notification_audit WHERE notification_id='{email_id}' AND id='{retry_key}'") == "1"
+    assert until(lambda: sql("notification", f"SELECT status FROM notifications WHERE id='{email_id}'") == "SENT")
+    check("Scoped support sections and the exception queue use owner data and replay email retry once")
     request("PUT", f"/api/organizations/{second_org}/members/{organizer_id}", audience, {"grants": []})
     request("GET", orders, organizer, expected=(403,), headers=second_scope)
+    request("GET", support, organizer, expected=(403,), headers=second_scope)
     check("Ticketing scopes orders and reporting and honors revocation with the same token")
 
     for base in (BASE, CHECKIN_BASE):
@@ -345,11 +561,11 @@ def main(*, source_outage=True):
         try:
             request("GET", concerts, organizer, expected=(503,), headers=first_scope)
             request("GET", f"{orders}/{order_id}", organizer, expected=(503,), headers=first_scope)
-            request("GET", f"/api/orders/{order_id}", audience)
+            request("GET", f"/api/orders/{order_id}", audience, expected=(503,))
         finally:
             compose("start", "identity")
         until(lambda: login("admin"))
-        check("Privileged routes fail closed during Identity outage while buyer order access works")
+        check("Private organizer and buyer routes fail closed during Identity outage")
 
     guest_csv = "phone,full_name,category,sponsor_name,notes\n0901234567,Nguyễn Ánh,VIP,Partner,fixture\n".encode("utf-8")
     imported=upload(f"/api/admin/concerts/{concert_id}/guest-lists/import",admin,"guests.csv",guest_csv,"text/csv")
@@ -384,6 +600,11 @@ def main(*, source_outage=True):
     request("POST",f"/api/admin/artist-bio-jobs/{job['jobId']}/apply",admin,
             {"artistBio":completed["resultBio"]})
     check("Catalog owns PDF extraction, AI job processing and reviewed publication")
+    if source_outage:
+        verify_order_refund(run_id, admin, organizer, order_id, type_id, first_org, period)
+        verify_event_disruption(run_id, admin, audience, second_scope, second_concert)
+    if source_outage and os.environ.get("PASSWORD_RESET_KEY"):
+        verify_password_recovery(run_id)
     PROOF.update(passed=True, concertId=concert_id, orderId=order_id)
 
 

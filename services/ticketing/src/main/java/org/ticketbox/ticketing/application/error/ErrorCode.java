@@ -10,6 +10,8 @@ public enum ErrorCode {
     UNAUTHORIZED("error.unauthorized"),
     RESOURCE_NOT_FOUND("error.resource-not-found"),
     INTERNAL_SERVER_ERROR("error.internal-server-error"),
+    SUPPORT_SOURCE_UNAVAILABLE("error.service-unavailable"),
+    REFUND_CONFLICT("error.order.refund-not-eligible"),
 
     DUPLICATE_IDEMPOTENCY_KEY("error.duplicate-idempotency-key"),
     EMAIL_ALREADY_EXISTS("error.email-already-exists"),

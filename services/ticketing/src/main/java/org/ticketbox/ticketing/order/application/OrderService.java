@@ -106,6 +106,9 @@ public class OrderService {
 
         releaseUserLockAfterTransaction(lockKey, lockToken);
 
+        if (concertOrderPort.lockAndCheckSalesSuspended(request.concertId())) {
+            throw new AppException(ErrorCode.CONCERT_NOT_ON_SALE, "error.concert-not-on-sale");
+        }
         ConcertView concert =
                 concertOrderPort
                         .findConcertById(request.concertId())
@@ -463,7 +466,7 @@ public class OrderService {
         return toOrderResponses(orders);
     }
 
-    private List<OrderResponse> toOrderResponses(List<Order> orders) {
+    List<OrderResponse> toOrderResponses(List<Order> orders) {
         if (orders.isEmpty()) return Collections.emptyList();
 
         List<UUID> orderIds = orders.stream().map(Order::getId).toList();

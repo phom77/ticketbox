@@ -1,0 +1,56 @@
+.event-disruption {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 16px;
+  min-width: 0;
+}
+.event-disruption-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+}
+.event-disruption h2, .event-disruption h3, .event-disruption p { margin: 0; }
+.event-disruption h2 { color: #17213a; font-size: 20px; }
+.event-disruption h3 { color: #17213a; font-size: 15px; }
+.event-disruption > p, .event-disruption-status p, .event-disruption-impact > p { color: #475569; font-size: 14px; }
+.event-disruption-status, .event-disruption-status > div, .event-disruption-impact, .event-disruption-form { display: grid; gap: 12px; }
+.event-disruption-status > button, .event-disruption-form > button { justify-self: start; }
+.event-disruption-status p, .event-disruption-orders a { overflow-wrap: anywhere; }
+.event-disruption-impact { border-top: 1px solid #edf0f5; padding-top: 14px; }
+.event-disruption-orders { list-style: none; padding: 0; margin: 0; }
+.event-disruption-orders li {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) repeat(2, minmax(0, 1fr));
+  gap: 6px 12px;
+  align-items: start;
+  padding: 10px 0;
+  border-bottom: 1px solid #edf0f5;
+  color: #475569;
+  font-size: 13px;
+}
+.event-disruption-orders a { color: #2856d8; text-decoration: underline; }
+.event-disruption-impact .admin-pagination { padding: 0; }
+.event-disruption-impact .admin-pagination button { width: auto; padding: 0 10px; }
+.event-disruption-form { max-width: 720px; }
+.event-disruption-form textarea { min-height: 76px; resize: vertical; }
+.event-disruption-schedule {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-width: 0;
+  gap: 10px 16px;
+  padding: 12px;
+  margin: 0;
+  border: 1px solid #dce3ee;
+  border-radius: 8px;
+}
+.event-disruption-schedule legend { padding: 0 5px; color: #475569; font-size: 13px; }
+.event-disruption-schedule input { min-width: 0; }
+.event-disruption-confirm { display: flex; gap: 8px; align-items: flex-start; color: #334155; font-size: 14px; }
+.event-disruption-confirm input { flex: 0 0 auto; margin: 3px 0 0; }
+.event-disruption .admin-notice { margin: 0; }
+
+@media (max-width: 620px) {
+  .event-disruption-orders li, .event-disruption-schedule { grid-template-columns: minmax(0, 1fr); }
+}

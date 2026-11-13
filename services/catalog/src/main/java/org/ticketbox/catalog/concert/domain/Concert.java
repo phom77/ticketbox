@@ -47,6 +47,15 @@ public class Concert extends BaseEntity {
     private String posterPublicId;
 
     private boolean publicVisible = true;
+    private boolean salesSuspended;
+    private OffsetDateTime resumedAdmissionAt;
+
+    public void suspendSales() { salesSuspended = true; }
+
+    public void resumeSales(OffsetDateTime admissionAt) {
+        salesSuspended = false;
+        resumedAdmissionAt = admissionAt;
+    }
 
     private UUID createdBy;
 

@@ -5,4 +5,6 @@ import java.util.UUID;
 
 public interface UserContactPort {
     Optional<UserContactView> findById(UUID userId);
+
+    Optional<UUID> findAccountIdByEmail(String email);
 }

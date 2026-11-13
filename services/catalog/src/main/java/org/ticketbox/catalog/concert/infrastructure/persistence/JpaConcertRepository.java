@@ -25,7 +25,7 @@ public interface JpaConcertRepository
 
     Page<Concert> findByStatusIn(List<Concert.Status> statuses, Pageable pageable);
 
-    String BUYER_VISIBLE = "c.status in :statuses and c.publicVisible = true and not exists "
+    String BUYER_VISIBLE = "c.status in :statuses and c.publicVisible = true and c.salesSuspended = false and not exists "
             + "(select p.concertId from CatalogSalePublication p where p.concertId = c.id "
             + "and p.activationVersion > p.ticketingVersion)";
 

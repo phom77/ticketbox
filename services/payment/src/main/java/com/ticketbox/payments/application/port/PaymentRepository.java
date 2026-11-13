@@ -34,6 +34,10 @@ public interface PaymentRepository {
 
     Object reviews();
 
+    Object support(UUID order);
+
+    Object pendingRefunds(int page, int size);
+
     Object review(UUID order, UUID action, UUID actor, String kind, String detail, UUID caseId);
 
     void transactionConflict(UUID order);

@@ -2,6 +2,7 @@ import { ArrowUpRight, Bell, CalendarDays, Ticket, UserCog, Users } from 'lucide
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../features/auth/AuthContext';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
+import { OrderSupportQueue } from './OrderSupportQueue';
 
 const workspaces = [
   {
@@ -52,6 +53,8 @@ export function AdminOverviewPage() {
           </Link>
         }
       />
+
+      <OrderSupportQueue />
 
       <section className="admin-workspace-grid" aria-label="Khu vực quản lý">
         {workspaces.map((workspace) => {

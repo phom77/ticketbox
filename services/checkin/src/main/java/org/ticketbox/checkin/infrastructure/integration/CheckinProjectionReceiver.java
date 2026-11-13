@@ -75,6 +75,8 @@ ON CONFLICT(id) DO UPDATE SET %3$s
                         "Catalog snapshot ID does not match its concert");
             }
             upsert(Row.CONCERT, concert);
+            jdbc.update("UPDATE concerts SET sales_suspended=?,resumed_admission_at=?::timestamptz WHERE id=?",
+                    concert.path("sales_suspended").asBoolean(false), concert.path("resumed_admission_at").asText(null), id);
             Set<UUID> receivedTypes = new HashSet<>();
             for (JsonNode type : envelope.required("types")) {
                 if (!uuid(type, "concert_id").equals(id)) {

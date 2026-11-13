@@ -42,5 +42,20 @@ class OrganizationAccessController {
         return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
     }
 
+    @GetMapping("/audience-session")
+    ResponseEntity<Void> audience(
+            @RequestHeader(name = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
+        sessions.requireAudience(authorization);
+        return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
+    }
+
+    @GetMapping("/organizations/{id}/name")
+    ResponseEntity<DisplayName> displayName(@PathVariable UUID id) {
+        return organizations.displayName(id).map(name -> ResponseEntity.ok(new DisplayName(name)))
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    record DisplayName(String name) {}
+
     record Access(UUID accountId, UUID organizationId, Set<OrganizationGrant> grants) {}
 }

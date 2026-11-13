@@ -10,6 +10,7 @@ public enum ErrorCode {
     RESOURCE_NOT_FOUND("error.resource-not-found"),
     INTERNAL_SERVER_ERROR("error.internal-server-error"),
     AI_PROVIDER_UNAVAILABLE("error.ai-provider-unavailable"),
+    DISRUPTION_SOURCE_UNAVAILABLE("error.service-unavailable"),
     IMAGE_STORAGE_UNAVAILABLE("error.image-storage-unavailable"),
     ARTIST_BIO_JOB_NOT_READY("error.artist-bio-job-not-ready"),
     ARTIST_BIO_ALREADY_EXISTS("error.artist-bio-already-exists"),

@@ -17,6 +17,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 import org.ticketbox.identity.infrastructure.security.JwtService;
+import org.ticketbox.identity.auth.application.CurrentSession;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -27,6 +28,7 @@ import java.util.UUID;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
+    private final CurrentSession sessions;
 
     @Override
     protected void doFilterInternal(
@@ -48,6 +50,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (jwtService.isTokenValid(jwt)) {
                 userId = jwtService.extractUserId(jwt);
                 String role = jwtService.extractRole(jwt);
+                String path = request.getRequestURI();
+                if ("AUDIENCE".equals(role) && ("/api/auth/me".equals(path) || path.startsWith("/api/users/me/"))) {
+                    sessions.require(jwt);
+                }
 
                 if (SecurityContextHolder.getContext().getAuthentication() == null) {
                     SimpleGrantedAuthority authority = new SimpleGrantedAuthority("ROLE_" + role);

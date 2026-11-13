@@ -13,6 +13,9 @@ public interface OrderRepository {
 
     List<UUID> expiredOrderIds();
 
+    org.springframework.data.domain.Page<Order> searchSupport(UUID organizationId, UUID concertId,
+            UUID orderId, UUID buyerId, String transactionRef, Pageable pageable);
+
     List<Order> findByUserIdOrderByCreatedAtDesc(UUID userId);
 
     Optional<Order> findByIdAndUserId(UUID id, UUID userId);

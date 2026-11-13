@@ -116,11 +116,12 @@ Phí cần nguồn dữ liệu xác thực trước khi hiển thị. Kế toán
 
 **Điểm chạm.** [Admin orders](../../../frontend/src/pages/admin/AdminOrdersPage.tsx), [admin overview](../../../frontend/src/pages/admin/AdminOverviewPage.tsx), [API review Payment](../../../services/ticketing/src/main/java/org/ticketbox/ticketing/web/internal/PaymentWorkflowController.java), [xử lý Payment](../../../services/payment/src/main/java/com/ticketbox/payments/infrastructure/persistence/PaymentStore.java), [OrderService](../../../services/ticketing/src/main/java/org/ticketbox/ticketing/order/application/OrderService.java) và Notification/Check-in.
 
-- [ ] Thêm tìm kiếm có phân trang theo mã đơn, email và mã giao dịch. Mở một trang chi tiết có đơn, tiến độ thanh toán, vé, tình trạng gửi email và hồ sơ ngoại lệ. Phạm vi hỗ trợ của organizer giới hạn trong tổ chức.
-- [ ] Đổi trang admin TicketBox thành danh sách việc cần xử lý như tiền chưa xác định, khách trả tiền nhưng chưa có vé, ca hoàn đang chờ và email lỗi. Dùng API review đã có cho các thao tác được hỗ trợ, thêm quyền và audit trước khi mở thao tác mới.
-- [ ] Chốt ai được tạo, duyệt và xác nhận khoản hoàn, trường hợp hoàn từng vé hoặc toàn đơn, và cách xử lý vé đã soát. Cho phép ghi kết quả thực tế từ cổng bằng mã tham chiếu, số tiền, thời điểm và người thao tác. Chống ghi trùng và hoàn quá số đã thu.
-- [ ] Nối kết quả hoàn với hiệu lực vé, đồng bộ tới Check-in, thông báo khách và báo cáo A3. Nếu hoãn/hủy, hiển thị danh sách bị ảnh hưởng, áp dụng quyết định theo chính sách và theo dõi các ca còn mở. Kiểm tra hủy/hoàn khi scanner đang dùng dataset cũ.
-- [ ] Xử lý ca thu tiền đến muộn như một ngoại lệ cần giải quyết. Cho phép tra cứu và ghi nhận kết quả mà không tái cấp tồn kho hoặc phát thêm vé.
+- [x] Thêm tìm kiếm có phân trang theo mã đơn, email và mã giao dịch. Mở một trang chi tiết có đơn, tiến độ thanh toán, vé, tình trạng gửi email và hồ sơ ngoại lệ. Phạm vi hỗ trợ của organizer giới hạn trong tổ chức.
+- [x] Đổi trang admin TicketBox thành danh sách việc cần xử lý như tiền chưa xác định, khách trả tiền nhưng chưa có vé, ca hoàn đang chờ và email lỗi. Dùng API review đã có cho các thao tác được hỗ trợ, thêm quyền và audit trước khi mở thao tác mới.
+- [x] Áp dụng quy trình hoàn toàn đơn với hai admin cho bước yêu cầu và duyệt, ghi kết quả bằng mã tham chiếu, số tiền, thời điểm và người thao tác. Ca có vé đã soát hoặc chuyển nhượng đi theo quy trình thủ công. Đã thử nghiệm với chứng từ giả lập trên Compose.
+- [x] Nối kết quả hoàn với hiệu lực vé, đồng bộ tới Check-in, thông báo khách và báo cáo A3. Hoãn/hủy có danh sách đơn bị ảnh hưởng, ACK theo service và hồ sơ hoàn riêng từng đơn đủ điều kiện.
+- [x] Xử lý ca thu tiền đến muộn như một ngoại lệ cần giải quyết. Cho phép tra cứu và ghi nhận kết quả, giữ nguyên tồn kho và trạng thái phát hành vé.
+- [ ] Đối soát hoàn tiền trên VNPAY sandbox. Kịch bản hủy/hoàn khi máy scanner giữ dataset cũ được dời sang đợt scanner.
 
 **Nghiệm thu.** Người hỗ trợ tìm được một ca mất phản hồi thanh toán, giải thích trạng thái và xử lý trên màn hình hoặc quy trình đã duyệt. Thử gửi lại hành động và kiểm tra đơn, tiền, vé, thông báo nhất quán. Chạy suite Payment, Ticketing, Notification, Check-in và regression trên trình duyệt cho luồng thay đổi.
 
@@ -130,8 +131,9 @@ Phí cần nguồn dữ liệu xác thực trước khi hiển thị. Kế toán
 
 **Điểm chạm.** [Đăng nhập](../../../frontend/src/pages/public/LoginPage.tsx), [footer](../../../frontend/src/components/layout/PublicLayout.tsx), [checkout](../../../frontend/src/pages/customer/CheckoutPage.tsx), [kết quả thanh toán](../../../frontend/src/pages/customer/PaymentResultPage.tsx), [scanner](../../../mobile-scanner/src/screens/ScannerHomeScreen.tsx), [lưu trữ scanner](../../../mobile-scanner/src/database/database.ts) và [hướng dẫn scanner](../../../mobile-scanner/README.md).
 
-- [ ] Hoàn thiện khôi phục mật khẩu, kênh hỗ trợ, điều kiện mua và hoàn vé. Gỡ các mục chỉ dẫn tới anchor hoặc form newsletter chưa hoạt động. Hiển thị rõ ban tổ chức và cách tìm lại vé/đơn.
-- [ ] Kiểm tra luồng trên điện thoại từ chọn vé tới mở vé QR. Sau khi quay lại từ cổng, phân biệt đang xác nhận, thành công, thất bại và hết hạn. Giữ khả năng tìm lại đơn sau reload hoặc mất phản hồi. Cải thiện thao tác thử lại trong giới hạn an toàn hiện có. Thiết kế nhiều attempt cho một đơn nếu có nhu cầu và đã duyệt cách xử lý callback muộn.
+- [x] Hoàn thiện khôi phục mật khẩu, vị trí liên kết hỗ trợ và điều kiện mua/hoàn. Gỡ các mục chỉ dẫn tới anchor hoặc form newsletter chưa hoạt động. Hiển thị ban tổ chức và cách tìm lại vé/đơn.
+- [x] Kiểm tra luồng trên điện thoại từ chọn vé tới mở vé QR. Phân biệt đang xác nhận, thành công, thất bại và hết hạn. Giữ khả năng tìm lại đơn sau reload hoặc mất phản hồi và thử lại với định danh lệnh hiện có.
+- [ ] Xác nhận SMTP staging và các điểm đến hỗ trợ, điều kiện mua/hoàn đã duyệt.
 - [ ] Sửa màn scanner để lượt chờ xác nhận có màu, nhãn và hướng dẫn khác lượt được phép vào. Chốt quy trình khi mất WAN nhưng còn LAN và khi thiết bị mất kết nối hoàn toàn. Chốt người có quyền quyết định ngoại lệ.
 - [ ] Diễn tập với thiết bị thật tại địa điểm dự kiến. Kiểm tra hai máy cùng quét một vé, mất mạng, đồng bộ lại, vé bị hủy, thay ca và thiết bị bị mất. Kiểm tra thời hạn và xử lý dữ liệu cục bộ sau ca.
 
@@ -139,7 +141,7 @@ Phí cần nguồn dữ liệu xác thực trước khi hiển thị. Kế toán
 
 ## A6. Triển khai và điều kiện mở pilot
 
-**OpenSpec đề xuất.** `production-pilot-operations`. Các quyết định hạ tầng cần review theo quy trình repo.
+**OpenSpec đề xuất.** [`staging-pilot-readiness`](../../../openspec/changes/staging-pilot-readiness/proposal.md). Các quyết định hạ tầng cần review theo quy trình repo.
 
 **Điểm chạm.** [Compose](../../../compose.yaml), [gateway](../../../infra/nginx/gateway.conf), [monitoring](../../../infra/monitoring/prometheus.yml), [workflow CI](../../../.github/workflows/verify.yml), [restore rehearsal](../../../scripts/e2e/split-restore.py) và [hướng dẫn verification](../../development.md#verification).
 
@@ -214,8 +216,22 @@ Phí cần nguồn dữ liệu xác thực trước khi hiển thị. Kế toán
 - [x] Soạn proposal, design, spec và checklist cho [A4](../../../openspec/changes/order-support-and-event-refunds/proposal.md) và [A5](../../../openspec/changes/buyer-recovery-and-support/proposal.md). OpenSpec strict pass cả năm change.
 - [x] Sửa các liên kết và form footer chưa hoạt động. Điều hướng về đúng lịch sử đơn và dùng thông tin đơn đã xác nhận khi hiển thị kết quả. Frontend lint/build và 16 ca Chromium pass. [Kết quả Chromium](../../../.artifacts/verification/a5-buyer-ui/results.json)
 - [x] Chromium qua gateway cục bộ ở 390 px chọn vé, thanh toán MOCK, tìm lại đơn và mở QR vé đã phát hành sau reload. [Kết quả gateway](../../../.artifacts/verification/a5-buyer-ui/gateway-browser.log)
-- [ ] Review chính sách A4 cho pilot. Đề xuất hoàn toàn đơn trên merchant console, hai admin tham gia yêu cầu và duyệt, hồ sơ vé đã soát hoặc chuyển nhượng xử lý thủ công. Hoãn và hủy chặn bán cùng lượt vào cổng online sau khi hai service xác nhận. Đơn đã khởi tạo thanh toán tiếp tục theo hạn đã cấp. [Design A4](../../../openspec/changes/order-support-and-event-refunds/design.md)
-- [ ] Review A5 cho đặt lại mật khẩu qua email và vô hiệu hóa phiên mua cũ trên HTTP lẫn hàng chờ riêng. Cần kênh hỗ trợ và URL điều kiện mua/hoàn đã duyệt cho staging. [Design A5](../../../openspec/changes/buyer-recovery-and-support/design.md)
+- [x] Duyệt chính sách A4 cho pilot. Hoàn toàn đơn trên merchant console, hai admin tham gia yêu cầu và duyệt, hồ sơ vé đã soát hoặc chuyển nhượng xử lý thủ công. Hoãn và hủy chặn bán cùng lượt vào cổng online sau khi hai service xác nhận. Đơn đã khởi tạo thanh toán tiếp tục theo hạn đã cấp. [Design A4](../../../openspec/changes/order-support-and-event-refunds/design.md)
+- [x] Duyệt A5 cho đặt lại mật khẩu qua email và vô hiệu hóa phiên mua cũ trên HTTP lẫn hàng chờ riêng. Cần kênh hỗ trợ và URL điều kiện mua/hoàn đã duyệt cho staging. [Design A5](../../../openspec/changes/buyer-recovery-and-support/design.md)
+
+### Triển khai A4 và A5 · 12/11/2026
+
+- [x] Gateway cục bộ xác nhận phân quyền tra cứu, chi tiết theo nguồn, hàng đợi ngoại lệ, retry email cùng định danh, hoàn toàn đơn với hai admin, Check-in mất kết nối khi duyệt và đồng bộ thu hồi hai vé. Hoãn/mở lại giữ vé hợp lệ. Hủy khóa giữ vé, tạo đơn và khởi tạo thanh toán mới. Intent cũ vẫn quyết toán và tạo hồ sơ riêng. [Kết quả gateway](../../../.artifacts/verification/a45/split-journey.json)
+- [x] Gateway cục bộ xác nhận token đặt lại mật khẩu dùng một lần, phiên mua cũ bị từ chối và email được gửi lại sau khi SMTP sink phục hồi. Check-in PostgreSQL xác nhận khóa hoàn và admission loại trừ lẫn nhau. [Kết quả Check-in](../../../.artifacts/verification/a45/checkin-admission.log)
+- [x] Chromium pass 12 ca tra cứu, hoàn tiền và hoãn/hủy, cùng 20 ca khôi phục checkout, đặt lại mật khẩu và liên kết người mua. [Hỗ trợ](../../../.artifacts/verification/a45/support-browser/results.json) · [Người mua](../../../.artifacts/verification/a45/checkout-browser/results.json)
+- [x] Khôi phục sáu cơ sở dữ liệu cục bộ trong 55,29 giây. Phát lại đối soát và kết quả hoàn giữ nguyên bản ghi và không gửi lại email lịch sử. [Kết quả restore](../../../.artifacts/verification/a45/split-restore.json)
+- [x] Kiểm tra bổ sung qua gateway. Hai tổ chức có cùng người mua vẫn chỉ thấy đơn đúng phạm vi. Khi Notification dừng, phần vé và thanh toán vẫn tải. Phiên admin bị thu quyền không thể xử lý hồ sơ, mã hoàn trùng bị từ chối và quyết định không hoàn giải phóng khóa vé. [Kết quả kiểm tra bổ sung](../../../.artifacts/verification/a45/extended-retry.log)
+- [ ] Nghiệm thu tiền và hoàn tiền trên VNPAY sandbox, SMTP staging và URL hỗ trợ/điều kiện mua. Scanner, offline và vận hành cổng thuộc đợt phát triển scanner riêng.
+
+### Review A6 · 12/11/2026
+
+- [x] Soạn 4 artifact và chạy OpenSpec strict cho [A6](../../../openspec/changes/staging-pilot-readiness/proposal.md). Đề xuất staging độc lập, khởi tạo pilot, cảnh báo, phục hồi và checklist nghiệm thu.
+- [ ] Duyệt [design A6](../../../openspec/changes/staging-pilot-readiness/design.md). Chốt đầu mối staging, merchant và SMTP, backup/cảnh báo, hai tổ chức và ngưỡng tải/RTO/RPO.
 
 ## Kiểm tra trước khi đóng mỗi change
 

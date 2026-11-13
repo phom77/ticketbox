@@ -115,6 +115,7 @@ class PaymentIntegrationTest {
     @Autowired PaymentStore store;
     @Autowired PaymentSettlementService workers;
     @Autowired PaymentReconciliationPublisher reconciliation;
+    @Autowired com.ticketbox.payments.application.port.RefundCases refunds;
     @Autowired JdbcTemplate db;
     @Autowired MockMvc api;
     @Autowired ObjectMapper json;
@@ -122,7 +123,7 @@ class PaymentIntegrationTest {
 
     @BeforeEach
     void clear() {
-        db.execute("TRUNCATE payment_audit,refund_reviews,payment_result_outbox,payment_reconciliation_outbox,payment_attempts");
+        db.execute("TRUNCATE payment_audit,refund_reviews,payment_result_outbox,payment_reconciliation_outbox,refund_result_outbox,payment_attempts");
         coreStatus.set(200);
         decision.set("ACCEPTED");
         reportStatus.set(204);
@@ -305,21 +306,17 @@ class PaymentIntegrationTest {
                 .isEqualTo(1);
         UUID caseId = db.queryForObject("SELECT request_id FROM refund_reviews", UUID.class),
                 action = UUID.randomUUID(),
-                actor = UUID.randomUUID();
-        store.review(
-                i.orderId(),
-                action,
-                actor,
-                "RECORD_MANUAL_REFUND",
-                "External fixture refund reference",
-                caseId);
-        store.review(
-                i.orderId(),
-                action,
-                actor,
-                "RECORD_MANUAL_REFUND",
-                "External fixture refund reference",
-                caseId);
+                actor = UUID.randomUUID(), approver = UUID.randomUUID();
+        assertThatThrownBy(() -> store.review(i.orderId(), action, actor, "RECORD_MANUAL_REFUND",
+                "External fixture refund reference", caseId)).isInstanceOf(com.ticketbox.payments.application.error.PaymentRejection.class);
+        var requested = refunds.apply(i.orderId(), refund(UUID.randomUUID(), actor, caseId, "REQUEST", null, null));
+        assertThat(requested.id()).isEqualTo(caseId);
+        assertThatThrownBy(() -> refunds.apply(i.orderId(), refund(UUID.randomUUID(), actor, caseId, "BEGIN_APPROVAL", null, null)))
+                .isInstanceOf(com.ticketbox.payments.application.error.PaymentRejection.class);
+        refunds.apply(i.orderId(), refund(UUID.randomUUID(), approver, caseId, "BEGIN_APPROVAL", null, null));
+        refunds.apply(i.orderId(), refund(UUID.randomUUID(), approver, caseId, "APPROVE", null, null));
+        var confirmed = refund(action, actor, caseId, "CONFIRM", 250000L, "External fixture refund reference");
+        assertThat(refunds.apply(i.orderId(), confirmed)).isEqualTo(refunds.apply(i.orderId(), confirmed));
         assertThat(
                         db.queryForObject(
                                 "SELECT count(*) FROM payment_audit WHERE id=? AND actor_id=?",
@@ -333,6 +330,14 @@ class PaymentIntegrationTest {
         assertThat(reported.get().path("collectedAmount").asLong()).isEqualTo(250000);
         assertThat(reported.get().path("refundAmount").asLong()).isEqualTo(250000);
         assertThat(reported.get().path("refundReference").asText()).isEqualTo("External fixture refund reference");
+        assertThat(db.queryForObject("SELECT count(*) FROM refund_result_outbox WHERE case_id=?", Integer.class, caseId)).isEqualTo(1);
+    }
+
+    private static com.ticketbox.payments.application.port.RefundCases.Command refund(
+            UUID action, UUID actor, UUID caseId, String kind, Long amount, String reference) {
+        return new com.ticketbox.payments.application.port.RefundCases.Command(action, actor, caseId,
+                com.ticketbox.payments.application.port.RefundCases.Action.valueOf(kind), "Fixture reason", amount,
+                reference, amount == null ? null : OffsetDateTime.now());
     }
 
     @Test

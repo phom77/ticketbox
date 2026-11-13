@@ -10,5 +10,9 @@ public interface NotificationQueries {
 
     Map<String, Object> markRead(UUID notificationId, UUID userId);
 
-    Map<String, Object> retry(UUID notificationId, UUID actorId);
+    Map<String, Object> retry(UUID notificationId, UUID actorId, UUID actionId);
+
+    java.util.List<Map<String, Object>> orderEmailStatus(UUID orderId);
+
+    Map<String, Object> failedOrderEmails(int page, int size);
 }

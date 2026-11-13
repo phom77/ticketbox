@@ -118,6 +118,8 @@ class SecurityRbacTest {
 
     @MockBean private JwtService jwtService;
 
+    @MockBean private org.ticketbox.identity.auth.application.CurrentSession currentSession;
+
     @MockBean private UserRepository userRepository;
 
     private UsernamePasswordAuthenticationToken createAuthToken(User.Role role) {

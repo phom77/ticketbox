@@ -8,6 +8,8 @@ import java.util.UUID;
 public interface ConcertOrderPort {
     Optional<ConcertView> findConcertById(UUID concertId);
 
+    boolean lockAndCheckSalesSuspended(UUID concertId);
+
     List<ConcertView> findConcertsByIds(Collection<UUID> concertIds);
 
     List<UUID> findConcertIdsOwnedBy(UUID organizerId);

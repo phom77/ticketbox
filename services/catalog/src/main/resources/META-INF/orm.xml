@@ -91,6 +91,8 @@
             <basic name="publicVisible">
                 <column name="is_public" nullable="false" />
             </basic>
+            <basic name="salesSuspended"><column name="sales_suspended" nullable="false"/></basic>
+            <basic name="resumedAdmissionAt"><column name="resumed_admission_at"/></basic>
             <basic name="createdBy">
                 <column name="created_by" nullable="false" />
             </basic>

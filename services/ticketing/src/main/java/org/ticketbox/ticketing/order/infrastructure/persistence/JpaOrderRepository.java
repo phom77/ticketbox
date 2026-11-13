@@ -20,6 +20,26 @@ import java.util.UUID;
 public interface JpaOrderRepository
         extends org.ticketbox.ticketing.order.application.port.OrderRepository,
                 JpaRepository<Order, UUID> {
+    String SUPPORT_FILTER = """
+            FROM orders o
+            WHERE (CAST(:organizationId AS uuid) IS NULL OR o.organization_id = :organizationId)
+              AND (CAST(:concertId AS uuid) IS NULL OR o.concert_id = :concertId)
+              AND (CAST(:orderId AS uuid) IS NULL OR o.id = :orderId)
+              AND (CAST(:buyerId AS uuid) IS NULL OR o.user_id = :buyerId)
+              AND (CAST(:transactionRef AS text) IS NULL OR EXISTS (
+                  SELECT 1 FROM payment_reconciliation p JOIN ticketing_payment_intents i
+                    ON p.intent_id = i.intent_id AND p.order_id = i.order_id AND p.provider = i.provider
+                    AND p.requested_amount = i.amount
+                  WHERE i.order_id = o.id AND p.transaction_id = :transactionRef
+              ))
+            """;
+
+    @Override
+    @Query(value = "SELECT o.* " + SUPPORT_FILTER + " ORDER BY o.created_at DESC, o.id",
+            countQuery = "SELECT count(*) " + SUPPORT_FILTER, nativeQuery = true)
+    org.springframework.data.domain.Page<Order> searchSupport(UUID organizationId, UUID concertId,
+            UUID orderId, UUID buyerId, String transactionRef, Pageable pageable);
+
     @Query(
             value =
                     "SELECT id FROM orders WHERE status='AWAITING_PAYMENT' AND expires_at<=now()"

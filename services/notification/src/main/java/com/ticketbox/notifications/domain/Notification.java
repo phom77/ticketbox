@@ -18,14 +18,20 @@ public record Notification(
 
     public static Notification compose(
             NotificationCommand command, Channel channel, String subject, String body) {
-        boolean payment = command.paymentConfirmed();
-        String type = payment ? "PAYMENT_SUCCEEDED" : "CONCERT_REMINDER";
+        boolean order = command.paymentConfirmed() || command.orderRefunded();
+        String type = switch (command.eventType()) {
+            case "ticketing.order-refunded" -> "ORDER_REFUNDED";
+            case "ticketing.order-confirmed" -> "PAYMENT_SUCCEEDED";
+            case "ticketing.event-cancelled" -> "EVENT_CANCELLED";
+            case "ticketing.event-postponed" -> "EVENT_POSTPONED";
+            default -> "CONCERT_REMINDER";
+        };
         String key =
                 type
                         + ":"
                         + channel
                         + ":"
-                        + (payment
+                        + (order || command.eventCancelled() || command.eventPostponed()
                                 ? command.eventId()
                                 : command.aggregateId() + ":" + command.userId());
         return new Notification(
@@ -35,6 +41,6 @@ public record Notification(
                 type,
                 subject,
                 body,
-                payment ? command.aggregateId() : null);
+                order ? command.aggregateId() : null);
     }
 }

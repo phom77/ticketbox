@@ -384,6 +384,35 @@ WHERE order_id=? AND lease_owner=? AND state IN ('PROCESSING','READY','UNKNOWN')
                 db.queryForList("SELECT * FROM refund_reviews WHERE state='REVIEW_REQUIRED'"));
     }
 
+    public Object support(UUID order) {
+        var attempts = db.queryForList("""
+                SELECT state,provider,amount AS "requestedAmount",provider_transaction_id AS "transactionId",verified_at AS "verifiedAt"
+                FROM payment_attempts WHERE order_id=?
+                """, order);
+        var cases = db.queryForList("""
+                SELECT request_id AS id,state,amount,external_reference AS "externalReference",resolved_at AS "recordedAt",
+                       requested_by AS "requestedBy",approved_by AS "approvedBy",provider_refunded_at AS "occurredAt"
+                FROM refund_reviews WHERE order_id=? ORDER BY request_id
+                """, order);
+        Map<String, Object> result = new java.util.HashMap<>();
+        result.put("attempt", attempts.isEmpty() ? null : attempts.getFirst());
+        result.put("cases", cases);
+        return result;
+    }
+
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    public Object pendingRefunds(int page, int size) {
+        if (page < 0 || size < 1 || size > 100) throw new PaymentRejection(
+                PaymentRejection.Kind.INVALID_REQUEST, "Invalid refund pagination");
+        String scope = " FROM refund_reviews WHERE state IN ('REVIEW_REQUIRED','REQUESTED','HOLD_PENDING','APPROVED')";
+        long total = db.queryForObject("SELECT count(*)" + scope, Long.class);
+        var rows = db.queryForList("SELECT order_id AS \"orderId\", request_id AS \"sourceId\", state,"
+                + " created_at AS \"updatedAt\", false AS retryable" + scope
+                + " ORDER BY created_at DESC,request_id LIMIT ? OFFSET ?", size, (long) page * size);
+        return Map.of("content", rows, "page", page, "size", size, "totalElements", total,
+                "totalPages", (total + size - 1) / size);
+    }
+
     @Transactional
     public Object review(
             UUID order, UUID action, UUID actor, String kind, String detail, UUID caseId) {
@@ -432,20 +461,8 @@ WHERE order_id=? AND lease_owner=? AND state IN ('PROCESSING','READY','UNKNOWN')
                         PaymentRejection.Kind.IDENTITY_CONFLICT,
                         "Only uncertain review can be redriven");
         } else if ("RECORD_MANUAL_REFUND".equals(kind)) {
-            if (caseId == null)
-                throw new PaymentRejection(
-                        PaymentRejection.Kind.INVALID_REQUEST, "Compensation requestId required");
-            if (db.update(
-                            "UPDATE refund_reviews SET"
-                                + " state='RESOLVED_MANUALLY',external_reference=?,resolved_by=?,resolved_at=now()"
-                                + " WHERE order_id=? AND request_id=? AND state='REVIEW_REQUIRED'",
-                            detail,
-                            actor,
-                            order,
-                            caseId)
-                    != 1)
-                throw new PaymentRejection(
-                        PaymentRejection.Kind.IDENTITY_CONFLICT, "No open compensation review");
+            throw new PaymentRejection(PaymentRejection.Kind.IDENTITY_CONFLICT,
+                    "Record refunds through the approved refund case");
         } else
             throw new PaymentRejection(
                     PaymentRejection.Kind.INVALID_REQUEST, "Unknown review action");

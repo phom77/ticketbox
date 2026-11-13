@@ -36,6 +36,10 @@ public class TicketingPaymentResults implements PaymentResults {
                 .body(snapshot).retrieve().toBodilessEntity();
     }
 
+    public void deliverRefund(com.ticketbox.payments.application.dto.RefundResult result) {
+        ticketing.post().uri("/internal/ticketing/refund-results").body(result).retrieve().toBodilessEntity();
+    }
+
     public Ack deliver(String payload) throws Exception {
         var result = json.readValue(payload, Result.class);
         return ticketing

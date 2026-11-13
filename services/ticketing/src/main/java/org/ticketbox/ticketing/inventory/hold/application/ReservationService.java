@@ -47,6 +47,9 @@ public class ReservationService {
             int quantityRequest,
             UUID userId,
             String queueAccessToken) {
+        if (concertOrderPort.lockAndCheckSalesSuspended(concertId)) {
+            throw new AppException(ErrorCode.CONCERT_NOT_ON_SALE, "error.concert-not-on-sale");
+        }
         purchaseGuard.lock(userId, concertId);
         queueAccessPort.validateAccess(concertId, userId, queueAccessToken);
 

@@ -33,7 +33,8 @@ public class NotificationSecurity {
             HttpSecurity http,
             @Value("${notification.jwt-secret}") String secret,
             ObjectMapper json,
-            ApiMessages messages)
+            ApiMessages messages,
+            com.ticketbox.notifications.infrastructure.http.CoreClient identity)
             throws Exception {
         if (secret.length() < 64)
             throw new IllegalStateException("JWT secret must be at least 64 characters");
@@ -57,6 +58,18 @@ public class NotificationSecurity {
                                                 .getPayload();
                                 UUID user = UUID.fromString(claims.getSubject());
                                 String role = claims.get("role", String.class);
+                                String uri = request.getRequestURI();
+                                boolean buyer = "AUDIENCE".equals(role) && uri.startsWith("/api/notifications");
+                                boolean operator = "ADMIN".equals(role) && uri.startsWith("/api/admin/notifications");
+                                if (buyer || operator) {
+                                    int status = identity.session(header, operator);
+                                    if (status != 204) {
+                                        reject(request, response, json, messages, status,
+                                                status == 503 ? "error.service-unavailable" : status == 403
+                                                        ? "error.unauthorized" : "error.unauthenticated");
+                                        return;
+                                    }
+                                }
                                 if (claims.getExpiration() != null
                                         && List.of("AUDIENCE", "STAFF", "ORGANIZER", "ADMIN")
                                                 .contains(role))
@@ -78,7 +91,8 @@ public class NotificationSecurity {
                 .sessionManagement(c -> c.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(
                         c ->
-                                c.requestMatchers("/actuator/health/**")
+                                c.requestMatchers("/actuator/health/**", "/internal/notifications/order-delivery/*",
+                                                "/internal/notifications/support/failures")
                                         .permitAll()
                                         .requestMatchers(
                                                 "/api/admin/notifications/**", "/actuator/**")

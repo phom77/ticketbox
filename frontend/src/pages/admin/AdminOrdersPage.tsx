@@ -1,6 +1,6 @@
 import { useOrganization } from '../../features/organizations/OrganizationProvider';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Eye, Filter, RefreshCw, Receipt, Ticket } from 'lucide-react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { ChevronLeft, ChevronRight, Eye, Filter, RefreshCw, Receipt, Search, Ticket, X } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import {
@@ -8,12 +8,17 @@ import {
   getAdminConcertTickets,
   updateAdminTicketStatus,
   getAdminConcerts,
+  searchAdminOrders,
   type ManagementApiScope,
+  type OrderSupportLookup,
+  type OrderSupportPage,
 } from '../../api/admin';
+import { ApiClientError, isRequestCanceled } from '../../api/client';
 import type { Order, OrderStatus } from '../../api/orders';
 import type { Ticket as TicketType } from '../../api/tickets';
 import type { ConcertDetail } from '../../api/concerts';
 import { ModalPortal } from '../../components/feedback/ModalPortal';
+import { OrderSupportSections } from './OrderSupportSections';
 
 // ---- Status badge helpers ----
 
@@ -83,23 +88,46 @@ function fmtDate(iso: string) {
 
 // ---- Order detail modal ----
 
-function OrderDetailModal({ order, onClose }: { order: Order; onClose: () => void }) {
+function OrderDetailModal({ order, scope, onClose }: { order: Order; scope: ManagementApiScope; onClose: () => void }) {
+  const titleId = useId();
+  const closeButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const previous = document.activeElement;
+    closeButton.current?.focus();
+    return () => { if (previous instanceof HTMLElement) previous.focus(); };
+  }, []);
+
+  function handleKey(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === 'Escape') onClose();
+    if (event.key !== 'Tab') return;
+    const controls = event.currentTarget.querySelectorAll<HTMLElement>(
+      'a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]',
+    );
+    const first = controls[0];
+    const last = controls[controls.length - 1];
+    const edge = event.shiftKey ? first : last;
+    if (document.activeElement !== edge) return;
+    event.preventDefault();
+    (event.shiftKey ? last : first)?.focus();
+  }
+
   return (
     <ModalPortal>
       <div className="admin-dialog-backdrop" onClick={onClose}>
-      <div className="admin-dialog admin-dialog-compact" onClick={(e) => e.stopPropagation()}>
+      <div className="admin-dialog admin-dialog-compact" role="dialog" aria-modal="true" aria-labelledby={titleId}
+        onClick={(e) => e.stopPropagation()} onKeyDown={handleKey}>
         <header>
           <div>
             <span>Chi tiết đơn hàng</span>
-            <h2>{order.concertTitle}</h2>
+            <h2 id={titleId}>{order.concertTitle}</h2>
           </div>
-          <button onClick={onClose} aria-label="Đóng">
-            ×
+          <button type="button" ref={closeButton} onClick={onClose} aria-label="Đóng">
+            <X aria-hidden="true" size={18} />
           </button>
         </header>
         <div style={{ padding: 24, display: 'grid', gap: 20 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            <InfoRow label="Mã đơn" value={order.id.slice(0, 8) + '…'} />
+            <InfoRow label="Mã đơn" value={order.id} />
             <InfoRow label="Trạng thái">
               <StatusBadge label={order.status} variant={orderStatusVariant(order.status)} />
             </InfoRow>
@@ -143,6 +171,7 @@ function OrderDetailModal({ order, onClose }: { order: Order; onClose: () => voi
               </table>
             </div>
           </div>
+          <OrderSupportSections orderId={order.id} scope={scope} />
         </div>
       </div>
       </div>
@@ -173,7 +202,7 @@ function InfoRow({
       >
         {label}
       </span>
-      {children ?? <span style={{ fontSize: 13, fontWeight: 600 }}>{value}</span>}
+      {children ?? <span style={{ fontSize: 13, fontWeight: 600, overflowWrap: 'anywhere' }}>{value}</span>}
     </div>
   );
 }
@@ -358,9 +387,26 @@ function TicketTab({
 // ---- Main page ----
 
 type TabId = 'orders' | 'tickets';
+const orderLookupLabels = {
+  orderId: 'Mã đơn hàng',
+  buyerEmail: 'Email người mua',
+  transactionRef: 'Mã giao dịch',
+} satisfies Record<OrderSupportLookup['field'], string>;
+
+function orderLoadMessage(error: unknown, lookup: OrderSupportLookup | null) {
+  if (error instanceof ApiClientError && error.status === 403) {
+    return 'Bạn không còn quyền xem đơn hàng trong phạm vi này.';
+  }
+  if (!lookup) return 'Không thể tải danh sách đơn hàng.';
+  if (error instanceof ApiClientError && error.status === 400) {
+    return `Hãy kiểm tra ${orderLookupLabels[lookup.field].toLowerCase()} rồi tra cứu lại.`;
+  }
+  return 'Tra cứu đơn hàng tạm thời không khả dụng. Vui lòng thử lại.';
+}
 
 export function AdminOrdersPage({ apiScope = 'admin' }: { apiScope?: ManagementApiScope }) {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialOrderId = apiScope === 'admin' ? searchParams.get('orderId')?.trim() : undefined;
   const [activeTab, setActiveTab] = useState<TabId>('orders');
 
   // Orders tab state
@@ -370,39 +416,85 @@ export function AdminOrdersPage({ apiScope = 'admin' }: { apiScope?: ManagementA
   const [statusFilter, setStatusFilter] = useState<OrderStatus | ''>('');
   const [concertFilter, setConcertFilter] = useState(() => searchParams.get('concertId') ?? '');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [lookupField, setLookupField] = useState<OrderSupportLookup['field']>('orderId');
+  const [lookupValue, setLookupValue] = useState(initialOrderId ?? '');
+  const [lookup, setLookup] = useState<OrderSupportLookup | null>(
+    () => initialOrderId ? { field: 'orderId', value: initialOrderId } : null,
+  );
+  const [page, setPage] = useState(0);
+  const [supportPage, setSupportPage] = useState<OrderSupportPage | null>(null);
+  const [refresh, setRefresh] = useState(0);
 
   // Shared concerts list (for filters + ticket tab)
   const [concerts, setConcerts] = useState<ConcertDetail[]>([]);
 
-  // Load concerts once
   useEffect(() => {
-    getAdminConcerts(0, 200, undefined, undefined, apiScope)
-      .then((p) => setConcerts(p.content))
+    const controller = new AbortController();
+    getAdminConcerts(0, 200, undefined, controller.signal, apiScope)
+      .then((p) => {
+        if (!controller.signal.aborted) setConcerts(p.content);
+      })
       .catch(() => {});
+    return () => controller.abort();
   }, [apiScope]);
 
-  const loadOrders = useCallback(async () => {
+  useEffect(() => {
+    if (activeTab !== 'orders') return;
+    const controller = new AbortController();
     setLoadingOrders(true);
     setOrdersError('');
-    try {
-      const data = await getAdminOrders(
-        {
-          concertId: concertFilter || undefined,
-          status: (statusFilter as OrderStatus) || undefined,
-        },
-        apiScope,
-      );
-      setOrders(data);
-    } catch {
-      setOrdersError('Không thể tải danh sách đơn hàng.');
-    } finally {
-      setLoadingOrders(false);
-    }
-  }, [apiScope, concertFilter, statusFilter]);
+    setOrders([]);
+    const concertId = concertFilter || undefined;
 
-  useEffect(() => {
-    if (activeTab === 'orders') loadOrders();
-  }, [activeTab, loadOrders]);
+    async function loadOrders() {
+      try {
+        if (lookup) {
+          const result = await searchAdminOrders(lookup, { concertId, page, size: 20 }, apiScope, controller.signal);
+          if (controller.signal.aborted) return;
+          setOrders(result.content);
+          setSupportPage(result);
+        } else {
+          const result = await getAdminOrders({ concertId, status: statusFilter || undefined }, apiScope, controller.signal);
+          if (!controller.signal.aborted) setOrders(result);
+        }
+      } catch (error) {
+        if (!controller.signal.aborted && !isRequestCanceled(error)) {
+          setOrdersError(orderLoadMessage(error, lookup));
+          setSupportPage(null);
+        }
+      } finally {
+        if (!controller.signal.aborted) setLoadingOrders(false);
+      }
+    }
+
+    void loadOrders();
+    return () => controller.abort();
+  }, [activeTab, apiScope, concertFilter, lookup, page, refresh, statusFilter]);
+
+  function submitLookup(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const value = lookupValue.trim();
+    if (!value) return;
+    clearOrderLink();
+    setPage(0);
+    setSupportPage(null);
+    setLookup({ field: lookupField, value });
+  }
+
+  function clearLookup() {
+    clearOrderLink();
+    setLookupValue('');
+    setLookup(null);
+    setSupportPage(null);
+    setPage(0);
+  }
+
+  function clearOrderLink() {
+    if (!searchParams.has('orderId')) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete('orderId');
+    setSearchParams(next, { replace: true });
+  }
 
   const stats = useMemo(() => {
     const total = orders.length;
@@ -418,7 +510,9 @@ export function AdminOrdersPage({ apiScope = 'admin' }: { apiScope?: ManagementA
       <AdminPageHeader
         eyebrow="Vận hành"
         title="Đơn hàng & Vé"
-        description="Xem tất cả đơn hàng và vé trong hệ thống, lọc theo concert hoặc trạng thái, cập nhật trạng thái vé thủ công."
+        description={apiScope === 'organizer'
+          ? 'Xem đơn hàng và vé của tổ chức đang chọn.'
+          : 'Xem đơn hàng và vé, tra cứu theo mã đơn, email người mua hoặc mã giao dịch.'}
       />
 
       {/* Tabs */}
@@ -441,7 +535,7 @@ export function AdminOrdersPage({ apiScope = 'admin' }: { apiScope?: ManagementA
       {activeTab === 'orders' && (
         <div>
           {/* Stats */}
-          <div className="admin-inline-stats admin-order-stats">
+          {!lookup && !loadingOrders && !ordersError && <div className="admin-inline-stats admin-order-stats">
             <div>
               <span>Tổng đơn</span>
               <strong>{stats.total}</strong>
@@ -454,13 +548,46 @@ export function AdminOrdersPage({ apiScope = 'admin' }: { apiScope?: ManagementA
               <span>Doanh thu</span>
               <strong>{fmt(stats.revenue)}</strong>
             </div>
-          </div>
+          </div>}
+
+          <form className="admin-toolbar admin-order-support-form" role="search" aria-label="Tra cứu đơn hàng" onSubmit={submitLookup}>
+            <select
+              aria-label="Tìm theo"
+              value={lookupField}
+              onChange={(event) => {
+                setLookupField(event.target.value as OrderSupportLookup['field']);
+                setLookupValue('');
+              }}
+            >
+              {Object.entries(orderLookupLabels).map(([field, label]) => <option key={field} value={field}>{label}</option>)}
+            </select>
+            <label className="admin-search-control">
+              <Search aria-hidden="true" size={16} />
+              <input
+                type={lookupField === 'buyerEmail' ? 'email' : 'text'}
+                autoComplete="off"
+                aria-label={orderLookupLabels[lookupField]}
+                placeholder={orderLookupLabels[lookupField]}
+                value={lookupValue}
+                onChange={(event) => setLookupValue(event.target.value)}
+                required
+              />
+            </label>
+            <div className="admin-order-support-actions">
+              <button type="submit" disabled={!lookupValue.trim()}>Tra cứu</button>
+              {lookup && <button type="button" onClick={clearLookup}>Xóa tra cứu</button>}
+            </div>
+          </form>
 
           {/* Toolbar */}
           <div className="admin-toolbar admin-filter-toolbar">
             <div className="admin-filter-controls">
               <Filter size={14} style={{ color: 'var(--muted)' }} />
-              <select value={concertFilter} onChange={(e) => setConcertFilter(e.target.value)}>
+              <select aria-label="Buổi diễn" value={concertFilter} onChange={(event) => {
+                setConcertFilter(event.target.value);
+                setSupportPage(null);
+                setPage(0);
+              }}>
                 <option value="">Tất cả concert</option>
                 {concerts.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -468,7 +595,8 @@ export function AdminOrdersPage({ apiScope = 'admin' }: { apiScope?: ManagementA
                   </option>
                 ))}
               </select>
-              <select
+              {!lookup && <select
+                aria-label="Trạng thái đơn hàng"
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as OrderStatus | '')}
               >
@@ -479,17 +607,17 @@ export function AdminOrdersPage({ apiScope = 'admin' }: { apiScope?: ManagementA
                 <option value="CANCELLED">CANCELLED</option>
                 <option value="PAYMENT_FAILED">PAYMENT_FAILED</option>
                 <option value="REFUNDED">REFUNDED</option>
-              </select>
+              </select>}
             </div>
-            <button onClick={loadOrders} disabled={loadingOrders}>
+            <button type="button" onClick={() => setRefresh((value) => value + 1)} disabled={loadingOrders}>
               <RefreshCw size={12} className={loadingOrders ? 'spin' : ''} />
               {loadingOrders ? 'Đang tải…' : 'Làm mới'}
             </button>
           </div>
 
-          {ordersError && <div className="admin-notice error">{ordersError}</div>}
+          {ordersError && <div className="admin-notice error" role="alert">{ordersError}</div>}
 
-          <div className="admin-data-panel">
+          <div className="admin-data-panel" aria-busy={loadingOrders}>
             <div className="admin-table-wrap">
               <table className="admin-table">
                 <thead>
@@ -514,13 +642,13 @@ export function AdminOrdersPage({ apiScope = 'admin' }: { apiScope?: ManagementA
                       </td>
                     </tr>
                   )}
-                  {!loadingOrders && orders.length === 0 && (
+                  {!loadingOrders && !ordersError && orders.length === 0 && (
                     <tr>
                       <td
                         colSpan={7}
                         style={{ textAlign: 'center', color: 'var(--muted)', padding: '32px 0' }}
                       >
-                        Không có đơn hàng nào.
+                        {lookup ? 'Không tìm thấy đơn hàng phù hợp.' : 'Không có đơn hàng nào.'}
                       </td>
                     </tr>
                   )}
@@ -571,6 +699,31 @@ export function AdminOrdersPage({ apiScope = 'admin' }: { apiScope?: ManagementA
               </table>
             </div>
           </div>
+          {supportPage && supportPage.totalElements > 0 && (
+            <div className="admin-pagination admin-order-support-pagination">
+              <span role="status">
+                {supportPage.totalElements.toLocaleString('vi-VN')} đơn hàng · Trang {supportPage.page + 1} / {supportPage.totalPages}
+              </span>
+              {supportPage.totalPages > 1 && <div>
+                <button
+                  type="button"
+                  aria-label="Trang trước"
+                  aria-disabled={loadingOrders || supportPage.page === 0}
+                  onClick={() => { if (!loadingOrders && supportPage.page > 0) setPage(supportPage.page - 1); }}
+                >
+                  <ChevronLeft aria-hidden="true" size={17} />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Trang sau"
+                  aria-disabled={loadingOrders || supportPage.page + 1 >= supportPage.totalPages}
+                  onClick={() => { if (!loadingOrders && supportPage.page + 1 < supportPage.totalPages) setPage(supportPage.page + 1); }}
+                >
+                  <ChevronRight aria-hidden="true" size={17} />
+                </button>
+              </div>}
+            </div>
+          )}
         </div>
       )}
 
@@ -579,7 +732,7 @@ export function AdminOrdersPage({ apiScope = 'admin' }: { apiScope?: ManagementA
 
       {/* Order detail modal */}
       {selectedOrder && (
-        <OrderDetailModal order={selectedOrder} onClose={() => setSelectedOrder(null)} />
+        <OrderDetailModal key={selectedOrder.id} order={selectedOrder} scope={apiScope} onClose={() => setSelectedOrder(null)} />
       )}
     </>
   );

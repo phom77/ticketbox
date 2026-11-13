@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ticketbox:payment-refund-result:v1",
+  "type": "object",
+  "required": ["schemaVersion", "caseId", "orderId", "outcome", "amount", "provider", "transactionId", "compensation"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "caseId": {"type": "string", "format": "uuid"},
+    "orderId": {"type": "string", "format": "uuid"},
+    "outcome": {"enum": ["CONFIRMED", "ABORTED"]},
+    "amount": {"type": "integer", "minimum": 0, "maximum": 999999999999},
+    "provider": {"enum": ["MOCK", "MOMO", "VNPAY"]},
+    "transactionId": {"type": "string", "minLength": 1},
+    "reference": {"type": ["string", "null"], "minLength": 1},
+    "occurredAt": {"type": ["string", "null"], "format": "date-time"},
+    "compensation": {"type": "boolean"}
+  },
+  "if": {"properties": {"outcome": {"const": "CONFIRMED"}}},
+  "then": {"required": ["reference", "occurredAt"], "properties": {"reference": {"type": "string"}, "occurredAt": {"type": "string"}}}
+}

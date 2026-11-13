@@ -30,7 +30,9 @@
         "organization_id": {
           "type": ["string", "null"],
           "format": "uuid"
-        }
+        },
+        "sales_suspended": {"type": "boolean"},
+        "resumed_admission_at": {"type": ["string", "null"], "format": "date-time"}
       }
     },
     "types": {

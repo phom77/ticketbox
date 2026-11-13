@@ -40,7 +40,7 @@ public class LocalTickets implements TicketCheckinPort {
 
     public List<TicketView> findByConcertIdAndStatusValid(UUID concert) {
         return jdbc.query(
-                "SELECT * FROM tickets WHERE concert_id=? AND status='VALID' ORDER BY id",
+                "SELECT * FROM tickets WHERE concert_id=? AND status='VALID' AND refund_case_id IS NULL ORDER BY id",
                 this::row,
                 concert);
     }
@@ -104,8 +104,15 @@ FROM tickets WHERE concert_id=?
 
     public boolean markAsUsedIfValid(UUID id, OffsetDateTime time) {
         return jdbc.update(
-                        "UPDATE tickets SET status='USED',used_at=?,updated_at=now() WHERE id=? AND"
-                                + " status='VALID'",
+                        """
+                        WITH admission AS (
+                            SELECT c.id FROM concerts c JOIN tickets t ON t.concert_id=c.id
+                            WHERE t.id=? AND NOT c.sales_suspended AND (c.resumed_admission_at IS NULL OR c.resumed_admission_at<=clock_timestamp())
+                            FOR SHARE OF c
+                        ) UPDATE tickets SET status='USED',used_at=?,updated_at=now()
+                        WHERE id=? AND status='VALID' AND refund_case_id IS NULL AND concert_id IN (SELECT id FROM admission)
+                        """,
+                        id,
                         time,
                         id)
                 == 1;

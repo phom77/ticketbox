@@ -78,10 +78,12 @@ public class NotificationApi {
     @PostMapping("/api/admin/notifications/{id}/retry")
     public Object retry(
             @PathVariable UUID id,
+            @RequestHeader(name = "Idempotency-Key", required = false) UUID actionId,
             Authentication auth,
             Locale locale,
             HttpServletResponse response) {
-        return response(notifications.retry(id, UUID.fromString(auth.getName())), locale, response);
+        return response(notifications.retry(id, UUID.fromString(auth.getName()),
+                actionId == null ? UUID.randomUUID() : actionId), locale, response);
     }
 
     @RestControllerAdvice

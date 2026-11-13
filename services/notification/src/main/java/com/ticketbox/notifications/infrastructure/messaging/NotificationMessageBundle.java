@@ -34,6 +34,14 @@ public class NotificationMessageBundle implements NotificationContent {
                             command.aggregateId(),
                             command.amount().toString()));
         }
+        if (command.orderRefunded()) {
+            return new Content(text("notification.refund.subject"), text("notification.refund.body",
+                    command.aggregateId(), command.amount().toString()));
+        }
+        if (command.eventCancelled()) return new Content(text("notification.cancel.subject", title),
+                text("notification.cancel.body", title));
+        if (command.eventPostponed()) return new Content(text("notification.postpone.subject", title),
+                text("notification.postpone.body", title, command.eventDate()));
         return new Content(
                 text("notification.reminder.subject", title),
                 text(
@@ -45,5 +53,10 @@ public class NotificationMessageBundle implements NotificationContent {
 
     private String text(String key, Object... arguments) {
         return messages.getMessage(key, arguments, locale);
+    }
+
+    @Override
+    public Content renderPasswordReset(String link) {
+        return new Content(text("notification.password-reset.subject"), text("notification.password-reset.body", link));
     }
 }

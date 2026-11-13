@@ -82,7 +82,7 @@ api.interceptors.response.use(
     const status = error.response?.status ?? 500;
     if (status === 401) {
       clearAuthToken();
-      if (!window.location.pathname.includes('/login')) {
+      if (!/^\/(login|forgot-password|reset-password)\/?$/i.test(window.location.pathname)) {
         window.location.assign('/login');
       }
     }

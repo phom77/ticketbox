@@ -93,7 +93,7 @@ export function LoginPage() {
             <label>
               <input type="checkbox" name="remember" /> Ghi nhớ tôi
             </label>
-            <a href="#forgot-password">Quên mật khẩu?</a>
+            <Link to="/forgot-password">Quên mật khẩu?</Link>
           </div>
           <button
             className="button button-primary button-block"

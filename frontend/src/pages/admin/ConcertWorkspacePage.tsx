@@ -36,6 +36,7 @@ import type { ConcertDetail } from '../../api/concerts';
 import { isRequestCanceled } from '../../api/client';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { useToast } from '../../components/feedback/toast-context';
+import { EventDisruptionPanel } from './EventDisruptionPanel';
 
 type WorkspaceTab = 'overview' | 'details' | 'tickets' | 'guests' | 'operations' | 'artist';
 
@@ -183,10 +184,12 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
   );
 
   const load = useCallback(
-    async (signal?: AbortSignal) => {
+    async (signal?: AbortSignal, background = false) => {
       if (!id) return;
-      setLoading(true);
-      setError('');
+      if (!background) {
+        setLoading(true);
+        setError('');
+      }
       try {
         const nextConcert = await getManagedConcert(id, signal, apiScope);
         if (signal?.aborted) return;
@@ -194,14 +197,14 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
         setForm(toForm(nextConcert));
         setArtistBioDraft(nextConcert.artistBio ?? '');
       } catch (requestError) {
-        if (!isRequestCanceled(requestError))
+        if (!background && !isRequestCanceled(requestError))
           setError(
             requestError instanceof Error
               ? requestError.message
               : 'Không thể tải Concert Workspace.',
           );
       } finally {
-        if (!signal?.aborted) setLoading(false);
+        if (!background && !signal?.aborted) setLoading(false);
       }
     },
     [apiScope, id],
@@ -212,6 +215,8 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
     void load(controller.signal);
     return () => controller.abort();
   }, [load]);
+
+  const refreshAfterDisruption = useCallback((signal: AbortSignal) => void load(signal, true), [load]);
 
   const guestSection = useWorkspaceSection(!!id, useCallback(
     (signal: AbortSignal) => getConcertGuestList(id!, guestPageIndex, 20, signal, apiScope,
@@ -291,10 +296,17 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
 
   async function saveDetails(event: FormEvent) {
     event.preventDefault();
-    if (!id || !form) return;
+    if (!id || !form || !concert) return;
     setSaving(true);
     try {
-      const result = await updateConcert(id, toPayload(form), apiScope);
+      const payload = toPayload(form);
+      if (concert.status !== 'DRAFT') {
+        payload.eventDate = concert.eventDate;
+        payload.doorsOpenAt = concert.doorsOpenAt;
+        payload.saleStartAt = concert.saleStartAt;
+        payload.saleEndAt = concert.saleEndAt;
+      }
+      const result = await updateConcert(id, payload, apiScope);
       setConcert(result.data);
       setForm(toForm(result.data));
       toast.success('Đã lưu cấu hình concert.');
@@ -511,6 +523,11 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
         })}
       </nav>
 
+      {apiScope === 'admin' && tab === 'operations' && (
+        <EventDisruptionPanel key={concert.id} concertId={concert.id} concertStatus={concert.status}
+          onChanged={refreshAfterDisruption} />
+      )}
+
       {tab === 'overview' ? (
         <section className="concert-workspace-grid">
           <Metric
@@ -592,6 +609,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
                 <input
                   required
                   type="datetime-local"
+                  readOnly={concert.status !== 'DRAFT'}
                   value={form.eventDate}
                   onChange={(e) => setForm({ ...form, eventDate: e.target.value })}
                 />
@@ -600,6 +618,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
                 <span>Mở cửa</span>
                 <input
                   type="datetime-local"
+                  readOnly={concert.status !== 'DRAFT'}
                   value={form.doorsOpenAt ?? ''}
                   onChange={(e) => setForm({ ...form, doorsOpenAt: e.target.value || null })}
                 />
@@ -609,6 +628,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
                 <input
                   required
                   type="datetime-local"
+                  readOnly={concert.status !== 'DRAFT'}
                   value={form.saleStartAt}
                   onChange={(e) => setForm({ ...form, saleStartAt: e.target.value })}
                 />
@@ -617,10 +637,18 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
                 <span>Kết thúc bán</span>
                 <input
                   type="datetime-local"
+                  readOnly={concert.status !== 'DRAFT'}
                   value={form.saleEndAt ?? ''}
                   onChange={(e) => setForm({ ...form, saleEndAt: e.target.value || null })}
                 />
               </label>
+              {(concert.status === 'ON_SALE' || concert.status === 'SOLD_OUT') && (
+                <p className="admin-field-wide">
+                  {apiScope === 'admin'
+                    ? 'Đổi lịch trong mục Đơn hàng & check-in.'
+                    : 'Liên hệ TicketBox để đổi lịch sau khi mở bán.'}
+                </p>
+              )}
               <label className="admin-field">
                 <span>Địa điểm</span>
                 <input

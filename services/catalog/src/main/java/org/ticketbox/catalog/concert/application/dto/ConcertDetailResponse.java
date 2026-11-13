@@ -23,7 +23,9 @@ public record ConcertDetailResponse(
         UUID createdBy,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt,
-        List<TicketTypeResponse> ticketTypes) {
+        List<TicketTypeResponse> ticketTypes,
+        @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+        String organizationName) {
     public ConcertDetailResponse(
             UUID id,
             String title,
@@ -58,7 +60,7 @@ public record ConcertDetailResponse(
                 createdBy,
                 createdAt,
                 updatedAt,
-                List.of());
+                List.of(), null);
     }
 
     public ConcertDetailResponse withTicketTypes(List<TicketTypeResponse> ticketTypes) {
@@ -79,6 +81,12 @@ public record ConcertDetailResponse(
                 createdBy,
                 createdAt,
                 updatedAt,
-                ticketTypes);
+                ticketTypes, organizationName);
+    }
+
+    public ConcertDetailResponse withOrganizationName(String organizationName) {
+        return new ConcertDetailResponse(id, title, description, artistBio, venueName, venueAddress,
+                eventDate, doorsOpenAt, saleStartAt, saleEndAt, status, seatMapSvg, posterUrl,
+                createdBy, createdAt, updatedAt, ticketTypes, organizationName);
     }
 }

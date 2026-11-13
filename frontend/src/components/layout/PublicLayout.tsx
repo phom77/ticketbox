@@ -4,6 +4,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { getUnreadNotificationCount } from '../../api/notifications';
 import { useAuth } from '../../features/auth/AuthContext';
 import { getRoleHome, getRoleHomeLabel } from '../../features/auth/roleRoutes';
+import { buyerInformationLinks } from '../../features/ticket/buyerInformation';
 
 export function Logo({ to = '/', label = 'Trang chủ TicketBox' }: { to?: string; label?: string }) {
   return (
@@ -269,6 +270,7 @@ export function PublicLayout() {
 
 function Footer({ homePath, homeLabel }: { homePath: string; homeLabel: string }) {
   const { user } = useAuth();
+  const canBrowse = !user || user.role === 'AUDIENCE' || user.role === 'ORGANIZER';
 
   return (
     <footer className="site-footer">
@@ -277,10 +279,10 @@ function Footer({ homePath, homeLabel }: { homePath: string; homeLabel: string }
           <Logo to={homePath} label={homeLabel} />
           <p>Những đêm diễn khó quên, chỉ cách bạn một tấm vé.</p>
         </div>
-        {!user || user.role === 'AUDIENCE' || user.role === 'ORGANIZER' ? (
+        {canBrowse || buyerInformationLinks.length > 0 ? (
           <nav aria-label="Điều hướng cuối trang">
             <ul className="footer-links">
-              <li><Link to="/">Khám phá sự kiện</Link></li>
+              {canBrowse ? <li><Link to="/">Khám phá sự kiện</Link></li> : null}
               {user?.role === 'AUDIENCE' ? (
                 <>
                   <li><Link to="/profile?tab=orders">Lịch sử đơn hàng</Link></li>
@@ -288,6 +290,9 @@ function Footer({ homePath, homeLabel }: { homePath: string; homeLabel: string }
                 </>
               ) : null}
               {!user ? <li><Link to="/login">Đăng nhập</Link></li> : null}
+              {buyerInformationLinks.map(({ label, url }) => (
+                <li key={label}><a href={url} target="_blank" rel="noreferrer">{label}</a></li>
+              ))}
             </ul>
           </nav>
         ) : null}

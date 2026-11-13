@@ -10,6 +10,8 @@ public interface UserRepository {
 
     Optional<User> findByEmail(String email);
 
+    java.util.List<User> findTop2ByEmailIgnoreCase(String email);
+
     boolean existsByEmail(String email);
 
     <S extends User> S save(S entity);

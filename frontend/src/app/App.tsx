@@ -31,6 +31,7 @@ import { OrganizerRevenuePage } from '../pages/organizer/OrganizerRevenuePage';
 import { ConcertDetailPage } from '../pages/public/ConcertDetailPage';
 import { HomePage } from '../pages/public/HomePage';
 import { LoginPage } from '../pages/public/LoginPage';
+import { RequestPasswordResetPage, ResetPasswordPage } from '../pages/public/PasswordRecoveryPage';
 import { RegisterPage } from '../pages/public/RegisterPage';
 
 const audiencePage = (page: React.ReactNode) => (
@@ -59,6 +60,8 @@ export function App() {
               <Route path="/profile" element={audiencePage(<ProfilePage />)} />
             </Route>
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/forgot-password" element={<RequestPasswordResetPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route
               path="/admin"

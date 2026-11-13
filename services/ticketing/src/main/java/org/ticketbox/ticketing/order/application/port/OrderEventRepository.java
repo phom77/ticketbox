@@ -15,6 +15,7 @@ public interface OrderEventRepository {
         OrderPaymentInitiated,
         OrderPaid,
         OrderExpired,
-        OrderCancelled
+        OrderCancelled,
+        OrderRefunded
     }
 }

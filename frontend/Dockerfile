@@ -5,6 +5,8 @@ COPY package*.json ./
 RUN npm ci --no-audit --no-fund
 COPY . .
 ENV VITE_API_BASE_URL=/
+ARG VITE_SUPPORT_URL
+ARG VITE_TERMS_URL
 RUN npm run build
 
 FROM nginx:1.28-alpine

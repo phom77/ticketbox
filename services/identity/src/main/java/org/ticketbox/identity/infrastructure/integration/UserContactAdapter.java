@@ -22,4 +22,10 @@ public class UserContactAdapter implements org.ticketbox.identity.application.po
                 .filter(User::isActive)
                 .map(u -> new UserContactView(u.getId(), u.getEmail(), u.getFullName()));
     }
+
+    @Override
+    public Optional<UUID> findAccountIdByEmail(String email) {
+        var matches = userRepository.findTop2ByEmailIgnoreCase(email.strip());
+        return matches.size() == 1 ? Optional.of(matches.getFirst().getId()) : Optional.empty();
+    }
 }

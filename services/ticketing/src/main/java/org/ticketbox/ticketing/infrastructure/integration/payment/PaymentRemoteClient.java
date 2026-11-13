@@ -71,6 +71,27 @@ public class PaymentRemoteClient
         return http.get().uri("/internal/reviews").retrieve().body(Object.class);
     }
 
+    @Override
+    public PaymentSupport support(UUID order) {
+        try {
+            return http.get().uri("/internal/reviews/{order}", order).retrieve().body(PaymentSupport.class);
+        } catch (org.springframework.web.client.RestClientException unavailable) {
+            throw new org.ticketbox.ticketing.application.error.AppException(
+                    org.ticketbox.ticketing.application.error.ErrorCode.SUPPORT_SOURCE_UNAVAILABLE);
+        }
+    }
+
+    @Override
+    public org.ticketbox.ticketing.order.application.port.OrderSupportQueue.Page pendingRefunds(int page, int size) {
+        try {
+            return http.get().uri("/internal/reviews/pending-refunds?page={page}&size={size}", page, size)
+                    .retrieve().body(org.ticketbox.ticketing.order.application.port.OrderSupportQueue.Page.class);
+        } catch (org.springframework.web.client.RestClientException unavailable) {
+            throw new org.ticketbox.ticketing.application.error.AppException(
+                    org.ticketbox.ticketing.application.error.ErrorCode.SUPPORT_SOURCE_UNAVAILABLE);
+        }
+    }
+
     public Object review(UUID order, Map<String, Object> body) {
         return http.post()
                 .uri("/internal/reviews/{id}", order)

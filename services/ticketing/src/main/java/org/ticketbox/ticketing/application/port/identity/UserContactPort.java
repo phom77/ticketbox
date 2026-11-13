@@ -20,4 +20,6 @@ public interface UserContactPort {
      * @return an {@link Optional} containing contact details, or empty
      */
     Optional<UserContactView> findById(UUID userId);
+
+    Optional<UUID> findAccountIdByEmail(String email);
 }

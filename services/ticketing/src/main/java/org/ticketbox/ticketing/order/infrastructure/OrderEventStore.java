@@ -69,7 +69,7 @@ public class OrderEventStore
     public void record(Order order, long expectedVersion, Transition transition) {
         ObjectNode patch = json.createObjectNode();
         switch (transition) {
-            case OrderCancelled, OrderExpired -> patch.put("status", order.getStatus().name());
+            case OrderCancelled, OrderExpired, OrderRefunded -> patch.put("status", order.getStatus().name());
             case OrderPaid -> {
                 patch.put("status", order.getStatus().name());
                 patch.put("paid_at", order.getPaidAt().toString());

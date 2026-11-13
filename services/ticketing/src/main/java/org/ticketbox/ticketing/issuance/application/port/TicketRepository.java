@@ -36,6 +36,8 @@ public interface TicketRepository {
 
     List<Ticket> findByOrderId(UUID orderId);
 
+    List<Ticket> findByOrderIdForUpdate(UUID orderId);
+
     int markAsUsedIfValid(UUID id, OffsetDateTime usedAt);
 
     List<UUID> findDistinctUserIdsByConcertId(UUID concertId);

@@ -51,6 +51,10 @@ public interface JpaTicketRepository
             """)
     List<Ticket> findByOrderId(@Param("orderId") UUID orderId);
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT t FROM Ticket t WHERE t.orderItemId IN (SELECT oi.id FROM OrderItem oi WHERE oi.orderId=:orderId) ORDER BY t.id")
+    List<Ticket> findByOrderIdForUpdate(@Param("orderId") UUID orderId);
+
     @Modifying
     @Query(
             "UPDATE Ticket t SET t.status = 'USED', t.usedAt = :usedAt WHERE t.id = :id AND"

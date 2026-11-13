@@ -63,4 +63,18 @@ public class CoreClient
     public String email(UUID user) {
         return contact(user).path("email").asText();
     }
+
+    public int session(String authorization, boolean operator) {
+        if (identity == null) return 503;
+        try {
+            var result = identity.get().uri(operator ? "/internal/split/v1/platform-access" : "/internal/split/v1/audience-session")
+                    .header("Authorization", authorization).retrieve().toBodilessEntity();
+            return result.getStatusCode().value() == 204 ? 204 : 503;
+        } catch (org.springframework.web.client.RestClientResponseException rejected) {
+            int status = rejected.getStatusCode().value();
+            return status == 401 || status == 403 ? status : 503;
+        } catch (org.springframework.web.client.RestClientException unavailable) {
+            return 503;
+        }
+    }
 }

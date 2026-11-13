@@ -49,6 +49,11 @@ class JdbcOrganizationStore implements OrganizationStore {
     }
 
     @Override
+    public Optional<String> displayName(UUID id) {
+        return jdbc.queryForList("SELECT name FROM organizations WHERE id=?", String.class, id).stream().findFirst();
+    }
+
+    @Override
     public boolean lock(UUID organizationId) {
         return !jdbc.queryForList("SELECT id FROM organizations WHERE id = ? FOR UPDATE",
                 UUID.class, organizationId).isEmpty();

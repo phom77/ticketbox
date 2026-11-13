@@ -1,0 +1,2 @@
+ALTER TABLE concerts ADD COLUMN sales_suspended BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE concerts ADD COLUMN resumed_admission_at TIMESTAMPTZ;

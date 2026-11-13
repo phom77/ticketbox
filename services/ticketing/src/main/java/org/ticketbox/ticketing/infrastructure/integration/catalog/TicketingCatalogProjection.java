@@ -30,7 +30,7 @@ import java.util.UUID;
 public class TicketingCatalogProjection
         implements ConcertOrderPort, ConcertReportingPort, ConcertReminderPort {
     private static final String SALE_COLUMNS =
-            "id,title,status,event_date,sale_start_at,sale_end_at";
+            "id,title,CASE WHEN sales_suspended THEN 'DRAFT' ELSE status END AS status,event_date,sale_start_at,sale_end_at";
     private static final String REPORT_COLUMNS = "id,title,event_date,status";
     private static final String REMINDER_COLUMNS = "id,title,venue_name,venue_address,event_date";
     private static final String ATTENDABLE = "status IN ('ON_SALE','SOLD_OUT')";
@@ -77,6 +77,13 @@ public class TicketingCatalogProjection
                 .query("SELECT " + SALE_COLUMNS + " FROM concerts WHERE id=?", SALE, concertId)
                 .stream()
                 .findFirst();
+    }
+
+    @Override
+    @Transactional
+    public boolean lockAndCheckSalesSuspended(UUID concertId) {
+        return jdbc.query("SELECT sales_suspended FROM concerts WHERE id=? FOR SHARE",
+                (row, index) -> row.getBoolean(1), concertId).stream().findFirst().orElse(false);
     }
 
     @Override

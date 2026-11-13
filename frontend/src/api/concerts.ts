@@ -14,6 +14,7 @@ export type ConcertSummary = {
 };
 
 export type ConcertDetail = ConcertSummary & {
+  organizationName?: string | null;
   description: string | null;
   artistBio: string | null;
   venueAddress: string;

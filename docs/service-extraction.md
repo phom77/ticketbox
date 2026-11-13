@@ -24,6 +24,10 @@ Ticketing ghi checkin_ticket_outbox cùng transaction phát hành hoặc cập n
 
 Ticketing chụp mã tổ chức từ concert vào đơn trong transaction tạo đơn. Payment gửi snapshot đối soát theo mã intent và phiên bản đến Ticketing qua outbox riêng. Báo cáo và CSV dùng cùng phạm vi tổ chức, buổi diễn và kỳ theo giờ Việt Nam. Platform có bộ lọc riêng cho giao dịch thiếu mã tổ chức hoặc chưa có đơn khớp. Khi đối soát sau restore, kiểm tra snapshot đã nhận, mã giao dịch và số tiền trước khi tiếp tục vận hành.
 
+Payment sở hữu hồ sơ hoàn tiền và audit của người yêu cầu, người duyệt và người xác nhận kết quả. Ticketing chốt bộ vé, Check-in khóa admission cho cả bộ trước khi hồ sơ được duyệt. Sau khi ghi nhận bằng chứng merchant, Payment gửi kết quả qua outbox riêng để Ticketing cập nhật đơn, vé và gửi thông báo. Tồn kho giữ nguyên. Ca tiền đến muộn của đơn đã đóng giữ nguyên trạng thái đơn và không phát hành vé.
+
+Catalog sở hữu thao tác hoãn/hủy và đợi ACK riêng từ Ticketing và Check-in cho phiên bản tạm dừng. Khi hủy, Ticketing tiếp tục nhận kết quả của các intent đã tạo và chuẩn bị hồ sơ hoàn cho từng đơn đã thanh toán. Khi hoãn, vé còn hiệu lực và giờ vào cổng mới chỉ áp dụng sau lệnh mở lại. Các tuyến staff vẫn bị chặn trong đợt dời scanner.
+
 ## Soát vé trên LAN
 
 Mỗi deployment có đúng một Check-in database có quyền quyết định cho vào cổng. Các máy quét cùng kết nối authority đó, trực tiếp trên LAN hoặc qua gateway. Khóa duy nhất trên checkin_logs.ticket_id, kết hợp conditional update, chỉ nhận một lượt cho mỗi vé.

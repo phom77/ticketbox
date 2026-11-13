@@ -48,6 +48,8 @@ class UserProfileControllerTest {
 
     @MockBean private JwtService jwtService;
 
+    @MockBean private org.ticketbox.identity.auth.application.CurrentSession currentSession;
+
     private final UUID userId = UUID.fromString("11111111-1111-1111-1111-111111111111");
 
     @Test

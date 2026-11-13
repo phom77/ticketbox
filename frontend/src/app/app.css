@@ -190,9 +190,11 @@ button.back-link { border: 0; padding: 0; background: transparent; cursor: point
 .booking-divider { height: 1px; margin-bottom: 20px; background: var(--line); }
 .booking-detail { display: flex; justify-content: space-between; gap: 20px; margin-bottom: 16px; font-size: 12px; }
 .booking-detail span { color: var(--muted); }
-.booking-detail strong { text-align: right; }
+.booking-detail strong { text-align: right; min-width: 0; overflow-wrap: anywhere; }
 .booking-card .button { margin-top: 18px; }
 .secure-note { margin: 14px 0 0; color: #77747e; font-size: 10px; line-height: 1.5; text-align: center; }
+.buyer-information-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 14px; }
+.buyer-information-links a { display: inline-flex; align-items: center; min-height: 44px; color: var(--coral); font-size: 13px; text-decoration: underline; text-underline-offset: 3px; }
 .venue-section { padding: 90px 0; background: #121216; border-block: 1px solid var(--line); }
 .venue-grid { display: grid; grid-template-columns: .8fr 1.7fr; align-items: center; gap: 80px; }
 .venue-grid h2 { margin-bottom: 10px; font-size: 42px; }
@@ -439,6 +441,11 @@ button.back-link { border: 0; padding: 0; background: transparent; cursor: point
 .auth-visual cite { display: block; margin-top: 20px; color: var(--muted); font: 700 9px/1.2 "Manrope"; letter-spacing: .12em; text-transform: uppercase; }
 .auth-content { display: grid; place-items: center; padding: 60px; }
 .auth-card { width: min(100%,470px); }
+.auth-recovery { display: grid; place-items: center; min-height: 100dvh; padding: 40px 20px; }
+.auth-recovery .auth-card { padding: clamp(20px,5vw,40px); border: 1px solid var(--line); border-radius: 8px; }
+.auth-recovery .logo { margin-bottom: 24px; }
+.auth-recovery .auth-heading h1 { font-size: clamp(28px,4vw,36px); }
+.auth-recovery .auth-form input { font-size: 16px; }
 .auth-heading h1 { margin-bottom: 16px; font-size: clamp(40px,4.5vw,58px); line-height: 1.03; }
 .auth-heading > p:last-child { margin-bottom: 34px; color: var(--muted); line-height: 1.6; }
 .auth-form { display: grid; gap: 18px; }
@@ -3164,6 +3171,19 @@ body,
 .admin-toolbar .admin-search-control {
   flex: 1 1 360px;
 }
+
+.admin-order-support-form .admin-search-control {
+  flex-basis: auto;
+  min-width: 0;
+}
+.admin-order-support-actions { display: flex; gap: 8px; }
+.admin-order-support-actions button { flex: 1; justify-content: center; width: auto; white-space: nowrap; }
+.admin-order-support-pagination button[aria-disabled="true"] { cursor: not-allowed; opacity: .5; }
+.admin-order-detail-section { display: grid; gap: 10px; min-width: 0; padding-top: 16px; border-top: 1px solid var(--line); }
+.admin-order-detail-section h3 { margin: 0; font-size: 15px; }
+.admin-order-detail-section p { margin: 0; color: var(--muted); font-size: 13px; }
+.admin-order-detail-section td { overflow-wrap: anywhere; }
+.admin-order-detail-error { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
 
 .admin-dialog-backdrop {
   z-index: 2000;

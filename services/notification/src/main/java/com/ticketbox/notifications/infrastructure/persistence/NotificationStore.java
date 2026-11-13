@@ -54,13 +54,13 @@ public class NotificationStore
 UPDATE notifications SET delivery_owner=?,delivery_lease_until=now()+interval '2 minutes',updated_at=now()
 WHERE id=(SELECT id FROM notifications WHERE channel='EMAIL' AND status='PENDING' AND next_attempt_at<=now()
  AND (delivery_lease_until IS NULL OR delivery_lease_until<now()) ORDER BY next_attempt_at,id FOR UPDATE SKIP LOCKED LIMIT 1)
-RETURNING id,user_id,reference_id,subject,body
+RETURNING id,user_id,CASE WHEN event_type='PAYMENT_SUCCEEDED' THEN reference_id END AS document_order_id,subject,body
 """,
                         (rs, n) ->
                                 new Delivery(
                                         rs.getObject("id", UUID.class),
                                         rs.getObject("user_id", UUID.class),
-                                        rs.getObject("reference_id", UUID.class),
+                                        rs.getObject("document_order_id", UUID.class),
                                         rs.getString("subject"),
                                         rs.getString("body"),
                                         owner),

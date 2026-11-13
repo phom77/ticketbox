@@ -21,4 +21,25 @@ class OrganizationAccessConfig {
             }
         };
     }
+
+    @Bean
+    WebMvcConfigurer buyerSessionConfigurer(org.ticketbox.ticketing.web.security.BuyerSessions sessions) {
+        return new WebMvcConfigurer() {
+            @Override
+            public void addInterceptors(InterceptorRegistry registry) {
+                registry.addInterceptor(new org.springframework.web.servlet.HandlerInterceptor() {
+                    @Override
+                    public boolean preHandle(jakarta.servlet.http.HttpServletRequest request,
+                            jakarta.servlet.http.HttpServletResponse response, Object handler) {
+                        if (handler instanceof org.springframework.web.method.HandlerMethod) {
+                            sessions.require(request.getHeader(org.springframework.http.HttpHeaders.AUTHORIZATION));
+                        }
+                        return true;
+                    }
+                }).addPathPatterns("/api/orders/**", "/api/tickets/**", "/api/payments/**",
+                        "/api/mock-payments/**", "/api/queue/**", "/api/reservations/**")
+                        .excludePathPatterns("/api/payments/webhooks/**");
+            }
+        };
+    }
 }

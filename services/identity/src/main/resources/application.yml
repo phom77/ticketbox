@@ -17,6 +17,8 @@ spring:
       ddl-auto: validate
     open-in-view: false
 ticketbox:
+  reset:
+    key: ${PASSWORD_RESET_KEY:}
   security:
     jwt:
       secret: ${JWT_SECRET}

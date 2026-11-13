@@ -31,6 +31,7 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -43,6 +44,7 @@ public class ConcertService {
     private final TicketTypeMapper ticketTypeMapper;
     private final ReadCache readCache;
     private final PosterStorage posterStorage;
+    private final org.ticketbox.catalog.concert.application.port.OrganizerDisplayNames organizerNames;
 
     public ConcertService(
             ConcertRepository concertRepository,
@@ -50,13 +52,15 @@ public class ConcertService {
             ConcertMapper concertMapper,
             TicketTypeMapper ticketTypeMapper,
             PosterStorage posterStorage,
-            ReadCache readCache) {
+            ReadCache readCache,
+            org.ticketbox.catalog.concert.application.port.OrganizerDisplayNames organizerNames) {
         this.concertRepository = concertRepository;
         this.ticketTypeRepository = ticketTypeRepository;
         this.concertMapper = concertMapper;
         this.ticketTypeMapper = ticketTypeMapper;
         this.posterStorage = posterStorage;
         this.readCache = readCache;
+        this.organizerNames = organizerNames;
     }
 
     @org.ticketbox.catalog.application.query.ReplicaRead
@@ -96,7 +100,12 @@ public class ConcertService {
                 CatalogCacheKeys.CACHE_CONCERT_DETAIL + concertId,
                 ConcertDetailResponse.class,
                 CatalogCacheKeys.TTL_CONCERT_DETAIL,
-                () -> composePublicDetail(requirePublicConcert(concertId)));
+                () -> {
+                    var concert = requirePublicConcert(concertId);
+                    var detail = composePublicDetail(concert);
+                    if (concert.getOrganizationId() == null) return detail;
+                    return organizerNames.find(concert.getOrganizationId()).map(detail::withOrganizationName).orElse(detail);
+                });
     }
 
     private Concert requirePublicConcert(UUID concertId) {
@@ -292,6 +301,9 @@ public class ConcertService {
 
         verifyOwnership(concert, requesterId, isAdmin);
 
+        if (concert.isSalesSuspended()) {
+            throw new AppException(ErrorCode.INVALID_STATUS_TRANSITION, "error.concert.use-disruption");
+        }
         if (concert.getStatus() == Concert.Status.COMPLETED
                 || concert.getStatus() == Concert.Status.CANCELLED) {
             throw new AppException(
@@ -308,18 +320,13 @@ public class ConcertService {
                 .validate(OffsetDateTime.now());
 
         if (concert.getStatus() != Concert.Status.DRAFT
-                && (!java.util.Objects.equals(
-                                concert.getSaleStartAt() == null
-                                        ? null
-                                        : concert.getSaleStartAt().toInstant(),
-                                request.saleStartAt().toInstant())
-                        || !java.util.Objects.equals(
-                                concert.getSaleEndAt() == null
-                                        ? null
-                                        : concert.getSaleEndAt().toInstant(),
-                                request.saleEndAt() == null
-                                        ? null
-                                        : request.saleEndAt().toInstant()))) {
+                && (!sameInstant(concert.getEventDate(), request.eventDate())
+                        || !sameInstant(concert.getDoorsOpenAt(), request.doorsOpenAt()))) {
+            throw new AppException(ErrorCode.INVALID_STATUS_TRANSITION, "error.concert.use-disruption");
+        }
+        if (concert.getStatus() != Concert.Status.DRAFT
+                && (!sameInstant(concert.getSaleStartAt(), request.saleStartAt())
+                        || !sameInstant(concert.getSaleEndAt(), request.saleEndAt()))) {
             throw new AppException(
                     ErrorCode.INVALID_STATUS_TRANSITION, "error.concert.sale-window-locked");
         }
@@ -328,6 +335,10 @@ public class ConcertService {
         Concert saved = concertRepository.save(concert);
         evictConcertCaches(id);
         return concertMapper.toDetailResponse(saved);
+    }
+
+    private static boolean sameInstant(OffsetDateTime stored, OffsetDateTime requested) {
+        return Objects.equals(stored == null ? null : stored.toInstant(), requested == null ? null : requested.toInstant());
     }
 
     @Transactional
@@ -347,6 +358,13 @@ public class ConcertService {
 
         if (!isAdmin && newStatus == Concert.Status.CANCELLED) {
             throw new AppException(ErrorCode.INVALID_STATUS_TRANSITION, "error.concert.contact-support-to-cancel");
+        }
+        if (isAdmin && newStatus == Concert.Status.CANCELLED && concert.getStatus() != Concert.Status.DRAFT
+                && concert.getStatus() != Concert.Status.CANCELLED) {
+            throw new AppException(ErrorCode.INVALID_STATUS_TRANSITION, "error.concert.use-disruption");
+        }
+        if (concert.isSalesSuspended() && concert.getStatus() != newStatus) {
+            throw new AppException(ErrorCode.INVALID_STATUS_TRANSITION, "error.concert.use-disruption");
         }
         if (!isAdmin && concert.getStatus() == Concert.Status.DRAFT && newStatus == Concert.Status.ON_SALE) {
             throw new AppException(ErrorCode.INVALID_STATUS_TRANSITION, "error.concert.use-publication");

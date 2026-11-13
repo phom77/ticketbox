@@ -2,7 +2,11 @@ name: ticketbox
 services:
   gateway:
     image: ticketbox-web:local
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        VITE_SUPPORT_URL: ${VITE_SUPPORT_URL:-}
+        VITE_TERMS_URL: ${VITE_TERMS_URL:-}
     ports:
     - ${APP_BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-18091}:80
     volumes:
@@ -62,6 +66,7 @@ services:
       RABBITMQ_PASSWORD: broker-local-only
       MAIL_HOST: smtp
       MAIL_PORT: 1025
+      PASSWORD_RESET_WEB_ORIGIN: ${APP_PUBLIC_URL:-http://localhost:18091}
       JAVA_TOOL_OPTIONS: -Xms64m -Xmx512m
       IDENTITY_API_URL: http://identity:8080
       SPLIT_SERVICE_TOKEN: ${SPLIT_SERVICE_TOKEN:-ticketbox-local-split-service-token-change-before-deploy}
@@ -172,6 +177,7 @@ services:
     mem_limit: 1200m
     stop_grace_period: 30s
     environment:
+      PASSWORD_RESET_KEY: ${PASSWORD_RESET_KEY:-}
       DATABASE_URL: jdbc:postgresql://identity-db:5432/ticketbox_identity
       DATABASE_USER: identity_runtime
       DATABASE_PASSWORD: identity-runtime-local-only

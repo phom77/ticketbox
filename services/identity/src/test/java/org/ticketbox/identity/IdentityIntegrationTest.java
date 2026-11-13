@@ -53,6 +53,7 @@ class IdentityIntegrationTest {
         registry.add("spring.flyway.password", POSTGRES::getPassword);
         registry.add("ticketbox.security.jwt.secret", () -> JWT_SECRET);
         registry.add("split.token", () -> SERVICE_TOKEN);
+        registry.add("ticketbox.reset.key", () -> "identity-test-only-reset-key-with-adequate-length");
     }
 
     @Autowired private MockMvc mvc;
@@ -118,6 +119,74 @@ class IdentityIntegrationTest {
                                 .header("X-Service-Token", SERVICE_TOKEN))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Request rejected"));
+    }
+
+    @Test
+    void supportEmailLookupIsInternalAndNormalizesTheAddress() throws Exception {
+        String body = "{\"email\":\" Audience@TicketBox.com \"}";
+        mvc.perform(post("/internal/split/users/lookup").contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post("/internal/split/users/lookup").contentType(MediaType.APPLICATION_JSON)
+                        .header("X-Service-Token", SERVICE_TOKEN).content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value("00000000-0000-0000-0000-000000000003"))
+                .andExpect(jsonPath("$.email").doesNotExist());
+    }
+
+    @Test
+    void passwordResetRequestsReturnUniformAcceptance() throws Exception {
+        for (String email : java.util.List.of("audience@ticketbox.com", "admin@ticketbox.com", "missing@example.test")) {
+            mvc.perform(post("/api/auth/password-reset").contentType(MediaType.APPLICATION_JSON)
+                            .content(json.writeValueAsString(java.util.Map.of("email", email))))
+                    .andExpect(status().isAccepted())
+                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(""));
+        }
+        jdbc.update("DELETE FROM password_resets WHERE account_id=(SELECT id FROM users WHERE email='audience@ticketbox.com')");
+    }
+
+    @Test
+    void onlyLatestResetLinkCanBeConsumedOnceAndOldSessionStopsWorking() throws Exception {
+        String email = "reset-" + UUID.randomUUID() + "@example.test";
+        String password = "existing-password";
+        mvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(java.util.Map.of("email", email, "password", password, "fullName", "Fixture"))))
+                .andExpect(status().isCreated());
+        String loginBody = json.writeValueAsString(java.util.Map.of("email", email, "password", password));
+        var login = mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(loginBody))
+                .andExpect(status().isOk()).andReturn().getResponse();
+        String oldSession = json.readTree(login.getContentAsString()).path("data").path("accessToken").asText();
+        String resetBody = json.writeValueAsString(java.util.Map.of("email", email));
+        String first = issueReset(resetBody);
+        String latest = issueReset(resetBody);
+        String nextPassword = "replacement-password";
+        assertThat(confirmReset(first, nextPassword)).isEqualTo(400);
+
+        try (var pool = Executors.newFixedThreadPool(2)) {
+            var firstUse = pool.submit(() -> confirmReset(latest, nextPassword));
+            var secondUse = pool.submit(() -> confirmReset(latest, nextPassword));
+            assertThat(java.util.List.of(firstUse.get(10, TimeUnit.SECONDS), secondUse.get(10, TimeUnit.SECONDS)))
+                    .containsExactlyInAnyOrder(204, 400);
+        }
+        mvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + oldSession))
+                .andExpect(status().isUnauthorized());
+        String expired = issueReset(resetBody);
+        jdbc.update("UPDATE password_resets SET expires_at=clock_timestamp() WHERE account_id=(SELECT id FROM users WHERE email=?)", email);
+        assertThat(confirmReset(expired, "password-after-expiry")).isEqualTo(400);
+    }
+
+    private String issueReset(String body) throws Exception {
+        mvc.perform(post("/api/auth/password-reset").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isAccepted());
+        var claimed = mvc.perform(post("/internal/split/password-reset/mail/claim").header("X-Service-Token", SERVICE_TOKEN))
+                .andExpect(status().isOk()).andReturn().getResponse();
+        return json.readTree(claimed.getContentAsString()).path("token").asText();
+    }
+
+    private int confirmReset(String token, String password) throws Exception {
+        return mvc.perform(post("/api/auth/password-reset/confirm").contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(java.util.Map.of("token", token, "password", password))))
+                .andReturn().getResponse().getStatus();
     }
 
     @Test

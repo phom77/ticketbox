@@ -17,6 +17,8 @@ The SMTP sink accepts email locally without forwarding it. Its private HTTP endp
 
 For a separate staging deployment, set `TICKETBOX_PAYMENT_PROFILE=staging` for the shared Payment and Ticketing profiles. Use the staging secret store for `VNPAY_TMN_CODE` and `VNPAY_HASH_SECRET`. Set `VNPAY_PAY_URL` and `VNPAY_QUERY_URL` to the merchant's sandbox endpoints. Set `VNPAY_RETURN_URL` and `VNPAY_IPN_URL` to the staging HTTPS origin at `/payment/result` and `/api/payments/webhooks/vnpay`, and register the IPN with the merchant. Confirm `GET /api/payments/providers` returns only `VNPAY` as a buyer before running the checkout. The provider list is empty until the VNPAY settings pass readiness checks.
 
+Set a separate `PASSWORD_RESET_KEY` of at least 32 bytes in Identity's secret store to enable buyer account recovery. Configure Notification with the HTTPS `APP_PUBLIC_URL` as the origin for reset emails and use the staging SMTP relay. Keep the reset key stable while encrypted deliveries are pending. Set the approved HTTPS destinations `VITE_SUPPORT_URL` and `VITE_TERMS_URL` before building the web image. An absent or invalid destination hides its link.
+
 ```sh
 docker compose up -d --scale payment=2
 docker compose --profile monitoring up -d
@@ -99,6 +101,14 @@ pwsh -File scripts/e2e/run.ps1 -Restore
 ```
 
 These scripts use a separate `ticketbox-e2e` project on port 18092. They create two organizations, exercise checkout and scoped operations, verify that unscoped staff routes are blocked over gateway and LAN, and stop Identity to test authorization failure. Check-in persistence tests still exercise admission concurrency and offline sync. The optional restore rehearsal checkpoints writers and boots all six applications against restored databases. Test output stays in `.artifacts/e2e/`. The helper rejects project names outside its test namespace.
+
+Include the password-reset and SMTP outage fixture by setting a local-only key for the isolated run.
+
+```sh
+PASSWORD_RESET_KEY=ticketbox-e2e-only-password-reset-key-at-least-32 pwsh -File scripts/e2e/run.ps1 -Build -Restore
+```
+
+The gateway rehearsal uses MOCK payment and simulated manual refund evidence. A staging operator verifies the actual refund on the VNPAY merchant console before recording its reference, amount and completion time in TicketBox.
 
 While the isolated stack is running, use Chromium to exercise organizer approval, invitations, organization selection and mobile buyer checkout through MOCK payment and QR recovery.
 
