@@ -1,0 +1,23 @@
+# Design
+
+## Context
+
+The default Compose stack binds the gateway locally, includes a test SMTP sink and seeds demo data through Flyway in four services. The staging payment profile already gates VNPAY on complete merchant configuration. Prometheus currently scrapes Ticketing. The restore script checkpoints the six writers, dumps each database and starts all six applications on an isolated project. CI currently publishes most of `.artifacts/e2e/`, while the script stores dumps in `split-backups/`.
+
+## Goals and scope
+
+Rehearse the same release candidate locally and on an isolated HTTPS staging environment, capture the evidence required by the roadmap and give operators a repeatable deployment and recovery procedure. Keep the existing six owners, order stream and provider contracts. The pilot still defers scanner device rollout and offline admission. Production enablement requires a separate pilot decision and merchant agreement under A0.
+
+## Decisions
+
+- **Deployment identity and readiness.** Keep the default development Compose workflow. Add a reviewed staging overlay and preflight for separate project, storage, JWT, inter-service credentials, password reset key, approved origins, SMTP and the VNPAY sandbox settings. Terminate TLS at the approved ingress and accept forwarded client addresses only from that ingress for password recovery rate limits. Publish the buyer and admin gateway only. Limit database, broker, metrics and application endpoints to the internal network. Check actual payment readiness, delivery and network exposure before opening staging to testers. Use secret-store references and redact resolved secrets from command output and artifacts.
+- **First boot and rollouts.** Preserve checksums of existing Flyway migrations. Provision a fresh pilot database on the private network, remove the known demo fixture graph before exposing any writer or public route, then verify the absence of demo identities, events, orders and sample tickets. Use deterministic fixture identifiers, FK-safe steps and a persistent initialization marker. Reruns must preserve actual pilot data and fail on an unrecognized database. Seed the first administrator via an explicit operator procedure. Deploy consumers before producers for the additive A3–A5 contracts. Gate a rollback that can no longer read current data and keep accepted money and admission holds recoverable.
+- **Observability and operator ownership.** Extend the existing Prometheus configuration with authenticated internal endpoints and owner-side counts and age for payment verification without issuance, pending outboxes and admission projections, failed email and aged reconciliation/refund cases. Test warning delivery with isolated fixtures and record the handler and remediation for each alert. Use safe identifiers and avoid labels with account or order IDs, secrets or tokens.
+- **Backup and restore.** Build on the six-database restore rehearsal. Record the recovery point and whether checkout/settlement was quiesced, and include required keys and artifact storage via their own secure recovery procedures. Encrypt backups outside the host and restrict their access. Restore into an isolated network with outgoing payment and email held until replay, outbox and audit checks pass. Record actual RTO/RPO against approved targets. Publish an allowlisted CI report and exclude raw database dumps, generated overrides and sensitive logs.
+- **Capacity and staging acceptance.** Reuse the existing checkout and concurrency tools to exercise queue entry, expiring holds and contention on the last available tickets. Rehearse documented target traffic with fixture payment on an isolated deployment. With the approved merchant, exercise success, failure, duplicate and missing IPN, signed query, late money and full-order refund, comparing A3 totals against the merchant. Check real ticket and reset email, buyer links, both organizations' authorization and online projection state. Record approvals and deferred scanner coverage in the release checklist.
+
+## Risks and decisions to confirm
+
+- Confirm the staging target and access owner, HTTPS hostname, secret store, SMTP relay, support and terms destinations, backup destination and alert recipient before staging steps.
+- Confirm two organization fixtures, peak load and latency/error budget, RTO/RPO and the operator permitted to execute refunds in the merchant console. Thresholds are explicit inputs to the acceptance record.
+- Coordinated recovery across six databases and two external delivery channels requires a release owner. Missing merchant or relay access blocks their evidence while local rehearsals can run independently.
