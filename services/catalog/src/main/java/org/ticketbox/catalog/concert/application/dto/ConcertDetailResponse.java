@@ -1,9 +1,11 @@
 package org.ticketbox.catalog.concert.application.dto;
 
 import org.ticketbox.catalog.sales.application.dto.TicketTypeResponse;
+import org.ticketbox.catalog.concert.domain.ConcertText;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public record ConcertDetailResponse(
@@ -25,7 +27,9 @@ public record ConcertDetailResponse(
         OffsetDateTime updatedAt,
         List<TicketTypeResponse> ticketTypes,
         @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-        String organizationName) {
+        String organizationName,
+        ConcertText original,
+        Map<String, ConcertText> translations) {
     public ConcertDetailResponse(
             UUID id,
             String title,
@@ -60,7 +64,7 @@ public record ConcertDetailResponse(
                 createdBy,
                 createdAt,
                 updatedAt,
-                List.of(), null);
+                List.of(), null, new ConcertText(title, description), Map.of());
     }
 
     public ConcertDetailResponse withTicketTypes(List<TicketTypeResponse> ticketTypes) {
@@ -81,12 +85,12 @@ public record ConcertDetailResponse(
                 createdBy,
                 createdAt,
                 updatedAt,
-                ticketTypes, organizationName);
+                ticketTypes, organizationName, original, translations);
     }
 
     public ConcertDetailResponse withOrganizationName(String organizationName) {
         return new ConcertDetailResponse(id, title, description, artistBio, venueName, venueAddress,
                 eventDate, doorsOpenAt, saleStartAt, saleEndAt, status, seatMapSvg, posterUrl,
-                createdBy, createdAt, updatedAt, ticketTypes, organizationName);
+                createdBy, createdAt, updatedAt, ticketTypes, organizationName, original, translations);
     }
 }

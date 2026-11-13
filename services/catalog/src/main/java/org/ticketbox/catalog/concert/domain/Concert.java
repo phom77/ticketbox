@@ -6,6 +6,7 @@ import lombok.NoArgsConstructor;
 import org.ticketbox.catalog.domain.BaseEntity;
 
 import java.time.OffsetDateTime;
+import java.util.Map;
 import java.util.UUID;
 
 @Getter
@@ -23,6 +24,47 @@ public class Concert extends BaseEntity {
     private String title;
 
     private String description;
+
+    private ConcertContent localizedContent;
+
+    public void editText(
+            String legacyTitle, String legacyDescription, ConcertText original, Map<String, ConcertText> translations) {
+        if (original == null && translations == null) {
+            if (legacyTitle == null || legacyTitle.isBlank()) {
+                throw new org.ticketbox.catalog.domain.DomainViolation(
+                        "VALIDATION_FAILED", "validation.concert.title-required");
+            }
+            String previousDescription = localizedContent == null
+                    ? description
+                    : localizedContent.original() == null ? null : localizedContent.original().description();
+            if (localizedContent == null) {
+                title = ConcertText.authored(legacyTitle, null).title();
+                if (legacyDescription != null) description = legacyDescription;
+                return;
+            }
+            original = new ConcertText(legacyTitle, legacyDescription == null ? previousDescription : legacyDescription);
+        }
+        ConcertContent current = localizedContent == null
+                ? new ConcertContent(new ConcertText(title, description), Map.of())
+                : localizedContent;
+        ConcertContent updated = current.update(original, translations);
+        String displayTitle = updated.compatibilityText(ConcertText::title);
+        if (displayTitle == null || displayTitle.isBlank()) {
+            throw new org.ticketbox.catalog.domain.DomainViolation(
+                    "VALIDATION_FAILED", "validation.concert.title-required");
+        }
+        title = displayTitle;
+        description = updated.compatibilityText(ConcertText::description);
+        localizedContent = updated;
+    }
+
+    public Map<String, ConcertText> getTranslations() {
+        return localizedContent == null ? Map.of() : localizedContent.translations();
+    }
+
+    public ConcertText getOriginal() {
+        return localizedContent == null ? new ConcertText(title, description) : localizedContent.original();
+    }
 
     private String artistBio;
 

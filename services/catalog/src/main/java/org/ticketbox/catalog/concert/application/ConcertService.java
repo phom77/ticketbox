@@ -276,6 +276,7 @@ public class ConcertService {
                 .validate(OffsetDateTime.now());
 
         Concert concert = concertMapper.toEntity(request);
+        concert.editText(request.title(), request.description(), request.original(), request.translations());
         concert.setCreatedBy(actorId);
         if (organizationId != null) {
             concert.assignOrganization(organizationId);
@@ -330,6 +331,7 @@ public class ConcertService {
             throw new AppException(
                     ErrorCode.INVALID_STATUS_TRANSITION, "error.concert.sale-window-locked");
         }
+        concert.editText(request.title(), request.description(), request.original(), request.translations());
         concertMapper.updateConcertFromRequest(request, concert);
 
         Concert saved = concertRepository.save(concert);

@@ -498,6 +498,10 @@ def main(*, source_outage=True):
     matched = request("GET", concerts + "?query=First&size=1", organizer, headers=first_scope)
     assert matched["totalElements"] == 1 and matched["content"][0]["id"] == concert_id
     preview = f"{concerts}/{concert_id}/preview"
+    translation = {"title": "Đêm nhạc", "description": "Thông tin sự kiện"}
+    localized = {**event, "translations": {"vi": translation}}
+    request("PUT", f"{concerts}/{concert_id}", organizer, localized, headers=first_scope)
+    assert request("GET", preview, organizer, headers=first_scope)["translations"]["vi"] == translation
     req = urllib.request.Request(BASE + preview, headers={**first_scope, "Authorization": "Bearer " + organizer})
     with urllib.request.urlopen(req, timeout=20) as response:
         assert "no-store" in response.headers["Cache-Control"]
@@ -540,6 +544,13 @@ def main(*, source_outage=True):
     assert until(lambda: request("GET", publication, organizer, headers=first_scope)["versions"]["checkinVersion"] >= activation)
     request("GET", public, organizer)
     assert request("GET", public)["organizationName"] == f"First {run_id}"
+    assert request("GET", public)["translations"]["vi"] == translation
+    revised = {"title": "Đêm nhạc cập nhật", "description": "Mô tả cập nhật"}
+    request("PUT", f"{concerts}/{concert_id}", organizer,
+            {**event, "translations": {"vi": revised}}, headers=first_scope)
+    assert until(lambda: request("GET", public).get("translations", {}).get("vi") == revised)
+    assert until(lambda: any(item["id"] == concert_id and item.get("translations", {}).get("vi") == revised
+                             for item in request("GET", "/api/concerts?size=100")["content"]))
     request("POST", f"/api/queue/concerts/{concert_id}/join", organizer, expected=(403,))
     assert sql("ticketing", f"SELECT status FROM concerts WHERE id='{concert_id}'") == "ON_SALE"
     request("PUT",f"/api/admin/ticket-types/{type_id}",admin,{

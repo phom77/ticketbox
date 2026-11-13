@@ -58,3 +58,9 @@ Initiation accepts `{ "provider": "MOCK" }` (or `MOMO` / `VNPAY`). Remote dispat
 - Internal intent/result APIs require service tokens and are blocked at the public gateway.
 
 401 means authentication is missing/invalid; 403 means the role or ownership check failed. Stock conflicts and duplicate commands can return 409. Rate/dependency failures can return 429/503 and a retry hint. Clients should preserve command identity during recovery instead of generating new payment requests.
+
+## Concert translations
+
+Public concert summaries and details can include a `translations` object keyed by language (`vi` or `en`). Each entry contains the organizer's title and description for that language. The existing `title` and `description` fields provide fallback values. Detail and management responses also expose `original` for text saved without a language.
+
+Concert create and update requests accept optional `translations` and `original`. Supplying a language replaces its title and description. A null entry or two blank fields removes it. Omitted languages keep their stored values. Supply an `original` object with both fields blank to clear the unlabelled text. At least one title must remain and each title has a 500-character limit. Requests using the existing top-level fields update the original and preserve saved translations. Catalog keeps the usual concert access and publication rules.

@@ -54,6 +54,10 @@
             <basic name="description">
                 <column name="description" column-definition="TEXT" />
             </basic>
+            <basic name="localizedContent">
+                <column name="localized_content" column-definition="TEXT" />
+                <convert converter="org.ticketbox.catalog.concert.infrastructure.persistence.ConcertContentConverter" />
+            </basic>
             <basic name="artistBio">
                 <column name="artist_bio" column-definition="TEXT" />
             </basic>
@@ -152,4 +156,5 @@
             </basic>
         </attributes>
     </entity>
+    <converter class="org.ticketbox.catalog.concert.infrastructure.persistence.ConcertContentConverter" />
 </entity-mappings>

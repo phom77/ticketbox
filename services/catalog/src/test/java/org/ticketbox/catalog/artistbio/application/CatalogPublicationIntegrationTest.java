@@ -1,6 +1,7 @@
 package org.ticketbox.catalog.artistbio.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.awaitility.Awaitility.await;
 import static org.mockito.Mockito.verify;
 
@@ -17,6 +18,11 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.UUID;
+import java.time.OffsetDateTime;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.ticketbox.catalog.concert.application.ConcertService;
+import org.ticketbox.catalog.concert.application.dto.CreateConcertRequest;
+import org.ticketbox.catalog.concert.application.dto.UpdateConcertRequest;
 
 @Testcontainers
 @SpringBootTest(
@@ -45,7 +51,63 @@ class CatalogPublicationIntegrationTest {
 
     @Autowired private JdbcTemplate jdbc;
     @Autowired private IncompleteEventPublications publications;
+    @Autowired private ConcertService concerts;
+    @Autowired private ObjectMapper json;
     @MockBean private ArtistBioJobProcessor processor;
+    @MockBean private org.ticketbox.catalog.sales.infrastructure.CatalogPublisher catalogPublisher;
+
+    @Test
+    void persistsOptionalTranslationsAndPreservesThemForLegacyEdits() throws Exception {
+        UUID organization = UUID.randomUUID();
+        UUID actor = UUID.randomUUID();
+        String fields = """
+                "venueName":"Hall","venueAddress":"Main street","eventDate":"%s","saleStartAt":"%s"
+                """.formatted(OffsetDateTime.now().plusDays(10), OffsetDateTime.now().plusDays(1));
+        var created = concerts.createConcert(json.readValue("""
+                {"translations":{"en":{"title":"Summer show"},"vi":{"description":"Mô tả"}} ,%s}
+                """.formatted(fields), CreateConcertRequest.class), actor, organization);
+
+        var preview = json.valueToTree(concerts.preview(created.id(), organization));
+        assertThat(preview.at("/translations/en/title").asText()).isEqualTo("Summer show");
+        assertThat(preview.at("/translations/vi/description").asText()).isEqualTo("Mô tả");
+        assertThat(preview.path("title").asText()).isEqualTo("Summer show");
+
+        var legacyEdit = json.readValue("""
+                {"title":"Original show",%s}
+                """.formatted(fields), UpdateConcertRequest.class);
+        assertThatThrownBy(() -> concerts.updateConcert(created.id(), legacyEdit, UUID.randomUUID(), false))
+                .isInstanceOf(RuntimeException.class);
+        var legacyResult = json.valueToTree(concerts.updateConcert(created.id(), legacyEdit, organization, false));
+        assertThat(legacyResult.at("/translations/en/title").asText()).isEqualTo("Summer show");
+        assertThat(legacyResult.path("title").asText()).isEqualTo("Original show");
+
+        var clearEnglish = json.readValue("""
+                {"translations":{"en":{"title":null,"description":null}},%s}
+                """.formatted(fields), UpdateConcertRequest.class);
+        concerts.updateConcert(created.id(), clearEnglish, organization, false);
+        var updated = json.valueToTree(concerts.preview(created.id(), organization));
+        assertThat(updated.at("/translations/en").isMissingNode()).isTrue();
+        assertThat(updated.at("/translations/vi/description").asText()).isEqualTo("Mô tả");
+        assertThat(updated.path("title").asText()).isEqualTo("Original show");
+    }
+
+    @Test
+    void requiresOneTitleAndAllowsVietnameseOnly() throws Exception {
+        String fields = """
+                "venueName":"Hall","venueAddress":"Main street","eventDate":"%s","saleStartAt":"%s"
+                """.formatted(OffsetDateTime.now().plusDays(10), OffsetDateTime.now().plusDays(1));
+        UUID actor = UUID.randomUUID();
+        UUID organization = UUID.randomUUID();
+        var created = concerts.createConcert(json.readValue("""
+                {"translations":{"vi":{"title":"Đêm nhạc"}},%s}
+                """.formatted(fields), CreateConcertRequest.class), actor, organization);
+        var invalidEdit = json.readValue("""
+                {"translations":{"vi":{"title":" "}},%s}
+                """.formatted(fields), UpdateConcertRequest.class);
+        assertThatThrownBy(() -> concerts.updateConcert(created.id(), invalidEdit, organization, false))
+                .hasMessage("validation.concert.title-required");
+        assertThat(concerts.preview(created.id(), organization).title()).isEqualTo("Đêm nhạc");
+    }
 
     @Test
     void pendingPublicationFromBaselineIsReplayedAndCompleted() {

@@ -20,6 +20,9 @@ public interface ConcertMapper {
 
     ConcertSummaryResponse toSummaryResponse(Concert concert);
 
+    @Mapping(target = "title", ignore = true)
+    @Mapping(target = "description", ignore = true)
+    @Mapping(target = "translations", ignore = true)
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "status", ignore = true)
     @Mapping(target = "createdBy", ignore = true)
@@ -34,6 +37,9 @@ public interface ConcertMapper {
     Concert toEntity(CreateConcertRequest request);
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+    @Mapping(target = "title", ignore = true)
+    @Mapping(target = "description", ignore = true)
+    @Mapping(target = "translations", ignore = true)
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "status", ignore = true)
     @Mapping(target = "createdBy", ignore = true)

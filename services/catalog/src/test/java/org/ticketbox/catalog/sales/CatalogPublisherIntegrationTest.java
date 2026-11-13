@@ -69,7 +69,7 @@ class CatalogPublisherIntegrationTest {
                 jdbc.queryForObject(
                         """
 SELECT jsonb_build_object('id',o.concert_id,'version',o.version,'deleted',false,
-  'concert',to_jsonb(c),'types',(SELECT jsonb_agg(to_jsonb(t) ORDER BY t.id)
+  'concert',to_jsonb(c)-'localized_content','types',(SELECT jsonb_agg(to_jsonb(t) ORDER BY t.id)
   FROM ticket_types t WHERE t.concert_id=o.concert_id))::text
 FROM sale_config_outbox o JOIN concerts c ON c.id=o.concert_id WHERE o.concert_id=?
 """,
