@@ -226,6 +226,7 @@ Phí cần nguồn dữ liệu xác thực trước khi hiển thị. Kế toán
 - [x] Chromium pass 12 ca tra cứu, hoàn tiền và hoãn/hủy, cùng 20 ca khôi phục checkout, đặt lại mật khẩu và liên kết người mua. [Hỗ trợ](../../../.artifacts/verification/a45/support-browser/results.json) · [Người mua](../../../.artifacts/verification/a45/checkout-browser/results.json)
 - [x] Khôi phục sáu cơ sở dữ liệu cục bộ trong 55,29 giây. Phát lại đối soát và kết quả hoàn giữ nguyên bản ghi và không gửi lại email lịch sử. [Kết quả restore](../../../.artifacts/verification/a45/split-restore.json)
 - [x] Kiểm tra bổ sung qua gateway. Hai tổ chức có cùng người mua vẫn chỉ thấy đơn đúng phạm vi. Khi Notification dừng, phần vé và thanh toán vẫn tải. Phiên admin bị thu quyền không thể xử lý hồ sơ, mã hoàn trùng bị từ chối và quyết định không hoàn giải phóng khóa vé. [Kết quả kiểm tra bổ sung](../../../.artifacts/verification/a45/extended-retry.log)
+- [x] Hoàn tất 16 bước kiểm tra repo cục bộ qua Maven và chạy tiếp các bước riêng. Có 218 test Java, build và kiểm tra ranh giới của sáu service, Compose mặc định và lab, frontend lint/build và scanner typecheck. OpenSpec strict pass sáu change. [Kết quả kiểm tra](../../../.artifacts/verification/a45/final-ci/component-verification.json)
 - [ ] Nghiệm thu tiền và hoàn tiền trên VNPAY sandbox, SMTP staging và URL hỗ trợ/điều kiện mua. Scanner, offline và vận hành cổng thuộc đợt phát triển scanner riêng.
 
 ### Review A6 · 12/11/2026
