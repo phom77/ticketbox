@@ -148,7 +148,7 @@ Phí cần nguồn dữ liệu xác thực trước khi hiển thị. Kế toán
 - [x] Dùng Compose cô lập, bind loopback và kiểm tra gateway chặn endpoint nội bộ. Chạy hành trình hai tổ chức với MOCK, SMTP sink và dữ liệu mẫu.
 - [x] Ghi số liệu vận hành theo service sở hữu. Thử tạo lỗi email có kiểm soát, retry qua API và xác nhận tín hiệu lỗi trở về mức ban đầu.
 - [x] Khôi phục sáu cơ sở dữ liệu trên bản sao. Ghi checkpoint và thời gian phục hồi, kiểm tra giao dịch/đơn/vé/admission và phát lại kết quả hoàn, đối soát. CI chỉ đăng các báo cáo đã định danh từ thư mục E2E.
-- [ ] Chạy bài tranh vé, quota và hold hết hạn. Ghi đồng thời, số đơn, tồn kho và độ trễ. Chạy kiểm tra toàn repo, Chromium và gateway.
+- [x] Chạy bài tranh vé, quota và hold hết hạn. Ghi đồng thời, số đơn, tồn kho và độ trễ. Chạy kiểm tra toàn repo, Chromium và gateway.
 
 **Mốc triển khai sau A6.** Staging HTTPS, bí mật triển khai, SMTP thật, merchant VNPAY, sao lưu ngoài host, ngưỡng vận hành pilot và nghiệm thu thiết bị thuộc đợt triển khai sau. Quyết định mở bán thật tiếp tục theo A0.
 
@@ -237,6 +237,7 @@ Phí cần nguồn dữ liệu xác thực trước khi hiển thị. Kế toán
 - [x] Hai lần chạy Compose cô lập qua 20 kiểm tra gateway. Lần có build xác nhận tám người mua đồng thời tạo đúng ba đơn, năm lượt hết vé, không có phản hồi ngoài dự kiến. Thời gian giữ vé hoặc tạo đơn theo từng người mua từ 43 đến 74 ms. Quota được thực thi, hold hết hạn trả lại tồn kho. Bộ đếm email lỗi đi từ 0 lên 1 rồi về 0 sau retry. [Báo cáo gateway](../../../.artifacts/verification/a6/split-journey.json)
 - [x] Khôi phục sáu cơ sở dữ liệu sau 47,79 giây tính từ checkpoint quiesced. Đơn, vé, admission và đối soát nhất quán. Phát lại kết quả hoàn giữ một bản ghi và email lịch sử không được gửi lại. [Báo cáo phục hồi](../../../.artifacts/verification/a6/split-restore.json)
 - [x] Chromium qua 20 ca checkout và khôi phục tài khoản cùng 12 ca hỗ trợ/hoàn tiền. OpenSpec strict qua sáu change. [Checkout](../../../.artifacts/verification/a6/checkout/results.json) · [Hỗ trợ](../../../.artifacts/verification/a6/support/results.json)
+- [x] Hoàn tất 16 bước kiểm tra repo cục bộ, gồm 218 test Java, 12 test script CI và build độc lập sáu service. Chạy lại các bước build riêng sau lỗi DNS Docker Hub và tải dependency từ Maven Central. [Báo cáo kiểm tra](../../../.artifacts/verification/a6/ci/component-verification.json)
 
 ## Kiểm tra trước khi đóng mỗi change
 

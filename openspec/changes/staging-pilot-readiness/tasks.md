@@ -12,4 +12,4 @@
 ## 3. Load and acceptance
 
 - [x] 3.1 Exercise checkout at bounded concurrency, the last available tickets, per-account quota and hold expiry. Record request counts, observed latency and stock results.
-- [ ] 3.2 Run OpenSpec strict validation, shared repo checks, Chromium buyer and support suites and the local gateway/restore rehearsal. Record the results and later rollout scope in the roadmap.
+- [x] 3.2 Run OpenSpec strict validation, shared repo checks, Chromium buyer and support suites and the local gateway/restore rehearsal. Record the results and later rollout scope in the roadmap.
