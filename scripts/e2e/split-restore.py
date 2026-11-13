@@ -17,8 +17,9 @@ SERVICES=["identity","catalog","ticketing","checkin","payment","notification"]
 WRITERS=["gateway",*SERVICES]
 DATABASES={s:"ticketbox_"+s for s in SERVICES}
 DATABASES.update(payment="ticketbox_payments",notification="ticketbox_notifications")
-DIRECTORY=ROOT/".artifacts/e2e/split-backups"
-DIRECTORY.mkdir(parents=True,exist_ok=True)
+REPORT_DIRECTORY = ROOT / os.environ.get("E2E_REPORT_DIRECTORY", ".artifacts/e2e")
+DIRECTORY = REPORT_DIRECTORY / "split-backups"
+DIRECTORY.mkdir(parents=True, exist_ok=True, mode=0o700)
 proof={"passed":False,"databases":[]}
 suffix=uuid.uuid4().hex[:8]
 
@@ -62,6 +63,9 @@ try:
         if time.monotonic()>deadline:raise AssertionError("Email deliveries did not quiesce")
         time.sleep(1)
     compose("stop",*WRITERS)
+    proof["checkpointUtc"] = dt.datetime.now(dt.timezone.utc).isoformat()
+    proof["writersQuiesced"] = True
+    recovery_started = time.monotonic()
     mail_before=mail_stats()["accepted"]
     restored={}
     for service in SERVICES:
@@ -99,7 +103,7 @@ try:
     wait_http("/api/admin/orders",token)
     wait_http("/api/concerts")
     wait_http("/api/admin/notifications",token)
-    journey = json.loads((ROOT/".artifacts/e2e/split-journey.json").read_text())
+    journey = json.loads((REPORT_DIRECTORY / "split-journey.json").read_text())
     e2e = journey["reconciliation"]
     order_id = str(uuid.UUID(e2e["orderId"]))
     report_path = f"/api/admin/reconciliation?{e2e['period']}&organizationId={e2e['organizationId']}"
@@ -107,6 +111,14 @@ try:
     assert len(report_before["content"]) == 1
     assert report_before["content"][0]["transactionId"] == e2e["transactionId"]
     assert report_before["totals"]["verifiedCollections"] == e2e["collectedAmount"]
+    order_status = "REFUNDED" if journey.get("refundCaseId") else "PAID"
+    ticket_status = "CANCELLED" if journey.get("refundCaseId") else "VALID"
+    concert_id = str(uuid.UUID(journey["concertId"]))
+    assert sql("ticketing", restored["ticketing"], f"SELECT replay_order('{order_id}')->>'status'") == order_status
+    assert sql("checkin", restored["checkin"], f"SELECT count(*) FROM tickets WHERE concert_id='{concert_id}' AND status='{ticket_status}'") == "2"
+    admission_query = "SELECT count(*) FROM checkin_logs"
+    assert sql("checkin", restored["checkin"], admission_query) == sql("checkin", DATABASES["checkin"], admission_query)
+    proof["orderTicketAdmissionConsistent"] = True
     sql("payment", restored["payment"], f"""UPDATE payment_reconciliation_outbox SET delivered_revision=0, next_attempt_at=now()
         WHERE intent_id=(SELECT intent_id FROM payment_attempts WHERE order_id='{order_id}')""")
     deadline = time.monotonic() + 60
@@ -132,6 +144,7 @@ try:
     assert mail_stats()["accepted"]==mail_before,"Restore resent historical mail"
     proof["noHistoricalResend"]=True
     proof["applicationRestored"]=True
+    proof["recoverySeconds"] = round(time.monotonic() - recovery_started, 2)
     proof["passed"]=True
 finally:
     # Return the isolated deployment to its original databases after checking the copies.
@@ -140,5 +153,5 @@ finally:
     else:
         compose("stop",*WRITERS)
     proof["seconds"]=round(time.monotonic()-start,2)
-    (ROOT/".artifacts/e2e/split-restore.json").write_text(json.dumps(proof,indent=2))
+    (REPORT_DIRECTORY / "split-restore.json").write_text(json.dumps(proof, indent=2))
     print(json.dumps(proof,indent=2))

@@ -1,11 +1,14 @@
 """Acceptance checks for the six-service deployment, using isolated Compose data."""
+import argparse
 import csv
+from concurrent.futures import ThreadPoolExecutor
 import datetime as dt
 import json
 import os
 from pathlib import Path
 import re
 import subprocess
+from threading import Barrier
 import time
 import urllib.error
 import urllib.parse
@@ -21,6 +24,8 @@ BASE = "http://localhost:" + PORT
 CHECKIN_PORT = os.environ.get("CHECKIN_PORT", str(int(PORT) + 1))
 CHECKIN_BASE = "http://localhost:" + CHECKIN_PORT
 PROOF = {"passed": False, "checks": []}
+LOCAL_ACCEPTANCE = os.environ.get("TICKETBOX_LOCAL_ACCEPTANCE") == "1"
+REPORT_DIRECTORY = ROOT / os.environ.get("E2E_REPORT_DIRECTORY", ".artifacts/e2e")
 
 
 def compose(*args):
@@ -151,6 +156,92 @@ def press_kit():
 def check(name):
     PROOF["checks"].append(name)
     print(name, flush=True)
+
+
+def operations_snapshot():
+    return {
+        "ticketing": {
+            "paidOrdersWithMissingTickets": int(sql("ticketing", """
+                SELECT count(*) FROM orders o WHERE o.status='PAID'
+                AND (SELECT count(*) FROM tickets t JOIN order_items i ON i.id=t.order_item_id WHERE i.order_id=o.id)
+                < (SELECT sum(quantity) FROM order_items i WHERE i.order_id=o.id)
+                """)),
+            "pendingTicketProjections": int(sql("ticketing", "SELECT count(*) FROM checkin_ticket_outbox WHERE version>delivered_version")),
+        },
+        "payment": {
+            "pendingSettlementResults": int(sql("payment", "SELECT count(*) FROM payment_result_outbox WHERE completed_at IS NULL")),
+            "pendingReconciliation": int(sql("payment", "SELECT count(*) FROM payment_reconciliation_outbox WHERE revision>delivered_revision")),
+            "openPaymentReviews": int(sql("payment", "SELECT count(*) FROM payment_attempts WHERE state IN ('UNKNOWN','REVIEW_REQUIRED')")),
+            "openRefundCases": int(sql("payment", "SELECT count(*) FROM refund_reviews WHERE state IN ('REVIEW_REQUIRED','REQUESTED','HOLD_PENDING','APPROVED')")),
+        },
+        "notification": {
+            "pendingEmail": int(sql("notification", "SELECT count(*) FROM notifications WHERE channel='EMAIL' AND status='PENDING'")),
+            "failedEmail": int(sql("notification", "SELECT count(*) FROM notifications WHERE channel='EMAIL' AND status='FAILED'")),
+        },
+        "checkin": {
+            "pendingAdmissionFeedback": int(sql("checkin", "SELECT count(*) FROM admission_outbox WHERE NOT delivered")),
+        },
+    }
+
+
+def verify_local_load(run_id, manager, scope, event):
+    management = "/api/organizer/manage/concerts"
+    concert = request("POST", management, manager, {**event, "title": f"Local capacity {run_id}"},
+                      expected=(201,), headers=scope)["id"]
+    shoppers, capacity = 8, 3
+    tiers = [request("POST", f"{management}/{concert}/ticket-types", manager, {
+        "name": name, "price": 100000, "totalQuantity": stock, "maxPerAccount": 1, "zoneColor": "#123456",
+    }, expected=(201,), headers=scope)["id"] for name, stock in (("Race", capacity), ("Expiry", 2))]
+    request("POST", f"{management}/{concert}/publication", manager, headers=scope)
+    until(lambda: request("GET", f"/api/concerts/{concert}")["id"] == concert)
+
+    def client(index):
+        credentials = {"email": f"load-{index}-{run_id}@example.test", "password": "fixture-load-pass"}
+        account = request("POST", "/api/auth/register", body={**credentials, "fullName": "Local Load"}, expected=(201,))
+        buyer = request("POST", "/api/auth/login", body=credentials)["accessToken"]
+        queue = f"/api/queue/concerts/{concert}"
+        request("POST", queue + "/join", buyer)
+        access = until(lambda: request("GET", queue + "/status", buyer).get("queueAccessToken"))
+        return account["id"], buyer, {"Queue-Access-Token": access, "Idempotency-Key": str(uuid.uuid4())}
+
+    def reserve(tier, shopper):
+        _, buyer, headers = shopper
+        return request("POST", f"/api/reservations/concerts/{concert}/ticket-types/{tier}/reserve",
+                       buyer, {"quantity": 1}, expected=(200, 409), headers=headers)
+
+    def stock(tier):
+        return int(sql("ticketing", f"SELECT available_qty FROM ticket_inventory WHERE ticket_type_id='{tier}'"))
+
+    clients = [client(index) for index in range(shoppers)]
+    expiry = tiers[1]
+    assert reserve(expiry, clients[0]) is not None and stock(expiry) == 1
+    assert reserve(expiry, clients[0]) is None and stock(expiry) == 1
+    sql("ticketing", f"UPDATE ticket_holds SET expires_at=clock_timestamp()-interval '1 second' WHERE ticket_type_id='{expiry}'")
+    until(lambda: stock(expiry) == 2)
+
+    start = Barrier(shoppers, timeout=20)
+    race = tiers[0]
+
+    def purchase(shopper):
+        start.wait()
+        began = time.monotonic()
+        reserved = reserve(race, shopper) is not None
+        if reserved:
+            _, buyer, headers = shopper
+            request("POST", "/api/orders", buyer, {"concertId": concert, "items": [{"ticketTypeId": race, "quantity": 1}]},
+                    expected=(201,), headers=headers)
+        return reserved, round((time.monotonic() - began) * 1000)
+
+    with ThreadPoolExecutor(max_workers=shoppers) as pool:
+        outcomes = list(pool.map(purchase, clients))
+    accepted = sum(reserved for reserved, _ in outcomes)
+    latency = sorted(elapsed for _, elapsed in outcomes)
+    assert accepted == capacity and stock(race) == 0 and latency[-1] < 20000
+    assert int(sql("ticketing", f"SELECT count(*) FROM orders WHERE concert_id='{concert}'")) == capacity
+    PROOF["localLoad"] = {"shoppers": shoppers, "capacity": capacity, "orders": accepted, "reserveConflicts": shoppers - accepted,
+                          "unexpectedResponses": 0, "durationMsByShopper": latency, "availableAfterRace": stock(race),
+                          "quotaRejected": True, "expiryRestoredStock": True}
+    check("Bounded checkout load preserves the last tickets, per-account quota and expiring holds")
 
 
 def verify_password_recovery(run_id):
@@ -346,6 +437,12 @@ def main(*, source_outage=True):
     until(lambda: request("GET", "/api/concerts"))
     request("POST", "/api/admin/concerts", audience, {}, expected=(403,))
     request("GET", "/internal/split/stock", expected=(404,))
+    if LOCAL_ACCEPTANCE:
+        assert compose("port", "gateway", "80").strip() == f"127.0.0.1:{PORT}"
+        assert compose("port", "checkin", "8080").strip() == f"127.0.0.1:{CHECKIN_PORT}"
+        request("GET", "/actuator/prometheus", expected=(404,))
+        assert request("GET", "/api/payments/providers", audience) == ["MOCK"]
+        check("Local gateway and Check-in bind to loopback; gateway blocks management routes and exposes MOCK payment only")
     check("Identity JWT and RBAC work across service boundaries")
     verify_localized_responses()
     check("Gateway preserves API language negotiation and provider callback acknowledgements")
@@ -496,7 +593,8 @@ def main(*, source_outage=True):
     report = "/api/organizer/reconciliation"
     def collected():
         data = request("GET", f"{report}?{period}", organizer, headers=first_scope)
-        return data if data["totals"]["verifiedCollections"] == 200000 else None
+        rows = data["content"]
+        return data if len(rows) == 1 and rows[0]["paymentState"] == "SUCCEEDED" and data["totals"]["verifiedCollections"] == 200000 else None
     summary = until(collected)
     row, = summary["content"]
     assert row["orderId"] == order_id and row["organizationId"] == first_org and row["transactionId"]
@@ -534,7 +632,12 @@ def main(*, source_outage=True):
     for kind in ("UNKNOWN_PAYMENT", "MISSING_TICKETS", "PENDING_REFUND", "FAILED_EMAIL"):
         request("GET", queue + "?kind=" + kind, admin)
     email_id = str(uuid.UUID(email_status["id"]))
+    if LOCAL_ACCEPTANCE:
+        baseline = operations_snapshot()
     sql("notification", f"UPDATE notifications SET status='FAILED' WHERE id='{email_id}'")
+    if LOCAL_ACCEPTANCE:
+        active = operations_snapshot()
+        assert active["notification"]["failedEmail"] == baseline["notification"]["failedEmail"] + 1
     failed_emails = request("GET", queue + "?kind=FAILED_EMAIL", admin)["content"]
     assert any(item["sourceId"] == email_id and item["orderId"] == order_id and item["retryable"] for item in failed_emails)
     retry_key = str(uuid.uuid4())
@@ -542,6 +645,12 @@ def main(*, source_outage=True):
         request("POST", f"/api/admin/notifications/{email_id}/retry", admin, headers={"Idempotency-Key": retry_key})
     assert sql("notification", f"SELECT count(*) FROM notification_audit WHERE notification_id='{email_id}' AND id='{retry_key}'") == "1"
     assert until(lambda: sql("notification", f"SELECT status FROM notifications WHERE id='{email_id}'") == "SENT")
+    if LOCAL_ACCEPTANCE:
+        recovered = operations_snapshot()
+        assert recovered["notification"]["failedEmail"] == baseline["notification"]["failedEmail"]
+        PROOF["operations"] = {"condition": "failedEmail", "owner": "notification", "baseline": baseline, "active": active,
+                               "recovered": recovered}
+        check("Operations counts identify the failed email and clear after its authorized retry")
     check("Scoped support sections and the exception queue use owner data and replay email retry once")
     request("PUT", f"/api/organizations/{second_org}/members/{organizer_id}", audience, {"grants": []})
     request("GET", orders, organizer, expected=(403,), headers=second_scope)
@@ -605,14 +714,21 @@ def main(*, source_outage=True):
         verify_event_disruption(run_id, admin, audience, second_scope, second_concert)
     if source_outage and os.environ.get("PASSWORD_RESET_KEY"):
         verify_password_recovery(run_id)
+    if LOCAL_ACCEPTANCE:
+        verify_local_load(run_id, organizer, first_scope, event)
     PROOF.update(passed=True, concertId=concert_id, orderId=order_id)
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    finally:
-        target = ROOT / ".artifacts/e2e/split-journey.json"
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(json.dumps(PROOF, indent=2))
-        print(json.dumps(PROOF, indent=2))
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--operations", action="store_true", help="Print owner-side counts from the isolated project")
+    if parser.parse_args().operations:
+        print(json.dumps(operations_snapshot(), indent=2))
+    else:
+        try:
+            main()
+        finally:
+            target = REPORT_DIRECTORY / "split-journey.json"
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(json.dumps(PROOF, indent=2))
+            print(json.dumps(PROOF, indent=2))

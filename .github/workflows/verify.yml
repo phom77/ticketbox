@@ -61,12 +61,12 @@ jobs:
           include-hidden-files: true
           path: |
             .artifacts/verification/
-            .artifacts/e2e/
+            .artifacts/e2e/checkout/results.json
+            .artifacts/e2e/split-journey.json
+            .artifacts/e2e/split-restore.json
             services/identity/target/surefire-reports/
             services/catalog/target/surefire-reports/
             services/checkin/target/surefire-reports/
             services/ticketing/target/surefire-reports/
             services/payment/target/surefire-reports/
             services/notification/target/surefire-reports/
-            !.artifacts/e2e/backups/**
-            !.artifacts/e2e/restore-overlay.yml

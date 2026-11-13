@@ -40,8 +40,8 @@ Nguồn đối chiếu thị trường: [Tickmi](https://tickmi.com/ban-ve-onlin
 | --- | --- | --- |
 | 0 | A0 · Chốt phạm vi pilot và làm việc với VNPAY | Có quyết định kinh doanh, bộ tình huống nghiệm thu và danh sách điều kiện mở bán thật. |
 | 1 | A1 · Tổ chức và quyền truy cập | Hai tổ chức mới dùng chung hệ thống, kiểm thử truy cập chéo và thu hồi quyền pass. |
-| 2 | A2 · Mở bán tự phục vụ, A3 · Thanh toán, A4 · Hỗ trợ và hoàn tiền, A5 · Trải nghiệm khách và soát vé | Ban tổ chức và người mua hoàn thành một vòng bán vé trên staging. Kế toán đối chiếu được từng giao dịch. |
-| 3 | A6 · Vận hành và nghiệm thu pilot | Đạt điều kiện merchant, bảo mật, giao dịch, soát vé, phục hồi và tải đã thống nhất. |
+| 2 | A2 · Mở bán tự phục vụ, A3 · Thanh toán, A4 · Hỗ trợ và hoàn tiền, A5 · Trải nghiệm khách và soát vé | Hai tổ chức giả lập hoàn thành vòng bán vé cục bộ và đối chiếu được từng giao dịch MOCK. |
+| 3 | A6 · Diễn tập vận hành cục bộ | Xác minh gateway, email sink, tín hiệu vận hành, khôi phục và tranh vé trên Docker Compose cô lập. |
 | Sau pilot | A7 · Đơn giản hóa cách lưu Order, A8 · Đánh giá phần mở rộng | Mỗi thay đổi có phạm vi, lợi ích và kiểm thử riêng. |
 
 A0, kiểm tra cấu hình vận hành và các chỉnh sửa UI nhỏ có thể bắt đầu sớm. A2 và phần dữ liệu tài chính theo tổ chức của A3 dựa vào A1. A4 dùng kết quả xác minh của A3. A5 phối hợp với A1 cho scanner và với A3–A4 cho trạng thái đơn, hỗ trợ và hoàn tiền.
@@ -139,20 +139,18 @@ Phí cần nguồn dữ liệu xác thực trước khi hiển thị. Kế toán
 
 **Nghiệm thu.** Khách tìm lại được vé sau khi đóng trang hoặc mất phản hồi. Nhân viên biết khi nào được cho khách vào và nhìn rõ lượt đang chờ. Chạy frontend lint/build, scanner typecheck, checkout recovery trong Chromium và E2E soát vé. Lưu bằng chứng diễn tập thiết bị thật riêng.
 
-## A6. Triển khai và điều kiện mở pilot
+## A6. Diễn tập vận hành cục bộ
 
-**OpenSpec đề xuất.** [`staging-pilot-readiness`](../../../openspec/changes/staging-pilot-readiness/proposal.md). Các quyết định hạ tầng cần review theo quy trình repo.
+**OpenSpec.** [`staging-pilot-readiness`](../../../openspec/changes/staging-pilot-readiness/proposal.md). Chủ dự án chốt thực hiện A6 hoàn toàn cục bộ.
 
 **Điểm chạm.** [Compose](../../../compose.yaml), [gateway](../../../infra/nginx/gateway.conf), [monitoring](../../../infra/monitoring/prometheus.yml), [workflow CI](../../../.github/workflows/verify.yml), [restore rehearsal](../../../scripts/e2e/split-restore.py) và [hướng dẫn verification](../../development.md#verification).
 
-- [ ] Tách local, staging và production. Triển khai HTTPS, quản lý bí mật và quy trình thay khóa, phân quyền hệ thống, cô lập endpoint nội bộ, tránh dữ liệu demo trong production bằng thiết kế khởi tạo/migration tương thích.
-- [ ] Cấu hình email vé gửi thật, kiểm tra gửi lại có kiểm soát và theo dõi mail lỗi. Chuẩn bị rollback hoặc phục hồi phù hợp với từng release, gồm phiên bản dữ liệu và hợp đồng.
-- [ ] Mở rộng giám sát ngoài Ticketing. Cảnh báo khi tiền đã xác minh nhưng vé chưa phát, outbox/email tồn đọng, có ca đối soát chưa xử lý hoặc check-in lỗi. Giao người nhận và viết hướng dẫn xử lý theo loại sự cố.
-- [ ] Thiết lập backup ngoài host và diễn tập phục hồi trên bản sao. Đo thời gian phục hồi và phạm vi mất dữ liệu, đối chiếu giao dịch/đơn/vé/check-in, kiểm tra tác vụ cũ không bị gửi lại sau restore.
-- [ ] Chạy tải theo kịch bản mở bán của pilot. Ghi ngưỡng đã thử, lỗi, độ trễ và kết quả kiểm tra bất biến tồn kho. Chạy kiểm tra toàn bộ repo và E2E phân tán trước mở pilot.
-- [ ] Dùng hai tổ chức độc lập nghiệm thu trên staging và mở pilot trong phạm vi đã chốt. Lưu bằng chứng truy cập chéo bị chặn, merchant được chấp thuận, thanh toán và hoàn tiền đã thử, số liệu đối chiếu, soát vé tại cổng, backup/restore và người trực hỗ trợ.
+- [x] Dùng Compose cô lập, bind loopback và kiểm tra gateway chặn endpoint nội bộ. Chạy hành trình hai tổ chức với MOCK, SMTP sink và dữ liệu mẫu.
+- [x] Ghi số liệu vận hành theo service sở hữu. Thử tạo lỗi email có kiểm soát, retry qua API và xác nhận tín hiệu lỗi trở về mức ban đầu.
+- [x] Khôi phục sáu cơ sở dữ liệu trên bản sao. Ghi checkpoint và thời gian phục hồi, kiểm tra giao dịch/đơn/vé/admission và phát lại kết quả hoàn, đối soát. CI chỉ đăng các báo cáo đã định danh từ thư mục E2E.
+- [ ] Chạy bài tranh vé, quota và hold hết hạn. Ghi đồng thời, số đơn, tồn kho và độ trễ. Chạy kiểm tra toàn repo, Chromium và gateway.
 
-**Điều kiện bán thật.** Các hạng mục A1–A6 thuộc phạm vi pilot đạt nghiệm thu, có xác nhận merchant và có quy trình xử lý hoàn tiền, chi trả, sự cố. Công bố quy mô theo kết quả đã đo.
+**Mốc triển khai sau A6.** Staging HTTPS, bí mật triển khai, SMTP thật, merchant VNPAY, sao lưu ngoài host, ngưỡng vận hành pilot và nghiệm thu thiết bị thuộc đợt triển khai sau. Quyết định mở bán thật tiếp tục theo A0.
 
 ## A7. Chuyển Order sang lưu trạng thái và audit
 
@@ -174,7 +172,7 @@ Phí cần nguồn dữ liệu xác thực trước khi hiển thị. Kế toán
 - [ ] Cân nhắc tự động hóa đối soát, hoàn tiền qua API hoặc chi trả nếu quy trình thủ công trở thành điểm nghẽn và hợp đồng cho phép. Tách từng quyết định thành change riêng.
 - [ ] Ưu tiên theo dữ liệu sử dụng đối với hỗ trợ nhiều cổng, khuyến mãi, công cụ marketing, chuyển nhượng vé và sơ đồ ghế chi tiết. Đánh giá chi phí vận hành sáu service trước khi đề xuất thay đổi kiến trúc hoặc mở rộng quy mô.
 
-## Tiến độ đến mốc nghiệm thu staging
+## Tiến độ đến mốc nghiệm thu cục bộ
 
 ### Review A1 và rà soát song song · 11/11/2026
 
@@ -232,7 +230,13 @@ Phí cần nguồn dữ liệu xác thực trước khi hiển thị. Kế toán
 ### Review A6 · 12/11/2026
 
 - [x] Soạn 4 artifact và chạy OpenSpec strict cho [A6](../../../openspec/changes/staging-pilot-readiness/proposal.md). Đề xuất staging độc lập, khởi tạo pilot, cảnh báo, phục hồi và checklist nghiệm thu.
-- [ ] Duyệt [design A6](../../../openspec/changes/staging-pilot-readiness/design.md). Chốt đầu mối staging, merchant và SMTP, backup/cảnh báo, hai tổ chức và ngưỡng tải/RTO/RPO.
+- [x] Chốt A6 hoàn toàn cục bộ. [Design cập nhật](../../../openspec/changes/staging-pilot-readiness/design.md) dùng Compose cô lập, MOCK, SMTP sink và fixture hai tổ chức. Các mục staging ở A1–A5 là đầu việc của đợt triển khai sau.
+
+### Diễn tập A6 · 13/11/2026
+
+- [x] Hai lần chạy Compose cô lập qua 20 kiểm tra gateway. Lần có build xác nhận tám người mua đồng thời tạo đúng ba đơn, năm lượt hết vé, không có phản hồi ngoài dự kiến. Thời gian giữ vé hoặc tạo đơn theo từng người mua từ 43 đến 74 ms. Quota được thực thi, hold hết hạn trả lại tồn kho. Bộ đếm email lỗi đi từ 0 lên 1 rồi về 0 sau retry. [Báo cáo gateway](../../../.artifacts/verification/a6/split-journey.json)
+- [x] Khôi phục sáu cơ sở dữ liệu sau 47,79 giây tính từ checkpoint quiesced. Đơn, vé, admission và đối soát nhất quán. Phát lại kết quả hoàn giữ một bản ghi và email lịch sử không được gửi lại. [Báo cáo phục hồi](../../../.artifacts/verification/a6/split-restore.json)
+- [x] Chromium qua 20 ca checkout và khôi phục tài khoản cùng 12 ca hỗ trợ/hoàn tiền. OpenSpec strict qua sáu change. [Checkout](../../../.artifacts/verification/a6/checkout/results.json) · [Hỗ trợ](../../../.artifacts/verification/a6/support/results.json)
 
 ## Kiểm tra trước khi đóng mỗi change
 

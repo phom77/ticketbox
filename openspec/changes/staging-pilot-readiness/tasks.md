@@ -1,16 +1,15 @@
 # Tasks
 
-## 1. Deployment isolation and initialization
+## 1. Local isolation
 
-- [ ] 1.1 Add staging Compose configuration and a preflight. Verify rejection of incomplete or development settings, allowed public routes and absent external service ports. Verify default, lab and staging Compose configurations with isolated fixtures. Document ingress, secret-store injection, provider and relay setup.
-- [ ] 1.2 Add the one-time fresh pilot initialization and administrator procedure. Test Flyway validation on existing data, the known demo fixture graph on fresh volumes, initialization replay with real-data fixtures, and rejection of unrecognized databases. Verify smoke tests and the affected independent service builds.
+- [x] 1.1 Extend the E2E runner with loopback-bound local acceptance, explicit MOCK and SMTP fixtures, and gateway boundary checks. Verify default and lab Compose configurations and run the two-organization journey.
 
-## 2. Monitoring and recovery
+## 2. Operations and recovery
 
-- [ ] 2.1 Extend the owner metrics and internal scrape configuration. Rehearse each alert with synthetic failures, verify that the alert reaches its assigned owner, and record the recovery steps and effective thresholds.
-- [ ] 2.2 Document encrypted off-host storage and extend the existing restore rehearsal with recorded recovery times and explicit payment, refund, ticket, admission and delivery invariants. Restrict CI artifact uploads to safe reports and test exclusion of dumps and deployment overrides.
+- [x] 2.1 Add a local operations check with owner-side counts. Rehearse an actionable condition and verify its resolution. Document the signals and how to repeat the check.
+- [x] 2.2 Record the quiesced checkpoint and elapsed restore time, and verify order, payment, ticket, admission, notification and replay evidence. Restrict CI artifact uploads to named safe reports and verify the paths.
 
-## 3. Load and staging acceptance
+## 3. Load and acceptance
 
-- [ ] 3.1 Run strict OpenSpec validation, the shared `scripts/ci/verify.ps1`, Chromium buyer and support suites, `scripts/e2e/run.ps1 -Build -Restore` and an isolated load rehearsal with contention and expired holds. Record traffic, latency, errors and stock and quota results against approved limits.
-- [ ] 3.2 With the staging owner, record HTTPS, storage, IAM and network boundaries, real email, support destinations and a two-organization journey. Execute and reconcile the approved VNPAY sandbox cases, including late money and console refund. Rehearse external backup restore, record RTO/RPO and attach sign-off and deferred scanner scope to the roadmap.
+- [x] 3.1 Exercise checkout at bounded concurrency, the last available tickets, per-account quota and hold expiry. Record request counts, observed latency and stock results.
+- [ ] 3.2 Run OpenSpec strict validation, shared repo checks, Chromium buyer and support suites and the local gateway/restore rehearsal. Record the results and later rollout scope in the roadmap.

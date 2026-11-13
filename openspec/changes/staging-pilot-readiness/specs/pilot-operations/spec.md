@@ -2,57 +2,42 @@
 
 ## Purpose
 
-Defines the observable isolation, recovery and evidence needed to operate the TicketBox pilot safely.
+Defines the evidence needed to rehearse TicketBox operations on an isolated local host.
 
 ## ADDED Requirements
 
-### Requirement: Isolated pilot deployment
+### Requirement: Isolated local rehearsal
 
-The staging deployment SHALL use an HTTPS gateway, environment-specific storage and secrets, VNPAY sandbox configuration, and an approved email relay. A fresh pilot database SHALL be verified free of usable demo identities and demo sales before opening public traffic.
+TicketBox SHALL support a named local rehearsal using fixture volumes, loopback ports, MOCK payment and the local SMTP sink.
 
-#### Scenario: Incomplete staging settings
-- **WHEN** the deployment preflight finds missing or development settings for required staging dependencies
-- **THEN** it identifies the setting without disclosing the value and prevents staging exposure
+#### Scenario: The local rehearsal is started
+- **WHEN** the operator starts the local acceptance run
+- **THEN** the gateway uses loopback and its internal service and management routes return 404
+- **AND** the enabled payment provider is MOCK and mail uses the local sink
 
-#### Scenario: Fresh pilot database
-- **WHEN** the operator provisions a fresh pilot database and validates initialization
-- **THEN** only the operator-created administrator and approved pilot fixtures can sign in or appear in public sales data
-- **AND** repeating initialization preserves actual pilot data
+### Requirement: Local operational signals
 
-#### Scenario: External caller attempts internal access
-- **WHEN** a caller reaches the staging ingress without an internal network route
-- **THEN** the caller can access only the intended public and authorized management endpoints and cannot reach database, broker, metrics or split-service endpoints
+The rehearsal SHALL report aggregate counts from the owner for unissued paid tickets, pending delivery, unresolved reconciliation or refund cases, failed email and pending admission projections.
 
-### Requirement: Actionable operational signals
+#### Scenario: A controlled condition is raised and cleared
+- **WHEN** a local fixture introduces an actionable failure and the operator resolves it
+- **THEN** the check reports the owner and the observed status before and after recovery
+- **AND** the evidence excludes credentials and customer or ticket payloads
 
-The deployment SHALL report the age or count of verified money without issuance, pending outboxes, unresolved reconciliation and refund cases, failed email and lagging admission projections. Alerts SHALL name the condition and reach an assigned operator with a documented response.
+### Requirement: Measured local recovery
 
-#### Scenario: Delivery dependency is unavailable
-- **WHEN** a controlled outage raises an approved threshold
-- **THEN** the alert identifies the owning service and remains actionable until recovery is observed
-- **AND** the alert excludes credentials, personal data and ticket payloads
-
-### Requirement: Measured recovery
-
-TicketBox SHALL support encrypted backups stored outside the deployment host and an isolated restore of all owning databases. The restore record SHALL include observed RTO and RPO, checks for payment and ticket consistency, and replay evidence for existing email, refund and admission effects.
+The rehearsal SHALL record the quiesced recovery point, elapsed recovery time, and consistency evidence across the six owning databases.
 
 #### Scenario: Restored outboxes are replayed
-- **WHEN** the operator restores a recorded recovery point and retries already applied deliveries
-- **THEN** the verified collection, refund, order, ticket and admission state match the recovery point
-- **AND** replay does not issue duplicate tickets, apply a second refund or resend acknowledged email
+- **WHEN** the operator boots services on the copied databases and retries already applied deliveries
+- **THEN** payment, refund, ticket and admission state match the checkpoint
+- **AND** replay does not apply a second refund or resend acknowledged email
 
-### Requirement: Staging acceptance evidence
+### Requirement: Local acceptance evidence
 
-The release owner SHALL record the release candidate, approved thresholds and actual results for purchase load, a two-organization journey, VNPAY sandbox settlement and refund, reconciliation, SMTP delivery and recovery. Scanner work SHALL retain the approved deferred scope.
+The roadmap SHALL record the release candidate, bounds and results of the two-organization journey, browser checks, local payment and email, recovery and purchase contention.
 
-#### Scenario: Merchant evidence is absent
-- **WHEN** local fixtures pass and the approved merchant sandbox is unavailable
-- **THEN** the acceptance record identifies payment and refund as pending staging evidence
-
-#### Scenario: Two organizations share the deployment
-- **WHEN** both organizations sell tickets in the staging rehearsal
-- **THEN** users see only resources in their authorized scope, revoked access fails with the same token, and each verified transaction and refund reconciles to the correct organization
-
-#### Scenario: Purchase demand competes for the last tickets
-- **WHEN** the rehearsal submits purchases at the approved pilot load
-- **THEN** it records observed latency and error rate and verifies that accepted orders preserve stock and quota invariants
+#### Scenario: Shoppers compete for the last tickets
+- **WHEN** concurrent shoppers reserve the final tickets and a hold later expires
+- **THEN** only available stock is allocated, per-account quota is enforced, and expiry releases the hold
+- **AND** the report records concurrency, latency and unexpected responses

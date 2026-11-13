@@ -110,6 +110,22 @@ PASSWORD_RESET_KEY=ticketbox-e2e-only-password-reset-key-at-least-32 pwsh -File 
 
 The gateway rehearsal uses MOCK payment and simulated manual refund evidence. A staging operator verifies the actual refund on the VNPAY merchant console before recording its reference, amount and completion time in TicketBox.
 
+Run the A6 local acceptance rehearsal from the repository root.
+
+```sh
+pwsh -File scripts/e2e/run.ps1 -LocalAcceptance -Build
+```
+
+The command uses project `ticketbox-e2e-acceptance`, loopback ports 18096 and 18097, fixture secrets, MOCK payment and the SMTP sink. It exercises two fixture organizations and restores copied databases. Results are in `.artifacts/e2e/local-acceptance/`. The report records a quiesced checkpoint and elapsed recovery time. The local load fixture measures eight shoppers competing for three tickets, one quota rejection and an accelerated hold expiry. These measurements apply to the local fixture and host.
+
+The journey reports aggregate operations counts by owner. For a failed email, use the platform exception queue, inspect the delivery status, retry the same command once and confirm the record becomes sent. For pending settlement or reconciliation, inspect the Payment review and result backlog. For missing issuance or delayed admission projection, inspect the corresponding Ticketing and Check-in outbox and confirm it drains after recovery. The A6 report records an injected email failure and the count after retry. CI publishes the named JSON summaries. Dumps, generated overlays and raw E2E logs stay local.
+
+While the acceptance stack is running, repeat the aggregate check from a second terminal.
+
+```sh
+E2E_PROJECT=ticketbox-e2e-acceptance E2E_PORT=18096 python3 scripts/e2e/split.py --operations
+```
+
 While the isolated stack is running, use Chromium to exercise organizer approval, invitations, organization selection and mobile buyer checkout through MOCK payment and QR recovery.
 
 ```sh
