@@ -1,3 +1,5 @@
+import { translate } from '../../i18n';
+import { useTranslation } from 'react-i18next';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { CheckCircle2, CircleAlert, X } from 'lucide-react';
 import { ToastContext } from './toast-context';
@@ -11,6 +13,7 @@ type Toast = {
 };
 
 export function ToastProvider({ children }: { children: ReactNode }) {
+  useTranslation();
   const [toasts, setToasts] = useState<Toast[]>([]);
   const nextId = useRef(0);
 
@@ -44,6 +47,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 }
 
 function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: number) => void }) {
+  useTranslation();
   useEffect(() => {
     const timeout = window.setTimeout(
       () => onDismiss(toast.id),
@@ -61,7 +65,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: number)
     >
       <Icon aria-hidden="true" size={19} />
       <p>{toast.message}</p>
-      <button type="button" aria-label="Đóng thông báo" onClick={() => onDismiss(toast.id)}>
+      <button type="button" aria-label={translate("shared:toastProvider_dongThongBao")} onClick={() => onDismiss(toast.id)}>
         <X aria-hidden="true" size={17} />
       </button>
     </div>

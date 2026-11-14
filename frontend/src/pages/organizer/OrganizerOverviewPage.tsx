@@ -1,3 +1,5 @@
+import { translate } from '../../i18n';
+import { useTranslation } from 'react-i18next';
 import { type FormEvent, useState } from 'react';
 import { acceptOrganizationInvite, type OrganizationGrant } from '../../api/organizations';
 import { useOrganization } from '../../features/organizations/OrganizationProvider';
@@ -24,42 +26,43 @@ const workspaces: {
   {
     to: '/organizer/concerts',
     grant: 'EVENTS',
-    title: 'Buổi diễn',
-    copy: 'Tạo chương trình, cập nhật thông tin và điều phối trạng thái bán.',
+    get title() { return translate("organizer:organizerOverviewPage_buoiDien"); },
+    get copy() { return translate("organizer:organizerOverviewPage_taoChuongTrinhCapNhatThongTin"); },
     icon: CalendarDays,
   },
   {
     to: '/organizer/ticket-types',
     grant: 'EVENTS',
-    title: 'Hạng vé',
-    copy: 'Quản lý giá, số lượng và màu vùng chỗ.',
+    get title() { return translate("organizer:organizerOverviewPage_hangVe"); },
+    get copy() { return translate("organizer:organizerOverviewPage_quanLyGiaSoLuongVaMau"); },
     icon: Ticket,
   },
   {
     to: '/organizer/guests',
     grant: 'EVENTS',
-    title: 'Khách mời',
-    copy: 'Đưa danh sách CSV vào lịch import và theo dõi kết quả xử lý.',
+    get title() { return translate("organizer:organizerOverviewPage_khachMoi"); },
+    get copy() { return translate("organizer:organizerOverviewPage_duaDanhSachCsvVaoLichImport"); },
     icon: Users,
   },
   {
     to: '/organizer/revenue',
     grant: 'FINANCE',
-    title: 'Doanh thu',
-    copy: 'Theo dõi doanh thu, lượng vé bán và hiệu suất từng hạng vé.',
+    get title() { return translate('organizer:organizerOverviewPage_revenue'); },
+    get copy() { return translate("organizer:organizerOverviewPage_theoDoiDoanhThuLuongVeBan"); },
     icon: CircleDollarSign,
   },
   {
-    to: '/organizer/orders', grant: 'FINANCE', title: 'Đơn hàng và vé',
-    copy: 'Tra cứu giao dịch và vé của tổ chức.', icon: Receipt,
+    to: '/organizer/orders', grant: 'FINANCE', get title() { return translate("organizer:organizerOverviewPage_donHangVaVe"); },
+    get copy() { return translate("organizer:organizerOverviewPage_traCuuGiaoDichVaVeCua"); }, icon: Receipt,
   },
   {
-    to: '/organizer/members', grant: 'MEMBERS', title: 'Thành viên',
-    copy: 'Mời thành viên và cập nhật quyền.', icon: UserCog,
+    to: '/organizer/members', grant: 'MEMBERS', get title() { return translate("organizer:organizerOverviewPage_thanhVien"); },
+    get copy() { return translate("organizer:organizerOverviewPage_moiThanhVienVaCapNhatQuyen"); }, icon: UserCog,
   },
 ];
 
 export function OrganizerOverviewPage() {
+  useTranslation();
   const { user } = useAuth();
   const organization = useOrganization();
   const [code, setCode] = useState('');
@@ -78,9 +81,9 @@ export function OrganizerOverviewPage() {
       const { id } = await acceptOrganizationInvite(code.trim());
       setCode('');
       await organization.reload(id);
-      setNotice('Đã tham gia tổ chức.');
+      setNotice(translate("organizer:organizerOverviewPage_daThamGiaToChuc"));
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : 'Không thể nhận lời mời.');
+      setError(failure instanceof Error ? failure.message : translate("organizer:organizerOverviewPage_khongTheNhanLoiMoi"));
     } finally {
       setJoining(false);
     }
@@ -89,25 +92,25 @@ export function OrganizerOverviewPage() {
   return (
     <>
       <AdminPageHeader
-        title={selected?.name ?? 'Tổ chức của bạn'}
-        description="Chọn tổ chức để mở các mục bạn được cấp quyền."
+        title={selected?.name ?? translate("organizer:organizerOverviewPage_toChucCuaBan")}
+        description={translate("organizer:organizerOverviewPage_chonToChucDeMoCacMuc")}
         actions={selected?.grants.includes('EVENTS') ? (
           <Link className="admin-primary-action" to="/organizer/concerts?create=1">
-            Tạo concert
+            {translate("organizer:organizerOverviewPage_taoConcert")}
             <ArrowUpRight aria-hidden="true" size={17} />
           </Link>
         ) : null}
       />
 
-      {organization?.loading ? <p role="status">Đang tải tổ chức…</p> : null}
+      {organization?.loading ? <p role="status">{translate("organizer:organizerOverviewPage_dangTaiToChuc")}</p> : null}
       {organization?.error ? (
         <div className="admin-notice error" role="alert">
           <p>{organization.error}</p>
-          <button className="admin-secondary-action" type="button" onClick={() => void organization.reload()}>Thử lại</button>
+          <button className="admin-secondary-action" type="button" onClick={() => void organization.reload()}>{translate("organizer:organizerOverviewPage_thuLai")}</button>
         </div>
       ) : null}
       {selected ? (
-        <section className="admin-workspace-grid" aria-label="Khu vực quản lý của nhà tổ chức">
+        <section className="admin-workspace-grid" aria-label={translate("organizer:organizerOverviewPage_khuVucQuanLyCuaNhaTo")}>
         {workspaces.filter((workspace) => selected.grants.includes(workspace.grant)).map((workspace) => {
           const Icon = workspace.icon;
           return (
@@ -124,17 +127,17 @@ export function OrganizerOverviewPage() {
         </section>
       ) : null}
       <section className="admin-data-panel organization-panel">
-        <h2>Nhận lời mời</h2>
-        <p>Chia sẻ mã tài khoản này với người quản lý để được mời.</p>
+        <h2>{translate("organizer:organizerOverviewPage_nhanLoiMoi")}</h2>
+        <p>{translate("organizer:organizerOverviewPage_chiaSeMaTaiKhoanNayVoi")}</p>
         <code>{user?.id}</code>
         {notice ? <p className="admin-notice success" role="status">{notice}</p> : null}
         {error ? <p className="admin-notice error" role="alert">{error}</p> : null}
         <form className="organization-form" onSubmit={(event) => void accept(event)}>
           <label className="admin-field">
-            Mã lời mời
+            {translate("organizer:organizerOverviewPage_maLoiMoi")}
             <input value={code} onChange={(event) => setCode(event.target.value)} required minLength={36} maxLength={36} />
           </label>
-          <button className="admin-primary-action" type="submit" disabled={joining}>Tham gia tổ chức</button>
+          <button className="admin-primary-action" type="submit" disabled={joining}>{translate("organizer:organizerOverviewPage_thamGiaToChuc")}</button>
         </form>
       </section>
     </>

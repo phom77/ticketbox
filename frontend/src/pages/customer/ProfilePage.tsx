@@ -1,3 +1,6 @@
+import { dateFormatter, numberFormatter } from '../../data/formatters';
+import { translate } from '../../i18n';
+import { useTranslation } from 'react-i18next';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, ApiClientError } from '../../api/client';
@@ -45,34 +48,34 @@ interface TicketResponse {
 
 type ProfileTab = 'profile' | 'orders' | 'tickets';
 
-const money = new Intl.NumberFormat('vi-VN', {
+const money = numberFormatter({
   style: 'currency',
   currency: 'VND',
   maximumFractionDigits: 0,
 });
-const dateTime = new Intl.DateTimeFormat('vi-VN', { dateStyle: 'medium', timeStyle: 'short' });
+const dateTime = dateFormatter({ dateStyle: 'medium', timeStyle: 'short' });
 
 const roleLabels: Record<UserRole, string> = {
   AUDIENCE: 'Audience',
-  ORGANIZER: 'Organizer',
+  get ORGANIZER() { return translate("customer:profilePage_organizer"); },
   STAFF: 'Staff',
-  ADMIN: 'Admin',
+  get ADMIN() { return translate("customer:profilePage_admin"); },
 };
 
 const orderLabels: Record<OrderResponse['status'], string> = {
-  AWAITING_PAYMENT: 'Chờ thanh toán',
-  PAID: 'Đã thanh toán',
-  CANCELLED: 'Đã hủy',
-  EXPIRED: 'Hết hạn',
-  PAYMENT_FAILED: 'Thanh toán lỗi',
+  get AWAITING_PAYMENT() { return translate("customer:profilePage_choThanhToan"); },
+  get PAID() { return translate("customer:profilePage_daThanhToan"); },
+  get CANCELLED() { return translate("customer:profilePage_daHuy"); },
+  get EXPIRED() { return translate("customer:profilePage_hetHan"); },
+  get PAYMENT_FAILED() { return translate("customer:profilePage_thanhToanLoi"); },
 };
 
 const ticketLabels: Record<TicketResponse['status'], string> = {
-  VALID: 'Chưa sử dụng',
-  UNUSED: 'Chưa sử dụng',
-  USED: 'Đã sử dụng',
-  CANCELLED: 'Đã hủy',
-  EXPIRED: 'Hết hạn',
+  get VALID() { return translate("customer:profilePage_chuaSuDung"); },
+  get UNUSED() { return translate("customer:profilePage_chuaSuDung"); },
+  get USED() { return translate("customer:profilePage_daSuDung"); },
+  get CANCELLED() { return translate("customer:profilePage_daHuy"); },
+  get EXPIRED() { return translate("customer:profilePage_hetHan"); },
 };
 
 function initials(name: string) {
@@ -90,6 +93,7 @@ function errorMessage(error: unknown, fallback: string) {
 }
 
 export function ProfilePage() {
+  useTranslation();
   const { user, updateUserSummary } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [orders, setOrders] = useState<OrderResponse[]>([]);
@@ -148,8 +152,8 @@ export function ProfilePage() {
           const isForbidden = error instanceof ApiClientError && error.status === 403;
           setLoadError(
             isForbidden
-              ? 'Tài khoản hiện tại không có quyền xem dữ liệu này.'
-              : errorMessage(error, 'Không thể tải hồ sơ.'),
+              ? translate("customer:profilePage_taiKhoanHienTaiKhongCoQuyen")
+              : errorMessage(error, translate("customer:profilePage_khongTheTaiHoSo")),
           );
         }
       } finally {
@@ -168,8 +172,8 @@ export function ProfilePage() {
     if (!profile) return [];
     return [
       { label: 'Email', value: profile.email },
-      { label: 'Số điện thoại', value: profile.phone || 'Chưa cập nhật' },
-      { label: 'Vai trò', value: roleLabels[profile.role] },
+      { label: translate("customer:profilePage_soDienThoai"), value: profile.phone || translate("customer:profilePage_chuaCapNhat") },
+      { label: translate("customer:profilePage_vaiTro"), value: roleLabels[profile.role] },
     ];
   }, [profile]);
 
@@ -181,7 +185,7 @@ export function ProfilePage() {
     const nextPhone = phone.trim();
 
     if (!nextFullName) {
-      setMessage({ type: 'error', text: 'Vui lòng nhập họ tên.' });
+      setMessage({ type: 'error', text: translate("customer:profilePage_vuiLongNhapHoTen") });
       return;
     }
 
@@ -201,11 +205,11 @@ export function ProfilePage() {
         fullName: updated.fullName,
         role: updated.role,
       } satisfies UserSummary);
-      setMessage({ type: 'success', text: 'Cập nhật thông tin cá nhân thành công.' });
+      setMessage({ type: 'success', text: translate("customer:profilePage_capNhatThongTinCaNhanThanh") });
     } catch (error) {
       setMessage({
         type: 'error',
-        text: errorMessage(error, 'Cập nhật thất bại. Vui lòng thử lại.'),
+        text: errorMessage(error, translate("customer:profilePage_capNhatThatBaiVuiLongThu")),
       });
     } finally {
       setSaving(false);
@@ -225,7 +229,7 @@ export function ProfilePage() {
       <main className="profile-page page-width">
         <div className="profile-loading" role="status" aria-live="polite">
           <div className="route-spinner" aria-hidden="true" />
-          <span>Đang tải hồ sơ...</span>
+          <span>{translate("customer:profilePage_dangTaiHoSo")}</span>
         </div>
       </main>
     );
@@ -238,14 +242,14 @@ export function ProfilePage() {
           <span className="state-icon" aria-hidden="true">
             !
           </span>
-          <h1>Không thể mở hồ sơ</h1>
-          <p>{loadError ?? 'Không tìm thấy thông tin tài khoản hiện tại.'}</p>
+          <h1>{translate("customer:profilePage_khongTheMoHoSo")}</h1>
+          <p>{loadError ?? translate("customer:profilePage_khongTimThayThongTinTaiKhoan")}</p>
           <button
             className="button button-secondary"
             type="button"
             onClick={() => window.location.reload()}
           >
-            Thử lại
+            {translate("customer:profilePage_thuLai")}
           </button>
         </div>
       </main>
@@ -260,17 +264,17 @@ export function ProfilePage() {
         </div>
         <div>
           <p className="eyebrow">
-            <span /> Account center
+            <span /> {translate("customer:profilePage_accountCenter")}
           </p>
           <h1>{profile.fullName}</h1>
-          <p>Quản lý hồ sơ, quyền truy cập và lịch sử đặt vé của tài khoản TicketBox.</p>
+          <p>{translate("customer:profilePage_quanLyHoSoQuyenTruyCap")}</p>
         </div>
         <span className={`role-badge role-${profile.role.toLowerCase()}`}>
           {roleLabels[profile.role]}
         </span>
       </section>
 
-      <div className="profile-tabs" role="tablist" aria-label="Các mục hồ sơ">
+      <div className="profile-tabs" role="tablist" aria-label={translate("customer:profilePage_cacMucHoSo")}>
         <button
           type="button"
           role="tab"
@@ -278,7 +282,7 @@ export function ProfilePage() {
           className={activeTab === 'profile' ? 'active' : ''}
           onClick={() => selectTab('profile')}
         >
-          Hồ sơ
+          {translate("customer:profilePage_hoSo")}
         </button>
         {showAudienceHistory ? (
           <>
@@ -289,7 +293,7 @@ export function ProfilePage() {
               className={activeTab === 'orders' ? 'active' : ''}
               onClick={() => selectTab('orders')}
             >
-              Đơn hàng ({orders.length})
+              {translate("customer:profilePage_donHang")}{orders.length})
             </button>
             <button
               type="button"
@@ -298,7 +302,7 @@ export function ProfilePage() {
               className={activeTab === 'tickets' ? 'active' : ''}
               onClick={() => selectTab('tickets')}
             >
-              Vé ({tickets.length})
+              {translate("customer:profilePage_ve")}{tickets.length})
             </button>
           </>
         ) : null}
@@ -315,8 +319,8 @@ export function ProfilePage() {
           <form className="profile-panel" onSubmit={handleUpdateProfile}>
             <div className="panel-heading">
               <div>
-                <span>Identity</span>
-                <h2>Personal details</h2>
+                <span>{translate("customer:profilePage_identity")}</span>
+                <h2>{translate("customer:profilePage_personalDetails")}</h2>
               </div>
               {!isEditing ? (
                 <button
@@ -324,17 +328,17 @@ export function ProfilePage() {
                   type="button"
                   onClick={() => setIsEditing(true)}
                 >
-                  Edit
+                  {translate("customer:profilePage_edit")}
                 </button>
               ) : null}
             </div>
 
             <label className="field">
-              <span>Địa chỉ email</span>
+              <span>{translate("customer:profilePage_diaChiEmail")}</span>
               <input type="email" value={profile.email} disabled />
             </label>
             <label className="field">
-              <span>Full name</span>
+              <span>{translate("customer:profilePage_fullName")}</span>
               <input
                 type="text"
                 value={fullName}
@@ -345,7 +349,7 @@ export function ProfilePage() {
               />
             </label>
             <label className="field">
-              <span>Phone number</span>
+              <span>{translate("customer:profilePage_phoneNumber")}</span>
               <input
                 type="tel"
                 value={phone}
@@ -359,20 +363,20 @@ export function ProfilePage() {
             {isEditing ? (
               <div className="profile-actions">
                 <button className="button button-secondary" type="button" onClick={cancelEditing}>
-                  Cancel
+                  {translate("customer:profilePage_cancel")}
                 </button>
                 <button className="button button-primary" type="submit" disabled={saving}>
-                  {saving ? 'Saving...' : 'Save changes'}
+                  {saving ? 'Saving...' : translate('customer:profilePage_saveChanges')}
                 </button>
               </div>
             ) : null}
           </form>
 
-          <aside className="profile-panel profile-summary" aria-label="Tóm tắt tài khoản">
+          <aside className="profile-panel profile-summary" aria-label={translate("customer:profilePage_tomTatTaiKhoan")}>
             <div className="panel-heading">
               <div>
-                <span>Access</span>
-                <h2>Role guard</h2>
+                <span>{translate("customer:profilePage_access")}</span>
+                <h2>{translate("customer:profilePage_roleGuard")}</h2>
               </div>
             </div>
             {profileSummary.map((item) => (
@@ -397,20 +401,21 @@ export function ProfilePage() {
 }
 
 function OrderHistory({ orders }: { orders: OrderResponse[] }) {
+  useTranslation();
   if (orders.length === 0) {
     return (
       <div className="state-panel compact">
         <span className="state-icon" aria-hidden="true">
           ◇
         </span>
-        <h2>Chưa có đơn hàng</h2>
-        <p>Các đơn mua vé sẽ xuất hiện tại đây sau khi bạn đặt vé.</p>
+        <h2>{translate("customer:profilePage_chuaCoDonHang")}</h2>
+        <p>{translate("customer:profilePage_cacDonMuaVeSeXuatHien")}</p>
       </div>
     );
   }
 
   return (
-    <section className="history-list" aria-label="Lịch sử đơn hàng">
+    <section className="history-list" aria-label={translate("customer:profilePage_lichSuDonHang")}>
       {orders.map((order) => (
         <OrderHistoryItem key={order.id} order={order} />
       ))}
@@ -419,10 +424,11 @@ function OrderHistory({ orders }: { orders: OrderResponse[] }) {
 }
 
 function OrderHistoryItem({ order }: { order: OrderResponse }) {
+  useTranslation();
   return (
     <article className="history-item" style={{ position: 'relative' }}>
       <div className="history-topline">
-        <span>Order {order.id.slice(0, 8).toUpperCase()}</span>
+        <span>{translate("customer:profilePage_order")} {order.id.slice(0, 8).toUpperCase()}</span>
         <span className={`status-chip status-${order.status.toLowerCase().replace('_', '-')}`}>
           {orderLabels[order.status]}
         </span>
@@ -454,15 +460,15 @@ function OrderHistoryItem({ order }: { order: OrderResponse }) {
           }}
         >
           <div>
-            <strong style={{ display: 'block', fontSize: 13, color: '#182133' }}>Đơn đang chờ thanh toán</strong>
-            <span style={{ fontSize: 12, color: 'var(--muted)' }}>Mở lại đơn để chọn và tiếp tục thanh toán an toàn.</span>
+            <strong style={{ display: 'block', fontSize: 13, color: '#182133' }}>{translate("customer:profilePage_donDangChoThanhToan")}</strong>
+            <span style={{ fontSize: 12, color: 'var(--muted)' }}>{translate("customer:profilePage_moLaiDonDeChonVaTiep")}</span>
           </div>
           <Link
             className="button button-primary"
             style={{ minHeight: 34, padding: '0 16px', fontSize: 12 }}
             to={`/checkout?orderId=${encodeURIComponent(order.id)}`}
           >
-            Tiếp tục thanh toán
+            {translate("customer:profilePage_tiepTucThanhToan")}
           </Link>
         </div>
       )}
@@ -476,24 +482,25 @@ function OrderHistoryItem({ order }: { order: OrderResponse }) {
 }
 
 function TicketHistory({ tickets }: { tickets: TicketResponse[] }) {
+  useTranslation();
   if (tickets.length === 0) {
     return (
       <div className="state-panel compact">
         <span className="state-icon" aria-hidden="true">
           ◇
         </span>
-        <h2>Chưa có vé</h2>
-        <p>Vé điện tử và mã QR sẽ hiển thị sau khi thanh toán thành công.</p>
+        <h2>{translate("customer:profilePage_chuaCoVe")}</h2>
+        <p>{translate("customer:profilePage_veDienTuVaMaQrSe")}</p>
       </div>
     );
   }
 
   return (
-    <section className="ticket-history-grid" aria-label="Lịch sử vé">
+    <section className="ticket-history-grid" aria-label={translate("customer:profilePage_lichSuVe")}>
       {tickets.map((ticket) => (
         <article className="profile-ticket" key={ticket.id}>
           <div className="history-topline">
-            <span>Ticket {ticket.id.slice(0, 8).toUpperCase()}</span>
+            <span>{translate("customer:profilePage_ticket")} {ticket.id.slice(0, 8).toUpperCase()}</span>
             <span className={`status-chip status-${ticket.status.toLowerCase()}`}>
               {ticketLabels[ticket.status]}
             </span>
@@ -512,7 +519,7 @@ function TicketHistory({ tickets }: { tickets: TicketResponse[] }) {
                 marginSize={2}
                 style={{ background: '#fff', padding: 6, borderRadius: 3 }}
               />
-              <span>Xuất trình mã QR tại cửa soát vé</span>
+              <span>{translate("customer:profilePage_xuatTrinhMaQrTaiCuaSoat")}</span>
             </div>
           ) : null}
         </article>

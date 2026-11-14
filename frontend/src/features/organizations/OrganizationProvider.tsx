@@ -1,3 +1,5 @@
+import { translate } from '../../i18n';
+import { useTranslation } from 'react-i18next';
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -21,6 +23,7 @@ type OrganizationContextValue = {
 const OrganizationContext = createContext<OrganizationContextValue | null>(null);
 
 export function OrganizationProvider({ children }: { children: ReactNode }) {
+  useTranslation();
   const { user } = useAuth();
   const storageKey = `ticketbox.organization.${user?.id}`;
   const [memberships, setMemberships] = useState<OrganizationMembership[]>([]);
@@ -48,7 +51,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     } catch (failure) {
       if (controller.signal.aborted) return;
       setMemberships([]);
-      setError(failure instanceof Error ? failure.message : 'Không thể tải danh sách tổ chức.');
+      setError(failure instanceof Error ? failure.message : translate("shared:organizationProvider_khongTheTaiDanhSachToChuc"));
     } finally {
       if (!controller.signal.aborted) setLoading(false);
     }
@@ -85,13 +88,14 @@ export function RequireOrganizationGrant({
   grant,
   children,
 }: { grant: OrganizationGrant; children: ReactNode }) {
+  useTranslation();
   const organization = useOrganization();
-  if (organization?.loading) return <p role="status">Đang tải quyền của tổ chức…</p>;
+  if (organization?.loading) return <p role="status">{translate("shared:organizationProvider_dangTaiQuyenCuaToChuc")}</p>;
   if (organization?.selected?.grants.includes(grant)) return <>{children}</>;
   return (
     <div className="admin-empty-state">
-      <p role="status">Tổ chức đang chọn chưa cấp quyền cho mục này.</p>
-      <Link className="admin-secondary-action" to="/organizer">Về tổng quan tổ chức</Link>
+      <p role="status">{translate("shared:organizationProvider_toChucDangChonChuaCapQuyen")}</p>
+      <Link className="admin-secondary-action" to="/organizer">{translate("shared:organizationProvider_veTongQuanToChuc")}</Link>
     </div>
   );
 }

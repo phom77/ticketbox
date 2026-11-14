@@ -34,7 +34,7 @@ const order={id:orderId,concertId,concertTitle:concert.title,status:'AWAITING_PA
 const basketState={event:{id:concertId,title:concert.title,venue:concert.venueName,date:concert.eventDate,image:null},selection:[{id:typeId,name:'GA',price:250000,quantity:1}],queueAccessToken:'queue-fixture'};
 
 async function fixture(options={}) {
- const context=await browser.newContext({viewport:{width:1440,height:900}});
+ const context=await browser.newContext({locale:'vi-VN',viewport:{width:1440,height:900}});
  if(options.authenticated!==false) await context.addCookies([{name:'ticketbox_auth_token',value:jwt,url:origin}]);
  const page=await context.newPage();
  const state={attempt:'FAILED',committed:false,postKeys:[],cancelCalls:0,orderStatus:'AWAITING_PAYMENT',resetRequests:[],resetConfirmations:[],...options};
@@ -221,9 +221,20 @@ try {
  {
   const f=await fixture({attempt:'READY'});await f.page.goto(origin+`/checkout?orderId=${orderId}`);
   const pay=f.page.getByRole('button',{name:'Tiếp tục với thanh toán demo'});
+  await pay.waitFor();
+  const language=f.page.getByRole('combobox',{name:'Ngôn ngữ'});
+  await language.focus();
+  await f.page.keyboard.press('End');
+  await f.page.keyboard.press('Enter');
+  await f.page.getByRole('button',{name:'Continue with demo payment'}).waitFor();
+  assert.match(await f.page.locator('.order-summary').textContent(),/₫|VND/);
+  assert.match(f.page.url(),new RegExp(orderId));
+  assert.equal(f.state.postKeys.length,0);
+  assert.equal(f.state.cancelCalls,0);
+  await f.page.getByRole('combobox',{name:'Language'}).selectOption('vi');
   await pay.waitFor();await checkBuyerInformation(f.page.locator('.order-summary'));
   await pay.click();await failedHeading(f.page).waitFor();
-  checks.push('FAILED returned by initiate switches to recovery panel');await f.close();
+  checks.push('Keyboard language switch retains the order and currency; FAILED initiation opens recovery');await f.close();
  }
  {
   const f=await fixture({attempt:'READY',initiateState:'PROCESSING'});await f.page.goto(origin+`/checkout?orderId=${orderId}`);

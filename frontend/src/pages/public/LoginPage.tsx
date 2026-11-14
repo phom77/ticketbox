@@ -1,11 +1,15 @@
+import { translate } from '../../i18n';
+import { useTranslation } from 'react-i18next';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Logo } from '../../components/layout/PublicLayout';
 import { events } from '../../data/demoEvents';
 import { useAuth } from '../../features/auth/AuthContext';
 import { getRoleHome } from '../../features/auth/roleRoutes';
+import { LanguageSelect } from '../../components/LanguageSelect';
 
 export function LoginPage() {
+  useTranslation();
   const { login, user, loading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -31,7 +35,7 @@ export function LoginPage() {
       navigate(requestedPath ?? getRoleHome(loggedInUser.role), { replace: true });
     } catch (requestError) {
       setError(
-        requestError instanceof Error ? requestError.message : 'Email hoặc mật khẩu không đúng.',
+        requestError instanceof Error ? requestError.message : translate("public:loginPage_emailHoacMatKhauKhongDung"),
       );
     } finally {
       setSubmitting(false);
@@ -40,18 +44,18 @@ export function LoginPage() {
 
   return (
     <AuthLayout
-      quote="Có những đêm diễn trở thành một phần của bạn."
-      credit="TicketBox tuyển chọn · Sài Gòn"
+      quote={translate("public:loginPage_coNhungDemDienTroThanhMot")}
+      credit={translate("public:loginPage_ticketboxTuyenChonSaiGon")}
     >
       <div className="auth-card">
         <div className="auth-heading">
           <p className="eyebrow">
-            <span /> Chào mừng trở lại
+            <span /> {translate("public:loginPage_chaoMungTroLai")}
           </p>
           <h1>
-            Đêm diễn tiếp theo của bạn <em>bắt đầu tại đây.</em>
+            {translate("public:loginPage_demDienTiepTheoCuaBan")} <em>{translate("public:loginPage_batDauTaiDay")}</em>
           </h1>
-          <p>Đăng nhập để xem vé, đơn hàng và hồ sơ đã lưu.</p>
+          <p>{translate("public:loginPage_dangNhapDeXemVeDonHang")}</p>
         </div>
         {error ? (
           <div className="state-panel auth-error" role="alert">
@@ -60,7 +64,7 @@ export function LoginPage() {
         ) : null}
         <form className="auth-form" onSubmit={submit}>
           <label className="field">
-            <span>Địa chỉ email</span>
+            <span>{translate("public:loginPage_diaChiEmail")}</span>
             <input
               type="email"
               name="email"
@@ -71,43 +75,43 @@ export function LoginPage() {
             />
           </label>
           <label className="field">
-            <span>Mật khẩu</span>
+            <span>{translate("public:loginPage_matKhau")}</span>
             <span className="password-field">
               <input
                 type={showPassword ? 'text' : 'password'}
                 name="password"
                 autoComplete="current-password"
-                placeholder="Mật khẩu của bạn..."
+                placeholder={translate("public:loginPage_matKhauCuaBan")}
                 required
               />
               <button
                 type="button"
-                aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                aria-label={showPassword ? translate("public:loginPage_anMatKhau") : translate("public:loginPage_hienMatKhau")}
                 onClick={() => setShowPassword((value) => !value)}
               >
-                {showPassword ? 'Ẩn' : 'Hiện'}
+                {showPassword ? translate("public:loginPage_an") : translate("public:loginPage_hien")}
               </button>
             </span>
           </label>
           <div className="form-meta">
             <label>
-              <input type="checkbox" name="remember" /> Ghi nhớ tôi
+              <input type="checkbox" name="remember" /> {translate("public:loginPage_ghiNhoToi")}
             </label>
-            <Link to="/forgot-password">Quên mật khẩu?</Link>
+            <Link to="/forgot-password">{translate("public:loginPage_quenMatKhau")}</Link>
           </div>
           <button
             className="button button-primary button-block"
             type="submit"
             disabled={submitting}
           >
-            {submitting ? 'Đang đăng nhập...' : 'Đăng nhập'}
+            {submitting ? translate("public:loginPage_dangDangNhap") : translate("public:loginPage_dangNhap")}
           </button>
           <button className="google-button" type="button" disabled aria-disabled="true">
-            <span>G</span> Chưa hỗ trợ đăng nhập Google
+            <span>G</span> {translate("public:loginPage_chuaHoTroDangNhapGoogle")}
           </button>
         </form>
         <p className="auth-switch">
-          Mới dùng TicketBox? <Link to="/register">Tạo tài khoản</Link>
+          {translate("public:loginPage_moiDungTicketbox")} <Link to="/register">{translate("public:loginPage_taoTaiKhoan")}</Link>
         </p>
       </div>
     </AuthLayout>
@@ -123,6 +127,7 @@ export function AuthLayout({
   quote: string;
   credit: string;
 }) {
+  useTranslation();
   return (
     <main className="auth-layout">
       <section className="auth-visual">
@@ -135,7 +140,10 @@ export function AuthLayout({
           “{quote}”<cite>{credit}</cite>
         </blockquote>
       </section>
-      <section className="auth-content">{children}</section>
+      <section className="auth-content">
+        <div className="auth-language"><LanguageSelect /></div>
+        {children}
+      </section>
     </main>
   );
 }

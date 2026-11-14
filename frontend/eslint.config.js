@@ -8,6 +8,7 @@ import prettier from 'eslint-config-prettier';
 export default tseslint.config(
   { ignores: ['dist'] },
   js.configs.recommended,
+  { files: ['scripts/*.mjs'], languageOptions: { globals: globals.node } },
   ...tseslint.configs.recommended,
   {
     files: ['**/*.{ts,tsx}'],

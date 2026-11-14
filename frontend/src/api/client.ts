@@ -1,5 +1,6 @@
 import axios, { AxiosError, type Method } from 'axios';
 import { clearAuthToken, getAuthToken } from '../features/auth/tokenCookie';
+import { currentLanguage, translate } from '../i18n';
 
 declare module 'axios' {
   export interface AxiosRequestConfig {
@@ -12,8 +13,6 @@ declare module 'axios' {
 }
 
 export const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080').replace(/\/+$/, '');
-
-const apiLanguage = 'vi';
 
 type ApiEnvelope<T> = {
   code: number;
@@ -44,8 +43,17 @@ export function isRequestCanceled(error: unknown): boolean {
 
 export const api = axios.create({
   baseURL: apiBaseUrl,
-  headers: { 'Content-Type': 'application/json', 'Accept-Language': apiLanguage },
+  headers: { 'Content-Type': 'application/json' },
 });
+
+function setRequestLanguage(config: import('axios').InternalAxiosRequestConfig) {
+  config.headers.set('Accept-Language', currentLanguage());
+  return config;
+}
+
+function isCurrentLanguage(config?: import('axios').InternalAxiosRequestConfig) {
+  return !config || config.headers.get('Accept-Language') === currentLanguage();
+}
 
 let requestOrganization: string | null = null;
 
@@ -59,7 +67,7 @@ api.interceptors.request.use((config) => {
   if (requestOrganization && config.url?.startsWith('/api/organizer/')) {
     config.headers['X-Organization-Id'] = requestOrganization;
   }
-  return config;
+  return setRequestLanguage(config);
 }, undefined, { synchronous: true });
 
 api.interceptors.response.use(
@@ -68,7 +76,10 @@ api.interceptors.response.use(
     if (body && typeof body === 'object' && 'code' in body && 'data' in body) {
       const envelope = body as ApiEnvelope<unknown>;
       if (response.config.preserveEnvelope) {
-        return { data: envelope.data, message: envelope.message };
+        return {
+          data: envelope.data,
+          message: isCurrentLanguage(response.config) ? envelope.message : translate('requestSucceeded'),
+        };
       }
       return envelope.data;
     }
@@ -87,9 +98,10 @@ api.interceptors.response.use(
       }
     }
 
+    const current = isCurrentLanguage(error.config);
     throw new ApiClientError(
-      error.response?.data?.message ??
-        (error.response ? 'Đã có lỗi xảy ra, vui lòng thử lại.' : 'Không thể kết nối tới máy chủ.'),
+      (current ? error.response?.data?.message : undefined) ??
+        translate(error.response ? 'requestFailed' : 'networkFailed'),
       status,
       error.response?.data?.details,
     );
@@ -97,7 +109,8 @@ api.interceptors.response.use(
 );
 
 // Public reads deliberately omit Authorization so the shared proxy can cache them.
-export const publicApi = axios.create({ baseURL: apiBaseUrl, headers: { 'Accept-Language': apiLanguage } });
+export const publicApi = axios.create({ baseURL: apiBaseUrl });
+publicApi.interceptors.request.use(setRequestLanguage, undefined, { synchronous: true });
 publicApi.interceptors.response.use(
   (response) => {
     const body = response.data;
@@ -105,8 +118,11 @@ publicApi.interceptors.response.use(
   },
   (error: AxiosError<{ message?: string; details?: unknown }>) => {
     if (isRequestCanceled(error)) throw error;
-    throw new ApiClientError(error.response?.data?.message ?? 'Không thể tải thông tin công khai.',
-      error.response?.status ?? 503, error.response?.data?.details);
+    const current = isCurrentLanguage(error.config);
+    throw new ApiClientError(
+      (current ? error.response?.data?.message : undefined) ?? translate('publicLoadFailed'),
+      error.response?.status ?? 503, error.response?.data?.details,
+    );
   },
 );
 

@@ -1,3 +1,6 @@
+import { dateFormatter, numberFormatter } from '../../data/formatters';
+import { translate } from '../../i18n';
+import { useTranslation } from 'react-i18next';
 import { useEffect, useMemo, useState } from 'react';
 import { Download, FileSpreadsheet, RefreshCw, TrendingUp } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -19,18 +22,19 @@ import { useToast } from '../../components/feedback/toast-context';
 
 const REPORTING_TIME_ZONE = 'Asia/Ho_Chi_Minh';
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-const currency = new Intl.NumberFormat('vi-VN', {
+const currency = numberFormatter({
   style: 'currency',
   currency: 'VND',
   maximumFractionDigits: 0,
 });
-const integer = new Intl.NumberFormat('vi-VN');
-const displayDate = new Intl.DateTimeFormat('vi-VN', {
+const integer = numberFormatter();
+const displayDate = dateFormatter({
   dateStyle: 'medium',
   timeZone: REPORTING_TIME_ZONE,
 });
 
 export function OrganizerRevenuePage() {
+  useTranslation();
   const toast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const [concerts, setConcerts] = useState<OrganizerConcert[]>([]);
@@ -66,7 +70,7 @@ export function OrganizerRevenuePage() {
           setConcertsError(
             requestError instanceof Error
               ? requestError.message
-              : 'Không thể tải danh sách concert đã hoàn thành.',
+              : translate("organizer:organizerRevenuePage_khongTheTaiDanhSachConcertDa"),
           );
         }
       })
@@ -117,7 +121,7 @@ export function OrganizerRevenuePage() {
           setReportError(
             requestError instanceof Error
               ? requestError.message
-              : 'Không thể tải báo cáo doanh thu.',
+              : translate("organizer:organizerRevenuePage_khongTheTaiBaoCaoDoanhThu"),
           );
         }
       })
@@ -137,11 +141,11 @@ export function OrganizerRevenuePage() {
   function applyDateRange(event: React.FormEvent) {
     event.preventDefault();
     if (!isValidDate(draftFrom) || !isValidDate(draftTo)) {
-      setDateError('Chọn đầy đủ ngày bắt đầu và ngày kết thúc.');
+      setDateError(translate("organizer:organizerRevenuePage_chonDayDuNgayBatDauVa"));
       return;
     }
     if (draftFrom > draftTo) {
-      setDateError('Ngày bắt đầu phải trước hoặc bằng ngày kết thúc.');
+      setDateError(translate("organizer:organizerRevenuePage_ngayBatDauPhaiTruocHoacBang"));
       return;
     }
     setDateError('');
@@ -162,7 +166,7 @@ export function OrganizerRevenuePage() {
       anchor.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (requestError) {
-      toast.error(requestError instanceof Error ? requestError.message : 'Không thể tải báo cáo.');
+      toast.error(requestError instanceof Error ? requestError.message : translate("organizer:organizerRevenuePage_khongTheTaiBaoCao"));
     } finally {
       setExporting(null);
     }
@@ -174,14 +178,14 @@ export function OrganizerRevenuePage() {
     return (
       <div className="state-panel organizer-revenue-state" role="alert">
         <TrendingUp aria-hidden="true" size={30} />
-        <h3>Chưa thể mở báo cáo</h3>
+        <h3>{translate("organizer:organizerRevenuePage_chuaTheMoBaoCao")}</h3>
         <p>{concertsError}</p>
         <button
           className="button button-secondary"
           type="button"
           onClick={() => setReloadKey((value) => value + 1)}
         >
-          Thử lại
+          {translate("organizer:organizerRevenuePage_thuLai")}
         </button>
       </div>
     );
@@ -191,10 +195,10 @@ export function OrganizerRevenuePage() {
     return (
       <div className="state-panel organizer-revenue-state">
         <TrendingUp aria-hidden="true" size={30} />
-        <h3>Chưa có concert hoàn thành</h3>
-        <p>Báo cáo doanh thu chỉ khả dụng sau khi concert chuyển sang trạng thái hoàn thành.</p>
+        <h3>{translate("organizer:organizerRevenuePage_chuaCoConcertHoanThanh")}</h3>
+        <p>{translate("organizer:organizerRevenuePage_baoCaoDoanhThuChiKhaDung")}</p>
         <Link className="button button-secondary" to="/organizer/concerts">
-          Quản lý concert
+          {translate("organizer:organizerRevenuePage_quanLyConcert")}
         </Link>
       </div>
     );
@@ -203,9 +207,9 @@ export function OrganizerRevenuePage() {
   return (
     <>
       <AdminPageHeader
-        eyebrow="Phân tích doanh thu"
-        title="Báo cáo doanh thu"
-        description="Theo dõi kết quả bán vé, hiệu suất từng hạng vé và nhịp doanh thu trước đêm diễn."
+        eyebrow={translate("organizer:organizerRevenuePage_phanTichDoanhThu")}
+        title={translate("organizer:organizerRevenuePage_baoCaoDoanhThu")}
+        description={translate("organizer:organizerRevenuePage_theoDoiKetQuaBanVeHieu")}
         actions={
           <div className="revenue-export-actions">
             <button
@@ -215,7 +219,7 @@ export function OrganizerRevenuePage() {
               onClick={() => void download('csv')}
             >
               <FileSpreadsheet aria-hidden="true" size={16} />
-              {exporting === 'csv' ? 'Đang xuất...' : 'Xuất CSV'}
+              {exporting === 'csv' ? translate("organizer:organizerRevenuePage_dangXuat") : translate("organizer:organizerRevenuePage_xuatCsv")}
             </button>
             <button
               className="admin-primary-action"
@@ -224,23 +228,23 @@ export function OrganizerRevenuePage() {
               onClick={() => void download('pdf')}
             >
               <Download aria-hidden="true" size={16} />
-              {exporting === 'pdf' ? 'Đang xuất...' : 'Xuất PDF'}
+              {exporting === 'pdf' ? translate("organizer:organizerRevenuePage_dangXuat") : translate("organizer:organizerRevenuePage_xuatPdf")}
             </button>
           </div>
         }
       />
 
-      <section className="revenue-filter-panel" aria-label="Bộ lọc báo cáo">
+      <section className="revenue-filter-panel" aria-label={translate("organizer:organizerRevenuePage_boLocBaoCao")}>
         <ConcertPicker
           concerts={concerts}
           value={selectedConcertId}
           onChange={chooseConcert}
-          label="Concert đã hoàn thành"
-          placeholder="Chọn concert để xem báo cáo"
+          label={translate("organizer:organizerRevenuePage_concertDaHoanThanh")}
+          placeholder={translate("organizer:organizerRevenuePage_chonConcertDeXemBaoCao")}
         />
         <form className="revenue-date-form" onSubmit={applyDateRange}>
           <label className="admin-field">
-            <span>Từ ngày</span>
+            <span>{translate("organizer:organizerRevenuePage_tuNgay")}</span>
             <input
               type="date"
               value={draftFrom}
@@ -248,7 +252,7 @@ export function OrganizerRevenuePage() {
             />
           </label>
           <label className="admin-field">
-            <span>Đến ngày</span>
+            <span>{translate("organizer:organizerRevenuePage_denNgay")}</span>
             <input
               type="date"
               value={draftTo}
@@ -260,7 +264,7 @@ export function OrganizerRevenuePage() {
             type="submit"
             disabled={!draftFrom || !draftTo || loadingReport}
           >
-            Áp dụng
+            {translate("organizer:organizerRevenuePage_apDung")}
           </button>
         </form>
         {dateError ? (
@@ -270,7 +274,7 @@ export function OrganizerRevenuePage() {
         ) : null}
         {selectedConcert ? (
           <p className="revenue-concert-date">
-            Đêm diễn <strong>{displayDate.format(new Date(selectedConcert.eventDate))}</strong>
+            {translate("organizer:organizerRevenuePage_demDien")} <strong>{displayDate.format(new Date(selectedConcert.eventDate))}</strong>
           </p>
         ) : null}
       </section>
@@ -278,14 +282,14 @@ export function OrganizerRevenuePage() {
       {reportError ? (
         <div className="state-panel organizer-revenue-state" role="alert">
           <TrendingUp aria-hidden="true" size={30} />
-          <h3>Không thể tải dữ liệu doanh thu</h3>
+          <h3>{translate("organizer:organizerRevenuePage_khongTheTaiDuLieuDoanhThu")}</h3>
           <p>{reportError}</p>
           <button
             className="button button-secondary"
             type="button"
             onClick={() => setReloadKey((value) => value + 1)}
           >
-            <RefreshCw size={16} /> Thử lại
+            <RefreshCw size={16} /> {translate("organizer:organizerRevenuePage_thuLai")}
           </button>
         </div>
       ) : loadingReport || !summary ? (
@@ -306,34 +310,35 @@ function RevenueReport({
   zones: ZoneRevenue[];
   trend: SalesTrend[];
 }) {
+  useTranslation();
   const remaining = Math.max(0, summary.totalTicketsAvailable - summary.totalTicketsSold);
   return (
     <>
-      <section className="revenue-summary-grid" aria-label="Tổng quan doanh thu">
+      <section className="revenue-summary-grid" aria-label={translate("organizer:organizerRevenuePage_tongQuanDoanhThu")}>
         <RevenueMetric
-          label="Tổng doanh thu"
+          label={translate("organizer:organizerRevenuePage_tongDoanhThu")}
           value={currency.format(summary.totalRevenue)}
           emphasis
         />
         <RevenueMetric
-          label="Vé đã bán"
+          label={translate("organizer:organizerRevenuePage_veDaBan")}
           value={integer.format(summary.totalTicketsSold)}
-          note={`${formatPercent(summary.soldRate)} sức chứa`}
+          note={translate("organizer:organizerRevenuePage_sucChua", { arg1: formatPercent(summary.soldRate) })}
         />
         <RevenueMetric
-          label="Tổng sức chứa"
+          label={translate("organizer:organizerRevenuePage_tongSucChua")}
           value={integer.format(summary.totalTicketsAvailable)}
         />
-        <RevenueMetric label="Vé còn lại" value={integer.format(remaining)} />
+        <RevenueMetric label={translate("organizer:organizerRevenuePage_veConLai")} value={integer.format(remaining)} />
       </section>
 
       <section className="revenue-section">
         <div className="revenue-section-heading">
           <div>
-            <span>Sales timeline</span>
-            <h2>Doanh thu theo ngày</h2>
+            <span>{translate("organizer:organizerRevenuePage_salesTimeline")}</span>
+            <h2>{translate("organizer:organizerRevenuePage_doanhThuTheoNgay")}</h2>
           </div>
-          <p>{trend.length} ngày trong khoảng đã chọn</p>
+          <p>{trend.length} {translate("organizer:organizerRevenuePage_ngayTrongKhoangDaChon")}</p>
         </div>
         <RevenueTrendChart data={trend} />
       </section>
@@ -341,10 +346,10 @@ function RevenueReport({
       <section className="revenue-section">
         <div className="revenue-section-heading">
           <div>
-            <span>Ticket zones</span>
-            <h2>Hiệu suất theo hạng vé</h2>
+            <span>{translate("organizer:organizerRevenuePage_ticketZones")}</span>
+            <h2>{translate("organizer:organizerRevenuePage_hieuSuatTheoHangVe")}</h2>
           </div>
-          <p>{zones.length} hạng vé</p>
+          <p>{zones.length} {translate("organizer:organizerRevenuePage_hangVe")}</p>
         </div>
         <div className="admin-data-panel">
           {zones.length ? (
@@ -352,13 +357,13 @@ function RevenueReport({
               <table className="admin-table revenue-zone-table">
                 <thead>
                   <tr>
-                    <th>Hạng vé</th>
-                    <th>Giá</th>
-                    <th>Đã bán</th>
-                    <th>Còn lại</th>
-                    <th>Tổng</th>
-                    <th>Tỷ lệ</th>
-                    <th>Doanh thu</th>
+                    <th>{translate("organizer:organizerRevenuePage_hangVe_2")}</th>
+                    <th>{translate("organizer:organizerRevenuePage_gia")}</th>
+                    <th>{translate("organizer:organizerRevenuePage_daBan")}</th>
+                    <th>{translate("organizer:organizerRevenuePage_conLai")}</th>
+                    <th>{translate("organizer:organizerRevenuePage_tong")}</th>
+                    <th>{translate("organizer:organizerRevenuePage_tyLe")}</th>
+                    <th>{translate('revenue')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -387,8 +392,8 @@ function RevenueReport({
           ) : (
             <div className="admin-empty-state">
               <TrendingUp aria-hidden="true" size={28} />
-              <h2>Chưa có hạng vé</h2>
-              <p>Concert này chưa có dữ liệu hạng vé để tổng hợp.</p>
+              <h2>{translate("organizer:organizerRevenuePage_chuaCoHangVe")}</h2>
+              <p>{translate("organizer:organizerRevenuePage_concertNayChuaCoDuLieuHang")}</p>
             </div>
           )}
         </div>
@@ -408,6 +413,7 @@ function RevenueMetric({
   note?: string;
   emphasis?: boolean;
 }) {
+  useTranslation();
   return (
     <div className={emphasis ? 'is-emphasis' : ''}>
       <span>{label}</span>
@@ -418,6 +424,7 @@ function RevenueMetric({
 }
 
 function RevenueTrendChart({ data }: { data: SalesTrend[] }) {
+  useTranslation();
   const [activeIndex, setActiveIndex] = useState(Math.max(0, data.length - 1));
   useEffect(() => setActiveIndex(Math.max(0, data.length - 1)), [data]);
   const width = 800;
@@ -441,7 +448,7 @@ function RevenueTrendChart({ data }: { data: SalesTrend[] }) {
   if (!data.length)
     return (
       <div className="revenue-chart-empty">
-        <p>Không có dữ liệu trong khoảng ngày đã chọn.</p>
+        <p>{translate("organizer:organizerRevenuePage_khongCoDuLieuTrongKhoangNgay")}</p>
       </div>
     );
 
@@ -450,7 +457,9 @@ function RevenueTrendChart({ data }: { data: SalesTrend[] }) {
       <div className="revenue-chart-summary" aria-live="polite">
         <span>{active ? formatDateOnly(active.date) : ''}</span>
         <strong>{active ? currency.format(active.revenue) : currency.format(0)}</strong>
-        <small>{active ? `${integer.format(active.ticketsSold)} vé đã bán` : ''}</small>
+        <small>{active ? translate("organizer:organizerRevenuePage_veDaBan_2", {
+          count: active.ticketsSold, formattedCount: integer.format(active.ticketsSold),
+        }) : ''}</small>
       </div>
       <div className="revenue-chart-scroll">
         <svg
@@ -459,9 +468,9 @@ function RevenueTrendChart({ data }: { data: SalesTrend[] }) {
           role="img"
           aria-labelledby="revenue-chart-title revenue-chart-description"
         >
-          <title id="revenue-chart-title">Biểu đồ doanh thu theo ngày</title>
+          <title id="revenue-chart-title">{translate("organizer:organizerRevenuePage_bieuDoDoanhThuTheoNgay")}</title>
           <desc id="revenue-chart-description">
-            Doanh thu và số vé đã bán cho từng ngày trong khoảng báo cáo.
+            {translate("organizer:organizerRevenuePage_doanhThuVaSoVeDaBan")}
           </desc>
           {[0, 0.5, 1].map((ratio) => {
             const y = padding.top + chartHeight - ratio * chartHeight;
@@ -495,7 +504,7 @@ function RevenueTrendChart({ data }: { data: SalesTrend[] }) {
               className={index === activeIndex ? 'revenue-point is-active' : 'revenue-point'}
               tabIndex={0}
               role="img"
-              aria-label={`${formatDateOnly(point.date)}: ${currency.format(point.revenue)}, ${point.ticketsSold} vé`}
+              aria-label={translate("organizer:organizerRevenuePage_ve", { arg1: formatDateOnly(point.date), arg2: currency.format(point.revenue), arg3: point.ticketsSold })}
               onMouseEnter={() => setActiveIndex(index)}
               onFocus={() => setActiveIndex(index)}
             />
@@ -520,8 +529,9 @@ function RevenueTrendChart({ data }: { data: SalesTrend[] }) {
 }
 
 function RevenuePageSkeleton() {
+  useTranslation();
   return (
-    <div className="revenue-page-skeleton" aria-label="Đang tải báo cáo" aria-live="polite">
+    <div className="revenue-page-skeleton" aria-label={translate("organizer:organizerRevenuePage_dangTaiBaoCao")} aria-live="polite">
       <span />
       <span />
       <span />
@@ -530,10 +540,11 @@ function RevenuePageSkeleton() {
 }
 
 function ReportSkeleton() {
+  useTranslation();
   return (
     <div
       className="revenue-report-skeleton"
-      aria-label="Đang tải dữ liệu doanh thu"
+      aria-label={translate("organizer:organizerRevenuePage_dangTaiDuLieuDoanhThu")}
       aria-live="polite"
     >
       <div>
@@ -573,17 +584,17 @@ function isValidDate(value: string) {
 }
 
 function formatPercent(value: number) {
-  return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(value)}%`;
+  return `${numberFormatter({ maximumFractionDigits: 1 }).format(value)}%`;
 }
 
 function formatDateOnly(value: string) {
-  return new Intl.DateTimeFormat('vi-VN', { dateStyle: 'medium', timeZone: 'UTC' }).format(
+  return dateFormatter({ dateStyle: 'medium', timeZone: 'UTC' }).format(
     new Date(`${value}T00:00:00Z`),
   );
 }
 
 function shortDate(value: string) {
-  return new Intl.DateTimeFormat('vi-VN', {
+  return dateFormatter({
     day: '2-digit',
     month: '2-digit',
     timeZone: 'UTC',
@@ -591,7 +602,7 @@ function shortDate(value: string) {
 }
 
 function compactCurrency(value: number) {
-  return new Intl.NumberFormat('vi-VN', { notation: 'compact', maximumFractionDigits: 1 }).format(
+  return numberFormatter({ notation: 'compact', maximumFractionDigits: 1 }).format(
     value,
   );
 }

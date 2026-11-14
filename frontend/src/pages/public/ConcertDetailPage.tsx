@@ -1,3 +1,6 @@
+import { translate } from '../../i18n';
+import { useTranslation } from 'react-i18next';
+import { concertDescription, concertTitle } from '../../features/concert/concertText';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import DOMPurify from 'dompurify';
@@ -15,9 +18,10 @@ import {
 import { EventCard } from '../../components/EventCard';
 import { BuyerInformationLinks } from '../../components/BuyerInformationLinks';
 import { RemoteImage } from '../../components/RemoteImage';
-import { currency } from '../../data/formatters';
+import { currency, dateFormatter } from '../../data/formatters';
 
 export function ConcertDetailPage({ preview = false }: { preview?: boolean }) {
+  useTranslation();
   const { user } = useAuth();
   const { id } = useParams();
   const [concert, setConcert] = useState<ConcertDetail | null>(null);
@@ -50,7 +54,7 @@ export function ConcertDetailPage({ preview = false }: { preview?: boolean }) {
         setError(null);
       })
       .catch((requestError: unknown) => {
-        if (active && !isRequestCanceled(requestError)) setError('Không thể tải concert này.');
+        if (active && !isRequestCanceled(requestError)) setError(translate("public:concertDetailPage_khongTheTaiConcertNay"));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -86,17 +90,17 @@ export function ConcertDetailPage({ preview = false }: { preview?: boolean }) {
     return (
       <div className="page-width detail-error state-panel">
         <span className="state-icon">!</span>
-        <h1>Concert không khả dụng</h1>
-        <p>{error ?? 'Không tìm thấy concert được yêu cầu.'}</p>
+        <h1>{translate("public:concertDetailPage_concertKhongKhaDung")}</h1>
+        <p>{error ?? translate("public:concertDetailPage_khongTimThayConcertDuocYeuCau")}</p>
         <button
           className="button button-primary"
           type="button"
           onClick={() => setReloadKey((value) => value + 1)}
         >
-          Thử lại
+          {translate("public:concertDetailPage_thuLai")}
         </button>
         <Link className="text-link" to="/">
-          Quay lại danh sách concert
+          {translate("public:concertDetailPage_quayLaiDanhSachConcert")}
         </Link>
       </div>
     );
@@ -104,30 +108,30 @@ export function ConcertDetailPage({ preview = false }: { preview?: boolean }) {
 
   const concertDate = new Date(concert.eventDate);
   const doorsOpen = concert.doorsOpenAt
-    ? new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit' }).format(
+    ? dateFormatter({ hour: '2-digit', minute: '2-digit' }).format(
         new Date(concert.doorsOpenAt),
       )
-    : 'Sẽ thông báo';
+    : translate("public:concertDetailPage_seThongBao");
   const saleStartAt = new Date(concert.saleStartAt).getTime();
   const waitingRoomOpensAt = saleStartAt - 60 * 60 * 1_000;
   const saleNotStarted = saleStartAt > now;
   const waitingRoomNotOpen = waitingRoomOpensAt > now;
   const waitingRoomOpen = saleNotStarted && !waitingRoomNotOpen;
   const saleEnded = concert.saleEndAt ? new Date(concert.saleEndAt).getTime() < now : false;
-  const saleStart = new Intl.DateTimeFormat('vi-VN', {
+  const saleStart = dateFormatter({
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(concert.saleStartAt));
-  const waitingRoomOpenTime = new Intl.DateTimeFormat('vi-VN', {
+  const waitingRoomOpenTime = dateFormatter({
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(waitingRoomOpensAt));
   const saleEnd = concert.saleEndAt
-    ? new Intl.DateTimeFormat('vi-VN', { dateStyle: 'medium', timeStyle: 'short' }).format(
+    ? dateFormatter({ dateStyle: 'medium', timeStyle: 'short' }).format(
         new Date(concert.saleEndAt),
       )
     : null;
-  const concertDateTime = new Intl.DateTimeFormat('vi-VN', {
+  const concertDateTime = dateFormatter({
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(concertDate);
@@ -141,23 +145,23 @@ export function ConcertDetailPage({ preview = false }: { preview?: boolean }) {
         <div className="detail-overlay" />
         <div className="detail-hero-content page-width">
           <Link className="back-link" to={preview ? `/organizer/concerts/${id}` : "/"}>
-            {preview ? "← Về buổi diễn" : "← Tất cả concert"}
+            {preview ? translate("public:concertDetailPage_veBuoiDien") : translate("public:concertDetailPage_tatCaConcert")}
           </Link>
           <div className="detail-title">
             <p className="eyebrow">
-              <span /> {preview ? 'Xem trước dành cho ban tổ chức' : 'Live tại Việt Nam'}
+              <span /> {preview ? translate("public:concertDetailPage_xemTruocDanhChoBanToChuc") : translate("public:concertDetailPage_liveTaiVietNam")}
             </p>
-            <h1>{concert.title}</h1>
+            <h1>{concertTitle(concert)}</h1>
             <p className="artist-line">
               {concert.artistBio
-                ? 'Gặp gỡ nghệ sĩ của đêm diễn'
-                : 'Trải nghiệm chính thức từ TicketBox'}
+                ? translate("public:concertDetailPage_gapGoNgheSiCuaDemDien")
+                : translate("public:concertDetailPage_traiNghiemChinhThucTuTicketbox")}
             </p>
           </div>
           <div className="detail-facts">
-            <Fact label="Ngày diễn" value={concertDateTime} />
-            <Fact label="Mở cửa" value={doorsOpen} />
-            <Fact label="Địa điểm" value={concert.venueName} />
+            <Fact label={translate("public:concertDetailPage_ngayDien")} value={concertDateTime} />
+            <Fact label={translate("public:concertDetailPage_moCua")} value={doorsOpen} />
+            <Fact label={translate("public:concertDetailPage_diaDiem")} value={concert.venueName} />
           </div>
         </div>
       </section>
@@ -166,46 +170,46 @@ export function ConcertDetailPage({ preview = false }: { preview?: boolean }) {
           {concert.artistBio ? (
             <section className="detail-section artist-section artist-section-featured">
               <p className="eyebrow">
-                <span /> Nghệ sĩ biểu diễn
+                <span /> {translate("public:concertDetailPage_ngheSiBieuDien")}
               </p>
               <h2>
-                Gặp gỡ những người đứng sau <em>sân khấu.</em>
+                {translate("public:concertDetailPage_gapGoNhungNguoiDungSau")} <em>{translate("public:concertDetailPage_sanKhau")}</em>
               </h2>
               <p className="artist-biography">{concert.artistBio}</p>
             </section>
           ) : null}
           <section className="detail-section detail-about-section">
             <p className="eyebrow">
-              <span /> Về đêm diễn
+              <span /> {translate("public:concertDetailPage_veDemDien")}
             </p>
             <h2>
-              Trải nghiệm live được tạo nên từ <em>âm thanh, ánh sáng và kết nối.</em>
+              {translate("public:concertDetailPage_traiNghiemLiveDuocTaoNenTu")} <em>{translate("public:concertDetailPage_amThanhAnhSangVaKetNoi")}</em>
             </h2>
-            <p>{concert.description || 'Một đêm nhạc live dành cho những người yêu âm nhạc.'}</p>
+            <p>{concertDescription(concert) || translate("public:concertDetailPage_motDemNhacLiveDanhChoNhung")}</p>
             <div className="feature-row">
               <Feature
                 number="01"
-                title="Sản xuất giàu trải nghiệm"
-                copy="Sân khấu điện ảnh cùng âm thanh không gian."
+                title={translate("public:concertDetailPage_sanXuatGiauTraiNghiem")}
+                copy={translate("public:concertDetailPage_sanKhauDienAnhCungAmThanh")}
               />
               <Feature
                 number="02"
-                title="Vé chính thức"
-                copy={`${ticketTypes.length} khu vé đã xác thực.`}
+                title={translate("public:concertDetailPage_veChinhThuc")}
+                copy={translate("public:concertDetailPage_khuVeDaXacThuc", { arg1: ticketTypes.length })}
               />
               <Feature
                 number="03"
-                title="Vào cổng dễ dàng"
-                copy="Vé mobile và đội ngũ hỗ trợ riêng."
+                title={translate("public:concertDetailPage_vaoCongDeDang")}
+                copy={translate("public:concertDetailPage_veMobileVaDoiNguHoTro")}
               />
             </div>
           </section>
           <section className="detail-section ticket-types-section" aria-labelledby="ticket-types-title">
             <p className="eyebrow">
-              <span /> Lựa chọn vé
+              <span /> {translate("public:concertDetailPage_luaChonVe")}
             </p>
             <h2 id="ticket-types-title">
-              Chọn <em>trải nghiệm</em> của bạn.
+              {translate("public:concertDetailPage_chon")} <em>{translate("public:concertDetailPage_traiNghiem")}</em> {translate("public:concertDetailPage_cuaBan")}
             </h2>
             <div className="ticket-types-list">
               {ticketTypes.length ? (
@@ -217,7 +221,7 @@ export function ConcertDetailPage({ preview = false }: { preview?: boolean }) {
                     <div>
                       <strong>{ticketType.name}</strong>
                       <span>
-                        {ticketType.availableQty > 0 ? 'Còn vé' : 'Hết vé'}
+                        {ticketType.availableQty > 0 ? translate("public:concertDetailPage_conVe") : translate("public:concertDetailPage_hetVe")}
                       </span>
                     </div>
                     <strong>{currency.format(ticketType.price)}</strong>
@@ -225,64 +229,64 @@ export function ConcertDetailPage({ preview = false }: { preview?: boolean }) {
                 ))
               ) : (
                 <div className="ticket-type-empty">
-                  Các khu vé đang được chuẩn bị cho concert này.
+                  {translate("public:concertDetailPage_cacKhuVeDangDuocChuanBi")}
                 </div>
               )}
             </div>
           </section>
         </article>
         <aside className="booking-card">
-          <p className="booking-label">{lowestPrice === null ? 'Thông tin vé' : 'Giá vé từ'}</p>
+          <p className="booking-label">{lowestPrice === null ? translate("public:concertDetailPage_thongTinVe") : translate("public:concertDetailPage_giaVeTu")}</p>
           <p className="booking-price">
-            {lowestPrice === null ? 'Sắp có' : currency.format(lowestPrice)}
+            {lowestPrice === null ? translate("public:concertDetailPage_sapCo") : currency.format(lowestPrice)}
           </p>
           <div className="booking-divider" />
           <div className="booking-detail">
-            <span>Ngày diễn</span>
+            <span>{translate("public:concertDetailPage_ngayDien")}</span>
             <strong>{concertDateTime}</strong>
           </div>
           <div className="booking-detail">
-            <span>Mở bán</span>
+            <span>{translate("public:concertDetailPage_moBan")}</span>
             <strong>{saleStart}</strong>
           </div>
           {saleEnd ? (
             <div className="booking-detail">
-              <span>Kết thúc bán</span>
+              <span>{translate("public:concertDetailPage_ketThucBan")}</span>
               <strong>{saleEnd}</strong>
             </div>
           ) : null}
           <div className="booking-detail">
-            <span>Địa điểm</span>
+            <span>{translate("public:concertDetailPage_diaDiem")}</span>
             <strong>{concert.venueAddress}</strong>
           </div>
           {!preview && concert.organizationName?.trim() ? (
             <div className="booking-detail">
-              <span>Ban tổ chức</span>
+              <span>{translate("public:concertDetailPage_banToChuc")}</span>
               <strong>{concert.organizationName}</strong>
             </div>
           ) : null}
 
           {!canBuy ? (
-            <p>{preview ? 'Chế độ xem trước' : 'Đăng nhập bằng tài khoản người mua để mua vé.'}</p>
+            <p>{preview ? translate("public:concertDetailPage_cheDoXemTruoc") : translate("public:concertDetailPage_dangNhapBangTaiKhoanNguoiMua")}</p>
           ) : canEnterWaitingRoom ? (
             <Link
               className="button button-primary button-block"
               to={`/concerts/${concert.id}/waiting-room`}
             >
-              {waitingRoomOpen ? 'Vào phòng chờ' : 'Mua ngay'} <span aria-hidden="true">→</span>
+              {waitingRoomOpen ? translate("public:concertDetailPage_vaoPhongCho") : translate('public:concertDetailPage_buyNow')} <span aria-hidden="true">→</span>
             </Link>
           ) : (
             <button className="button button-disabled" type="button" disabled>
               {concert.status === 'SOLD_OUT'
-                ? 'Hết vé'
+                ? translate("public:concertDetailPage_hetVe")
                 : waitingRoomNotOpen
-                  ? `Phòng chờ mở lúc ${waitingRoomOpenTime}`
+                  ? translate("public:concertDetailPage_phongChoMoLuc", { arg1: waitingRoomOpenTime })
                   : saleEnded
-                    ? 'Đã kết thúc bán vé'
-                    : 'Chưa mở bán'}
+                    ? translate("public:concertDetailPage_daKetThucBanVe")
+                    : translate("public:concertDetailPage_chuaMoBan")}
             </button>
           )}
-          <p className="secure-note">Thanh toán bảo mật · Đối tác vé chính thức</p>
+          <p className="secure-note">{translate("public:concertDetailPage_thanhToanBaoMatDoiTacVe")}</p>
           {!preview ? <BuyerInformationLinks /> : null}
         </aside>
       </section>
@@ -290,10 +294,10 @@ export function ConcertDetailPage({ preview = false }: { preview?: boolean }) {
         <div className="page-width venue-grid">
           <div>
             <p className="eyebrow">
-              <span /> Sơ đồ chỗ ngồi
+              <span /> {translate("public:concertDetailPage_soDoChoNgoi")}
             </p>
-            <h2>Sơ đồ phân khu</h2>
-            <p>Sơ đồ phân bổ các hạng vé trong khu vực biểu diễn của concert.</p>
+            <h2>{translate("public:concertDetailPage_soDoPhanKhu")}</h2>
+            <p>{translate("public:concertDetailPage_soDoPhanBoCacHangVe")}</p>
           </div>
           {concert.seatMapSvg ? (
             <div
@@ -308,8 +312,8 @@ export function ConcertDetailPage({ preview = false }: { preview?: boolean }) {
           ) : (
             <div className="seat-map-fallback">
               <span aria-hidden="true">◇</span>
-              <h3>Sơ đồ chỗ không khả dụng</h3>
-              <p>Hệ thống chưa cập nhật sơ đồ cho buổi biểu diễn này.</p>
+              <h3>{translate("public:concertDetailPage_soDoChoKhongKhaDung")}</h3>
+              <p>{translate("public:concertDetailPage_heThongChuaCapNhatSoDo")}</p>
             </div>
           )}
         </div>
@@ -319,14 +323,14 @@ export function ConcertDetailPage({ preview = false }: { preview?: boolean }) {
           <div className="section-heading">
             <div>
               <p className="eyebrow">
-                <span /> Khám phá thêm
+                <span /> {translate("public:concertDetailPage_khamPhaThem")}
               </p>
               <h2>
-                Có thể bạn cũng <em>thích.</em>
+                {translate("public:concertDetailPage_coTheBanCung")} <em>{translate("public:concertDetailPage_thich")}</em>
               </h2>
             </div>
             <Link className="text-link" to="/">
-              Xem tất cả concert →
+              {translate("public:concertDetailPage_xemTatCaConcert")}
             </Link>
           </div>
           <div className="event-grid event-grid-three">
@@ -351,6 +355,7 @@ export function ConcertDetailPage({ preview = false }: { preview?: boolean }) {
 }
 
 function Fact({ label, value }: { label: string; value: string }) {
+  useTranslation();
   return (
     <div>
       <span>{label}</span>
@@ -360,6 +365,7 @@ function Fact({ label, value }: { label: string; value: string }) {
 }
 
 function Feature({ number, title, copy }: { number: string; title: string; copy: string }) {
+  useTranslation();
   return (
     <div className="detail-feature">
       <span>{number}</span>

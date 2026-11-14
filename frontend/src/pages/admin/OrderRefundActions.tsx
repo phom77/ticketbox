@@ -1,3 +1,5 @@
+import { translate } from '../../i18n';
+import { useTranslation } from 'react-i18next';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { decideOrderRefund, type OrderSupportDetails, type RefundCase, type RefundCommand, type RefundDecision } from '../../api/admin';
 import { ApiClientError } from '../../api/client';
@@ -6,10 +8,10 @@ import { useAuth } from '../../features/auth/AuthContext';
 import './OrderRefundActions.css';
 
 const actions = {
-  REQUEST: { open: 'Yêu cầu hoàn toàn đơn', submit: 'Gửi yêu cầu hoàn tiền' },
-  APPROVE: { open: 'Duyệt yêu cầu', submit: 'Xác nhận duyệt' },
-  CONFIRM: { open: 'Ghi nhận kết quả hoàn tiền', submit: 'Xác nhận đã hoàn tiền' },
-  ABORT: { open: 'Đóng hồ sơ chưa hoàn tiền', submit: 'Xác nhận đóng hồ sơ' },
+  REQUEST: { get open() { return translate("admin:orderRefundActions_yeuCauHoanToanDon"); }, get submit() { return translate("admin:orderRefundActions_guiYeuCauHoanTien"); } },
+  APPROVE: { get open() { return translate("admin:orderRefundActions_duyetYeuCau"); }, get submit() { return translate("admin:orderRefundActions_xacNhanDuyet"); } },
+  CONFIRM: { get open() { return translate("admin:orderRefundActions_ghiNhanKetQuaHoanTien"); }, get submit() { return translate("admin:orderRefundActions_xacNhanDaHoanTien"); } },
+  ABORT: { get open() { return translate("admin:orderRefundActions_dongHoSoChuaHoanTien"); }, get submit() { return translate("admin:orderRefundActions_xacNhanDongHoSo"); } },
 } satisfies Record<RefundDecision, { open: string; submit: string }>;
 
 type Payment = OrderSupportDetails['payment'];
@@ -21,6 +23,7 @@ function vietnamTime(value: string) {
 }
 
 export function OrderRefundActions({ orderId, attempt, cases, onUpdate, onReload }: Props) {
+  useTranslation();
   const { user } = useAuth();
   const current = cases[0];
   const verified = attempt?.verifiedAt && attempt.transactionId &&
@@ -89,8 +92,8 @@ export function OrderRefundActions({ orderId, attempt, cases, onUpdate, onReload
         setReplaying(true);
         return;
       }
-      if (action === 'CONFIRM') setNotice('Đã ghi nhận kết quả hoàn tiền.');
-      if (action === 'ABORT') setNotice('Đã đóng hồ sơ.');
+      if (action === 'CONFIRM') setNotice(translate("admin:orderRefundActions_daGhiNhanKetQuaHoanTien"));
+      if (action === 'ABORT') setNotice(translate("admin:orderRefundActions_daDongHoSo"));
       replay.current = null;
       setReplaying(false);
       setAction(null);
@@ -99,15 +102,15 @@ export function OrderRefundActions({ orderId, attempt, cases, onUpdate, onReload
       const status = failure instanceof ApiClientError ? failure.status : 500;
       if (status >= 500) {
         setReplaying(true);
-        setError({ message: 'Chưa nhận được kết quả. Thử lại để dùng cùng mã hành động.' });
+        setError({ message: translate("admin:orderRefundActions_chuaNhanDuocKetQuaThuLai") });
       } else if (status === 400) {
         replay.current = null;
         setReplaying(false);
-        setError({ message: 'Thông tin chưa hợp lệ. Vui lòng kiểm tra lại.' });
+        setError({ message: translate("admin:orderRefundActions_thongTinChuaHopLeVuiLong") });
       } else {
         setError({ blocked: true, message: status === 403
-          ? 'Bạn không có quyền thực hiện thao tác này.'
-          : 'Không thể tiếp tục với trạng thái hiện tại. Hãy tải lại hồ sơ và kiểm tra tình trạng vé.' });
+          ? translate("admin:orderRefundActions_banKhongCoQuyenThucHienThao")
+          : translate("admin:orderRefundActions_khongTheTiepTucVoiTrangThai") });
       }
     } finally {
       savingRef.current = false;
@@ -119,19 +122,19 @@ export function OrderRefundActions({ orderId, attempt, cases, onUpdate, onReload
 
   return (
     <div className="order-refund-actions">
-      <h4 ref={heading} tabIndex={-1}>Hoàn toàn đơn</h4>
+      <h4 ref={heading} tabIndex={-1}>{translate("admin:orderRefundActions_hoanToanDon")}</h4>
       {notice && <p role="status">{notice}</p>}
-      {current?.state === 'REQUESTED' && !canApprove && <p>Chờ admin khác duyệt.</p>}
+      {current?.state === 'REQUESTED' && !canApprove && <p>{translate("admin:orderRefundActions_choAdminKhacDuyet")}</p>}
       {current?.state === 'HOLD_PENDING' && <p role="status">
-        {canResume ? 'Đang chờ xác nhận giữ vé. Có thể kiểm tra lại.' : 'Đang chờ admin phụ trách xác nhận giữ vé.'}
+        {canResume ? translate("admin:orderRefundActions_dangChoXacNhanGiuVeCo") : translate("admin:orderRefundActions_dangChoAdminPhuTrachXacNhan")}
       </p>}
       {approved && <p>
-        Thực hiện hoàn toàn đơn trên cổng thanh toán {attempt?.provider}, sau đó ghi nhận mã tham chiếu và thời điểm thực tế.
+        {translate('admin:orderRefundActions_recordProviderRefund', { provider: attempt?.provider ?? '' })}
       </p>}
       {!action ? <div className="order-refund-buttons">
         {canRequest && <button type="button" className="admin-secondary-action" onClick={() => open('REQUEST')}>{actions.REQUEST.open}</button>}
         {(canApprove || canResume) && <button type="button" className="admin-secondary-action" onClick={() => open('APPROVE')}>
-          {canResume ? 'Kiểm tra giữ vé và duyệt lại' : actions.APPROVE.open}
+          {canResume ? translate("admin:orderRefundActions_kiemTraGiuVeVaDuyetLai") : actions.APPROVE.open}
         </button>}
         {approved && <button type="button" className="admin-secondary-action" onClick={() => open('CONFIRM')}>{actions.CONFIRM.open}</button>}
         {canAbort && <button type="button" className="admin-secondary-action" onClick={() => open('ABORT')}>{actions.ABORT.open}</button>}
@@ -139,41 +142,41 @@ export function OrderRefundActions({ orderId, attempt, cases, onUpdate, onReload
         <form className="order-refund-form" onSubmit={(event) => void submit(event)}>
           <p>{actions[action].open}</p>
           {(action === 'CONFIRM' || action === 'REQUEST') && typeof amount === 'number' &&
-            <p>Số tiền hoàn toàn đơn <strong>{currency.format(amount)}</strong></p>}
+            <p>{translate("admin:orderRefundActions_soTienHoanToanDon")} <strong>{currency.format(amount)}</strong></p>}
           <label className="admin-field">
-            Lý do
+            {translate("admin:orderRefundActions_lyDo")}
             <textarea ref={reason} rows={2} required maxLength={1000} readOnly={locked} value={detail}
               onChange={(event) => setDetail(event.target.value)} />
           </label>
           {action === 'CONFIRM' && <div className="admin-form-grid">
             <label className="admin-field">
-              Mã tham chiếu hoàn tiền
+              {translate("admin:orderRefundActions_maThamChieuHoanTien")}
               <input value={reference} onChange={(event) => setReference(event.target.value)}
                 maxLength={255} required readOnly={locked} />
             </label>
             <label className="admin-field">
-              Thời điểm hoàn tiền (giờ Việt Nam)
+              {translate("admin:orderRefundActions_thoiDiemHoanTienGioVietNam")}
               <input type="datetime-local" step={1} value={time} onChange={(event) => setTime(event.target.value)}
                 required readOnly={locked} />
             </label>
-            {time && !validEvidence && <p className="admin-field-wide">Thời điểm phải từ lúc xác nhận thu tiền đến hiện tại. Nhập cả mã tham chiếu.</p>}
+            {time && !validEvidence && <p className="admin-field-wide">{translate("admin:orderRefundActions_thoiDiemPhaiTuLucXacNhan")}</p>}
           </div>}
           {action === 'ABORT' && <label className="order-refund-check">
             <input type="checkbox" checked={noMoneySent} required disabled={locked} onChange={(event) => setNoMoneySent(event.target.checked)} />
-            Tôi xác nhận chưa gửi khoản hoàn tiền.
+            {translate("admin:orderRefundActions_toiXacNhanChuaGuiKhoanHoan")}
           </label>}
           {error && <p className="admin-notice error" role="alert">{error.message}</p>}
           <div className="order-refund-buttons">
             <button type="submit" className="admin-primary-action" disabled={saving || !canSubmit}>
-              {saving ? 'Đang gửi yêu cầu…' : actions[action].submit}
+              {saving ? translate("admin:orderRefundActions_dangGuiYeuCau") : actions[action].submit}
             </button>
             {locked || error?.blocked ? (
-              <button type="button" className="admin-secondary-action" disabled={saving} onClick={onReload}>Tải lại trạng thái</button>
+              <button type="button" className="admin-secondary-action" disabled={saving} onClick={onReload}>{translate("admin:orderRefundActions_taiLaiTrangThai")}</button>
             ) : (
               <button type="button" className="admin-secondary-action" onClick={() => {
                 setAction(null);
                 heading.current?.focus();
-              }}>Quay lại</button>
+              }}>{translate("admin:orderRefundActions_quayLai")}</button>
             )}
           </div>
         </form>

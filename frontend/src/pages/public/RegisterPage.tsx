@@ -1,3 +1,5 @@
+import { translate } from '../../i18n';
+import { useTranslation } from 'react-i18next';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../features/auth/AuthContext';
@@ -5,6 +7,7 @@ import { getRoleHome } from '../../features/auth/roleRoutes';
 import { AuthLayout } from './LoginPage';
 
 export function RegisterPage() {
+  useTranslation();
   const { register, user, loading } = useAuth();
   const navigate = useNavigate();
   const [submitting, setSubmitting] = useState(false);
@@ -22,7 +25,7 @@ export function RegisterPage() {
     const password = String(data.get('password'));
     const confirmation = String(data.get('confirmPassword'));
     if (password !== confirmation) {
-      setError('Mật khẩu xác nhận không khớp.');
+      setError(translate("public:registerPage_matKhauXacNhanKhongKhop"));
       return;
     }
     setError(null);
@@ -37,7 +40,7 @@ export function RegisterPage() {
       navigate('/login', { replace: true });
     } catch (requestError) {
       setError(
-        requestError instanceof Error ? requestError.message : 'Không thể tạo tài khoản của bạn.',
+        requestError instanceof Error ? requestError.message : translate("public:registerPage_khongTheTaoTaiKhoanCuaBan"),
       );
     } finally {
       setSubmitting(false);
@@ -46,18 +49,18 @@ export function RegisterPage() {
 
   return (
     <AuthLayout
-      quote="Âm thanh khán giả rất lớn. Ký ức còn vang hơn."
-      credit="TicketBox tuyển chọn · Hà Nội"
+      quote={translate("public:registerPage_amThanhKhanGiaRatLonKy")}
+      credit={translate("public:registerPage_ticketboxTuyenChonHaNoi")}
     >
       <div className="auth-card">
         <div className="auth-heading">
           <p className="eyebrow">
-            <span /> Tham gia cùng khán giả
+            <span /> {translate("public:registerPage_thamGiaCungKhanGia")}
           </p>
           <h1>
-            Dành chỗ cho <em>nhiều ký ức hơn.</em>
+            {translate("public:registerPage_danhChoCho")} <em>{translate("public:registerPage_nhieuKyUcHon")}</em>
           </h1>
-          <p>Tạo tài khoản để đặt sự kiện và lưu mọi vé trong tầm tay.</p>
+          <p>{translate("public:registerPage_taoTaiKhoanDeDatSuKien")}</p>
         </div>
         {error ? (
           <div className="state-panel auth-error" role="alert">
@@ -66,12 +69,12 @@ export function RegisterPage() {
         ) : null}
         <form className="auth-form" onSubmit={submit}>
           <label className="field">
-            <span>Họ và tên</span>
+            <span>{translate("public:registerPage_hoVaTen")}</span>
             <input name="fullName" autoComplete="name" placeholder="Minh Quan..." required />
           </label>
           <div className="form-grid form-grid-two">
             <label className="field">
-              <span>Địa chỉ email</span>
+              <span>{translate("public:registerPage_diaChiEmail")}</span>
               <input
                 type="email"
                 name="email"
@@ -82,30 +85,30 @@ export function RegisterPage() {
               />
             </label>
             <label className="field">
-              <span>Số điện thoại</span>
+              <span>{translate("public:registerPage_soDienThoai")}</span>
               <input type="tel" name="phone" autoComplete="tel" placeholder="0901234567" required />
             </label>
           </div>
           <div className="form-grid form-grid-two">
             <label className="field">
-              <span>Mật khẩu</span>
+              <span>{translate("public:registerPage_matKhau")}</span>
               <input
                 type="password"
                 name="password"
                 autoComplete="new-password"
                 minLength={8}
-                placeholder="Ít nhất 8 ký tự..."
+                placeholder={translate("public:registerPage_itNhat8KyTu")}
                 required
               />
             </label>
             <label className="field">
-              <span>Xác nhận mật khẩu</span>
+              <span>{translate("public:registerPage_xacNhanMatKhau")}</span>
               <input
                 type="password"
                 name="confirmPassword"
                 autoComplete="new-password"
                 minLength={8}
-                placeholder="Nhập lại mật khẩu..."
+                placeholder={translate("public:registerPage_nhapLaiMatKhau")}
                 required
               />
             </label>
@@ -113,8 +116,8 @@ export function RegisterPage() {
           <label className="terms-check">
             <input type="checkbox" required />
             <span>
-              Tôi đồng ý với <a href="#terms">Điều khoản</a> và{' '}
-              <a href="#privacy">Chính sách quyền riêng tư</a>.
+              {translate("public:registerPage_toiDongYVoi")} <a href="#terms">{translate("public:registerPage_dieuKhoan")}</a> {translate("public:registerPage_va")}{' '}
+              <a href="#privacy">{translate("public:registerPage_chinhSachQuyenRiengTu")}</a>.
             </span>
           </label>
           <button
@@ -122,11 +125,11 @@ export function RegisterPage() {
             type="submit"
             disabled={submitting}
           >
-            {submitting ? 'Đang tạo tài khoản...' : 'Tạo tài khoản'}
+            {submitting ? translate("public:registerPage_dangTaoTaiKhoan") : translate("public:registerPage_taoTaiKhoan")}
           </button>
         </form>
         <p className="auth-switch">
-          Đã có tài khoản? <Link to="/login">Đăng nhập</Link>
+          {translate("public:registerPage_daCoTaiKhoan")} <Link to="/login">{translate("public:registerPage_dangNhap")}</Link>
         </p>
       </div>
     </AuthLayout>

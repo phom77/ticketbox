@@ -1,3 +1,5 @@
+import { translate } from '../../i18n';
+import { useTranslation } from 'react-i18next';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { isRequestCanceled } from '../../api/client';
@@ -11,9 +13,10 @@ function isOrderStillPayable(order: Order) {
 }
 
 export function PaymentResultPage() {
+  useTranslation();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const [message, setMessage] = useState('Đang xác nhận thanh toán của bạn với TicketBox...');
+  const [messageKey, setMessageKey] = useState('customer:paymentResultPage_dangXacNhanThanhToanCuaBan');
   const orderId = searchParams.get('orderId') ?? searchParams.get('vnp_TxnRef');
   const awaitingSession = searchParams.get('pending') === 'true';
 
@@ -36,6 +39,7 @@ export function PaymentResultPage() {
         const event: CheckoutEvent = {
           id: concert.id,
           title: concert.title,
+          translations: concert.translations,
           venue: concert.venueName,
           date: concert.eventDate,
           image: concert.posterUrl,
@@ -73,7 +77,7 @@ export function PaymentResultPage() {
           }
 
           if (payment.attemptState === 'RECONCILIATION_REQUIRED' || payment.attemptState === 'REVIEW_REQUIRED') {
-            setMessage('Thanh toán cần được đối soát. Mã đơn: ' + activeOrderId + '. Vui lòng liên hệ hỗ trợ trước khi thanh toán lại.');
+            setMessageKey('customer:paymentResultPage_reconciliationRequired');
             return;
           }
           if (awaitingSession && (payment.attemptState === 'CREATED' || (payment.attemptState === 'READY' && payment.paymentUrl))) {
@@ -82,7 +86,7 @@ export function PaymentResultPage() {
           }
           if (!isOrderStillPayable(order) &&
               (payment.attemptState === 'UNKNOWN' || payment.attemptState === 'PROCESSING')) {
-            setMessage('Đơn đã hết thời gian giữ vé. Kết quả thanh toán vẫn đang được đối soát; hãy kiểm tra lịch sử đơn hàng trước khi mua lại.');
+            setMessageKey("customer:paymentResultPage_donDaHetThoiGianGiuVe");
             return;
           }
           if (!isOrderStillPayable(order)) {
@@ -95,13 +99,13 @@ export function PaymentResultPage() {
             return;
           }
 
-          setMessage(payment.attemptState === 'UNKNOWN' || payment.attemptState === 'PROCESSING'
-            ? 'Cổng thanh toán chưa trả kết quả rõ ràng. TicketBox đang kiểm tra phiên này; vui lòng chờ trước khi thanh toán lại.'
-            : 'Đã nhận kết quả từ cổng thanh toán. Đang chờ TicketBox xác nhận đơn hàng...');
+          setMessageKey(payment.attemptState === 'UNKNOWN' || payment.attemptState === 'PROCESSING'
+            ? 'customer:paymentResultPage_congThanhToanChuaTraKetQua'
+            : 'customer:paymentResultPage_daNhanKetQuaTuCongThanh');
           await new Promise((resolve) => window.setTimeout(resolve, 2_000));
         } catch (requestError) {
           if (active && !isRequestCanceled(requestError)) {
-            setMessage('Chưa thể xác nhận trạng thái thanh toán. Bạn có thể mở lại đơn một cách an toàn.');
+            setMessageKey("customer:paymentResultPage_chuaTheXacNhanTrangThaiThanh");
           }
           return;
         }
@@ -125,10 +129,10 @@ export function PaymentResultPage() {
     return (
       <section className="confirmation-page page-width">
         <div className="confirmation-mark failed">!</div>
-        <p className="eyebrow"><span /> Không có kết quả thanh toán</p>
-        <h1>Không thể khớp thanh toán này với đơn hàng.</h1>
-        <p>Mở lịch sử đơn hàng để kiểm tra trạng thái thanh toán mới nhất.</p>
-        <Link className="button button-primary" to="/profile?tab=orders">Xem đơn hàng</Link>
+        <p className="eyebrow"><span /> {translate("customer:paymentResultPage_khongCoKetQuaThanhToan")}</p>
+        <h1>{translate("customer:paymentResultPage_khongTheKhopThanhToanNayVoi")}</h1>
+        <p>{translate("customer:paymentResultPage_moLichSuDonHangDeKiem")}</p>
+        <Link className="button button-primary" to="/profile?tab=orders">{translate("customer:paymentResultPage_xemDonHang")}</Link>
       </section>
     );
   }
@@ -136,14 +140,14 @@ export function PaymentResultPage() {
   return (
     <section className="confirmation-page page-width" aria-live="polite">
       <div className="payment-result-spinner" aria-hidden="true" />
-      <p className="eyebrow"><span /> Đang xử lý thanh toán</p>
-      <h1>Vui lòng chờ, chúng tôi đang xác nhận đơn hàng của bạn.</h1>
-      <p>{message}</p>
+      <p className="eyebrow"><span /> {translate("customer:paymentResultPage_dangXuLyThanhToan")}</p>
+      <h1>{translate("customer:paymentResultPage_vuiLongChoChungToiDangXac")}</h1>
+      <p>{translate(messageKey, { orderId })}</p>
       <div className="confirmation-actions">
         <Link className="text-link" to={`/checkout?orderId=${encodeURIComponent(orderId)}`}>
-          Quay lại đơn thanh toán
+          {translate("customer:paymentResultPage_quayLaiDonThanhToan")}
         </Link>
-        <Link className="text-link" to="/profile?tab=orders">Xem lịch sử đơn hàng</Link>
+        <Link className="text-link" to="/profile?tab=orders">{translate("customer:paymentResultPage_xemLichSuDonHang")}</Link>
       </div>
     </section>
   );

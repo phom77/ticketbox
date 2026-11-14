@@ -1,11 +1,12 @@
+import { translate } from '../i18n';
 import { api, apiGet } from './client';
 
 export type OrganizationGrant = 'MEMBERS' | 'EVENTS' | 'FINANCE';
 
 export const organizationGrantLabels: Record<OrganizationGrant, string> = {
-  MEMBERS: 'Quản lý thành viên',
-  EVENTS: 'Quản lý buổi diễn',
-  FINANCE: 'Xem đơn hàng và doanh thu',
+  get MEMBERS() { return translate("shared:organizations_quanLyThanhVien"); },
+  get EVENTS() { return translate("shared:organizations_quanLyBuoiDien"); },
+  get FINANCE() { return translate("shared:organizations_xemDonHangVaDoanhThu"); },
 };
 
 export type OrganizationMembership = {

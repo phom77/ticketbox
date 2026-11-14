@@ -1,3 +1,6 @@
+import { dateFormatter, numberFormatter } from '../../data/formatters';
+import { translate } from '../../i18n';
+import { useTranslation } from 'react-i18next';
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { Edit3, Plus, Search, Ticket, Trash2, X } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -19,7 +22,7 @@ import { ConcertPicker } from '../../components/admin/ConcertPicker';
 import { useToast } from '../../components/feedback/toast-context';
 import { ModalPortal } from '../../components/feedback/ModalPortal';
 
-const currency = new Intl.NumberFormat('vi-VN', {
+const currency = numberFormatter({
   style: 'currency',
   currency: 'VND',
   maximumFractionDigits: 0,
@@ -62,6 +65,7 @@ function toPayload(form: TicketFormState): TicketTypeMutation {
 }
 
 export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: ManagementApiScope }) {
+  useTranslation();
   const toast = useToast();
   const [searchParams] = useSearchParams();
   const root = apiScope === 'admin' ? '/admin' : '/organizer';
@@ -96,7 +100,7 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
         );
       } catch (requestError) {
         if (!isRequestCanceled(requestError)) {
-          setError(requestError instanceof Error ? requestError.message : 'Không thể tải concert.');
+          setError(requestError instanceof Error ? requestError.message : translate("admin:adminTicketTypesPage_khongTheTaiConcert"));
         }
       } finally {
         if (!controller.signal.aborted) setLoadingConcerts(false);
@@ -118,7 +122,7 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
         setTicketTypes(await getAdminTicketTypes(selectedConcertId, signal, apiScope));
       } catch (requestError) {
         if (!isRequestCanceled(requestError)) {
-          setError(requestError instanceof Error ? requestError.message : 'Không thể tải hạng vé.');
+          setError(requestError instanceof Error ? requestError.message : translate("admin:adminTicketTypesPage_khongTheTaiHangVe"));
         }
       } finally {
         if (!signal?.aborted) setLoadingTickets(false);
@@ -184,15 +188,15 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
       const payload = toPayload(form);
       if (editing) {
         await updateTicketType(editing.id, payload, apiScope);
-        toast.success('Đã cập nhật hạng vé.');
+        toast.success(translate("admin:adminTicketTypesPage_daCapNhatHangVe"));
       } else {
         await createTicketType(selectedConcertId, payload, apiScope);
-        toast.success('Đã tạo hạng vé.');
+        toast.success(translate("admin:adminTicketTypesPage_daTaoHangVe"));
       }
       setFormOpen(false);
       await loadTicketTypes();
     } catch (requestError) {
-      toast.error(requestError instanceof Error ? requestError.message : 'Không thể lưu hạng vé.');
+      toast.error(requestError instanceof Error ? requestError.message : translate("admin:adminTicketTypesPage_khongTheLuuHangVe"));
     } finally {
       setSaving(false);
     }
@@ -202,12 +206,12 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
     setBusyId(ticketType.id);
     try {
       await updateTicketTypeStatus(ticketType.id, !ticketType.isActive, apiScope);
-      const fallback = ticketType.isActive ? 'Đã tạm ngưng hạng vé.' : 'Đã kích hoạt hạng vé.';
+      const fallback = ticketType.isActive ? translate("admin:adminTicketTypesPage_daTamNgungHangVe") : translate("admin:adminTicketTypesPage_daKichHoatHangVe");
       toast.success(fallback);
       await loadTicketTypes();
     } catch (requestError) {
       toast.error(
-        requestError instanceof Error ? requestError.message : 'Không thể đổi trạng thái hạng vé.',
+        requestError instanceof Error ? requestError.message : translate("admin:adminTicketTypesPage_khongTheDoiTrangThaiHangVe"),
       );
     } finally {
       setBusyId('');
@@ -219,14 +223,14 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
     setBusyId(deleteTarget.id);
     try {
       await deleteTicketType(deleteTarget.id, apiScope);
-      toast.success('Đã xóa hạng vé.');
+      toast.success(translate("admin:adminTicketTypesPage_daXoaHangVe"));
       setDeleteTarget(null);
       await loadTicketTypes();
     } catch (requestError) {
       toast.error(
         requestError instanceof Error
           ? requestError.message
-          : 'Không thể xóa hạng vé đã phát sinh bán.',
+          : translate("admin:adminTicketTypesPage_khongTheXoaHangVeDaPhat"),
       );
     } finally {
       setBusyId('');
@@ -236,14 +240,14 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
   return (
     <>
       <AdminPageHeader
-        eyebrow="Tồn kho vé"
-        title="Quản lý hạng vé"
-        description="Thiết lập giá, hạn mức mua và tồn kho cho từng concert."
+        eyebrow={translate("admin:adminTicketTypesPage_tonKhoVe")}
+        title={translate("admin:adminTicketTypesPage_quanLyHangVe")}
+        description={translate("admin:adminTicketTypesPage_thietLapGiaHanMucMuaVa")}
         actions={
           <>
             {safeReturnTo ? (
               <Link className="admin-secondary-action" to={safeReturnTo}>
-                Quay về concert
+                {translate("admin:adminTicketTypesPage_quayVeConcert")}
               </Link>
             ) : null}
             <button
@@ -253,7 +257,7 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
               disabled={!selectedConcertId}
             >
               <Plus aria-hidden="true" size={17} />
-              Thêm hạng vé
+              {translate("admin:adminTicketTypesPage_themHangVe")}
             </button>
           </>
         }
@@ -268,14 +272,14 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
             setQuery('');
             setAvailability('all');
           }}
-          label="Concert đang quản lý"
+          label={translate("admin:adminTicketTypesPage_concertDangQuanLy")}
           disabled={loadingConcerts}
         />
         {selectedConcert ? (
           <div className="admin-context-summary">
-            <span>Thời gian mở bán</span>
+            <span>{translate("admin:adminTicketTypesPage_thoiGianMoBan")}</span>
             <strong>
-              {new Intl.DateTimeFormat('vi-VN', { dateStyle: 'medium', timeStyle: 'short' }).format(
+              {dateFormatter({ dateStyle: 'medium', timeStyle: 'short' }).format(
                 new Date(selectedConcert.saleStartAt),
               )}
             </strong>
@@ -283,17 +287,17 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
         ) : null}
       </div>
 
-      <section className="admin-inline-stats" aria-label="Tóm tắt hạng vé">
+      <section className="admin-inline-stats" aria-label={translate("admin:adminTicketTypesPage_tomTatHangVe")}>
         <div>
-          <span>Số hạng vé</span>
+          <span>{translate("admin:adminTicketTypesPage_soHangVe")}</span>
           <strong>{ticketTypes.length}</strong>
         </div>
         <div>
-          <span>Tổng tồn kho</span>
+          <span>{translate("admin:adminTicketTypesPage_tongTonKho")}</span>
           <strong>{totals.inventory}</strong>
         </div>
         <div>
-          <span>Còn khả dụng</span>
+          <span>{translate("admin:adminTicketTypesPage_conKhaDung")}</span>
           <strong>{totals.available}</strong>
         </div>
       </section>
@@ -308,34 +312,34 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
         <div className="admin-toolbar ticket-type-toolbar">
           <label className="admin-search-control">
             <Search aria-hidden="true" size={16} />
-            <span className="sr-only">Tìm hạng vé</span>
+            <span className="sr-only">{translate("admin:adminTicketTypesPage_timHangVe")}</span>
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Tìm theo tên hạng vé..."
+              placeholder={translate("admin:adminTicketTypesPage_timTheoTenHangVe")}
             />
           </label>
           <label>
-            <span className="sr-only">Lọc trạng thái hạng vé</span>
+            <span className="sr-only">{translate("admin:adminTicketTypesPage_locTrangThaiHangVe")}</span>
             <select
               value={availability}
               onChange={(event) => setAvailability(event.target.value as typeof availability)}
             >
-              <option value="all">Tất cả hạng vé</option>
-              <option value="active">Đang hoạt động</option>
-              <option value="paused">Tạm ngưng</option>
-              <option value="sold">Đã phát sinh bán</option>
+              <option value="all">{translate("admin:adminTicketTypesPage_tatCaHangVe")}</option>
+              <option value="active">{translate("admin:adminTicketTypesPage_dangHoatDong")}</option>
+              <option value="paused">{translate("admin:adminTicketTypesPage_tamNgung")}</option>
+              <option value="sold">{translate("admin:adminTicketTypesPage_daPhatSinhBan")}</option>
             </select>
           </label>
           <span className="admin-filter-count">
-            Hiển thị {visibleTicketTypes.length} / {ticketTypes.length}
+            {translate("admin:adminTicketTypesPage_hienThi")} {visibleTicketTypes.length} / {ticketTypes.length}
           </span>
         </div>
       ) : null}
 
       <section className="admin-data-panel">
         {loadingTickets ? (
-          <div className="admin-row-skeleton" aria-label="Đang tải hạng vé" aria-live="polite">
+          <div className="admin-row-skeleton" aria-label={translate("admin:adminTicketTypesPage_dangTaiHangVe")} aria-live="polite">
             {[1, 2, 3].map((item) => (
               <span key={item} />
             ))}
@@ -345,12 +349,12 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
             <table className="admin-table">
               <thead>
                 <tr>
-                  <th>Hạng vé</th>
-                  <th>Giá</th>
-                  <th>Tồn kho</th>
-                  <th>Trạng thái</th>
+                  <th>{translate("admin:adminTicketTypesPage_hangVe")}</th>
+                  <th>{translate("admin:adminTicketTypesPage_gia")}</th>
+                  <th>{translate("admin:adminTicketTypesPage_tonKho")}</th>
+                  <th>{translate("admin:adminTicketTypesPage_trangThai")}</th>
                   <th>
-                    <span className="sr-only">Thao tác</span>
+                    <span className="sr-only">{translate("admin:adminTicketTypesPage_thaoTac")}</span>
                   </th>
                 </tr>
               </thead>
@@ -365,7 +369,7 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
                           <i style={{ backgroundColor: ticketType.zoneColor }} />
                           <div>
                             <strong>{ticketType.name}</strong>
-                            <span>Tối đa {ticketType.maxPerAccount} vé / tài khoản</span>
+                            <span>{translate("admin:adminTicketTypesPage_toiDa")} {ticketType.maxPerAccount} {translate("admin:adminTicketTypesPage_veTaiKhoan")}</span>
                           </div>
                         </div>
                       </td>
@@ -378,7 +382,7 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
                         <strong className="admin-table-primary">
                           {ticketType.availableQty} / {ticketType.totalQuantity}
                         </strong>
-                        <span className="admin-table-secondary">{sold} đã bán</span>
+                        <span className="admin-table-secondary">{sold} {translate("admin:adminTicketTypesPage_daBan")}</span>
                       </td>
                       <td>
                         <button
@@ -389,14 +393,14 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
                           disabled={busyId === ticketType.id}
                         >
                           <span />
-                          {ticketType.isActive ? 'Đang hoạt động' : 'Tạm ngưng'}
+                          {ticketType.isActive ? translate("admin:adminTicketTypesPage_dangHoatDong") : translate("admin:adminTicketTypesPage_tamNgung")}
                         </button>
                       </td>
                       <td>
                         <div className="admin-row-actions">
                           <button
                             type="button"
-                            aria-label={`Sửa ${ticketType.name}`}
+                            aria-label={translate("admin:adminTicketTypesPage_sua", { arg1: ticketType.name })}
                             disabled={!editable || busyId === ticketType.id}
                             onClick={() => openEdit(ticketType)}
                           >
@@ -404,7 +408,7 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
                           </button>
                           <button
                             type="button"
-                            aria-label={`Xóa ${ticketType.name}`}
+                            aria-label={translate("admin:adminTicketTypesPage_xoa", { arg1: ticketType.name })}
                             disabled={!editable || busyId === ticketType.id}
                             onClick={() => setDeleteTarget(ticketType)}
                           >
@@ -423,17 +427,17 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
             <Ticket aria-hidden="true" size={28} />
             <h2>
               {ticketTypes.length
-                ? 'Không có hạng vé phù hợp'
+                ? translate("admin:adminTicketTypesPage_khongCoHangVePhuHop")
                 : selectedConcertId
-                  ? 'Concert chưa có hạng vé'
-                  : 'Chưa có concert để quản lý'}
+                  ? translate("admin:adminTicketTypesPage_concertChuaCoHangVe")
+                  : translate("admin:adminTicketTypesPage_chuaCoConcertDeQuanLy")}
             </h2>
             <p>
               {ticketTypes.length
-                ? 'Thử đổi từ khóa hoặc bộ lọc trạng thái.'
+                ? translate("admin:adminTicketTypesPage_thuDoiTuKhoaHoacBoLoc")
                 : selectedConcertId
-                  ? 'Tạo hạng vé đầu tiên để chuẩn bị mở bán.'
-                  : 'Tạo concert trước, sau đó quay lại cấu hình hạng vé.'}
+                  ? translate("admin:adminTicketTypesPage_taoHangVeDauTienDeChuan")
+                  : translate("admin:adminTicketTypesPage_taoConcertTruocSauDoQuayLai")}
             </p>
             {ticketTypes.length ? (
               <button
@@ -444,11 +448,11 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
                   setAvailability('all');
                 }}
               >
-                Xóa bộ lọc
+                {translate("admin:adminTicketTypesPage_xoaBoLoc")}
               </button>
             ) : selectedConcertId ? (
               <button className="admin-primary-action" type="button" onClick={openCreate}>
-                Thêm hạng vé
+                {translate("admin:adminTicketTypesPage_themHangVe")}
               </button>
             ) : null}
           </div>
@@ -468,9 +472,9 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
 
       {deleteTarget ? (
         <AdminConfirmDialog
-          title={`Xóa hạng vé “${deleteTarget.name}”?`}
-          description="Hạng vé sẽ bị xóa vĩnh viễn khỏi concert. Thao tác này không thể hoàn tác và chỉ thực hiện được khi chưa phát sinh lượt bán."
-          confirmLabel="Xóa hạng vé"
+          title={translate("admin:adminTicketTypesPage_xoaHangVe", { arg1: deleteTarget.name })}
+          description={translate("admin:adminTicketTypesPage_hangVeSeBiXoaVinhVien")}
+          confirmLabel={translate("admin:adminTicketTypesPage_xoaHangVe_2")}
           loading={busyId === deleteTarget.id}
           onClose={() => setDeleteTarget(null)}
           onConfirm={() => void removeTicketType()}
@@ -495,6 +499,7 @@ function TicketTypeForm({
   onClose: () => void;
   onSubmit: (event: FormEvent) => void;
 }) {
+  useTranslation();
   const field = (name: keyof TicketFormState) => ({
     value: form[name],
     onChange: (event: React.ChangeEvent<HTMLInputElement>) =>
@@ -512,21 +517,21 @@ function TicketTypeForm({
       >
         <header>
           <div>
-            <span>Tồn kho vé</span>
-            <h2 id="ticket-form-title">{editing ? `Sửa ${editing.name}` : 'Thêm hạng vé'}</h2>
+            <span>{translate("admin:adminTicketTypesPage_tonKhoVe")}</span>
+            <h2 id="ticket-form-title">{editing ? translate("admin:adminTicketTypesPage_sua", { arg1: editing.name }) : translate("admin:adminTicketTypesPage_themHangVe")}</h2>
           </div>
-          <button type="button" aria-label="Đóng" onClick={onClose}>
+          <button type="button" aria-label={translate("admin:adminTicketTypesPage_dong")} onClick={onClose}>
             <X size={20} />
           </button>
         </header>
         <form onSubmit={onSubmit}>
           <div className="admin-form-grid">
             <label className="admin-field admin-field-wide">
-              <span>Tên hạng vé</span>
+              <span>{translate("admin:adminTicketTypesPage_tenHangVe")}</span>
               <input required maxLength={100} {...field('name')} />
             </label>
             <label className="admin-field">
-              <span>Giá vé</span>
+              <span>{translate("admin:adminTicketTypesPage_giaVe")}</span>
               <input
                 required
                 min="0"
@@ -537,14 +542,14 @@ function TicketTypeForm({
               />
             </label>
             <label className="admin-field">
-              <span>Màu vùng</span>
+              <span>{translate("admin:adminTicketTypesPage_mauVung")}</span>
               <span className="admin-color-field">
                 <input type="color" {...field('zoneColor')} />
                 <input required pattern="^#[A-Fa-f0-9]{6}$" {...field('zoneColor')} />
               </span>
             </label>
             <label className="admin-field">
-              <span>Tổng số lượng</span>
+              <span>{translate("admin:adminTicketTypesPage_tongSoLuong")}</span>
               <input
                 required
                 min="1"
@@ -554,7 +559,7 @@ function TicketTypeForm({
               />
             </label>
             <label className="admin-field">
-              <span>Tối đa mỗi tài khoản</span>
+              <span>{translate("admin:adminTicketTypesPage_toiDaMoiTaiKhoan")}</span>
               <input
                 required
                 min="1"
@@ -566,10 +571,10 @@ function TicketTypeForm({
           </div>
           <footer>
             <button className="admin-secondary-action" type="button" onClick={onClose}>
-              Hủy
+              {translate("admin:adminTicketTypesPage_huy")}
             </button>
             <button className="admin-primary-action" type="submit" disabled={saving}>
-              {saving ? 'Đang lưu...' : editing ? 'Lưu thay đổi' : 'Tạo hạng vé'}
+              {saving ? translate("admin:adminTicketTypesPage_dangLuu") : editing ? translate("admin:adminTicketTypesPage_luuThayDoi") : translate("admin:adminTicketTypesPage_taoHangVe")}
             </button>
           </footer>
         </form>

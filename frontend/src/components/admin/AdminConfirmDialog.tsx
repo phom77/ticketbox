@@ -1,3 +1,5 @@
+import { translate } from '../../i18n';
+import { useTranslation } from 'react-i18next';
 import { useEffect, useId, useRef } from 'react';
 import { AlertTriangle, X } from 'lucide-react';
 import { ModalPortal } from '../feedback/ModalPortal';
@@ -15,12 +17,13 @@ type AdminConfirmDialogProps = {
 export function AdminConfirmDialog({
   title,
   description,
-  confirmLabel = 'Xóa',
+  confirmLabel = translate("shared:adminConfirmDialog_xoa"),
   loading = false,
   destructive = true,
   onConfirm,
   onClose,
 }: AdminConfirmDialogProps) {
+  useTranslation();
   const titleId = useId();
   const descriptionId = useId();
   const cancelRef = useRef<HTMLButtonElement>(null);
@@ -57,12 +60,12 @@ export function AdminConfirmDialog({
           <span className="admin-confirm-icon">
             <AlertTriangle aria-hidden="true" size={21} />
           </span>
-          <button type="button" aria-label="Đóng" onClick={onClose} disabled={loading}>
+          <button type="button" aria-label={translate("shared:adminConfirmDialog_dong")} onClick={onClose} disabled={loading}>
             <X aria-hidden="true" size={19} />
           </button>
         </header>
         <div className="admin-confirm-content">
-          <span>Yêu cầu xác nhận</span>
+          <span>{translate("shared:adminConfirmDialog_yeuCauXacNhan")}</span>
           <h2 id={titleId}>{title}</h2>
           <p id={descriptionId}>{description}</p>
         </div>
@@ -74,7 +77,7 @@ export function AdminConfirmDialog({
             onClick={onClose}
             disabled={loading}
           >
-            Hủy
+            {translate("shared:adminConfirmDialog_huy")}
           </button>
           <button
             className={destructive ? 'admin-danger-action' : 'admin-primary-action'}
@@ -82,7 +85,7 @@ export function AdminConfirmDialog({
             onClick={onConfirm}
             disabled={loading}
           >
-            {loading ? 'Đang xử lý...' : confirmLabel}
+            {loading ? translate("shared:adminConfirmDialog_dangXuLy") : confirmLabel}
           </button>
         </footer>
       </section>

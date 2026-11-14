@@ -1,3 +1,6 @@
+import { translate } from '../../i18n';
+import { useTranslation } from 'react-i18next';
+import { concertTitle } from '../../features/concert/concertText';
 import { useEffect, useMemo, useState } from 'react';
 import { Client, type IMessage, type StompSubscription } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
@@ -16,6 +19,7 @@ import {
 import { eventDate } from '../../data/formatters';
 
 export function WaitingRoomPage() {
+  useTranslation();
   const { id } = useParams();
   const navigate = useNavigate();
   const [concert, setConcert] = useState<ConcertDetail | null>(null);
@@ -37,7 +41,7 @@ export function WaitingRoomPage() {
       })
       .catch((requestError) => {
         if (active && !isRequestCanceled(requestError))
-          setError('Không thể tải thông tin buổi biểu diễn này.');
+          setError(translate("customer:waitingRoomPage_khongTheTaiThongTinBuoiBieu"));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -111,7 +115,7 @@ export function WaitingRoomPage() {
         if (active && !isRequestCanceled(requestError)) {
           if (requestError instanceof ApiClientError && [429, 503].includes(requestError.status) && joinAttempts < 6) {
             const delay = Math.min(5_000, 1_000 * 2 ** joinAttempts++) + Math.random() * 500;
-            setError('Hàng chờ đang chuẩn bị. Đang thử kết nối lại...');
+            setError(translate("customer:waitingRoomPage_hangChoDangChuanBiDangThu"));
             joinRetryTimer = window.setTimeout(join, delay);
             return;
           }
@@ -149,7 +153,7 @@ export function WaitingRoomPage() {
               try {
                 handleStatus(JSON.parse(message.body) as QueueStatusResponse);
               } catch {
-                setError('Không đọc được cập nhật hàng chờ trực tiếp. Đang kết nối lại...');
+                setError(translate("customer:waitingRoomPage_khongDocDuocCapNhatHangCho"));
               }
             },
           );
@@ -159,10 +163,10 @@ export function WaitingRoomPage() {
           });
         },
         onStompError: () => {
-          if (active) setError('Kết nối hàng chờ trực tiếp bị gián đoạn. Đang kết nối lại...');
+          if (active) setError(translate("customer:waitingRoomPage_ketNoiHangChoTrucTiepBi"));
         },
         onWebSocketClose: () => {
-          if (active) setError('Kết nối hàng chờ trực tiếp bị gián đoạn. Đang kết nối lại...');
+          if (active) setError(translate("customer:waitingRoomPage_ketNoiHangChoTrucTiepBi"));
         },
       });
       stompClient.activate();
@@ -187,9 +191,9 @@ export function WaitingRoomPage() {
   }, []);
 
   const waitLabel = useMemo(() => {
-    if (!queueStatus?.estimatedWaitSeconds) return 'Đang tính';
+    if (!queueStatus?.estimatedWaitSeconds) return translate("customer:waitingRoomPage_dangTinh");
     const minutes = Math.max(1, Math.ceil(queueStatus.estimatedWaitSeconds / 60));
-    return minutes === 1 ? 'Khoảng 1 phút' : `Khoảng ${minutes} phút`;
+    return minutes === 1 ? translate("customer:waitingRoomPage_khoang1Phut") : translate("customer:waitingRoomPage_khoangPhut", { arg1: minutes });
   }, [queueStatus]);
 
   async function leave() {
@@ -229,41 +233,41 @@ export function WaitingRoomPage() {
     <div className="waiting-room-page page-width">
       <div className="flow-topbar">
         <button className="back-link" type="button" onClick={() => void leave()}>
-          {'<'} Chi tiết sự kiện
+          {'<'} {translate("customer:waitingRoomPage_chiTietSuKien")}
         </button>
-        <div className="flow-steps" aria-label="Tiến trình đặt vé">
+        <div className="flow-steps" aria-label={translate("customer:waitingRoomPage_tienTrinhDatVe")}>
           <span className={`flow-step${isWaitingRoom ? ' active' : ''}`}>
-            <b>1</b><i>Phòng chờ</i>
+            <b>1</b><i>{translate("customer:waitingRoomPage_phongCho")}</i>
           </span>
           <b className="flow-step-connector" />
           <span className={`flow-step${isWaiting ? ' active' : ''}`}>
-            <b>2</b><i>Hàng chờ</i>
+            <b>2</b><i>{translate("customer:waitingRoomPage_hangCho")}</i>
           </span>
           <b className="flow-step-connector" />
           <span className="flow-step">
-            <b>3</b><i>Vé</i>
+            <b>3</b><i>{translate("customer:waitingRoomPage_ve")}</i>
           </span>
           <b className="flow-step-connector" />
           <span className="flow-step">
-            <b>4</b><i>Thanh toán</i>
+            <b>4</b><i>{translate("customer:waitingRoomPage_thanhToan")}</i>
           </span>
         </div>
         <div className="timer" role="status">
           {isWaitingRoom
-            ? `Mở bán sau ${countdown(concert?.saleStartAt, now)}`
-            : 'Hàng chờ trực tiếp'}
+            ? translate("customer:waitingRoomPage_moBanSau", { arg1: countdown(concert?.saleStartAt, now) })
+            : translate("customer:waitingRoomPage_hangChoTrucTiep")}
         </div>
       </div>
 
       <section className="waiting-room-shell">
         <div className="waiting-room-panel" aria-live="polite">
           <div className="waiting-room-event">
-            <span>{isWaitingRoom ? 'Phòng chờ' : 'Hàng chờ mua vé'}</span>
-            <strong>{concert?.title ?? 'Phòng chờ'}</strong>
+            <span>{isWaitingRoom ? translate("customer:waitingRoomPage_phongCho") : translate("customer:waitingRoomPage_hangChoMuaVe")}</span>
+            <strong>{concert ? concertTitle(concert) : translate("customer:waitingRoomPage_phongCho")}</strong>
             <p>
               {concert
                 ? `${eventDate.format(new Date(concert.eventDate))} / ${concert.venueName}`
-                : 'Vui lòng giữ vị trí của bạn trong khi TicketBox duyệt người mua theo thứ tự.'}
+                : translate("customer:waitingRoomPage_vuiLongGiuViTriCuaBan")}
             </p>
           </div>
 
@@ -271,9 +275,9 @@ export function WaitingRoomPage() {
             <div
               className="waiting-room-countdown"
               role="timer"
-              aria-label={`Mở bán sau ${countdown(concert?.saleStartAt, now)}`}
+              aria-label={translate("customer:waitingRoomPage_moBanSau", { arg1: countdown(concert?.saleStartAt, now) })}
             >
-              <span>Mở bán vé sau</span>
+              <span>{translate("customer:waitingRoomPage_moBanVeSau")}</span>
               <strong>{countdown(concert?.saleStartAt, now)}</strong>
             </div>
           ) : (
@@ -286,34 +290,34 @@ export function WaitingRoomPage() {
           <div className="queue-status-copy">
             <span>
               {joining
-                ? 'Đang vào phòng chờ'
+                ? translate("customer:waitingRoomPage_dangVaoPhongCho")
                 : isWaitingRoom
-                  ? 'Bạn đã ở trong phòng chờ an toàn'
+                  ? translate("customer:waitingRoomPage_banDaOTrongPhongChoAn")
                   : isWaiting
-                    ? 'Bạn đang xếp hàng'
+                    ? translate("customer:waitingRoomPage_banDangXepHang")
                     : isClosed
-                      ? 'Hàng chờ đã đóng'
-                      : 'Đang kiểm tra quyền truy cập'}
+                      ? translate("customer:waitingRoomPage_hangChoDaDong")
+                      : translate("customer:waitingRoomPage_dangKiemTraQuyenTruyCap")}
             </span>
             <h2>
               {isWaitingRoom
-                ? 'Vị trí của bạn sẽ được phân tự động'
+                ? translate("customer:waitingRoomPage_viTriCuaBanSeDuocPhan")
                 : isWaiting
-                  ? `${peopleAhead} người phía trước bạn`
+                  ? translate("customer:waitingRoomPage_nguoiPhiaTruocBan", { count: peopleAhead })
                   : isClosed
-                    ? 'Phiên hàng chờ của bạn đã kết thúc'
-                    : 'Đang chuẩn bị vị trí của bạn'}
+                    ? translate("customer:waitingRoomPage_phienHangChoCuaBanDaKet")
+                    : translate("customer:waitingRoomPage_dangChuanBiViTriCuaBan")}
             </h2>
             <p>
               {isWaitingRoom
-                ? `${waitingRoomCount} người đang ở trong phòng chờ. Khi mở bán, TicketBox sẽ chụp trạng thái phòng một lần, phân vị trí hàng chờ ngẫu nhiên rồi tự động chuyển mọi người sang hàng chờ.`
+                ? translate("customer:waitingRoomPage_nguoiDangOTrongPhongChoKhi", { arg1: waitingRoomCount })
                 : isWaiting
                   ? peopleAhead === 0
-                    ? `Bạn đang đứng đầu hàng chờ. ${activeShoppers > 0 ? 'Một lượt chọn vé đang được sử dụng; bạn sẽ được chuyển vào tự động khi lượt đó mở.' : 'Chúng tôi đang chuẩn bị lượt chọn vé cho bạn.'}`
-                    : `Thời gian chờ dự kiến: ${waitLabel}. Trang này sẽ tự động chuyển bạn sang bước tiếp theo.`
+                    ? translate("customer:waitingRoomPage_banDangDungDauHangCho", { arg1: activeShoppers > 0 ? translate("customer:waitingRoomPage_motLuotChonVeDangDuocSu") : translate("customer:waitingRoomPage_chungToiDangChuanBiLuotChon") })
+                    : translate("customer:waitingRoomPage_thoiGianChoDuKienTrangNay", { arg1: waitLabel })
                   : isClosed
-                    ? 'Hãy tham gia lại để yêu cầu phiên mua vé mới cho concert này.'
-                    : 'Hãy giữ tab này mở trong khi chúng tôi xác nhận phiên mua vé của bạn.'}
+                    ? translate("customer:waitingRoomPage_hayThamGiaLaiDeYeuCau")
+                    : translate("customer:waitingRoomPage_hayGiuTabNayMoTrongKhi")}
             </p>
           </div>
 
@@ -325,16 +329,16 @@ export function WaitingRoomPage() {
 
           <div className="queue-metrics">
             <div>
-              <span>{isWaitingRoom ? 'Mở bán sau' : 'Vị trí'}</span>
+              <span>{isWaitingRoom ? translate("customer:waitingRoomPage_moBanSau_2") : translate("customer:waitingRoomPage_viTri")}</span>
               <strong>{isWaitingRoom ? countdown(concert?.saleStartAt, now) : position}</strong>
             </div>
             <div>
-              <span>{isWaitingRoom ? 'Trong phòng chờ' : 'Người phía trước'}</span>
+              <span>{isWaitingRoom ? translate("customer:waitingRoomPage_trongPhongCho") : translate("customer:waitingRoomPage_nguoiPhiaTruoc")}</span>
               <strong>{isWaitingRoom ? waitingRoomCount : peopleAhead}</strong>
             </div>
             <div>
-              <span>{isWaitingRoom ? 'Phân vị trí' : 'Đang chờ'}</span>
-              <strong>{isWaitingRoom ? 'Ngẫu nhiên khi mở bán' : queueSize}</strong>
+              <span>{isWaitingRoom ? translate("customer:waitingRoomPage_phanViTri") : translate("customer:waitingRoomPage_dangCho")}</span>
+              <strong>{isWaitingRoom ? translate("customer:waitingRoomPage_ngauNhienKhiMoBan") : queueSize}</strong>
             </div>
           </div>
         </div>
@@ -354,12 +358,12 @@ function countdown(saleStartAt: string | undefined, now: number) {
 
 function messageForQueueError(error: unknown) {
   if (error instanceof ApiClientError && error.status === 429) {
-    return 'Có quá nhiều yêu cầu hàng chờ. Vui lòng đợi một chút trước khi thử lại.';
+    return translate("customer:waitingRoomPage_coQuaNhieuYeuCauHangCho");
   }
 
   if (error instanceof Error) {
     return error.message;
   }
 
-  return 'Không thể truy cập phòng chờ. Vui lòng thử lại.';
+  return translate("customer:waitingRoomPage_khongTheTruyCapPhongChoVui");
 }

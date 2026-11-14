@@ -1,3 +1,5 @@
+import { translate } from '../../i18n';
+import { useTranslation } from 'react-i18next';
 import { type FormEvent, useEffect, useState } from 'react';
 import { ChevronDown, LogOut, Search } from 'lucide-react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
@@ -5,8 +7,10 @@ import { getUnreadNotificationCount } from '../../api/notifications';
 import { useAuth } from '../../features/auth/AuthContext';
 import { getRoleHome, getRoleHomeLabel } from '../../features/auth/roleRoutes';
 import { buyerInformationLinks } from '../../features/ticket/buyerInformation';
+import { LanguageSelect } from '../LanguageSelect';
 
-export function Logo({ to = '/', label = 'Trang chủ TicketBox' }: { to?: string; label?: string }) {
+export function Logo({ to = '/', label = translate("shared:publicLayout_trangChuTicketbox") }: { to?: string; label?: string }) {
+  useTranslation();
   return (
     <Link className="logo" to={to} aria-label={label}>
       <span className="logo-mark" aria-hidden="true">
@@ -30,11 +34,12 @@ function initials(name: string) {
 }
 
 function NotificationLabel({ count }: { count: number }) {
+  useTranslation();
   return (
     <span className="notification-link-label">
-      Thông báo
+      {translate("shared:publicLayout_thongBao")}
       {count > 0 ? (
-        <span className="notification-badge" aria-label={`${count} thông báo chưa đọc`}>
+        <span className="notification-badge" aria-label={translate("shared:publicLayout_thongBaoChuaDoc", { count })}>
           {count > 99 ? '99+' : count}
         </span>
       ) : null}
@@ -43,6 +48,7 @@ function NotificationLabel({ count }: { count: number }) {
 }
 
 export function PublicLayout() {
+  useTranslation();
   const { user, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -92,29 +98,30 @@ export function PublicLayout() {
   return (
     <div className="site-shell">
       <a className="skip-link" href="#main-content">
-        Bỏ qua đến nội dung
+        {translate("shared:publicLayout_boQuaDenNoiDung")}
       </a>
       {!isBookingFlow ? (
         <header className="site-header">
           <div className="header-inner">
             <Logo to={homePath} label={homeLabel} />
-            <nav className="desktop-nav" aria-label="Điều hướng chính">
-              {canBrowseCatalogue ? <NavLink to="/">Khám phá</NavLink> : null}
-              {isAudience ? <NavLink to="/my-tickets">Vé của tôi</NavLink> : null}
+            <nav className="desktop-nav" aria-label={translate("shared:publicLayout_dieuHuongChinh")}>
+              {canBrowseCatalogue ? <NavLink to="/">{translate("shared:publicLayout_khamPha")}</NavLink> : null}
+              {isAudience ? <NavLink to="/my-tickets">{translate("shared:publicLayout_veCuaToi")}</NavLink> : null}
               {isAudience ? (
                 <NavLink to="/notifications">
                   <NotificationLabel count={unreadNotifications} />
                 </NavLink>
               ) : null}
-              {user?.role === 'ADMIN' ? <NavLink to="/admin">Quản trị</NavLink> : null}
+              {user?.role === 'ADMIN' ? <NavLink to="/admin">{translate("shared:publicLayout_quanTri")}</NavLink> : null}
               {user ? (
-                <NavLink to="/organizer">Không gian nhà tổ chức</NavLink>
+                <NavLink to="/organizer">{translate("shared:publicLayout_khongGianNhaToChuc")}</NavLink>
               ) : null}
-              {user?.role === 'STAFF' ? <NavLink to="/staff">Vận hành cổng</NavLink> : null}
+              {user?.role === 'STAFF' ? <NavLink to="/staff">{translate("shared:publicLayout_vanHanhCong")}</NavLink> : null}
             </nav>
             <div className="header-actions">
+              <LanguageSelect />
               <form className="header-search" onSubmit={submitHeaderSearch}>
-                <span className="sr-only">Tìm sự kiện</span>
+                <span className="sr-only">{translate("shared:publicLayout_timSuKien")}</span>
                 <Search aria-hidden="true" size={16} />
                 <input
                   value={headerSearch}
@@ -122,7 +129,7 @@ export function PublicLayout() {
                   type="search"
                   name="event-search"
                   autoComplete="off"
-                  placeholder="Tìm nghệ sĩ, sự kiện..."
+                  placeholder={translate("shared:publicLayout_timNgheSiSuKien")}
                 />
               </form>
               {user ? (
@@ -130,7 +137,7 @@ export function PublicLayout() {
                   <button
                     className="avatar-button"
                     type="button"
-                    aria-label="Mở menu tài khoản"
+                    aria-label={translate("shared:publicLayout_moMenuTaiKhoan")}
                     aria-expanded={menuOpen}
                     onClick={() => setMenuOpen((value) => !value)}
                   >
@@ -147,7 +154,7 @@ export function PublicLayout() {
                       </div>
                       {isAudience ? (
                         <Link to="/profile" onClick={() => setMenuOpen(false)}>
-                          Hồ sơ & lịch sử
+                          {translate("shared:publicLayout_hoSoLichSu")}
                         </Link>
                       ) : null}
                       {isAudience ? (
@@ -157,26 +164,26 @@ export function PublicLayout() {
                       ) : null}
                       {isAudience ? (
                         <Link to="/my-tickets" onClick={() => setMenuOpen(false)}>
-                          Vé của tôi
+                          {translate("shared:publicLayout_veCuaToi")}
                         </Link>
                       ) : null}
                       {user.role === 'ADMIN' ? (
                         <Link to="/admin" onClick={() => setMenuOpen(false)}>
-                          Quản trị
+                          {translate("shared:publicLayout_quanTri")}
                         </Link>
                       ) : null}
                       {user ? (
                         <Link to="/organizer" onClick={() => setMenuOpen(false)}>
-                          Không gian nhà tổ chức
+                          {translate("shared:publicLayout_khongGianNhaToChuc")}
                         </Link>
                       ) : null}
                       {user.role === 'STAFF' ? (
                         <Link to="/staff" onClick={() => setMenuOpen(false)}>
-                          Vận hành cổng
+                          {translate("shared:publicLayout_vanHanhCong")}
                         </Link>
                       ) : null}
                       <button type="button" className="account-menu-danger" onClick={logOut}>
-                        <LogOut size={15} aria-hidden="true" /> Đăng xuất
+                        <LogOut size={15} aria-hidden="true" /> {translate("shared:publicLayout_dangXuat")}
                       </button>
                     </div>
                   ) : null}
@@ -184,17 +191,17 @@ export function PublicLayout() {
               ) : (
                 <div className="auth-cta-group">
                   <Link className="button button-primary" to="/login">
-                    Đăng nhập
+                    {translate("shared:publicLayout_dangNhap")}
                   </Link>
                   <Link className="button button-secondary" to="/register">
-                    Tạo tài khoản
+                    {translate("shared:publicLayout_taoTaiKhoan")}
                   </Link>
                 </div>
               )}
               <button
                 className="mobile-menu-button"
                 type="button"
-                aria-label="Bật/tắt điều hướng"
+                aria-label={translate("shared:publicLayout_batTatDieuHuong")}
                 aria-expanded={mobileOpen}
                 onClick={() => setMobileOpen((value) => !value)}
               >
@@ -204,15 +211,15 @@ export function PublicLayout() {
             </div>
           </div>
           {mobileOpen ? (
-            <nav className="mobile-nav" aria-label="Điều hướng di động">
+            <nav className="mobile-nav" aria-label={translate("shared:publicLayout_dieuHuongDiDong")}>
               {canBrowseCatalogue ? (
                 <NavLink to="/" onClick={() => setMobileOpen(false)}>
-                  Khám phá
+                  {translate("shared:publicLayout_khamPha")}
                 </NavLink>
               ) : null}
               {isAudience ? (
                 <NavLink to="/profile" onClick={() => setMobileOpen(false)}>
-                  Hồ sơ
+                  {translate("shared:publicLayout_hoSo")}
                 </NavLink>
               ) : null}
               {isAudience ? (
@@ -222,42 +229,42 @@ export function PublicLayout() {
               ) : null}
               {isAudience ? (
                 <NavLink to="/my-tickets" onClick={() => setMobileOpen(false)}>
-                  Vé của tôi
+                  {translate("shared:publicLayout_veCuaToi")}
                 </NavLink>
               ) : null}
               {user?.role === 'ADMIN' ? (
                 <NavLink to="/admin" onClick={() => setMobileOpen(false)}>
-                  Quản trị
+                  {translate("shared:publicLayout_quanTri")}
                 </NavLink>
               ) : null}
               {user ? (
                 <NavLink to="/organizer" onClick={() => setMobileOpen(false)}>
-                  Không gian nhà tổ chức
+                  {translate("shared:publicLayout_khongGianNhaToChuc")}
                 </NavLink>
               ) : null}
               {user?.role === 'STAFF' ? (
                 <NavLink to="/staff" onClick={() => setMobileOpen(false)}>
-                  Vận hành cổng
+                  {translate("shared:publicLayout_vanHanhCong")}
                 </NavLink>
               ) : null}
               {user ? (
                 <button type="button" onClick={logOut}>
-                  Đăng xuất
+                  {translate("shared:publicLayout_dangXuat")}
                 </button>
               ) : (
                 <>
                   <NavLink to="/login" onClick={() => setMobileOpen(false)}>
-                    Đăng nhập
+                    {translate("shared:publicLayout_dangNhap")}
                   </NavLink>
                   <NavLink to="/register" onClick={() => setMobileOpen(false)}>
-                    Tạo tài khoản
+                    {translate("shared:publicLayout_taoTaiKhoan")}
                   </NavLink>
                 </>
               )}
             </nav>
           ) : null}
         </header>
-      ) : null}
+      ) : <div className="page-width booking-language"><LanguageSelect /></div>}
       <main id="main-content">
         <div key={location.pathname} className="route-transition">
           <Outlet />
@@ -269,6 +276,7 @@ export function PublicLayout() {
 }
 
 function Footer({ homePath, homeLabel }: { homePath: string; homeLabel: string }) {
+  useTranslation();
   const { user } = useAuth();
   const canBrowse = !user || user.role === 'AUDIENCE' || user.role === 'ORGANIZER';
 
@@ -277,21 +285,21 @@ function Footer({ homePath, homeLabel }: { homePath: string; homeLabel: string }
       <div className="footer-grid page-width">
         <div className="footer-brand">
           <Logo to={homePath} label={homeLabel} />
-          <p>Những đêm diễn khó quên, chỉ cách bạn một tấm vé.</p>
+          <p>{translate("shared:publicLayout_nhungDemDienKhoQuenChiCach")}</p>
         </div>
         {canBrowse || buyerInformationLinks.length > 0 ? (
-          <nav aria-label="Điều hướng cuối trang">
+          <nav aria-label={translate("shared:publicLayout_dieuHuongCuoiTrang")}>
             <ul className="footer-links">
-              {canBrowse ? <li><Link to="/">Khám phá sự kiện</Link></li> : null}
+              {canBrowse ? <li><Link to="/">{translate("shared:publicLayout_khamPhaSuKien")}</Link></li> : null}
               {user?.role === 'AUDIENCE' ? (
                 <>
-                  <li><Link to="/profile?tab=orders">Lịch sử đơn hàng</Link></li>
-                  <li><Link to="/my-tickets">Vé của tôi</Link></li>
+                  <li><Link to="/profile?tab=orders">{translate("shared:publicLayout_lichSuDonHang")}</Link></li>
+                  <li><Link to="/my-tickets">{translate("shared:publicLayout_veCuaToi")}</Link></li>
                 </>
               ) : null}
-              {!user ? <li><Link to="/login">Đăng nhập</Link></li> : null}
+              {!user ? <li><Link to="/login">{translate("shared:publicLayout_dangNhap")}</Link></li> : null}
               {buyerInformationLinks.map(({ label, url }) => (
-                <li key={label}><a href={url} target="_blank" rel="noreferrer">{label}</a></li>
+                <li key={label}><a href={url} target="_blank" rel="noreferrer">{translate(label)}</a></li>
               ))}
             </ul>
           </nav>

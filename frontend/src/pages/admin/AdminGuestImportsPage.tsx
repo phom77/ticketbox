@@ -1,3 +1,6 @@
+import { dateFormatter } from '../../data/formatters';
+import { translate } from '../../i18n';
+import { useTranslation } from 'react-i18next';
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronLeft,
@@ -31,22 +34,22 @@ import { useToast } from '../../components/feedback/toast-context';
 import { ModalPortal } from '../../components/feedback/ModalPortal';
 
 const statuses: Array<{ value: '' | BatchLogStatus; label: string }> = [
-  { value: '', label: 'Tất cả trạng thái' },
-  { value: 'PENDING', label: 'Chờ scheduler' },
-  { value: 'RUNNING', label: 'Đang xử lý' },
-  { value: 'SUCCESS', label: 'Thành công' },
-  { value: 'PARTIAL', label: 'Một phần' },
-  { value: 'FAILED', label: 'Thất bại' },
-  { value: 'SKIPPED', label: 'Đã bỏ qua' },
+  { value: '', get label() { return translate("admin:adminGuestImportsPage_tatCaTrangThai"); } },
+  { value: 'PENDING', get label() { return translate("admin:adminGuestImportsPage_choScheduler"); } },
+  { value: 'RUNNING', get label() { return translate("admin:adminGuestImportsPage_dangXuLy"); } },
+  { value: 'SUCCESS', get label() { return translate("admin:adminGuestImportsPage_thanhCong"); } },
+  { value: 'PARTIAL', get label() { return translate("admin:adminGuestImportsPage_motPhan"); } },
+  { value: 'FAILED', get label() { return translate("admin:adminGuestImportsPage_thatBai"); } },
+  { value: 'SKIPPED', get label() { return translate("admin:adminGuestImportsPage_daBoQua"); } },
 ];
 
 const sources: Array<{ value: '' | BatchLogSource; label: string }> = [
-  { value: '', label: 'Tất cả nguồn' },
-  { value: 'UPLOAD', label: 'Tải lên thủ công' },
-  { value: 'SCHEDULED', label: 'Theo lịch' },
+  { value: '', get label() { return translate("admin:adminGuestImportsPage_tatCaNguon"); } },
+  { value: 'UPLOAD', get label() { return translate("admin:adminGuestImportsPage_taiLenThuCong"); } },
+  { value: 'SCHEDULED', get label() { return translate("admin:adminGuestImportsPage_theoLich"); } },
 ];
 
-const dateTime = new Intl.DateTimeFormat('vi-VN', {
+const dateTime = dateFormatter({
   dateStyle: 'medium',
   timeStyle: 'short',
 });
@@ -56,17 +59,17 @@ function statusLabel(status: BatchLogStatus) {
 }
 
 function sourceLabel(source: BatchLogSource | null) {
-  return sources.find((item) => item.value === source)?.label ?? 'Không xác định';
+  return sources.find((item) => item.value === source)?.label ?? translate("admin:adminGuestImportsPage_khongXacDinh");
 }
 
 function duration(log: BatchLog) {
-  if (!log.completedAt) return log.status === 'PENDING' ? 'Đang chờ lịch quét' : 'Đang chạy';
+  if (!log.completedAt) return log.status === 'PENDING' ? translate("admin:adminGuestImportsPage_dangChoLichQuet") : translate("admin:adminGuestImportsPage_dangChay");
   const seconds = Math.max(
     0,
     Math.round((new Date(log.completedAt).getTime() - new Date(log.startedAt).getTime()) / 1000),
   );
-  if (seconds < 60) return `${seconds} giây`;
-  return `${Math.floor(seconds / 60)} phút ${seconds % 60} giây`;
+  if (seconds < 60) return translate("admin:adminGuestImportsPage_giay", { arg1: seconds });
+  return translate("admin:adminGuestImportsPage_phutGiay", { arg1: Math.floor(seconds / 60), arg2: seconds % 60 });
 }
 
 function isActiveBatch(status: BatchLogStatus) {
@@ -80,6 +83,7 @@ export function AdminGuestImportsPage({
   apiScope?: ManagementApiScope;
   uploadMode?: 'immediate' | 'scheduled';
 }) {
+  useTranslation();
   const toast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const root = apiScope === 'admin' ? '/admin' : '/organizer';
@@ -128,7 +132,7 @@ export function AdminGuestImportsPage({
           toast.error(
             requestError instanceof Error
               ? requestError.message
-              : 'Không thể tải danh sách concert.',
+              : translate("admin:adminGuestImportsPage_khongTheTaiDanhSachConcert"),
           );
         }
       } finally {
@@ -160,7 +164,7 @@ export function AdminGuestImportsPage({
       } catch (requestError) {
         if (!isRequestCanceled(requestError)) {
           setLogsError(
-            requestError instanceof Error ? requestError.message : 'Không thể tải lịch sử import.',
+            requestError instanceof Error ? requestError.message : translate("admin:adminGuestImportsPage_khongTheTaiLichSuImport"),
           );
         }
       } finally {
@@ -212,7 +216,7 @@ export function AdminGuestImportsPage({
                   toast.error(
                     requestError instanceof Error
                       ? requestError.message
-                      : 'KhĂ´ng thá»ƒ cáº­p nháº­t danh sĂ¡ch khĂ¡ch má»i.',
+                      : translate("admin:adminGuestImportsPage_guestListUpdateFailed"),
                   );
                 }
               })
@@ -226,7 +230,7 @@ export function AdminGuestImportsPage({
           toast.error(
             requestError instanceof Error
               ? requestError.message
-              : 'Không thể cập nhật trạng thái import.',
+              : translate("admin:adminGuestImportsPage_khongTheCapNhatTrangThaiImport"),
           );
         }
       } finally {
@@ -256,7 +260,7 @@ export function AdminGuestImportsPage({
           toast.error(
             requestError instanceof Error
               ? requestError.message
-              : 'Không thể cập nhật batch gần nhất.',
+              : translate("admin:adminGuestImportsPage_khongTheCapNhatBatchGanNhat"),
           );
         }
       } finally {
@@ -290,19 +294,19 @@ export function AdminGuestImportsPage({
     }
     if (!nextFile.name.toLowerCase().endsWith('.csv')) {
       setFile(null);
-      toast.error('Chỉ chấp nhận file có định dạng .csv.');
+      toast.error(translate("admin:adminGuestImportsPage_chiChapNhanFileCoDinhDang"));
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
     if (nextFile.size === 0) {
       setFile(null);
-      toast.error('File CSV không được để trống.');
+      toast.error(translate("admin:adminGuestImportsPage_fileCsvKhongDuocDeTrong"));
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
     if (nextFile.size > 10 * 1024 * 1024) {
       setFile(null);
-      toast.error('File CSV không được vượt quá 10 MB.');
+      toast.error(translate("admin:adminGuestImportsPage_fileCsvKhongDuocVuotQua10"));
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
@@ -317,7 +321,7 @@ export function AdminGuestImportsPage({
       const scheduled = uploadMode === 'scheduled';
       const result = await importGuestList(uploadConcertId, file, apiScope, scheduled);
       toast.success(
-        scheduled ? 'Đã xếp file CSV vào hàng chờ scheduler.' : 'Đã tiếp nhận file CSV để xử lý.',
+        scheduled ? translate("admin:adminGuestImportsPage_daXepFileCsvVaoHangCho") : translate("admin:adminGuestImportsPage_daTiepNhanFileCsvDeXu"),
       );
       setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -340,7 +344,7 @@ export function AdminGuestImportsPage({
                 toast.error(
                   requestError instanceof Error
                     ? requestError.message
-                    : 'KhĂ´ng thá»ƒ táº£i danh sĂ¡ch khĂ¡ch má»i.',
+                    : translate("admin:adminGuestImportsPage_guestListLoadFailed"),
                 );
               }
             })
@@ -351,14 +355,14 @@ export function AdminGuestImportsPage({
       } catch (detailError) {
         toast.error(
           detailError instanceof Error
-            ? `File đã được tiếp nhận nhưng chưa tải được trạng thái: ${detailError.message}`
-            : 'File đã được tiếp nhận nhưng chưa tải được trạng thái.',
+            ? translate("admin:adminGuestImportsPage_fileDaDuocTiepNhanNhungChua", { arg1: detailError.message })
+            : translate("admin:adminGuestImportsPage_fileDaDuocTiepNhanNhungChua_2"),
         );
       }
       await loadLogs(undefined, true);
     } catch (requestError) {
       toast.error(
-        requestError instanceof Error ? requestError.message : 'Không thể tải file CSV lên.',
+        requestError instanceof Error ? requestError.message : translate("admin:adminGuestImportsPage_khongTheTaiFileCsvLen"),
       );
     } finally {
       setUploading(false);
@@ -380,7 +384,7 @@ export function AdminGuestImportsPage({
       setSelectedLogGuests(guestPage?.content ?? []);
     } catch (requestError) {
       toast.error(
-        requestError instanceof Error ? requestError.message : 'Không thể tải chi tiết batch.',
+        requestError instanceof Error ? requestError.message : translate("admin:adminGuestImportsPage_khongTheTaiChiTietBatch"),
       );
     } finally {
       setDetailLoading(false);
@@ -390,17 +394,17 @@ export function AdminGuestImportsPage({
   return (
     <>
       <AdminPageHeader
-        eyebrow="Vận hành khách mời"
-        title="Import khách mời"
+        eyebrow={translate("admin:adminGuestImportsPage_vanHanhKhachMoi")}
+        title={translate("admin:adminGuestImportsPage_importKhachMoi")}
         description={
           uploadMode === 'scheduled'
-            ? 'Đưa danh sách CSV vào hàng chờ định kỳ, theo dõi tiến trình và kiểm tra các dòng được nhập hoặc bị từ chối.'
-            : 'Tiếp nhận danh sách CSV, theo dõi tiến trình xử lý và kiểm tra các dòng được nhập hoặc bị từ chối.'
+            ? translate("admin:adminGuestImportsPage_duaDanhSachCsvVaoHangCho")
+            : translate("admin:adminGuestImportsPage_tiepNhanDanhSachCsvTheoDoi")
         }
         actions={
           safeReturnTo ? (
             <Link className="admin-secondary-action" to={safeReturnTo}>
-              Quay về concert
+              {translate("admin:adminGuestImportsPage_quayVeConcert")}
             </Link>
           ) : undefined
         }
@@ -410,8 +414,8 @@ export function AdminGuestImportsPage({
         <form className="guest-upload-panel" onSubmit={submitUpload}>
           <div className="guest-section-heading">
             <div>
-              <span>{uploadMode === 'scheduled' ? 'Import theo lịch' : 'Import thủ công'}</span>
-              <h2>Tải danh sách mới</h2>
+              <span>{uploadMode === 'scheduled' ? translate("admin:adminGuestImportsPage_importTheoLich") : translate("admin:adminGuestImportsPage_importThuCong")}</span>
+              <h2>{translate("admin:adminGuestImportsPage_taiDanhSachMoi")}</h2>
             </div>
             <UploadCloud aria-hidden="true" size={22} />
           </div>
@@ -419,14 +423,14 @@ export function AdminGuestImportsPage({
             concerts={concerts}
             value={uploadConcertId}
             onChange={setUploadConcertId}
-            label="Concert nhận khách mời"
-            placeholder={loadingConcerts ? 'Đang tải concert...' : 'Chọn concert nhận danh sách'}
+            label={translate("admin:adminGuestImportsPage_concertNhanKhachMoi")}
+            placeholder={loadingConcerts ? translate("admin:adminGuestImportsPage_dangTaiConcert") : translate("admin:adminGuestImportsPage_chonConcertNhanDanhSach")}
             disabled={loadingConcerts || uploading || !concerts.length}
           />
           <label className={`guest-file-picker ${file ? 'has-file' : ''}`}>
             <FileText aria-hidden="true" size={24} />
-            <span>{file ? file.name : 'Chọn file CSV'}</span>
-            <small>{file ? `${(file.size / 1024).toFixed(1)} KB` : 'Tối đa 10 MB'}</small>
+            <span>{file ? file.name : translate("admin:adminGuestImportsPage_chonFileCsv")}</span>
+            <small>{file ? `${(file.size / 1024).toFixed(1)} KB` : translate("admin:adminGuestImportsPage_toiDa10Mb")}</small>
             <input
               ref={fileInputRef}
               type="file"
@@ -442,18 +446,18 @@ export function AdminGuestImportsPage({
           >
             <UploadCloud aria-hidden="true" size={17} />
             {uploading
-              ? 'Đang gửi file...'
+              ? translate("admin:adminGuestImportsPage_dangGuiFile")
               : uploadMode === 'scheduled'
-                ? 'Đưa vào hàng chờ'
-                : 'Bắt đầu import'}
+                ? translate("admin:adminGuestImportsPage_duaVaoHangCho")
+                : translate("admin:adminGuestImportsPage_batDauImport")}
           </button>
         </form>
 
         <div className="guest-latest-panel">
           <div className="guest-section-heading">
             <div>
-              <span>Tiến trình gần nhất</span>
-              <h2>Trạng thái xử lý</h2>
+              <span>{translate("admin:adminGuestImportsPage_tienTrinhGanNhat")}</span>
+              <h2>{translate("admin:adminGuestImportsPage_trangThaiXuLy")}</h2>
             </div>
             <FileClock aria-hidden="true" size={22} />
           </div>
@@ -465,7 +469,7 @@ export function AdminGuestImportsPage({
             />
           ) : (
             <div className="guest-latest-empty">
-              <p>Batch vừa tải lên sẽ xuất hiện tại đây.</p>
+              <p>{translate("admin:adminGuestImportsPage_batchVuaTaiLenSeXuatHien")}</p>
             </div>
           )}
         </div>
@@ -474,22 +478,22 @@ export function AdminGuestImportsPage({
       <section className="guest-log-section">
         <div className="guest-log-header">
           <div>
-            <span>Lịch sử xử lý</span>
-            <h2>Batch import</h2>
+            <span>{translate("admin:adminGuestImportsPage_lichSuXuLy")}</span>
+            <h2>{translate('batchImport')}</h2>
           </div>
           <button type="button" onClick={() => void loadLogs()} disabled={loadingLogs}>
             <RefreshCw aria-hidden="true" size={16} />
-            Làm mới
+            {translate("admin:adminGuestImportsPage_lamMoi")}
           </button>
         </div>
         <div className="guest-log-filters">
           <label>
-            <span>Concert</span>
+            <span>{translate('event')}</span>
             <select
               value={concertFilter}
               onChange={(event) => updateFilters({ concertId: event.target.value })}
             >
-              <option value="">Tất cả concert</option>
+              <option value="">{translate("admin:adminGuestImportsPage_tatCaConcert")}</option>
               {concerts.map((concert) => (
                 <option key={concert.id} value={concert.id}>
                   {concert.title}
@@ -498,7 +502,7 @@ export function AdminGuestImportsPage({
             </select>
           </label>
           <label>
-            <span>Trạng thái</span>
+            <span>{translate("admin:adminGuestImportsPage_trangThai")}</span>
             <select
               value={statusFilter}
               onChange={(event) => updateFilters({ status: event.target.value })}
@@ -511,7 +515,7 @@ export function AdminGuestImportsPage({
             </select>
           </label>
           <label>
-            <span>Nguồn</span>
+            <span>{translate("admin:adminGuestImportsPage_nguon")}</span>
             <select
               value={sourceFilter}
               onChange={(event) => updateFilters({ source: event.target.value })}
@@ -529,7 +533,7 @@ export function AdminGuestImportsPage({
             disabled={!concertFilter && !statusFilter && !sourceFilter && page === 0}
           >
             <RotateCcw aria-hidden="true" size={15} />
-            Xóa bộ lọc
+            {translate("admin:adminGuestImportsPage_xoaBoLoc")}
           </button>
         </div>
 
@@ -542,7 +546,7 @@ export function AdminGuestImportsPage({
           {loadingLogs ? (
             <div
               className="admin-row-skeleton"
-              aria-label="Đang tải lịch sử import"
+              aria-label={translate("admin:adminGuestImportsPage_dangTaiLichSuImport")}
               aria-live="polite"
             >
               {[1, 2, 3, 4].map((item) => (
@@ -554,13 +558,13 @@ export function AdminGuestImportsPage({
               <table className="admin-table guest-log-table">
                 <thead>
                   <tr>
-                    <th>File</th>
-                    <th>Concert</th>
-                    <th>Nguồn</th>
-                    <th>Kết quả</th>
-                    <th>Bắt đầu</th>
+                    <th>{translate('file')}</th>
+                    <th>{translate('event')}</th>
+                    <th>{translate("admin:adminGuestImportsPage_nguon")}</th>
+                    <th>{translate("admin:adminGuestImportsPage_ketQua")}</th>
+                    <th>{translate("admin:adminGuestImportsPage_batDau")}</th>
                     <th>
-                      <span className="sr-only">Thao tác</span>
+                      <span className="sr-only">{translate("admin:adminGuestImportsPage_thaoTac")}</span>
                     </th>
                   </tr>
                 </thead>
@@ -569,13 +573,13 @@ export function AdminGuestImportsPage({
                     <tr key={log.id}>
                       <td>
                         <strong className="admin-table-primary">
-                          {log.fileName ?? 'Không có tên file'}
+                          {log.fileName ?? translate("admin:adminGuestImportsPage_khongCoTenFile")}
                         </strong>
                         <span className="admin-table-secondary">{log.id.slice(0, 8)}</span>
                       </td>
                       <td>
                         <strong className="admin-table-primary">
-                          {concertNames.get(log.concertId ?? '') ?? 'Concert không xác định'}
+                          {concertNames.get(log.concertId ?? '') ?? translate("admin:adminGuestImportsPage_concertKhongXacDinh")}
                         </strong>
                       </td>
                       <td>
@@ -584,7 +588,7 @@ export function AdminGuestImportsPage({
                       <td>
                         <BatchStatus status={log.status} />
                         <span className="admin-table-secondary">
-                          {log.successRows} thành công · {log.errorRows} lỗi
+                          {log.successRows} {translate("admin:adminGuestImportsPage_thanhCong_2")} {log.errorRows} {translate("admin:adminGuestImportsPage_loi")}
                         </span>
                       </td>
                       <td>
@@ -597,7 +601,7 @@ export function AdminGuestImportsPage({
                         <div className="admin-row-actions">
                           <button
                             type="button"
-                            aria-label={`Xem chi tiết ${log.fileName ?? log.id}`}
+                            aria-label={translate("admin:adminGuestImportsPage_xemChiTiet", { arg1: log.fileName ?? log.id })}
                             onClick={() => void openDetail(log)}
                           >
                             <Eye aria-hidden="true" size={16} />
@@ -612,8 +616,8 @@ export function AdminGuestImportsPage({
           ) : (
             <div className="admin-empty-state">
               <FileClock aria-hidden="true" size={28} />
-              <h2>Chưa có batch phù hợp</h2>
-              <p>Thay đổi bộ lọc hoặc tải lên danh sách khách mời đầu tiên.</p>
+              <h2>{translate("admin:adminGuestImportsPage_chuaCoBatchPhuHop")}</h2>
+              <p>{translate("admin:adminGuestImportsPage_thayDoiBoLocHoacTaiLen")}</p>
             </div>
           )}
         </div>
@@ -621,12 +625,12 @@ export function AdminGuestImportsPage({
         {logs && logs.totalPages > 1 ? (
           <div className="admin-pagination">
             <span>
-              Trang {logs.number + 1} / {logs.totalPages}
+              {translate('pageNumber', { page: logs.number + 1, total: logs.totalPages })}
             </span>
             <div>
               <button
                 type="button"
-                aria-label="Trang trước"
+                aria-label={translate("admin:adminGuestImportsPage_trangTruoc")}
                 disabled={logs.first}
                 onClick={() => updateFilters({ page: String(page - 1) })}
               >
@@ -634,7 +638,7 @@ export function AdminGuestImportsPage({
               </button>
               <button
                 type="button"
-                aria-label="Trang sau"
+                aria-label={translate('pageNext')}
                 disabled={logs.last}
                 onClick={() => updateFilters({ page: String(page + 1) })}
               >
@@ -660,6 +664,7 @@ export function AdminGuestImportsPage({
 }
 
 function BatchStatus({ status }: { status: BatchLogStatus }) {
+  useTranslation();
   return (
     <span className={`batch-status batch-${status.toLowerCase()}`}>
       {isActiveBatch(status) ? <i aria-hidden="true" /> : null}
@@ -677,6 +682,7 @@ function BatchSnapshot({
   concertName?: string;
   onOpen: () => void;
 }) {
+  useTranslation();
   return (
     <div className="guest-batch-snapshot">
       <div>
@@ -686,26 +692,26 @@ function BatchSnapshot({
       {isActiveBatch(log.status) ? (
         <div
           className="guest-indeterminate"
-          aria-label={log.status === 'PENDING' ? 'Đang chờ scheduler' : 'Đang xử lý'}
+          aria-label={log.status === 'PENDING' ? translate("admin:adminGuestImportsPage_dangChoScheduler") : translate("admin:adminGuestImportsPage_dangXuLy")}
         >
           <span />
         </div>
       ) : null}
-      <h3>{log.fileName ?? 'Danh sách khách mời'}</h3>
-      <p>{concertName ?? 'Concert không xác định'}</p>
+      <h3>{log.fileName ?? translate("admin:adminGuestImportsPage_danhSachKhachMoi")}</h3>
+      <p>{concertName ?? translate("admin:adminGuestImportsPage_concertKhongXacDinh")}</p>
       <div className="guest-batch-counts">
         <span>
-          <strong>{log.totalRows}</strong>Tổng dòng
+          <strong>{log.totalRows}</strong>{translate("admin:adminGuestImportsPage_tongDong")}
         </span>
         <span>
-          <strong>{log.successRows}</strong>Thành công
+          <strong>{log.successRows}</strong>{translate("admin:adminGuestImportsPage_thanhCong")}
         </span>
         <span>
-          <strong>{log.errorRows}</strong>Lỗi
+          <strong>{log.errorRows}</strong>{translate("admin:adminGuestImportsPage_loi_2")}
         </span>
       </div>
       <button type="button" onClick={onOpen}>
-        Xem chi tiết <Eye aria-hidden="true" size={15} />
+        {translate("admin:adminGuestImportsPage_xemChiTiet_2")} <Eye aria-hidden="true" size={15} />
       </button>
     </div>
   );
@@ -726,6 +732,7 @@ function BatchDetailDialog({
   showTechnicalDetails: boolean;
   onClose: () => void;
 }) {
+  useTranslation();
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') onClose();
@@ -751,104 +758,104 @@ function BatchDetailDialog({
       >
         <header>
           <div>
-            <span>Chi tiết batch</span>
-            <h2 id="batch-detail-title">{log.fileName ?? 'Chi tiết import'}</h2>
+            <span>{translate("admin:adminGuestImportsPage_chiTietBatch")}</span>
+            <h2 id="batch-detail-title">{log.fileName ?? translate("admin:adminGuestImportsPage_chiTietImport")}</h2>
           </div>
-          <button type="button" aria-label="Đóng" onClick={onClose} autoFocus>
+          <button type="button" aria-label={translate("admin:adminGuestImportsPage_dong")} onClick={onClose} autoFocus>
             <X size={20} />
           </button>
         </header>
         <div className="batch-detail-body">
           {loading ? (
-            <div className="batch-detail-loading">Đang tải dữ liệu mới nhất...</div>
+            <div className="batch-detail-loading">{translate("admin:adminGuestImportsPage_dangTaiDuLieuMoiNhat")}</div>
           ) : null}
           <div className="batch-detail-lead">
             <BatchStatus status={log.status} />
-            <strong>{concertName ?? 'Concert không xác định'}</strong>
+            <strong>{concertName ?? translate("admin:adminGuestImportsPage_concertKhongXacDinh")}</strong>
             <span>{sourceLabel(log.source)}</span>
           </div>
           {isActiveBatch(log.status) ? (
             <div
               className="guest-indeterminate"
-              aria-label={log.status === 'PENDING' ? 'Đang chờ scheduler' : 'Đang xử lý'}
+              aria-label={log.status === 'PENDING' ? translate("admin:adminGuestImportsPage_dangChoScheduler") : translate("admin:adminGuestImportsPage_dangXuLy")}
             >
               <span />
             </div>
           ) : null}
           <dl className="batch-detail-counts">
             <div>
-              <dt>Tổng dòng</dt>
+              <dt>{translate("admin:adminGuestImportsPage_tongDong")}</dt>
               <dd>{log.totalRows}</dd>
             </div>
             <div>
-              <dt>Thành công</dt>
+              <dt>{translate("admin:adminGuestImportsPage_thanhCong")}</dt>
               <dd>{log.successRows}</dd>
             </div>
             <div>
-              <dt>Lỗi</dt>
+              <dt>{translate("admin:adminGuestImportsPage_loi_2")}</dt>
               <dd>{log.errorRows}</dd>
             </div>
           </dl>
           <dl className="batch-detail-meta">
             <div>
-              <dt>Bắt đầu</dt>
+              <dt>{translate("admin:adminGuestImportsPage_batDau")}</dt>
               <dd>{dateTime.format(new Date(log.startedAt))}</dd>
             </div>
             <div>
-              <dt>Hoàn tất</dt>
-              <dd>{log.completedAt ? dateTime.format(new Date(log.completedAt)) : 'Đang xử lý'}</dd>
+              <dt>{translate("admin:adminGuestImportsPage_hoanTat")}</dt>
+              <dd>{log.completedAt ? dateTime.format(new Date(log.completedAt)) : translate("admin:adminGuestImportsPage_dangXuLy")}</dd>
             </div>
             <div>
-              <dt>Thời lượng</dt>
+              <dt>{translate("admin:adminGuestImportsPage_thoiLuong")}</dt>
               <dd>{duration(log)}</dd>
             </div>
             {showTechnicalDetails ? (
               <div>
-                <dt>Checksum</dt>
+                <dt>{translate('checksum')}</dt>
                 <dd>
-                  <code>{log.checksum ?? 'Không có'}</code>
+                  <code>{log.checksum ?? translate("admin:adminGuestImportsPage_khongCo")}</code>
                 </dd>
               </div>
             ) : null}
             {showTechnicalDetails ? (
               <div>
-                <dt>File lưu trữ</dt>
+                <dt>{translate("admin:adminGuestImportsPage_fileLuuTru")}</dt>
                 <dd>
-                  <code>{log.filePath ?? 'Không có'}</code>
+                  <code>{log.filePath ?? translate("admin:adminGuestImportsPage_khongCo")}</code>
                 </dd>
               </div>
             ) : null}
             <div>
-              <dt>Báo cáo lỗi</dt>
+              <dt>{translate("admin:adminGuestImportsPage_baoCaoLoi")}</dt>
               <dd>
-                <code>{log.errorReportPath ?? 'Không có'}</code>
+                <code>{log.errorReportPath ?? translate("admin:adminGuestImportsPage_khongCo")}</code>
               </dd>
             </div>
           </dl>
           {log.errorDetail ? (
             <div className="batch-error-detail">
-              <span>Chi tiết lỗi</span>
+              <span>{translate("admin:adminGuestImportsPage_chiTietLoi")}</span>
               <p>{log.errorDetail}</p>
             </div>
           ) : null}
           <section className="batch-guest-preview">
             <div className="batch-guest-preview-heading">
               <div>
-                <span>Danh sách khách mời</span>
-                <h3>Danh sách khách mời của concert</h3>
+                <span>{translate("admin:adminGuestImportsPage_danhSachKhachMoi")}</span>
+                <h3>{translate("admin:adminGuestImportsPage_danhSachKhachMoiCuaConcert")}</h3>
               </div>
-              <strong>{guests.length} khách</strong>
+              <strong>{guests.length} {translate("admin:adminGuestImportsPage_khach")}</strong>
             </div>
             {guests.length ? (
               <div className="admin-table-wrap">
                 <table className="admin-table">
                   <thead>
                     <tr>
-                      <th>Khách mời</th>
-                      <th>Hạng</th>
-                      <th>Sponsor</th>
-                      <th>Trạng thái</th>
-                      <th>Check-in</th>
+                      <th>{translate("admin:adminGuestImportsPage_khachMoi")}</th>
+                      <th>{translate("admin:adminGuestImportsPage_hang")}</th>
+                      <th>{translate('sponsor')}</th>
+                      <th>{translate("admin:adminGuestImportsPage_trangThai")}</th>
+                      <th>{translate("admin:adminGuestImportsPage_checkIn")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -868,13 +875,13 @@ function BatchDetailDialog({
                                 : 'status-badge badge-muted'
                             }
                           >
-                            {guest.active ? 'Hiệu lực' : 'Đã hủy'}
+                            {guest.active ? translate("admin:adminGuestImportsPage_hieuLuc") : translate("admin:adminGuestImportsPage_daHuy")}
                           </span>
                         </td>
                         <td>
                           {guest.checkedInAt
                             ? dateTime.format(new Date(guest.checkedInAt))
-                            : 'Chưa vào'}
+                            : translate("admin:adminGuestImportsPage_chuaVao")}
                         </td>
                       </tr>
                     ))}
@@ -884,8 +891,8 @@ function BatchDetailDialog({
             ) : (
               <div className="admin-empty-state compact">
                 <FileText aria-hidden="true" size={22} />
-                <h2>Chưa có khách mời</h2>
-                <p>Batch có thể đang xử lý hoặc concert này chưa có danh sách khách.</p>
+                <h2>{translate("admin:adminGuestImportsPage_chuaCoKhachMoi")}</h2>
+                <p>{translate("admin:adminGuestImportsPage_batchCoTheDangXuLyHoac")}</p>
               </div>
             )}
           </section>

@@ -1,3 +1,6 @@
+import { dateFormatter } from '../../data/formatters';
+import { translate, formatLanguage } from '../../i18n';
+import { useTranslation } from 'react-i18next';
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Check,
@@ -33,14 +36,14 @@ import { useToast } from '../../components/feedback/toast-context';
 import { ModalPortal } from '../../components/feedback/ModalPortal';
 
 const statuses: Array<{ value: '' | ArtistBioJobStatus; label: string }> = [
-  { value: '', label: 'Tất cả trạng thái' },
-  { value: 'PENDING', label: 'Đang chờ' },
-  { value: 'PROCESSING', label: 'Đang tạo bio' },
-  { value: 'DONE', label: 'Sẵn sàng rà soát' },
-  { value: 'FAILED', label: 'Thất bại' },
+  { value: '', get label() { return translate("admin:adminArtistBioPage_tatCaTrangThai"); } },
+  { value: 'PENDING', get label() { return translate("admin:adminArtistBioPage_dangCho"); } },
+  { value: 'PROCESSING', get label() { return translate("admin:adminArtistBioPage_dangTaoBio"); } },
+  { value: 'DONE', get label() { return translate("admin:adminArtistBioPage_sanSangRaSoat"); } },
+  { value: 'FAILED', get label() { return translate("admin:adminArtistBioPage_thatBai"); } },
 ];
 
-const dateTime = new Intl.DateTimeFormat('vi-VN', {
+const dateTime = dateFormatter({
   dateStyle: 'medium',
   timeStyle: 'short',
 });
@@ -54,16 +57,17 @@ function statusLabel(status: ArtistBioJobStatus) {
 }
 
 function duration(job: ArtistBioJob) {
-  if (!job.startedAt) return 'Chưa bắt đầu';
-  if (!job.completedAt) return 'Đang xử lý';
+  if (!job.startedAt) return translate("admin:adminArtistBioPage_chuaBatDau");
+  if (!job.completedAt) return translate("admin:adminArtistBioPage_dangXuLy");
   const seconds = Math.max(
     0,
     Math.round((new Date(job.completedAt).getTime() - new Date(job.startedAt).getTime()) / 1000),
   );
-  return seconds < 60 ? `${seconds} giây` : `${Math.floor(seconds / 60)} phút ${seconds % 60} giây`;
+  return seconds < 60 ? translate("admin:adminArtistBioPage_giay", { arg1: seconds }) : translate("admin:adminArtistBioPage_phutGiay", { arg1: Math.floor(seconds / 60), arg2: seconds % 60 });
 }
 
 export function AdminArtistBioPage({ apiScope = 'admin' }: { apiScope?: ManagementApiScope }) {
+  useTranslation();
   const toast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const root = apiScope === 'admin' ? '/admin' : '/organizer';
@@ -103,7 +107,7 @@ export function AdminArtistBioPage({ apiScope = 'admin' }: { apiScope?: Manageme
           toast.error(
             requestError instanceof Error
               ? requestError.message
-              : 'Không thể tải danh sách concert.',
+              : translate("admin:adminArtistBioPage_khongTheTaiDanhSachConcert"),
           );
         }
       } finally {
@@ -141,7 +145,7 @@ export function AdminArtistBioPage({ apiScope = 'admin' }: { apiScope?: Manageme
           setJobsError(
             requestError instanceof Error
               ? requestError.message
-              : 'Không thể tải lịch sử giới thiệu nghệ sĩ bằng AI.',
+              : translate("admin:adminArtistBioPage_khongTheTaiLichSuGioiThieu"),
           );
         }
       } finally {
@@ -181,7 +185,7 @@ export function AdminArtistBioPage({ apiScope = 'admin' }: { apiScope?: Manageme
       } catch (requestError) {
         if (!isRequestCanceled(requestError)) {
           toast.error(
-            requestError instanceof Error ? requestError.message : 'Không thể cập nhật tác vụ AI.',
+            requestError instanceof Error ? requestError.message : translate("admin:adminArtistBioPage_khongTheCapNhatTacVuAi"),
           );
         }
       } finally {
@@ -210,7 +214,7 @@ export function AdminArtistBioPage({ apiScope = 'admin' }: { apiScope?: Manageme
           toast.error(
             requestError instanceof Error
               ? requestError.message
-              : 'Không thể cập nhật tác vụ gần nhất.',
+              : translate("admin:adminArtistBioPage_khongTheCapNhatTacVuGan"),
           );
         }
       } finally {
@@ -244,19 +248,19 @@ export function AdminArtistBioPage({ apiScope = 'admin' }: { apiScope?: Manageme
     }
     if (!nextFile.name.toLowerCase().endsWith('.pdf')) {
       setFile(null);
-      toast.error('Chỉ chấp nhận file PDF.');
+      toast.error(translate("admin:adminArtistBioPage_chiChapNhanFilePdf"));
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
     if (nextFile.size === 0) {
       setFile(null);
-      toast.error('File PDF không được để trống.');
+      toast.error(translate("admin:adminArtistBioPage_filePdfKhongDuocDeTrong"));
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
     if (nextFile.size > 10 * 1024 * 1024) {
       setFile(null);
-      toast.error('File PDF không được vượt quá 10 MB.');
+      toast.error(translate("admin:adminArtistBioPage_filePdfKhongDuocVuotQua10"));
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
@@ -269,7 +273,7 @@ export function AdminArtistBioPage({ apiScope = 'admin' }: { apiScope?: Manageme
     setUploading(true);
     try {
       const result = await submitArtistBioJob(uploadConcertId, file, apiScope);
-      toast.success('Đã tiếp nhận PDF để tạo giới thiệu nghệ sĩ.');
+      toast.success(translate("admin:adminArtistBioPage_daTiepNhanPdfDeTaoGioi"));
       setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       try {
@@ -279,13 +283,13 @@ export function AdminArtistBioPage({ apiScope = 'admin' }: { apiScope?: Manageme
       } catch (detailError) {
         toast.error(
           detailError instanceof Error
-            ? `Tác vụ đã được tạo nhưng chưa tải được trạng thái: ${detailError.message}`
-            : 'Tác vụ đã được tạo nhưng chưa tải được trạng thái.',
+            ? translate("admin:adminArtistBioPage_tacVuDaDuocTaoNhungChua", { arg1: detailError.message })
+            : translate("admin:adminArtistBioPage_tacVuDaDuocTaoNhungChua_2"),
         );
       }
       await loadJobs(undefined, true);
     } catch (requestError) {
-      toast.error(requestError instanceof Error ? requestError.message : 'Không thể tải PDF lên.');
+      toast.error(requestError instanceof Error ? requestError.message : translate("admin:adminArtistBioPage_khongTheTaiPdfLen"));
     } finally {
       setUploading(false);
     }
@@ -298,7 +302,7 @@ export function AdminArtistBioPage({ apiScope = 'admin' }: { apiScope?: Manageme
       setSelectedJob(await getArtistBioJob(job.id, undefined, apiScope));
     } catch (requestError) {
       toast.error(
-        requestError instanceof Error ? requestError.message : 'Không thể tải chi tiết tác vụ AI.',
+        requestError instanceof Error ? requestError.message : translate("admin:adminArtistBioPage_khongTheTaiChiTietTacVu"),
       );
     } finally {
       setDetailLoading(false);
@@ -309,14 +313,14 @@ export function AdminArtistBioPage({ apiScope = 'admin' }: { apiScope?: Manageme
     setRetrying(true);
     try {
       const result = await retryArtistBioJob(job.id, apiScope);
-      toast.success('Đã đưa tác vụ vào hàng chờ xử lý lại.');
+      toast.success(translate("admin:adminArtistBioPage_daDuaTacVuVaoHangCho"));
       const updated = await getArtistBioJob(result.data.jobId, undefined, apiScope);
       setSelectedJob(updated);
       setLatestJob(updated);
       await loadJobs(undefined, true);
     } catch (requestError) {
       toast.error(
-        requestError instanceof Error ? requestError.message : 'Không thể thử lại tác vụ AI.',
+        requestError instanceof Error ? requestError.message : translate("admin:adminArtistBioPage_khongTheThuLaiTacVuAi"),
       );
     } finally {
       setRetrying(false);
@@ -324,17 +328,17 @@ export function AdminArtistBioPage({ apiScope = 'admin' }: { apiScope?: Manageme
   }
 
   async function deleteJob(job: ArtistBioJob) {
-    if (!window.confirm(`Xóa bản nháp "${job.originalFileName}"?`)) return;
+    if (!window.confirm(translate("admin:adminArtistBioPage_xoaBanNhap", { arg1: job.originalFileName }))) return;
     setDeletingId(job.id);
     try {
       await deleteArtistBioJob(job.id, apiScope);
-      toast.success('Đã xóa bản nháp AI.');
+      toast.success(translate("admin:adminArtistBioPage_daXoaBanNhapAi"));
       if (selectedJob?.id === job.id) setSelectedJob(null);
       if (latestJob?.id === job.id) setLatestJob(null);
       await loadJobs(undefined, true);
     } catch (requestError) {
       toast.error(
-        requestError instanceof Error ? requestError.message : 'Không thể xóa bản nháp AI.',
+        requestError instanceof Error ? requestError.message : translate("admin:adminArtistBioPage_khongTheXoaBanNhapAi"),
       );
     } finally {
       setDeletingId('');
@@ -344,13 +348,13 @@ export function AdminArtistBioPage({ apiScope = 'admin' }: { apiScope?: Manageme
   return (
     <>
       <AdminPageHeader
-        eyebrow="Biên tập AI"
-        title="Giới thiệu nghệ sĩ bằng AI"
-        description="Tạo bản giới thiệu nghệ sĩ từ hồ sơ báo chí PDF, rà soát nội dung và chủ động xuất bản lên trang concert."
+        eyebrow={translate("admin:adminArtistBioPage_bienTapAi")}
+        title={translate("admin:adminArtistBioPage_gioiThieuNgheSiBangAi")}
+        description={translate("admin:adminArtistBioPage_taoBanGioiThieuNgheSiTu")}
         actions={
           safeReturnTo ? (
             <Link className="admin-secondary-action" to={safeReturnTo}>
-              Quay về concert
+              {translate("admin:adminArtistBioPage_quayVeConcert")}
             </Link>
           ) : undefined
         }
@@ -359,25 +363,25 @@ export function AdminArtistBioPage({ apiScope = 'admin' }: { apiScope?: Manageme
       <section className="ai-bio-workspace">
         <form className="ai-bio-upload" onSubmit={submitJob}>
           <ToolHeading
-            eyebrow="Tạo nội dung"
-            title="Hồ sơ báo chí mới"
+            eyebrow={translate("admin:adminArtistBioPage_taoNoiDung")}
+            title={translate("admin:adminArtistBioPage_hoSoBaoChiMoi")}
             icon={<Sparkles size={22} />}
           />
           <ConcertPicker
             concerts={concerts}
             value={uploadConcertId}
             onChange={setUploadConcertId}
-            label="Concert nhận nội dung"
-            placeholder={loadingConcerts ? 'Đang tải concert...' : 'Chọn concert cho hồ sơ báo chí'}
+            label={translate("admin:adminArtistBioPage_concertNhanNoiDung")}
+            placeholder={loadingConcerts ? translate("admin:adminArtistBioPage_dangTaiConcert") : translate("admin:adminArtistBioPage_chonConcertChoHoSoBaoChi")}
             disabled={loadingConcerts || uploading || !concerts.length}
           />
           <label className={`ai-pdf-picker ${file ? 'has-file' : ''}`}>
             <FileText aria-hidden="true" size={25} />
-            <span>{file ? file.name : 'Chọn hồ sơ báo chí PDF'}</span>
+            <span>{file ? file.name : translate("admin:adminArtistBioPage_chonHoSoBaoChiPdf")}</span>
             <small>
               {file
                 ? `${(file.size / 1024).toFixed(1)} KB`
-                : 'PDF có text · tối đa 10 MB · 50 trang'}
+                : translate("admin:adminArtistBioPage_pdfCoTextToiDa10Mb")}
             </small>
             <input
               ref={fileInputRef}
@@ -393,14 +397,14 @@ export function AdminArtistBioPage({ apiScope = 'admin' }: { apiScope?: Manageme
             disabled={!file || !uploadConcertId || uploading}
           >
             <UploadCloud aria-hidden="true" size={17} />
-            {uploading ? 'Đang gửi PDF...' : 'Tạo giới thiệu nghệ sĩ'}
+            {uploading ? translate("admin:adminArtistBioPage_dangGuiPdf") : translate("admin:adminArtistBioPage_taoGioiThieuNgheSi")}
           </button>
         </form>
 
         <div className="ai-bio-latest">
           <ToolHeading
-            eyebrow="Tác vụ gần nhất"
-            title="Trạng thái AI"
+            eyebrow={translate("admin:adminArtistBioPage_tacVuGanNhat")}
+            title={translate("admin:adminArtistBioPage_trangThaiAi")}
             icon={<RefreshCw size={21} />}
           />
           {latestJob ? (
@@ -411,7 +415,7 @@ export function AdminArtistBioPage({ apiScope = 'admin' }: { apiScope?: Manageme
             />
           ) : (
             <div className="ai-latest-empty">
-              <p>Tác vụ vừa tạo sẽ xuất hiện tại đây để bạn theo dõi.</p>
+              <p>{translate("admin:adminArtistBioPage_tacVuVuaTaoSeXuatHien")}</p>
             </div>
           )}
         </div>
@@ -420,22 +424,22 @@ export function AdminArtistBioPage({ apiScope = 'admin' }: { apiScope?: Manageme
       <section className="ai-history-section">
         <div className="guest-log-header">
           <div>
-            <span>Lịch sử biên tập</span>
-            <h2>Tác vụ giới thiệu nghệ sĩ</h2>
+            <span>{translate("admin:adminArtistBioPage_lichSuBienTap")}</span>
+            <h2>{translate("admin:adminArtistBioPage_tacVuGioiThieuNgheSi")}</h2>
           </div>
           <button type="button" onClick={() => void loadJobs()} disabled={loadingJobs}>
             <RefreshCw aria-hidden="true" size={16} />
-            Làm mới
+            {translate("admin:adminArtistBioPage_lamMoi")}
           </button>
         </div>
         <div className="ai-job-filters">
           <label>
-            <span>Concert</span>
+            <span>{translate('event')}</span>
             <select
               value={concertFilter}
               onChange={(event) => updateFilters({ concertId: event.target.value })}
             >
-              <option value="">Tất cả concert</option>
+              <option value="">{translate("admin:adminArtistBioPage_tatCaConcert")}</option>
               {concerts.map((concert) => (
                 <option key={concert.id} value={concert.id}>
                   {concert.title}
@@ -444,7 +448,7 @@ export function AdminArtistBioPage({ apiScope = 'admin' }: { apiScope?: Manageme
             </select>
           </label>
           <label>
-            <span>Trạng thái</span>
+            <span>{translate("admin:adminArtistBioPage_trangThai")}</span>
             <select
               value={statusFilter}
               onChange={(event) => updateFilters({ status: event.target.value })}
@@ -462,7 +466,7 @@ export function AdminArtistBioPage({ apiScope = 'admin' }: { apiScope?: Manageme
             disabled={!concertFilter && !statusFilter && page === 0}
           >
             <RotateCcw aria-hidden="true" size={15} />
-            Xóa bộ lọc
+            {translate("admin:adminArtistBioPage_xoaBoLoc")}
           </button>
         </div>
         {jobsError ? (
@@ -472,7 +476,7 @@ export function AdminArtistBioPage({ apiScope = 'admin' }: { apiScope?: Manageme
         ) : null}
         <div className="admin-data-panel">
           {loadingJobs ? (
-            <div className="admin-row-skeleton" aria-label="Đang tải tác vụ AI" aria-live="polite">
+            <div className="admin-row-skeleton" aria-label={translate("admin:adminArtistBioPage_dangTaiTacVuAi")} aria-live="polite">
               {[1, 2, 3, 4].map((item) => (
                 <span key={item} />
               ))}
@@ -482,13 +486,13 @@ export function AdminArtistBioPage({ apiScope = 'admin' }: { apiScope?: Manageme
               <table className="admin-table ai-job-table">
                 <thead>
                   <tr>
-                    <th>PDF</th>
-                    <th>Concert</th>
-                    <th>Trạng thái</th>
-                    <th>Nhà cung cấp</th>
-                    <th>Thời gian</th>
+                    <th>{translate("admin:adminArtistBioPage_pdf")}</th>
+                    <th>{translate('event')}</th>
+                    <th>{translate("admin:adminArtistBioPage_trangThai")}</th>
+                    <th>{translate("admin:adminArtistBioPage_nhaCungCap")}</th>
+                    <th>{translate("admin:adminArtistBioPage_thoiGian")}</th>
                     <th>
-                      <span className="sr-only">Thao tác</span>
+                      <span className="sr-only">{translate("admin:adminArtistBioPage_thaoTac")}</span>
                     </th>
                   </tr>
                 </thead>
@@ -500,12 +504,12 @@ export function AdminArtistBioPage({ apiScope = 'admin' }: { apiScope?: Manageme
                         <span className="admin-table-secondary">
                           {job.extractedCharCount == null
                             ? job.id.slice(0, 8)
-                            : `${job.extractedCharCount.toLocaleString('vi-VN')} ký tự`}
+                            : translate("admin:adminArtistBioPage_kyTu", { arg1: job.extractedCharCount.toLocaleString(formatLanguage()) })}
                         </span>
                       </td>
                       <td>
                         <strong className="admin-table-primary">
-                          {concertMap.get(job.concertId)?.title ?? 'Concert không xác định'}
+                          {concertMap.get(job.concertId)?.title ?? translate("admin:adminArtistBioPage_concertKhongXacDinh")}
                         </strong>
                       </td>
                       <td>
@@ -513,16 +517,16 @@ export function AdminArtistBioPage({ apiScope = 'admin' }: { apiScope?: Manageme
                         {job.appliedAt ? (
                           <span className="ai-applied-label">
                             <Check size={12} />
-                            Đã áp dụng
+                            {translate("admin:adminArtistBioPage_daApDung")}
                           </span>
                         ) : null}
                       </td>
                       <td>
                         <strong className="admin-table-primary">
-                          {job.provider ?? 'Chưa xác định'}
+                          {job.provider ?? translate("admin:adminArtistBioPage_chuaXacDinh")}
                         </strong>
                         <span className="admin-table-secondary">
-                          {job.model ?? 'Đang chờ model'}
+                          {job.model ?? translate("admin:adminArtistBioPage_dangChoModel")}
                         </span>
                       </td>
                       <td>
@@ -535,14 +539,14 @@ export function AdminArtistBioPage({ apiScope = 'admin' }: { apiScope?: Manageme
                         <div className="admin-row-actions">
                           <button
                             type="button"
-                            aria-label={`Rà soát ${job.originalFileName}`}
+                            aria-label={translate("admin:adminArtistBioPage_raSoat", { arg1: job.originalFileName })}
                             onClick={() => void openDetail(job)}
                           >
                             <Eye size={16} />
                           </button>
                           <button
                             type="button"
-                            aria-label={`Xóa ${job.originalFileName}`}
+                            aria-label={translate("admin:adminArtistBioPage_xoa", { arg1: job.originalFileName })}
                             disabled={deletingId === job.id}
                             onClick={() => void deleteJob(job)}
                           >
@@ -558,20 +562,20 @@ export function AdminArtistBioPage({ apiScope = 'admin' }: { apiScope?: Manageme
           ) : (
             <div className="admin-empty-state">
               <Sparkles aria-hidden="true" size={28} />
-              <h2>Chưa có tác vụ AI phù hợp</h2>
-              <p>Thay đổi bộ lọc hoặc tải hồ sơ báo chí đầu tiên để tạo giới thiệu nghệ sĩ.</p>
+              <h2>{translate("admin:adminArtistBioPage_chuaCoTacVuAiPhuHop")}</h2>
+              <p>{translate("admin:adminArtistBioPage_thayDoiBoLocHoacTaiHo")}</p>
             </div>
           )}
         </div>
         {jobs && jobs.totalPages > 1 ? (
           <div className="admin-pagination">
             <span>
-              Trang {jobs.number + 1} / {jobs.totalPages}
+              {translate('pageNumber', { page: jobs.number + 1, total: jobs.totalPages })}
             </span>
             <div>
               <button
                 type="button"
-                aria-label="Trang trước"
+                aria-label={translate("admin:adminArtistBioPage_trangTruoc")}
                 disabled={jobs.first}
                 onClick={() => updateFilters({ page: String(page - 1) })}
               >
@@ -579,7 +583,7 @@ export function AdminArtistBioPage({ apiScope = 'admin' }: { apiScope?: Manageme
               </button>
               <button
                 type="button"
-                aria-label="Trang sau"
+                aria-label={translate('pageNext')}
                 disabled={jobs.last}
                 onClick={() => updateFilters({ page: String(page + 1) })}
               >
@@ -613,6 +617,7 @@ function ToolHeading({
   title: string;
   icon: React.ReactNode;
 }) {
+  useTranslation();
   return (
     <div className="guest-section-heading">
       <div>
@@ -625,6 +630,7 @@ function ToolHeading({
 }
 
 function ArtistJobStatus({ status }: { status: ArtistBioJobStatus }) {
+  useTranslation();
   return (
     <span className={`ai-job-status ai-status-${status.toLowerCase()}`}>
       {isActive(status) ? <i aria-hidden="true" /> : null}
@@ -642,6 +648,7 @@ function JobSnapshot({
   concertTitle?: string;
   onOpen: () => void;
 }) {
+  useTranslation();
   return (
     <div className="ai-job-snapshot">
       <div>
@@ -649,34 +656,34 @@ function JobSnapshot({
         {job.appliedAt ? (
           <span className="ai-applied-label">
             <Check size={12} />
-            Đã áp dụng
+            {translate("admin:adminArtistBioPage_daApDung")}
           </span>
         ) : null}
       </div>
       {isActive(job.status) ? (
-        <div className="guest-indeterminate" aria-label="AI đang xử lý">
+        <div className="guest-indeterminate" aria-label={translate("admin:adminArtistBioPage_aiDangXuLy")}>
           <span />
         </div>
       ) : null}
       <h3>{job.originalFileName}</h3>
-      <p>{concertTitle ?? 'Concert không xác định'}</p>
+      <p>{concertTitle ?? translate("admin:adminArtistBioPage_concertKhongXacDinh")}</p>
       <dl>
         <div>
-          <dt>Nhà cung cấp</dt>
-          <dd>{job.provider ?? 'Đang chờ'}</dd>
+          <dt>{translate("admin:adminArtistBioPage_nhaCungCap")}</dt>
+          <dd>{job.provider ?? translate("admin:adminArtistBioPage_dangCho")}</dd>
         </div>
         <div>
-          <dt>Ký tự nguồn</dt>
-          <dd>{job.extractedCharCount?.toLocaleString('vi-VN') ?? '—'}</dd>
+          <dt>{translate("admin:adminArtistBioPage_kyTuNguon")}</dt>
+          <dd>{job.extractedCharCount?.toLocaleString(formatLanguage()) ?? '—'}</dd>
         </div>
         <div>
-          <dt>Thời lượng</dt>
+          <dt>{translate("admin:adminArtistBioPage_thoiLuong")}</dt>
           <dd>{duration(job)}</dd>
         </div>
       </dl>
       {job.errorMessage ? <div className="ai-snapshot-error">{job.errorMessage}</div> : null}
       <button type="button" onClick={onOpen}>
-        {job.status === 'DONE' ? 'Rà soát nội dung' : 'Xem chi tiết'} <Eye size={15} />
+        {job.status === 'DONE' ? translate("admin:adminArtistBioPage_raSoatNoiDung") : translate("admin:adminArtistBioPage_xemChiTiet")} <Eye size={15} />
       </button>
     </div>
   );
@@ -697,6 +704,7 @@ function ArtistBioReviewDialog({
   onRetry: () => void;
   onClose: () => void;
 }) {
+  useTranslation();
   const busy = retrying;
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -723,58 +731,58 @@ function ArtistBioReviewDialog({
       >
         <header>
           <div>
-            <span>Rà soát giới thiệu nghệ sĩ</span>
+            <span>{translate("admin:adminArtistBioPage_raSoatGioiThieuNgheSi")}</span>
             <h2 id="ai-review-title">{concert?.title ?? job.originalFileName}</h2>
           </div>
-          <button type="button" aria-label="Đóng" onClick={onClose} disabled={busy} autoFocus>
+          <button type="button" aria-label={translate("admin:adminArtistBioPage_dong")} onClick={onClose} disabled={busy} autoFocus>
             <X size={20} />
           </button>
         </header>
         <div className="ai-review-body">
-          {loading ? <div className="batch-detail-loading">Đang tải tác vụ mới nhất...</div> : null}
+          {loading ? <div className="batch-detail-loading">{translate("admin:adminArtistBioPage_dangTaiTacVuMoiNhat")}</div> : null}
           <div className="ai-review-meta">
             <ArtistJobStatus status={job.status} />
             <span>{job.originalFileName}</span>
             <span>
-              {job.provider ?? 'Chưa có nhà cung cấp'} · {job.model ?? 'chưa có model'}
+              {job.provider ?? translate("admin:adminArtistBioPage_chuaCoNhaCungCap")} · {job.model ?? translate("admin:adminArtistBioPage_chuaCoModel")}
             </span>
           </div>
           {isActive(job.status) ? (
-            <div className="guest-indeterminate" aria-label="AI đang xử lý">
+            <div className="guest-indeterminate" aria-label={translate("admin:adminArtistBioPage_aiDangXuLy")}>
               <span />
             </div>
           ) : null}
           <dl className="ai-review-facts">
             <div>
-              <dt>Tạo lúc</dt>
+              <dt>{translate("admin:adminArtistBioPage_taoLuc")}</dt>
               <dd>{dateTime.format(new Date(job.createdAt))}</dd>
             </div>
             <div>
-              <dt>Thời lượng</dt>
+              <dt>{translate("admin:adminArtistBioPage_thoiLuong")}</dt>
               <dd>{duration(job)}</dd>
             </div>
             <div>
-              <dt>Ký tự trích xuất</dt>
-              <dd>{job.extractedCharCount?.toLocaleString('vi-VN') ?? 'Chưa có'}</dd>
+              <dt>{translate("admin:adminArtistBioPage_kyTuTrichXuat")}</dt>
+              <dd>{job.extractedCharCount?.toLocaleString(formatLanguage()) ?? translate("admin:adminArtistBioPage_chuaCo")}</dd>
             </div>
             <div>
-              <dt>Xuất bản</dt>
+              <dt>{translate("admin:adminArtistBioPage_xuatBan")}</dt>
               <dd>
                 {job.appliedAt
                   ? dateTime.format(new Date(job.appliedAt))
-                  : 'Cần biên tập trong không gian concert'}
+                  : translate("admin:adminArtistBioPage_canBienTapTrongKhongGianConcert")}
               </dd>
             </div>
           </dl>
           {job.resultBio ? (
             <article className="ai-bio-draft">
-              <span>Bản nháp do AI tạo</span>
+              <span>{translate("admin:adminArtistBioPage_banNhapDoAiTao")}</span>
               <p>{job.resultBio}</p>
             </article>
           ) : null}
           {job.errorMessage ? (
             <div className="batch-error-detail">
-              <span>Tác vụ thất bại</span>
+              <span>{translate("admin:adminArtistBioPage_tacVuThatBai")}</span>
               <p>{job.errorMessage}</p>
             </div>
           ) : null}
@@ -786,7 +794,7 @@ function ArtistBioReviewDialog({
             onClick={onClose}
             disabled={busy}
           >
-            Đóng
+            {translate("admin:adminArtistBioPage_dong")}
           </button>
           {job.status === 'FAILED' ? (
             <button
@@ -796,7 +804,7 @@ function ArtistBioReviewDialog({
               disabled={busy}
             >
               <RotateCw size={16} />
-              {retrying ? 'Đang thử lại...' : 'Thử lại tác vụ'}
+              {retrying ? translate("admin:adminArtistBioPage_dangThuLai") : translate("admin:adminArtistBioPage_thuLaiTacVu")}
             </button>
           ) : null}
         </footer>

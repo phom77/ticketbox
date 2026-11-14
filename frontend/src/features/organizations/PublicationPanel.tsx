@@ -1,17 +1,20 @@
+import { translate } from '../../i18n';
+import { useTranslation } from 'react-i18next';
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getPublication, publishConcert, type Publication } from '../../api/publication';
 
 const issueText: Record<string, string> = {
-  EVENT_DETAILS: 'Bổ sung tên và địa điểm buổi diễn.',
-  SALE_WINDOW: 'Kiểm tra ngày diễn và thời gian mở bán.',
-  ACTIVE_TIER: 'Thêm hạng vé đang hoạt động với giá, số lượng và giới hạn hợp lệ.',
-  EVENT_STATUS: 'Trạng thái buổi diễn hiện tại chưa cho phép mở bán.',
+  get EVENT_DETAILS() { return translate("shared:publicationPanel_boSungTenVaDiaDiemBuoi"); },
+  get SALE_WINDOW() { return translate("shared:publicationPanel_kiemTraNgayDienVaThoiGian"); },
+  get ACTIVE_TIER() { return translate("shared:publicationPanel_themHangVeDangHoatDongVoi"); },
+  get EVENT_STATUS() { return translate("shared:publicationPanel_trangThaiBuoiDienHienTaiChua"); },
 };
 
 export function PublicationPanel({
   id, updatedAt, onPublished,
 }: { id: string; updatedAt: string; onPublished: () => void }) {
+  useTranslation();
   const [state, setState] = useState<Publication | null>(null);
   const [error, setError] = useState('');
   const [publishing, setPublishing] = useState(false);
@@ -27,7 +30,7 @@ export function PublicationPanel({
       void getPublication(id, controller.signal).then((result) => {
         if (!controller.signal.aborted) { setState(result); setError(''); }
       }).catch((failure: unknown) => {
-        if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : 'Không thể tải trạng thái mở bán.');
+        if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : translate("shared:publicationPanel_khongTheTaiTrangThaiMoBan"));
       });
     }, pending ? 1500 : 0);
     return () => { controller.abort(); window.clearTimeout(timeout); };
@@ -48,7 +51,7 @@ export function PublicationPanel({
       setState(result);
       onPublished();
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : 'Không thể mở bán.');
+      setError(failure instanceof Error ? failure.message : translate("shared:publicationPanel_khongTheMoBan"));
       refresh();
     } finally {
       setPublishing(false);
@@ -57,28 +60,28 @@ export function PublicationPanel({
 
   return (
     <section className="admin-data-panel organization-panel" aria-labelledby="sale-publication">
-      <h2 id="sale-publication">Mở bán</h2>
+      <h2 id="sale-publication">{translate("shared:publicationPanel_moBan")}</h2>
       <div className="organization-form">
-        <Link className="admin-secondary-action" to={`/organizer/concerts/${id}/preview`}>Xem trước</Link>
+        <Link className="admin-secondary-action" to={`/organizer/concerts/${id}/preview`}>{translate("shared:publicationPanel_xemTruoc")}</Link>
         {state?.status === 'DRAFT' ? (
           <button className="admin-primary-action" type="button" onClick={() => void publish()}
             disabled={publishing || !!error || state.issues.length > 0}>
-            {publishing ? 'Đang mở bán…' : 'Xác nhận mở bán'}
+            {publishing ? translate("shared:publicationPanel_dangMoBan") : translate("shared:publicationPanel_xacNhanMoBan")}
           </button>
         ) : null}
       </div>
-      {error ? <p role="alert">{error} <button type="button" className="admin-secondary-action" onClick={refresh}>Kiểm tra lại</button></p> : null}
-      {!state && !error ? <p role="status">Đang kiểm tra điều kiện mở bán…</p> : null}
+      {error ? <p role="alert">{error} <button type="button" className="admin-secondary-action" onClick={refresh}>{translate("shared:publicationPanel_kiemTraLai")}</button></p> : null}
+      {!state && !error ? <p role="status">{translate("shared:publicationPanel_dangKiemTraDieuKienMoBan")}</p> : null}
       {state ? (
         <>
           {state.issues.length > 0 ? <ul>{state.issues.map((issue) => <li key={issue}>{issueText[issue] ?? issue}</li>)}</ul> : null}
-          <p role="status">Ticketing {state.versions.ticketingVersion >= target ? 'đã đồng bộ' : 'đang đồng bộ'} · Check-in {state.versions.checkinVersion >= target ? 'đã đồng bộ' : 'đang đồng bộ'}</p>
+          <p role="status">Ticketing {state.versions.ticketingVersion >= target ? translate("shared:publicationPanel_daDongBo") : translate("shared:publicationPanel_dangDongBo")} · Check-in {state.versions.checkinVersion >= target ? translate("shared:publicationPanel_daDongBo") : translate("shared:publicationPanel_dangDongBo")}</p>
           {state.status === 'ON_SALE' ? <p>{state.versions.ticketingVersion >= target
-            ? 'Buổi diễn đã được công khai theo lịch bán.'
-            : 'Đã lưu yêu cầu. Buổi diễn sẽ được công khai khi Ticketing xác nhận.'}</p> : null}
+            ? translate("shared:publicationPanel_buoiDienDaDuocCongKhaiTheo")
+            : translate("shared:publicationPanel_daLuuYeuCauBuoiDienSe")}</p> : null}
         </>
       ) : null}
-      <p>Để hoãn hoặc hủy buổi diễn, liên hệ bộ phận vận hành TicketBox.</p>
+      <p>{translate("shared:publicationPanel_deHoanHoacHuyBuoiDienLien")}</p>
     </section>
   );
 }

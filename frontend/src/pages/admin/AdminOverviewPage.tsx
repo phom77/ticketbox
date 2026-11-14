@@ -1,3 +1,5 @@
+import { translate } from '../../i18n';
+import { useTranslation } from 'react-i18next';
 import { ArrowUpRight, Bell, CalendarDays, Ticket, UserCog, Users } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../features/auth/AuthContext';
@@ -7,48 +9,49 @@ import { OrderSupportQueue } from './OrderSupportQueue';
 const workspaces = [
   {
     to: '/admin/concerts',
-    title: 'Buổi diễn',
-    copy: 'Tạo chương trình, cập nhật thông tin và điều phối trạng thái bán.',
+    get title() { return translate("admin:adminOverviewPage_buoiDien"); },
+    get copy() { return translate("admin:adminOverviewPage_taoChuongTrinhCapNhatThongTin"); },
     icon: CalendarDays,
   },
   {
     to: '/admin/ticket-types',
-    title: 'Hạng vé',
-    copy: 'Quản lý giá, số lượng và màu vùng chỗ.',
+    get title() { return translate("admin:adminOverviewPage_hangVe"); },
+    get copy() { return translate("admin:adminOverviewPage_quanLyGiaSoLuongVaMau"); },
     icon: Ticket,
   },
   {
     to: '/admin/guests',
-    title: 'Khách mời',
-    copy: 'Nhập danh sách CSV và theo dõi danh sách được duyệt.',
+    get title() { return translate("admin:adminOverviewPage_khachMoi"); },
+    get copy() { return translate("admin:adminOverviewPage_nhapDanhSachCsvVaTheoDoi"); },
     icon: Users,
   },
   {
     to: '/admin/notifications',
-    title: 'Thông báo',
-    copy: 'Theo dõi thông báo, thử gửi lại email lỗi và gửi nhắc lịch thủ công.',
+    get title() { return translate("admin:adminOverviewPage_thongBao"); },
+    get copy() { return translate("admin:adminOverviewPage_theoDoiThongBaoThuGuiLai"); },
     icon: Bell,
   },
   {
     to: '/admin/users',
-    title: 'Người dùng',
-    copy: 'Đổi vai trò, khóa hoặc mở tài khoản để kiểm thử ma trận RBAC.',
+    get title() { return translate("admin:adminOverviewPage_nguoiDung"); },
+    get copy() { return translate("admin:adminOverviewPage_doiVaiTroKhoaHoacMoTai"); },
     icon: UserCog,
   },
 ];
 
 export function AdminOverviewPage() {
+  useTranslation();
   const { user } = useAuth();
 
   return (
     <>
       <AdminPageHeader
-        eyebrow="Trung tâm điều phối"
-        title={`Chào ${user?.fullName ?? 'bạn'}`}
-        description="Điều phối chương trình, hạng vé và dữ liệu vận hành từ một không gian thống nhất."
+        eyebrow={translate("admin:adminOverviewPage_trungTamDieuPhoi")}
+        title={translate("admin:adminOverviewPage_chao", { arg1: user?.fullName ?? translate("admin:adminOverviewPage_ban") })}
+        description={translate("admin:adminOverviewPage_dieuPhoiChuongTrinhHangVeVa")}
         actions={
           <Link className="admin-primary-action" to="/admin/concerts?create=1">
-            Tạo concert
+            {translate("admin:adminOverviewPage_taoConcert")}
             <ArrowUpRight aria-hidden="true" size={17} />
           </Link>
         }
@@ -56,7 +59,7 @@ export function AdminOverviewPage() {
 
       <OrderSupportQueue />
 
-      <section className="admin-workspace-grid" aria-label="Khu vực quản lý">
+      <section className="admin-workspace-grid" aria-label={translate("admin:adminOverviewPage_khuVucQuanLy")}>
         {workspaces.map((workspace) => {
           const Icon = workspace.icon;
           return (

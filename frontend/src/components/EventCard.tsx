@@ -1,6 +1,8 @@
+import { formatLanguage, translate } from '../i18n';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import type { ConcertStatus } from '../api/concerts';
-import { eventDate } from '../data/formatters';
+import { eventDate, dateFormatter } from '../data/formatters';
 import { RemoteImage } from './RemoteImage';
 
 export type EventCardItem = {
@@ -20,21 +22,22 @@ export function EventCard({
   event: EventCardItem;
   priority?: boolean;
 }) {
+  useTranslation();
   const isSoldOut = event.status === 'SOLD_OUT' || event.status === 'sold-out';
   const isSellingFast = event.status === 'selling-fast';
   const isUpcoming = event.status === 'DRAFT';
   const date = new Date(event.eventDate);
-  const time = new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit' }).format(
+  const time = dateFormatter({ hour: '2-digit', minute: '2-digit' }).format(
     date,
   );
-  const month = new Intl.DateTimeFormat('vi-VN', { month: 'short' })
+  const month = dateFormatter({ month: 'short' })
     .format(date)
-    .toLocaleUpperCase('vi-VN');
-  const day = new Intl.DateTimeFormat('vi-VN', { day: '2-digit' }).format(date);
+    .toLocaleUpperCase(formatLanguage());
+  const day = dateFormatter({ day: '2-digit' }).format(date);
 
   return (
     <article className="event-card">
-      <Link to={`/concerts/${event.id}`} aria-label={`Xem ${event.title}`}>
+      <Link to={`/concerts/${event.id}`} aria-label={translate('shared:eventCard_viewEvent', { title: event.title })}>
         <div className="event-image-wrap">
           <RemoteImage
             src={event.image ?? undefined}
@@ -47,12 +50,12 @@ export function EventCard({
             className={`status-pill ${isSoldOut ? 'status-sold-out' : isSellingFast ? 'status-selling-fast' : isUpcoming ? 'status-upcoming' : 'status-on-sale'}`}
           >
             {isSoldOut
-              ? 'Hết vé'
+              ? translate("shared:eventCard_hetVe")
               : isSellingFast
-                ? 'Sắp hết vé'
+                ? translate("shared:eventCard_sapHetVe")
                 : isUpcoming
-                  ? 'Sắp mở bán'
-                  : 'Đang bán'}
+                  ? translate("shared:eventCard_sapMoBan")
+                  : translate("shared:eventCard_dangBan")}
           </span>
           <span className="card-arrow" aria-hidden="true">
             →
@@ -70,7 +73,7 @@ export function EventCard({
             <h3>{event.title}</h3>
             <p>{event.venue}</p>
             <div className="event-price">
-              <strong>{event.supportingText ?? 'Tìm vé'}</strong>
+              <strong>{event.supportingText ?? translate("shared:eventCard_timVe")}</strong>
             </div>
           </div>
         </div>

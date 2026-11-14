@@ -1,3 +1,6 @@
+import { dateFormatter, numberFormatter } from '../../data/formatters';
+import { translate } from '../../i18n';
+import { useTranslation } from 'react-i18next';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { ApiClientError } from '../../api/client';
@@ -9,26 +12,26 @@ import {
 import './EventDisruptionPanel.css';
 
 const disruptionStates: Record<EventDisruption['state'], string> = {
-  PAUSING: 'Đang tạm dừng', PAUSED: 'Đã tạm dừng', CANCELLED: 'Đã hủy',
-  RESUMING: 'Đang mở lại', RESUMED: 'Đã mở lại',
+  get PAUSING() { return translate("admin:eventDisruptionPanel_dangTamDung"); }, get PAUSED() { return translate("admin:eventDisruptionPanel_daTamDung"); }, get CANCELLED() { return translate("admin:eventDisruptionPanel_daHuy"); },
+  get RESUMING() { return translate("admin:eventDisruptionPanel_dangMoLai"); }, get RESUMED() { return translate("admin:eventDisruptionPanel_daMoLai"); },
 };
 const orderStates: Record<string, string> = {
-  PAID: 'Đã thanh toán', AWAITING_PAYMENT: 'Chờ thanh toán', CANCELLED: 'Đã hủy',
-  EXPIRED: 'Đã hết hạn', REFUNDED: 'Đã hoàn tiền',
+  get PAID() { return translate("admin:eventDisruptionPanel_daThanhToan"); }, get AWAITING_PAYMENT() { return translate("admin:eventDisruptionPanel_choThanhToan"); }, get CANCELLED() { return translate("admin:eventDisruptionPanel_daHuy"); },
+  get EXPIRED() { return translate("admin:eventDisruptionPanel_daHetHan"); }, get REFUNDED() { return translate("admin:eventDisruptionPanel_daHoanTien"); },
 };
 const paymentStates: Record<string, string> = {
-  SUCCEEDED: 'Thành công', PENDING: 'Đang chờ', UNKNOWN: 'Chưa xác định', FAILED: 'Thất bại',
-  RECONCILIATION_REQUIRED: 'Chờ đối soát', SETTLEMENT_PENDING: 'Đang xử lý khoản thu',
+  get SUCCEEDED() { return translate("admin:eventDisruptionPanel_thanhCong"); }, get PENDING() { return translate("admin:eventDisruptionPanel_dangCho"); }, get UNKNOWN() { return translate("admin:eventDisruptionPanel_chuaXacDinh"); }, get FAILED() { return translate("admin:eventDisruptionPanel_thatBai"); },
+  get RECONCILIATION_REQUIRED() { return translate("admin:eventDisruptionPanel_choDoiSoat"); }, get SETTLEMENT_PENDING() { return translate("admin:eventDisruptionPanel_dangXuLyKhoanThu"); },
 };
-const dateTime = new Intl.DateTimeFormat('vi-VN', {
+const dateTime = dateFormatter({
   dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Ho_Chi_Minh',
 });
-const money = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' });
+const money = numberFormatter({ style: 'currency', currency: 'VND' });
 const scheduleFields = [
-  { name: 'eventDate', label: 'Thời điểm diễn mới', required: true },
-  { name: 'doorsOpenAt', label: 'Mở cửa từ', required: false },
-  { name: 'saleStartAt', label: 'Mở bán lại từ', required: true },
-  { name: 'saleEndAt', label: 'Kết thúc bán', required: false },
+  { name: 'eventDate', get label() { return translate("admin:eventDisruptionPanel_thoiDiemDienMoi"); }, required: true },
+  { name: 'doorsOpenAt', get label() { return translate("admin:eventDisruptionPanel_moCuaTu"); }, required: false },
+  { name: 'saleStartAt', get label() { return translate("admin:eventDisruptionPanel_moBanLaiTu"); }, required: true },
+  { name: 'saleEndAt', get label() { return translate("admin:eventDisruptionPanel_ketThucBan"); }, required: false },
 ] as const;
 const emptySchedule = { eventDate: '', doorsOpenAt: '', saleStartAt: '', saleEndAt: '' };
 
@@ -41,6 +44,7 @@ export function EventDisruptionPanel({ concertId, concertStatus, onChanged }: {
   concertStatus: ConcertStatus;
   onChanged: (signal: AbortSignal) => void;
 }) {
+  useTranslation();
   const [status, setStatus] = useState<EventDisruption | null>();
   const [statusError, setStatusError] = useState(false);
   const [statusRevision, setStatusRevision] = useState(0);
@@ -186,12 +190,12 @@ export function EventDisruptionPanel({ concertId, concertStatus, onChanged }: {
         setPendingResume(false);
         if (failure.status === 409) {
           setConflict(true);
-          setCommandError('Trạng thái buổi diễn đã thay đổi. Hãy tải lại trạng thái.');
+          setCommandError(translate("admin:eventDisruptionPanel_trangThaiBuoiDienDaThayDoi"));
         } else {
           setCommandError(failure.message);
         }
       } else {
-        setCommandError('Chưa thể xác nhận thao tác. Hãy thử lại.');
+        setCommandError(translate("admin:eventDisruptionPanel_chuaTheXacNhanThaoTacHay"));
       }
     } finally {
       setBusy(false);
@@ -201,23 +205,23 @@ export function EventDisruptionPanel({ concertId, concertStatus, onChanged }: {
   return (
     <section className="concert-workspace-card event-disruption" aria-labelledby="event-disruption-title">
       <header className="event-disruption-heading">
-        <h2 id="event-disruption-title" ref={heading} tabIndex={-1}>Hoãn hoặc hủy buổi diễn</h2>
+        <h2 id="event-disruption-title" ref={heading} tabIndex={-1}>{translate("admin:eventDisruptionPanel_hoanHoacHuyBuoiDien")}</h2>
         {(status || statusError || conflict) && <button type="button" className="admin-secondary-action"
-          disabled={busy} onClick={reloadStatus}>Tải lại trạng thái</button>}
+          disabled={busy} onClick={reloadStatus}>{translate("admin:eventDisruptionPanel_taiLaiTrangThai")}</button>}
       </header>
-      {status === undefined && !statusError && <p role="status">Đang tải trạng thái…</p>}
-      {statusError && <p className="admin-notice error" role="alert">Không thể tải trạng thái buổi diễn.</p>}
+      {status === undefined && !statusError && <p role="status">{translate("admin:eventDisruptionPanel_dangTaiTrangThai")}</p>}
+      {statusError && <p className="admin-notice error" role="alert">{translate("admin:eventDisruptionPanel_khongTheTaiTrangThaiBuoiDien")}</p>}
       {status && <div className="event-disruption-status">
         <div aria-live="polite">
           <h3>{disruptionStates[status.state]}</h3>
-          <p>{status.kind === 'CANCEL' ? 'Hủy buổi diễn' : 'Hoãn buổi diễn'} · {status.reason}</p>
-          {status.eventDate && <p>Lịch diễn mới <time dateTime={status.eventDate}>{dateTime.format(new Date(status.eventDate))}</time></p>}
+          <p>{status.kind === 'CANCEL' ? translate("admin:eventDisruptionPanel_huyBuoiDien") : translate("admin:eventDisruptionPanel_hoanBuoiDien")} · {status.reason}</p>
+          {status.eventDate && <p>{translate("admin:eventDisruptionPanel_lichDienMoi")} <time dateTime={status.eventDate}>{dateTime.format(new Date(status.eventDate))}</time></p>}
           <ul className="concert-readiness-list">
             <li className={status.ticketingReady ? 'done' : ''}>
-              {status.ticketingReady ? 'Ticketing đã xác nhận' : 'Đang chờ Ticketing xác nhận'}
+              {status.ticketingReady ? translate("admin:eventDisruptionPanel_ticketingDaXacNhan") : translate("admin:eventDisruptionPanel_dangChoTicketingXacNhan")}
             </li>
             <li className={status.checkinReady ? 'done' : ''}>
-              {status.checkinReady ? 'Check-in đã xác nhận' : 'Đang chờ Check-in xác nhận'}
+              {status.checkinReady ? translate("admin:eventDisruptionPanel_checkInDaXacNhan") : translate("admin:eventDisruptionPanel_dangChoCheckInXacNhan")}
             </li>
           </ul>
         </div>
@@ -226,18 +230,18 @@ export function EventDisruptionPanel({ concertId, concertStatus, onChanged }: {
           onClick={() => {
             setPendingResume(true);
             void send(() => resumeDisruption(concertId, status.id));
-          }}>Mở lại bán vé và check-in</button>}
+          }}>{translate("admin:eventDisruptionPanel_moLaiBanVeVaCheckIn")}</button>}
       </div>}
-      {!operationsAllowed && status === null && <p>Buổi diễn chưa ở trạng thái có thể hoãn hoặc hủy.</p>}
+      {!operationsAllowed && status === null && <p>{translate("admin:eventDisruptionPanel_buoiDienChuaOTrangThaiCo")}</p>}
 
       {showImpact && <section className="event-disruption-impact" aria-labelledby="event-disruption-impact-title">
         <header className="event-disruption-heading">
-          <h3 id="event-disruption-impact-title">Đơn hàng bị ảnh hưởng{impact ? ` (${impact.totalElements})` : ''}</h3>
+          <h3 id="event-disruption-impact-title">{translate("admin:eventDisruptionPanel_donHangBiAnhHuong")}{impact ? ` (${impact.totalElements})` : ''}</h3>
           <button type="button" className="admin-secondary-action" disabled={impactLoading}
-            onClick={() => refreshImpact()}>{impactError ? 'Tải lại danh sách' : 'Cập nhật danh sách'}</button>
+            onClick={() => refreshImpact()}>{impactError ? translate("admin:eventDisruptionPanel_taiLaiDanhSach") : translate("admin:eventDisruptionPanel_capNhatDanhSach")}</button>
         </header>
-        {impactLoading && <p role="status">Đang tải danh sách…</p>}
-        {impactError && <p className="admin-notice error" role="alert">Không thể tải danh sách đơn hàng bị ảnh hưởng.</p>}
+        {impactLoading && <p role="status">{translate("admin:eventDisruptionPanel_dangTaiDanhSach")}</p>}
+        {impactError && <p className="admin-notice error" role="alert">{translate("admin:eventDisruptionPanel_khongTheTaiDanhSachDonHang")}</p>}
         {!impactLoading && !impactError && impact && (impact.content.length ? (
           <ul className="event-disruption-orders">
             {impact.content.map((order) => <li key={order.orderId}>
@@ -245,17 +249,17 @@ export function EventDisruptionPanel({ concertId, concertStatus, onChanged }: {
               <span>{orderStates[order.status] ?? order.status}
                 {order.paymentState && <> · {paymentStates[order.paymentState] ?? order.paymentState}</>}
               </span>
-              <span>{money.format(order.amount)}{order.casePrepared && ' · Đã tạo hồ sơ'}</span>
+              <span>{money.format(order.amount)}{order.casePrepared && translate("admin:eventDisruptionPanel_daTaoHoSo")}</span>
             </li>)}
           </ul>
-        ) : <p>Không có đơn hàng bị ảnh hưởng.</p>)}
-        {impact && impact.totalPages > 1 && !impactError && <nav className="admin-pagination" aria-label="Phân trang đơn hàng bị ảnh hưởng">
-          <span>Trang {page + 1} / {impact.totalPages}</span>
+        ) : <p>{translate("admin:eventDisruptionPanel_khongCoDonHangBiAnhHuong")}</p>)}
+        {impact && impact.totalPages > 1 && !impactError && <nav className="admin-pagination" aria-label={translate("admin:eventDisruptionPanel_phanTrangDonHangBiAnhHuong")}>
+          <span>{translate('pageNumber', { page: page + 1, total: impact.totalPages })}</span>
           <div>
             <button type="button" aria-disabled={impactLoading || page === 0}
-              onClick={() => !impactLoading && page > 0 && refreshImpact(page - 1)}>Trang trước</button>
+              onClick={() => !impactLoading && page > 0 && refreshImpact(page - 1)}>{translate("admin:eventDisruptionPanel_trangTruoc")}</button>
             <button type="button" aria-disabled={impactLoading || page + 1 >= impact.totalPages}
-              onClick={() => !impactLoading && page + 1 < impact.totalPages && refreshImpact(page + 1)}>Trang sau</button>
+              onClick={() => !impactLoading && page + 1 < impact.totalPages && refreshImpact(page + 1)}>{translate('pageNext')}</button>
           </div>
         </nav>}
       </section>}
@@ -263,20 +267,20 @@ export function EventDisruptionPanel({ concertId, concertStatus, onChanged }: {
       {commandError && !accepted && <div className="admin-notice error" role="alert"><p>{commandError}</p></div>}
       {showForm && <form className="event-disruption-form" onSubmit={(event) => void submit(event)}>
         <label className="admin-field">
-          <span>Quyết định</span>
+          <span>{translate("admin:eventDisruptionPanel_quyetDinh")}</span>
           <select value={kind} disabled={busy || !!pendingCommand} onChange={(event) => selectKind(event.target.value as DisruptionKind | '')}>
-            <option value="">Chọn thao tác</option>
-            <option value="POSTPONE">Hoãn buổi diễn</option>
-            <option value="CANCEL">Hủy buổi diễn</option>
+            <option value="">{translate("admin:eventDisruptionPanel_chonThaoTac")}</option>
+            <option value="POSTPONE">{translate("admin:eventDisruptionPanel_hoanBuoiDien")}</option>
+            <option value="CANCEL">{translate("admin:eventDisruptionPanel_huyBuoiDien")}</option>
           </select>
         </label>
         {kind && <>
-          <label className="admin-field"><span>Lý do</span>
+          <label className="admin-field"><span>{translate("admin:eventDisruptionPanel_lyDo")}</span>
             <textarea required maxLength={1000} value={reason} readOnly={busy || !!pendingCommand}
               onChange={(event) => { setReason(event.target.value); setConfirmed(false); }} />
           </label>
           {kind === 'POSTPONE' && <fieldset className="event-disruption-schedule">
-            <legend>Lịch mới (giờ Việt Nam)</legend>
+            <legend>{translate("admin:eventDisruptionPanel_lichMoiGioVietNam")}</legend>
             {scheduleFields.map(({ name, label, required }) => <label key={name} className="admin-field">
               <span>{label}</span>
               <input type="datetime-local" value={schedule[name]} required={required} readOnly={busy || !!pendingCommand}
@@ -286,11 +290,11 @@ export function EventDisruptionPanel({ concertId, concertStatus, onChanged }: {
           <label className="event-disruption-confirm">
             <input type="checkbox" checked={confirmed} disabled={busy || !!pendingCommand}
               onChange={(event) => setConfirmed(event.target.checked)} />
-            <span>Tôi xác nhận {kind === 'CANCEL' ? 'hủy' : 'hoãn'} buổi diễn và dừng bán vé, check-in trực tuyến.</span>
+            <span>{translate(kind === 'CANCEL' ? 'admin:eventDisruptionPanel_confirmCancellation' : 'admin:eventDisruptionPanel_confirmPostponement')}</span>
           </label>
           <button type="submit" className={kind === 'CANCEL' ? 'admin-danger-action' : 'admin-primary-action'}
             disabled={!confirmed || !reason.trim() || !scheduleReady || !impact || impactLoading || impactError || busy || statusError || conflict}>
-            {kind === 'CANCEL' ? 'Xác nhận hủy' : 'Xác nhận hoãn'}
+            {kind === 'CANCEL' ? translate("admin:eventDisruptionPanel_xacNhanHuy") : translate("admin:eventDisruptionPanel_xacNhanHoan")}
           </button>
         </>}
       </form>}

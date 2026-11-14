@@ -1,3 +1,7 @@
+import { translate } from '../../i18n';
+import { useTranslation } from 'react-i18next';
+import { concertTitle } from '../../features/concert/concertText';
+import type { ConcertTranslations } from '../../api/concerts';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { ApiClientError } from '../../api/client';
@@ -24,6 +28,7 @@ import type { CheckoutSelection } from './SeatSelectionPage';
 export type CheckoutEvent = {
   id: string;
   title: string;
+  translations?: ConcertTranslations;
   venue: string;
   date: string;
   image: string | null;
@@ -64,25 +69,26 @@ const paymentOptions: Array<{
 }> = [
   {
     value: 'MOCK',
-    title: 'Thanh toán demo',
-    copy: 'Hoàn tất thanh toán ngay trong môi trường phát triển local.',
+    get title() { return translate("customer:checkoutPage_thanhToanDemo"); },
+    get copy() { return translate("customer:checkoutPage_hoanTatThanhToanNgayTrongMoi"); },
     badge: 'DEMO',
   },
   {
     value: 'VNPAY',
     title: 'VNPAY',
-    copy: 'Tiếp tục sang trang thanh toán VNPAY.',
+    get copy() { return translate("customer:checkoutPage_tiepTucSangTrangThanhToanVnpay"); },
     badge: 'VNPAY',
   },
   {
     value: 'MOMO',
     title: 'MoMo',
-    copy: 'Tiếp tục sang trang thanh toán MoMo.',
+    get copy() { return translate("customer:checkoutPage_tiepTucSangTrangThanhToanMomo"); },
     badge: 'MoMo',
   },
 ];
 
 export function CheckoutPage() {
+  useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -128,7 +134,7 @@ export function CheckoutPage() {
     void getPaymentProviders(controller.signal).then((result) => {
       if (!controller.signal.aborted) setProviders(result);
     }).catch(() => {
-      if (!controller.signal.aborted) setProviderError('Không thể tải cổng thanh toán.');
+      if (!controller.signal.aborted) setProviderError(translate("customer:checkoutPage_khongTheTaiCongThanhToan"));
     });
     return () => controller.abort();
   }, [providerReload]);
@@ -156,6 +162,7 @@ export function CheckoutPage() {
         const restoredEvent: CheckoutEvent = {
           id: concert.id,
           title: concert.title,
+          translations: concert.translations,
           venue: concert.venueName,
           date: concert.eventDate,
           image: concert.posterUrl,
@@ -182,7 +189,7 @@ export function CheckoutPage() {
         ) {
           sessionStorage.removeItem(PENDING_PAYMENT_STORAGE_KEY);
           setEvent(restoredEvent);
-          setResumeUnavailable('Đơn hàng này đã hết hạn hoặc không còn có thể thanh toán. Vé đã được trả về tồn kho.');
+          setResumeUnavailable(translate("customer:checkoutPage_donHangNayDaHetHanHoac"));
           return;
         }
 
@@ -203,8 +210,8 @@ export function CheckoutPage() {
         if (!active || (requestError instanceof DOMException && requestError.name === 'AbortError')) return;
         setResumeUnavailable(
           requestError instanceof ApiClientError && requestError.status === 404
-            ? 'Không tìm thấy đơn thanh toán này hoặc bạn không có quyền truy cập.'
-            : 'Không thể khôi phục đơn chờ thanh toán. Vui lòng kiểm tra lại lịch sử đơn hàng.',
+            ? translate("customer:checkoutPage_khongTimThayDonThanhToanNay")
+            : translate("customer:checkoutPage_khongTheKhoiPhucDonChoThanh"),
         );
       } finally {
         if (active) setRestoringOrder(false);
@@ -233,7 +240,7 @@ export function CheckoutPage() {
 
   useEffect(() => {
     if (searchParams.get('payment') === 'failed') {
-      setError('Thanh toán chưa hoàn tất. Đơn của bạn vẫn được giữ đến hết thời gian thanh toán.');
+      setError(translate("customer:checkoutPage_thanhToanChuaHoanTatDonCua"));
     }
   }, [searchParams]);
 
@@ -242,7 +249,7 @@ export function CheckoutPage() {
 
     if (!queueAccessToken) {
       clearStoredQueueAdmission();
-      setError('Phiên mua vé đã hết hạn. Đang đưa bạn về phòng chờ.');
+      setError(translate("customer:checkoutPage_phienMuaVeDaHetHanDang"));
       window.setTimeout(
         () => navigate(`/concerts/${event.id}/waiting-room`, { replace: true }),
         900,
@@ -288,7 +295,7 @@ export function CheckoutPage() {
             (requestError.status === 401 || requestError.status === 403)
           ) {
             clearStoredQueueAdmission();
-            setError('Phiên mua vé đã hết hạn. Đang đưa bạn về phòng chờ.');
+            setError(translate("customer:checkoutPage_phienMuaVeDaHetHanDang"));
             window.setTimeout(
               () => navigate(`/concerts/${event.id}/waiting-room`, { replace: true }),
               900,
@@ -300,7 +307,7 @@ export function CheckoutPage() {
               (requestError.status === 409 || requestError.status >= 500)) {
             setCreationNeedsRecovery(true);
             setError(
-              'Chưa thể xác nhận đơn hàng. Yêu cầu có thể vẫn đang được xử lý. Hãy kiểm tra lại đơn trước khi chọn vé khác.',
+              translate("customer:checkoutPage_chuaTheXacNhanDonHangYeu"),
             );
             return;
           }
@@ -308,7 +315,7 @@ export function CheckoutPage() {
           setError(
             requestError instanceof Error
               ? requestError.message
-              : 'Không thể tạo đơn hàng của bạn.',
+              : translate("customer:checkoutPage_khongTheTaoDonHangCuaBan"),
           );
         })
         .finally(() => {
@@ -327,23 +334,23 @@ export function CheckoutPage() {
     if (!paymentCountdown.isWarning || paymentCountdown.isExpired || paymentWarningShown.current)
       return;
     paymentWarningShown.current = true;
-    toast.error('Còn dưới 3 phút để hoàn tất thanh toán.');
+    toast.error(translate("customer:checkoutPage_conDuoi3PhutDeHoanTat"));
   }, [paymentCountdown.isExpired, paymentCountdown.isWarning, toast]);
 
   useEffect(() => {
     if (!paymentCountdown.isExpired || paymentExpiredShown.current) return;
     paymentExpiredShown.current = true;
     setProcessing(false);
-    setError('Thời gian thanh toán đã hết. Vui lòng quay lại chọn vé và tạo đơn mới.');
-    toast.error('Đã hết thời gian thanh toán.');
+    setError(translate("customer:checkoutPage_thoiGianThanhToanDaHetVui"));
+    toast.error(translate("customer:checkoutPage_daHetThoiGianThanhToan"));
   }, [paymentCountdown.isExpired, toast]);
 
   if (restoringOrder) {
     return (
       <section className="checkout-missing page-width state-panel" aria-live="polite">
         <span className="state-icon" aria-hidden="true">…</span>
-        <h1>Đang khôi phục đơn thanh toán</h1>
-        <p>TicketBox đang kiểm tra trạng thái mới nhất của đơn hàng.</p>
+        <h1>{translate("customer:checkoutPage_dangKhoiPhucDonThanhToan")}</h1>
+        <p>{translate("customer:checkoutPage_ticketboxDangKiemTraTrangThaiMoi")}</p>
       </section>
     );
   }
@@ -352,16 +359,16 @@ export function CheckoutPage() {
     return (
       <section className="checkout-missing page-width state-panel">
         <span className="state-icon" aria-hidden="true">!</span>
-        <h1>Không thể tiếp tục thanh toán</h1>
+        <h1>{translate("customer:checkoutPage_khongTheTiepTucThanhToan")}</h1>
         <p>{resumeUnavailable}</p>
         <div className="confirmation-actions">
           {event ? (
             <Link className="button button-primary" to={`/concerts/${event.id}`}>
-              Xem lại concert
+              {translate("customer:checkoutPage_xemLaiConcert")}
             </Link>
           ) : null}
           <Link className="button button-secondary" to="/profile?tab=orders">
-            Xem đơn hàng
+            {translate("customer:checkoutPage_xemDonHang")}
           </Link>
         </div>
       </section>
@@ -374,10 +381,10 @@ export function CheckoutPage() {
         <span className="state-icon" aria-hidden="true">
           !
         </span>
-        <h1>Chưa chọn vé</h1>
-        <p>Chọn khu vé và số lượng trước khi bắt đầu thanh toán.</p>
+        <h1>{translate("customer:checkoutPage_chuaChonVe")}</h1>
+        <p>{translate("customer:checkoutPage_chonKhuVeVaSoLuongTruoc")}</p>
         <Link className="button button-primary" to="/">
-          Duyệt concert
+          {translate("customer:checkoutPage_duyetConcert")}
         </Link>
       </section>
     );
@@ -387,20 +394,20 @@ export function CheckoutPage() {
     return (
       <section className="checkout-missing page-width state-panel" aria-live="polite">
         <span className="state-icon" aria-hidden="true">!</span>
-        <h1>Phiên thanh toán đã thất bại</h1>
-        <p>Cổng thanh toán đã báo giao dịch thất bại. Hủy đơn hiện tại để trả vé và bắt đầu chọn vé lại.</p>
-        <p>Mã đơn: {createdOrder.id}</p>
+        <h1>{translate("customer:checkoutPage_phienThanhToanDaThatBai")}</h1>
+        <p>{translate("customer:checkoutPage_congThanhToanDaBaoGiaoDich")}</p>
+        <p>{translate("customer:checkoutPage_maDon")} {createdOrder.id}</p>
         {error ? <p role="alert">{error}</p> : null}
         <div className="confirmation-actions">
           <button className="button button-primary" type="button" disabled={cancelling}
             onClick={() => void restartAfterFailedPayment()}>
-            {cancelling ? 'Đang hủy đơn...' : 'Hủy đơn và chọn vé lại'}
+            {cancelling ? translate("customer:checkoutPage_dangHuyDon") : translate("customer:checkoutPage_huyDonVaChonVeLai")}
           </button>
           <button className="button button-secondary" type="button" disabled={cancelling}
             onClick={() => setResumeRefreshKey(value => value + 1)}>
-            Kiểm tra trạng thái đơn
+            {translate("customer:checkoutPage_kiemTraTrangThaiDon")}
           </button>
-          <Link className="text-link" to="/profile?tab=orders">Xem lịch sử đơn hàng</Link>
+          <Link className="text-link" to="/profile?tab=orders">{translate("customer:checkoutPage_xemLichSuDonHang")}</Link>
         </div>
       </section>
     );
@@ -417,7 +424,7 @@ export function CheckoutPage() {
       navigate(`/concerts/${event.id}/waiting-room`, { replace: true });
     } catch {
       // A late success can win the race with cancellation. Re-read before buying again.
-      setError('Chưa thể hủy đơn. Hãy kiểm tra trạng thái đơn trước khi mua lại.');
+      setError(translate("customer:checkoutPage_chuaTheHuyDonHayKiemTra"));
       setCancelling(false);
     }
   }
@@ -437,17 +444,17 @@ export function CheckoutPage() {
     setError(null);
 
     if (!createdOrder) {
-      setError('Đơn hàng của bạn vẫn đang được chuẩn bị. Vui lòng đợi một chút.');
+      setError(translate("customer:checkoutPage_donHangCuaBanVanDangDuoc"));
       return;
     }
 
     if (paymentFailed || paymentCountdown.isExpired) {
-      setError('Thời gian thanh toán đã hết. Vui lòng quay lại chọn vé và tạo đơn mới.');
+      setError(translate("customer:checkoutPage_thoiGianThanhToanDaHetVui"));
       return;
     }
 
     if (!provider) {
-      setError('Cổng thanh toán chưa sẵn sàng.');
+      setError(translate("customer:checkoutPage_congThanhToanChuaSanSang"));
       return;
     }
 
@@ -469,7 +476,7 @@ export function CheckoutPage() {
         return;
       }
       if (!payment.paymentUrl) {
-        throw new Error('Phiên thanh toán chưa thể tiếp tục. Hãy kiểm tra trạng thái đơn hàng.');
+        throw new Error(translate("customer:checkoutPage_phienThanhToanChuaTheTiepTuc"));
       }
 
       if (provider === 'VNPAY' || provider === 'MOMO') {
@@ -502,7 +509,7 @@ export function CheckoutPage() {
           ? requestError.message
           : requestError instanceof Error
             ? requestError.message
-            : 'Không thể hoàn tất thanh toán của bạn.',
+            : translate("customer:checkoutPage_khongTheHoanTatThanhToanCua"),
       );
       setProcessing(false);
     }
@@ -516,7 +523,7 @@ export function CheckoutPage() {
     if (processing || cancelling || creatingOrder) return;
     if (
       createdOrder &&
-      !window.confirm('Rời trang thanh toán? Đơn hàng này sẽ bị hủy và vé của bạn sẽ được trả lại.')
+      !window.confirm(translate("customer:checkoutPage_roiTrangThanhToanDonHangNay"))
     )
       return;
 
@@ -532,7 +539,7 @@ export function CheckoutPage() {
       clearStoredQueueAdmission();
       navigate(`/concerts/${event.id}`, { replace: true });
     } catch {
-      setError('Không thể rời trang thanh toán an toàn. Vui lòng thử lại.');
+      setError(translate("customer:checkoutPage_khongTheRoiTrangThanhToanAn"));
       setCancelling(false);
     }
   }
@@ -546,38 +553,37 @@ export function CheckoutPage() {
           disabled={processing || cancelling || creatingOrder}
           onClick={() => void leaveCheckout()}
         >
-          {'<'} Chi tiết sự kiện
+          {'<'} {translate("customer:checkoutPage_chiTietSuKien")}
         </button>
-        <div className="flow-steps" aria-label="Tiến trình đặt vé">
+        <div className="flow-steps" aria-label={translate("customer:checkoutPage_tienTrinhDatVe")}>
           <span className="flow-step">
-            <b>1</b><i>Vé</i>
+            <b>1</b><i>{translate("customer:checkoutPage_ve")}</i>
           </span>
           <b className="flow-step-connector" />
           <span className="flow-step active">
-            <b>2</b><i>Thanh toán</i>
+            <b>2</b><i>{translate("customer:checkoutPage_thanhToan")}</i>
           </span>
           <b className="flow-step-connector" />
           <span className="flow-step">
-            <b>3</b><i>Hoàn tất</i>
+            <b>3</b><i>{translate("customer:checkoutPage_hoanTat")}</i>
           </span>
         </div>
         <div
           className={`secure-label countdown-timer ${paymentCountdown.isExpired ? 'expired' : paymentCountdown.isWarning ? 'warning' : ''}`}
           role="status"
         >
-          <span>Thời gian thanh toán</span>
+          <span>{translate("customer:checkoutPage_thoiGianThanhToan")}</span>
           <strong>{createdOrder ? paymentCountdown.formatted : '--:--'}</strong>
         </div>
       </div>
 
       <div className="checkout-heading">
         <p className="eyebrow">
-          <span /> Sắp hoàn tất
+          <span /> {translate("customer:checkoutPage_sapHoanTat")}
         </p>
-        <h1>Hoàn tất đơn hàng.</h1>
+        <h1>{translate("customer:checkoutPage_hoanTatDonHang")}</h1>
         <p>
-          Đơn hàng được tạo trước, sau đó bộ đếm thanh toán 15 phút bắt đầu theo thời hạn từ
-          backend.
+          {translate("customer:checkoutPage_donHangDuocTaoTruocSauDo")}
         </p>
       </div>
 
@@ -588,9 +594,9 @@ export function CheckoutPage() {
             <div className="confirmation-actions">
               <button className="button button-secondary" type="button" disabled={creatingOrder}
                 onClick={() => setCreationRetry(value => value + 1)}>
-                Kiểm tra lại đơn
+                {translate("customer:checkoutPage_kiemTraLaiDon")}
               </button>
-              <Link className="text-link" to="/profile?tab=orders">Xem lịch sử đơn hàng</Link>
+              <Link className="text-link" to="/profile?tab=orders">{translate("customer:checkoutPage_xemLichSuDonHang")}</Link>
             </div>
           ) : null}
         </div>
@@ -601,33 +607,33 @@ export function CheckoutPage() {
           <section className="form-section">
             <div className="form-section-title">
               <span>01</span>
-              <h2>Phương thức thanh toán</h2>
+              <h2>{translate("customer:checkoutPage_phuongThucThanhToan")}</h2>
             </div>
             <div
               className={`payment-timer-card ${paymentCountdown.isExpired ? 'expired' : paymentCountdown.isWarning ? 'warning' : ''}`}
               role="status"
             >
-              <span>Thời gian thanh toán</span>
+              <span>{translate("customer:checkoutPage_thoiGianThanhToan")}</span>
               <strong>
                 {createdOrder
                   ? paymentCountdown.formatted
                   : creatingOrder
-                    ? 'Đang tạo đơn...'
+                    ? translate("customer:checkoutPage_dangTaoDon")
                     : '--:--'}
               </strong>
               <p>
                 {paymentCountdown.isExpired
-                  ? 'Đơn hàng này không còn thanh toán được.'
+                  ? translate("customer:checkoutPage_donHangNayKhongConThanhToan")
                   : paymentCountdown.isWarning
-                    ? 'Hãy hoàn tất thanh toán sớm trước khi đơn hàng hết hạn.'
-                    : 'Bạn có 15 phút kể từ khi đơn hàng được tạo.'}
+                    ? translate("customer:checkoutPage_hayHoanTatThanhToanSomTruoc")
+                    : translate("customer:checkoutPage_banCo15PhutKeTuKhi")}
               </p>
             </div>
-            {providers === null && !providerError ? <p role="status">Đang tải cổng thanh toán…</p> : null}
+            {providers === null && !providerError ? <p role="status">{translate("customer:checkoutPage_dangTaiCongThanhToan")}</p> : null}
             {providerError || (providers !== null && !provider) ? (
-              <p role="alert">{providerError || 'Cổng thanh toán chưa sẵn sàng.'}{' '}
+              <p role="alert">{providerError || translate("customer:checkoutPage_congThanhToanChuaSanSang")}{' '}
                 <button type="button" className="button button-secondary"
-                  onClick={() => setProviderReload((value) => value + 1)}>Thử lại</button>
+                  onClick={() => setProviderReload((value) => value + 1)}>{translate("customer:checkoutPage_thuLai")}</button>
               </p>
             ) : null}
             <div className="payment-options">
@@ -661,8 +667,8 @@ export function CheckoutPage() {
           <div className="order-event">
             <RemoteImage src={event.image ?? undefined} alt="" width="240" height="180" />
             <div>
-              <span>Sự kiện của bạn</span>
-              <h2>{event.title}</h2>
+              <span>{translate("customer:checkoutPage_suKienCuaBan")}</span>
+              <h2>{concertTitle(event)}</h2>
               <p>{event.venue}</p>
             </div>
           </div>
@@ -680,11 +686,11 @@ export function CheckoutPage() {
             className={`hold-timer ${paymentCountdown.isExpired ? 'expired' : paymentCountdown.isWarning ? 'warning' : ''}`}
             role="status"
           >
-            <span>Thời gian thanh toán</span>
+            <span>{translate("customer:checkoutPage_thoiGianThanhToan")}</span>
             <strong>{createdOrder ? paymentCountdown.formatted : '--:--'}</strong>
           </div>
           <div className="summary-total">
-            <span>Tổng tạm tính</span>
+            <span>{translate("customer:checkoutPage_tongTamTinh")}</span>
             <strong>{currency.format(displayedTotal)}</strong>
           </div>
           <button
@@ -693,16 +699,16 @@ export function CheckoutPage() {
             disabled={paymentDisabled}
           >
             {creatingOrder
-              ? 'Đang tạo đơn...'
+              ? translate("customer:checkoutPage_dangTaoDon")
               : processing
                 ? provider === 'MOCK'
-                  ? 'Đang hoàn tất thanh toán...'
-                  : `Đang mở ${provider}...`
+                  ? translate("customer:checkoutPage_dangHoanTatThanhToan")
+                  : translate("customer:checkoutPage_dangMo", { arg1: provider })
                 : paymentCountdown.isExpired
-                  ? 'Đã hết thời gian thanh toán'
-                  : provider ? `Tiếp tục với ${provider === 'MOCK' ? 'thanh toán demo' : provider}` : 'Chưa có cổng thanh toán'}
+                  ? translate("customer:checkoutPage_daHetThoiGianThanhToan_2")
+                  : provider ? translate("customer:checkoutPage_tiepTucVoi", { arg1: provider === 'MOCK' ? translate("customer:checkoutPage_thanhToanDemo_2") : provider }) : translate("customer:checkoutPage_chuaCoCongThanhToan")}
           </button>
-          <p className="secure-note">Kiểm tra tổng tiền và hoàn tất thanh toán trước khi thời gian giữ vé kết thúc.</p>
+          <p className="secure-note">{translate("customer:checkoutPage_kiemTraTongTienVaHoanTat")}</p>
           <BuyerInformationLinks />
         </aside>
       </form>

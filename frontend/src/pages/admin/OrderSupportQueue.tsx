@@ -1,3 +1,6 @@
+import { dateFormatter } from '../../data/formatters';
+import { translate } from '../../i18n';
+import { useTranslation } from 'react-i18next';
 import { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -6,33 +9,34 @@ import { getSupportQueue, retrySupportItem, type SupportQueueItem, type SupportQ
 import './OrderSupportQueue.css';
 
 const categories: Record<SupportQueueKind, string> = {
-  UNKNOWN_PAYMENT: 'Giao dịch chưa rõ kết quả',
-  MISSING_TICKETS: 'Đã thanh toán, thiếu vé',
-  PENDING_REFUND: 'Chờ xử lý hoàn tiền',
-  FAILED_EMAIL: 'Email vé gửi lỗi',
+  get UNKNOWN_PAYMENT() { return translate("admin:orderSupportQueue_giaoDichChuaRoKetQua"); },
+  get MISSING_TICKETS() { return translate("admin:orderSupportQueue_daThanhToanThieuVe"); },
+  get PENDING_REFUND() { return translate("admin:orderSupportQueue_choXuLyHoanTien"); },
+  get FAILED_EMAIL() { return translate("admin:orderSupportQueue_emailVeGuiLoi"); },
 };
 
 const states: Record<string, string> = {
-  UNKNOWN: 'Chưa xác định',
-  REVIEW_REQUIRED: 'Cần kiểm tra',
-  SETTLEMENT_PENDING: 'Đang xử lý đơn đã thanh toán',
-  SUCCEEDED: 'Đã xác nhận thanh toán',
-  RECONCILIATION_REQUIRED: 'Chờ đối soát khoản thu',
-  FAILED: 'Gửi thất bại',
-  SKIPPED: 'Đã bỏ qua',
+  get UNKNOWN() { return translate("admin:orderSupportQueue_chuaXacDinh"); },
+  get REVIEW_REQUIRED() { return translate("admin:orderSupportQueue_canKiemTra"); },
+  get SETTLEMENT_PENDING() { return translate("admin:orderSupportQueue_dangXuLyDonDaThanhToan"); },
+  get SUCCEEDED() { return translate("admin:orderSupportQueue_daXacNhanThanhToan"); },
+  get RECONCILIATION_REQUIRED() { return translate("admin:orderSupportQueue_choDoiSoatKhoanThu"); },
+  get FAILED() { return translate("admin:orderSupportQueue_guiThatBai"); },
+  get SKIPPED() { return translate("admin:orderSupportQueue_daBoQua"); },
 };
 
-const dateTime = new Intl.DateTimeFormat('vi-VN', {
+const dateTime = dateFormatter({
   dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Ho_Chi_Minh',
 });
 
 function retryLabel(kind: SupportQueueKind) {
-  if (kind === 'UNKNOWN_PAYMENT') return 'Kiểm tra lại giao dịch';
-  if (kind === 'FAILED_EMAIL') return 'Gửi lại email';
+  if (kind === 'UNKNOWN_PAYMENT') return translate("admin:orderSupportQueue_kiemTraLaiGiaoDich");
+  if (kind === 'FAILED_EMAIL') return translate("admin:orderSupportQueue_guiLaiEmail");
   return null;
 }
 
 export function OrderSupportQueue() {
+  useTranslation();
   const [kind, setKind] = useState<SupportQueueKind>('UNKNOWN_PAYMENT');
   const [page, setPage] = useState(0);
   const [revision, setRevision] = useState(0);
@@ -62,8 +66,8 @@ export function OrderSupportQueue() {
     }).catch((failure: unknown) => {
       if (controller.signal.aborted || category.current !== kind) return;
       setError(failure instanceof ApiClientError && failure.status === 403
-        ? 'Bạn không có quyền xem danh sách này.'
-        : 'Không thể tải danh sách. Vui lòng thử lại.');
+        ? translate("admin:orderSupportQueue_banKhongCoQuyenXemDanhSach")
+        : translate("admin:orderSupportQueue_khongTheTaiDanhSachVuiLong"));
       setLoading(false);
     });
     return () => controller.abort();
@@ -96,15 +100,15 @@ export function OrderSupportQueue() {
       actionIds.current.set(identity, actionId);
       await retrySupportItem(kind, item, actionId);
       actionIds.current.delete(identity);
-      setFeedback({ kind, message: 'Đã tiếp nhận yêu cầu.', failed: false });
+      setFeedback({ kind, message: translate("admin:orderSupportQueue_daTiepNhanYeuCau"), failed: false });
       if (category.current === kind) {
         if (button === document.activeElement) heading.current?.focus();
         setRevision((value) => value + 1);
       }
     } catch (failure) {
       const message = failure instanceof ApiClientError && failure.status === 403
-        ? 'Bạn không có quyền thực hiện thao tác này.'
-        : 'Chưa thể xác nhận thao tác. Hãy thử lại.';
+        ? translate("admin:orderSupportQueue_banKhongCoQuyenThucHienThao")
+        : translate("admin:orderSupportQueue_chuaTheXacNhanThaoTacHay");
       setFeedback({ kind, message, failed: true });
     } finally {
       inFlight.current = false;
@@ -118,9 +122,9 @@ export function OrderSupportQueue() {
   return (
     <section className="admin-data-panel order-support-queue" aria-labelledby="order-support-queue-title">
       <header className="order-support-queue-header">
-        <h2 id="order-support-queue-title" ref={heading} tabIndex={-1}>Việc cần xử lý</h2>
+        <h2 id="order-support-queue-title" ref={heading} tabIndex={-1}>{translate("admin:orderSupportQueue_viecCanXuLy")}</h2>
         <label>
-          <span>Loại ngoại lệ</span>
+          <span>{translate("admin:orderSupportQueue_loaiNgoaiLe")}</span>
           <select value={kind} onChange={(event) => selectCategory(event.target.value as SupportQueueKind)}>
             {Object.entries(categories).map(([value, name]) => <option value={value} key={value}>{name}</option>)}
           </select>
@@ -128,13 +132,13 @@ export function OrderSupportQueue() {
       </header>
       {activeFeedback && <p className={`admin-notice ${activeFeedback.failed ? 'error' : 'success'}`}
         role={activeFeedback.failed ? 'alert' : 'status'}>{activeFeedback.message}</p>}
-      {loading && <p className="order-support-queue-message" role="status">Đang tải danh sách…</p>}
+      {loading && <p className="order-support-queue-message" role="status">{translate("admin:orderSupportQueue_dangTaiDanhSach")}</p>}
       {error && <div className="order-support-queue-error">
         <p role="alert">{error}</p>
         <button type="button" className="admin-secondary-action" onClick={() => {
           heading.current?.focus();
           setRevision((value) => value + 1);
-        }}>Tải lại danh sách</button>
+        }}>{translate("admin:orderSupportQueue_taiLaiDanhSach")}</button>
       </div>}
       {!loading && !error && result && (result.content.length ? (
         <ul className="order-support-queue-list">
@@ -147,18 +151,18 @@ export function OrderSupportQueue() {
               {label && item.retryable && (
                 <button type="button" className="admin-secondary-action" aria-disabled={pending !== null}
                   onClick={(event) => void retryItem(item, event.currentTarget)}>
-                  {pending === `${kind}:${item.sourceId}` ? 'Đang gửi yêu cầu…' : label}
+                  {pending === `${kind}:${item.sourceId}` ? translate("admin:orderSupportQueue_dangGuiYeuCau") : label}
                 </button>
               )}
             </li>
           ))}
         </ul>
-      ) : <p className="order-support-queue-message">Không có trường hợp cần xử lý.</p>)}
+      ) : <p className="order-support-queue-message">{translate("admin:orderSupportQueue_khongCoTruongHopCanXuLy")}</p>)}
       {result && result.totalPages > 1 && !error && <div className="admin-pagination order-support-queue-pagination">
-        <span>Trang {page + 1} / {result.totalPages}</span>
+        <span>{translate('pageNumber', { page: page + 1, total: result.totalPages })}</span>
         <div>
-          <button type="button" aria-label="Trang trước" aria-disabled={loading || page === 0} onClick={() => changePage(page - 1)}><ChevronLeft size={16} aria-hidden="true" /></button>
-          <button type="button" aria-label="Trang sau" aria-disabled={loading || page + 1 >= result.totalPages} onClick={() => changePage(page + 1)}><ChevronRight size={16} aria-hidden="true" /></button>
+          <button type="button" aria-label={translate("admin:orderSupportQueue_trangTruoc")} aria-disabled={loading || page === 0} onClick={() => changePage(page - 1)}><ChevronLeft size={16} aria-hidden="true" /></button>
+          <button type="button" aria-label={translate('pageNext')} aria-disabled={loading || page + 1 >= result.totalPages} onClick={() => changePage(page + 1)}><ChevronRight size={16} aria-hidden="true" /></button>
         </div>
       </div>}
     </section>

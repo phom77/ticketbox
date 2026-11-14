@@ -1,3 +1,6 @@
+import { translate, formatLanguage } from '../../i18n';
+import { useTranslation } from 'react-i18next';
+import { concertTitle } from '../../features/concert/concertText';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ApiClientError, isRequestCanceled } from '../../api/client';
@@ -15,6 +18,7 @@ export type CheckoutSelection = Pick<TicketType, 'id' | 'name' | 'price'> & { qu
 type ZoneLoadingAction = 'reserve' | 'release';
 
 export function SeatSelectionPage() {
+  useTranslation();
   const { id } = useParams();
   const navigate = useNavigate();
   const toast = useToast();
@@ -89,7 +93,7 @@ export function SeatSelectionPage() {
       })
       .catch((requestError: unknown) => {
         if (active && !isRequestCanceled(requestError))
-          setError('Không thể tải concert và sơ đồ chỗ.');
+          setError(translate("customer:seatSelectionPage_khongTheTaiConcertVaSoDo"));
       })
       .finally(() => {
         if (active) setConcertLoading(false);
@@ -130,7 +134,7 @@ export function SeatSelectionPage() {
       return next;
     });
     setInventoryNotice(
-      `Giới hạn giữ vé của ${adjustedTypes.map((item) => item.name).join(', ')} đã thay đổi. Vé đang giữ của bạn đã được điều chỉnh.`,
+      translate("customer:seatSelectionPage_gioiHanGiuVeCuaDaThay", { arg1: adjustedTypes.map((item) => item.name).join(', ') }),
     );
   }, [heldQuantities, ticketTypes]);
 
@@ -163,31 +167,31 @@ export function SeatSelectionPage() {
   function showReserveFailure(requestError: unknown) {
     if (requestError instanceof ApiClientError) {
       if (requestError.status === 401 || requestError.status === 403) {
-        returnToWaitingRoom('Phiên mua vé đã hết hạn. Vui lòng vào lại phòng chờ.');
+        returnToWaitingRoom(translate("customer:seatSelectionPage_phienMuaVeDaHetHanVui"));
         return;
       }
 
       if (requestError.status === 409) {
         if (requestError.message.toLowerCase().includes('limit')) {
-          const message = 'Bạn đã đạt giới hạn mua cho hạng vé này theo tài khoản.';
+          const message = translate("customer:seatSelectionPage_banDaDatGioiHanMuaCho");
           setInventoryNotice(message);
           toast.error(message);
           return;
         }
-        setInventoryNotice('Hạng vé này vừa hết hoặc không còn đủ số lượng.');
-        toast.error('Hạng vé này vừa hết hoặc không còn đủ số lượng.');
+        setInventoryNotice(translate("customer:seatSelectionPage_hangVeNayVuaHetHoacKhong"));
+        toast.error(translate("customer:seatSelectionPage_hangVeNayVuaHetHoacKhong"));
         refresh();
         return;
       }
 
       if (requestError.status === 429) {
-        toast.error('Có quá nhiều yêu cầu. Vui lòng đợi một chút rồi thử lại.');
+        toast.error(translate("customer:seatSelectionPage_coQuaNhieuYeuCauVuiLong"));
         return;
       }
     }
 
     toast.error(
-      requestError instanceof Error ? requestError.message : 'Không thể cập nhật lượt giữ vé.',
+      requestError instanceof Error ? requestError.message : translate("customer:seatSelectionPage_khongTheCapNhatLuotGiuVe"),
     );
   }
 
@@ -195,20 +199,20 @@ export function SeatSelectionPage() {
     if (!id) return;
     const admission = getStoredQueueAdmission(id);
     if (!admission) {
-      returnToWaitingRoom('Phiên mua vé đã hết hạn. Vui lòng vào lại phòng chờ.');
+      returnToWaitingRoom(translate("customer:seatSelectionPage_phienMuaVeDaHetHanVui"));
       return;
     }
 
     const currentQuantity = heldQuantities[ticketType.id] ?? 0;
     if (delta > 0 && currentQuantity >= ticketType.maxPerAccount) {
-      const message = `Tối đa ${ticketType.maxPerAccount} vé cho mỗi tài khoản đối với hạng vé ${ticketType.name}.`;
+      const message = translate("customer:seatSelectionPage_toiDaVeChoMoiTaiKhoan", { arg1: ticketType.maxPerAccount, arg2: ticketType.name });
       setInventoryNotice(message);
       toast.error(message);
       return;
     }
     if (delta > 0 && ticketType.availableQty <= 0) {
-      setInventoryNotice('Hạng vé này vừa hết hoặc không còn đủ số lượng.');
-      toast.error('Hạng vé này vừa hết hoặc không còn đủ số lượng.');
+      setInventoryNotice(translate("customer:seatSelectionPage_hangVeNayVuaHetHoacKhong"));
+      toast.error(translate("customer:seatSelectionPage_hangVeNayVuaHetHoacKhong"));
       refresh();
       return;
     }
@@ -253,6 +257,7 @@ export function SeatSelectionPage() {
         event: {
           id: concert.id,
           title: concert.title,
+          translations: concert.translations,
           venue: concert.venueName,
           date: concert.eventDate,
           image: concert.posterUrl,
@@ -298,22 +303,22 @@ export function SeatSelectionPage() {
     return (
       <div className="selection-error page-width state-panel">
         <span className="state-icon">!</span>
-        <h1>Sơ đồ chỗ không khả dụng</h1>
+        <h1>{translate("customer:seatSelectionPage_soDoChoKhongKhaDung")}</h1>
         <p>
           {error ??
             (initialLoadFailed
-              ? 'Không thể tải tình trạng vé.'
-              : 'Không tìm thấy thông tin concert.')}
+              ? translate("customer:seatSelectionPage_khongTheTaiTinhTrangVe")
+              : translate("customer:seatSelectionPage_khongTimThayThongTinConcert"))}
         </p>
         <button
           className="button button-primary"
           type="button"
           onClick={() => setReloadKey((value) => value + 1)}
         >
-          Thử lại
+          {translate("customer:seatSelectionPage_thuLai")}
         </button>
         <Link className="text-link" to="/">
-          Quay lại danh sách concert
+          {translate("customer:seatSelectionPage_quayLaiDanhSachConcert")}
         </Link>
       </div>
     );
@@ -323,38 +328,38 @@ export function SeatSelectionPage() {
     <div className="selection-page page-width">
       <div className="flow-topbar">
         <button className="back-link" type="button" onClick={() => void leaveSelection()}>
-          {'<'} Chi tiết sự kiện
+          {'<'} {translate("customer:seatSelectionPage_chiTietSuKien")}
         </button>
-        <div className="flow-steps" aria-label="Tiến trình đặt vé">
+        <div className="flow-steps" aria-label={translate("customer:seatSelectionPage_tienTrinhDatVe")}>
           <span className="flow-step active">
-            <b>1</b><i>Vé</i>
+            <b>1</b><i>{translate("customer:seatSelectionPage_ve")}</i>
           </span>
           <b className="flow-step-connector" />
           <span className="flow-step">
-            <b>2</b><i>Thanh toán</i>
+            <b>2</b><i>{translate("customer:seatSelectionPage_thanhToan")}</i>
           </span>
           <b className="flow-step-connector" />
           <span className="flow-step">
-            <b>3</b><i>Hoàn tất</i>
+            <b>3</b><i>{translate("customer:seatSelectionPage_hoanTat")}</i>
           </span>
         </div>
         <div
           className={`timer countdown-timer ${selectionCountdown.isExpired ? 'expired' : selectionCountdown.isWarning ? 'warning' : updatesDelayed ? 'delayed' : ''}`}
           role="status"
           title={
-            lastUpdatedAt ? `Số lượng vé cập nhật lúc ${lastUpdatedAt.toLocaleTimeString()}` : undefined
+            lastUpdatedAt ? translate("customer:seatSelectionPage_soLuongVeCapNhatLuc", { arg1: lastUpdatedAt.toLocaleTimeString(formatLanguage()) }) : undefined
           }
         >
-          <span>Thời gian chọn vé</span>
+          <span>{translate("customer:seatSelectionPage_thoiGianChonVe")}</span>
           <strong>{queueAdmission ? selectionCountdown.formatted : '--:--'}</strong>
         </div>
       </div>
       <header className="selection-header">
         <div>
           <p className="eyebrow">
-            <span /> Chọn trải nghiệm của bạn
+            <span /> {translate("customer:seatSelectionPage_chonTraiNghiemCuaBan")}
           </p>
-          <h1>{concert.title}</h1>
+          <h1>{concertTitle(concert)}</h1>
           <p>
             {eventDate.format(new Date(concert.eventDate))} / {concert.venueName}
           </p>
@@ -364,11 +369,11 @@ export function SeatSelectionPage() {
         <section className="zone-map-panel" aria-labelledby="zone-map-title">
           <div className="panel-heading">
             <div>
-              <span>Sơ đồ SVG tương tác</span>
-              <h2 id="zone-map-title">Chọn phân khu</h2>
+              <span>{translate("customer:seatSelectionPage_soDoSvgTuongTac")}</span>
+              <h2 id="zone-map-title">{translate("customer:seatSelectionPage_chonPhanKhu")}</h2>
             </div>
             <div className="map-legend">
-              <i /> Còn vé <i /> Đang chọn <i /> Hết vé
+              <i /> {translate("customer:seatSelectionPage_conVe")} <i /> {translate("customer:seatSelectionPage_dangChon")} <i /> {translate("customer:seatSelectionPage_hetVe")}
             </div>
           </div>
           <ConcertSeatMap
@@ -377,13 +382,13 @@ export function SeatSelectionPage() {
             disabledTicketTypeIds={soldOutTicketTypeIds}
             onZoneSelect={setSelectedZone}
           />
-          <p className="map-note">Chọn phân khu trên sơ đồ hoặc từ danh sách vé.</p>
+          <p className="map-note">{translate("customer:seatSelectionPage_chonPhanKhuTrenSoDoHoac")}</p>
         </section>
         <aside className="ticket-picker">
           <div className="panel-heading">
             <div>
-              <span>Chọn hạng vé</span>
-              <h2>Chọn vé</h2>
+              <span>{translate("customer:seatSelectionPage_chonHangVe")}</span>
+              <h2>{translate("customer:seatSelectionPage_chonVe")}</h2>
             </div>
           </div>
           {inventoryNotice ? (
@@ -392,7 +397,7 @@ export function SeatSelectionPage() {
               <button
                 type="button"
                 onClick={() => setInventoryNotice(null)}
-                aria-label="Đóng cập nhật tình trạng vé"
+                aria-label={translate("customer:seatSelectionPage_dongCapNhatTinhTrangVe")}
               >
                 x
               </button>
@@ -421,21 +426,21 @@ export function SeatSelectionPage() {
                       <strong>{ticketType.name}</strong>
                       <small>
                         {quantity > 0
-                          ? `${quantity} vé đang giữ`
-                          : `Tối đa ${ticketType.maxPerAccount} vé/tài khoản`}
+                          ? translate("customer:seatSelectionPage_veDangGiu", { count: quantity })
+                          : translate("customer:seatSelectionPage_toiDaVeTaiKhoan", { arg1: ticketType.maxPerAccount })}
                       </small>
                     </span>
                   </button>
                   <div className="zone-price">
                     <strong>{currency.format(ticketType.price)}</strong>
                     <small className={soldOut ? 'is-sold-out' : 'is-available'}>
-                      {soldOut ? 'Hết vé' : 'Còn vé'}
+                      {soldOut ? translate("customer:seatSelectionPage_hetVe") : translate("customer:seatSelectionPage_conVe")}
                     </small>
                   </div>
                   <div className="quantity-control" aria-busy={loadingAction ? 'true' : undefined}>
                     <button
                       type="button"
-                      aria-label={`Bỏ một vé ${ticketType.name}`}
+                      aria-label={translate("customer:seatSelectionPage_boMotVe", { arg1: ticketType.name })}
                       disabled={quantity === 0 || Boolean(loadingAction)}
                       onClick={() => void updateQuantity(ticketType, -1)}
                     >
@@ -444,7 +449,7 @@ export function SeatSelectionPage() {
                     <span aria-live="polite">{quantity}</span>
                     <button
                       type="button"
-                      aria-label={`Thêm một vé ${ticketType.name}`}
+                      aria-label={translate("customer:seatSelectionPage_themMotVe", { arg1: ticketType.name })}
                       disabled={!canReserveMore || Boolean(loadingAction)}
                       onClick={() => void updateQuantity(ticketType, 1)}
                     >
@@ -453,7 +458,7 @@ export function SeatSelectionPage() {
                   </div>
                   {loadingAction ? (
                     <span className="zone-hold-status" role="status">
-                      {loadingAction === 'reserve' ? 'Đang giữ...' : 'Đang giải phóng...'}
+                      {loadingAction === 'reserve' ? translate("customer:seatSelectionPage_dangGiu") : translate("customer:seatSelectionPage_dangGiaiPhong")}
                     </span>
                   ) : null}
                 </div>
@@ -463,7 +468,7 @@ export function SeatSelectionPage() {
           <div className="selection-summary">
             <div>
               <span>
-                {ticketCount} vé
+                {ticketCount} {translate("customer:seatSelectionPage_ve_2")}
               </span>
               <strong>{currency.format(subtotal)}</strong>
             </div>
@@ -471,18 +476,18 @@ export function SeatSelectionPage() {
               className={`hold-timer ${selectionCountdown.isExpired ? 'expired' : selectionCountdown.isWarning ? 'warning' : ''}`}
               role="status"
             >
-              <span>Thời gian chọn vé</span>
+              <span>{translate("customer:seatSelectionPage_thoiGianChonVe")}</span>
               <strong>{queueAdmission ? selectionCountdown.formatted : '--:--'}</strong>
             </div>
             {selectionCountdown.isWarning && !selectionCountdown.isExpired ? (
-              <p className="timer-warning-copy">Phiên mua vé 10 phút của bạn sắp kết thúc.</p>
+              <p className="timer-warning-copy">{translate("customer:seatSelectionPage_phienMuaVe10PhutCuaBan")}</p>
             ) : null}
             {selection.length ? (
-              <ul className="held-ticket-list" aria-label="Vé đang giữ">
+              <ul className="held-ticket-list" aria-label={translate("customer:seatSelectionPage_veDangGiu_2")}>
                 {selection.map((item) => (
                   <li key={item.id}>
                     <span>{item.name}</span>
-                    <strong>Đang giữ {item.quantity} vé</strong>
+                    <strong>{translate("customer:seatSelectionPage_dangGiu_2")} {item.quantity} {translate("customer:seatSelectionPage_ve_2")}</strong>
                   </li>
                 ))}
               </ul>
@@ -493,7 +498,7 @@ export function SeatSelectionPage() {
               disabled={!ticketCount || !queueAdmission || selectionCountdown.isExpired}
               onClick={continueToCheckout}
             >
-              Tiếp tục thanh toán <span aria-hidden="true">-&gt;</span>
+              {translate("customer:seatSelectionPage_tiepTucThanhToan")} <span aria-hidden="true">-&gt;</span>
             </button>
           </div>
         </aside>

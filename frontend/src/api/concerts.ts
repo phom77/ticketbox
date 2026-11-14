@@ -2,9 +2,13 @@ import { publicGet } from './client';
 
 export type ConcertStatus = 'DRAFT' | 'ON_SALE' | 'SOLD_OUT' | 'CANCELLED' | 'COMPLETED';
 
+export type ConcertText = { title: string | null; description: string | null };
+export type ConcertTranslations = Partial<Record<string, ConcertText>>;
+
 export type ConcertSummary = {
   id: string;
   title: string;
+  translations?: ConcertTranslations;
   venueName: string;
   eventDate: string;
   saleStartAt: string;
@@ -14,6 +18,7 @@ export type ConcertSummary = {
 };
 
 export type ConcertDetail = ConcertSummary & {
+  original?: ConcertText | null;
   organizationName?: string | null;
   description: string | null;
   artistBio: string | null;

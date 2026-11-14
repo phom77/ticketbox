@@ -1,3 +1,6 @@
+import { dateFormatter } from '../../data/formatters';
+import { translate } from '../../i18n';
+import { useTranslation } from 'react-i18next';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Bell, RefreshCw, RotateCw, Send } from 'lucide-react';
 import {
@@ -12,12 +15,13 @@ import type { NotificationItem } from '../../api/notifications';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { ConcertPicker } from '../../components/admin/ConcertPicker';
 
-const dateTime = new Intl.DateTimeFormat('vi-VN', {
+const dateTime = dateFormatter({
   dateStyle: 'medium',
   timeStyle: 'short',
 });
 
 export function AdminNotificationsPage() {
+  useTranslation();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [concerts, setConcerts] = useState<ConcertDetail[]>([]);
   const [selectedConcertId, setSelectedConcertId] = useState('');
@@ -49,7 +53,7 @@ export function AdminNotificationsPage() {
         setError(
           requestError instanceof Error
             ? requestError.message
-            : 'Không thể tải vận hành thông báo.',
+            : translate("admin:adminNotificationsPage_khongTheTaiVanHanhThongBao"),
         );
       }
     } finally {
@@ -73,10 +77,10 @@ export function AdminNotificationsPage() {
       setNotifications((current) =>
         current.map((existing) => (existing.id === item.id ? result.data : existing)),
       );
-      setNotice(`Đã đưa thông báo ${item.id.slice(0, 8)} vào hàng chờ email.`);
+      setNotice(translate("admin:adminNotificationsPage_daDuaThongBaoVaoHangCho", { arg1: item.id.slice(0, 8) }));
     } catch (requestError) {
       setError(
-        requestError instanceof Error ? requestError.message : 'Không thể thử gửi lại thông báo.',
+        requestError instanceof Error ? requestError.message : translate("admin:adminNotificationsPage_khongTheThuGuiLaiThongBao"),
       );
     } finally {
       setSavingId(null);
@@ -90,11 +94,11 @@ export function AdminNotificationsPage() {
     setNotice('');
     try {
       const result = await sendAdminConcertReminder(selectedConcertId);
-      setNotice(`Đã tạo nhắc lịch cho ${result.data.recipients} người giữ vé hợp lệ.`);
+      setNotice(translate("admin:adminNotificationsPage_daTaoNhacLichChoNguoiGiu", { arg1: result.data.recipients }));
       await load();
     } catch (requestError) {
       setError(
-        requestError instanceof Error ? requestError.message : 'Không thể gửi nhắc lịch thủ công.',
+        requestError instanceof Error ? requestError.message : translate("admin:adminNotificationsPage_khongTheGuiNhacLichThuCong"),
       );
     } finally {
       setSendingReminder(false);
@@ -104,9 +108,9 @@ export function AdminNotificationsPage() {
   return (
     <>
       <AdminPageHeader
-        eyebrow="Vận hành thông báo"
-        title="Vận hành thông báo"
-        description="Theo dõi thông báo app/email, thử gửi lại email lỗi và kích hoạt nhắc lịch thủ công cho concert."
+        eyebrow={translate("admin:adminNotificationsPage_vanHanhThongBao")}
+        title={translate("admin:adminNotificationsPage_vanHanhThongBao")}
+        description={translate("admin:adminNotificationsPage_theoDoiThongBaoAppEmailThu")}
         actions={
           <button
             className="admin-secondary-action"
@@ -115,7 +119,7 @@ export function AdminNotificationsPage() {
             disabled={loading}
           >
             <RefreshCw aria-hidden="true" size={16} className={loading ? 'spin' : ''} />
-            Làm mới
+            {translate("admin:adminNotificationsPage_lamMoi")}
           </button>
         }
       />
@@ -133,15 +137,15 @@ export function AdminNotificationsPage() {
 
       <div className="admin-toolbar admin-reminder-toolbar">
         <div className="admin-reminder-copy">
-          <span>Nhắc lịch thủ công</span>
-          <small>Chọn concert và gửi email nhắc lịch cho khách giữ vé hợp lệ.</small>
+          <span>{translate("admin:adminNotificationsPage_nhacLichThuCong")}</span>
+          <small>{translate("admin:adminNotificationsPage_chonConcertVaGuiEmailNhacLich")}</small>
         </div>
         <ConcertPicker
           concerts={concerts}
           value={selectedConcertId}
           onChange={setSelectedConcertId}
-          label="Concert gửi nhắc lịch"
-          placeholder="Chọn concert"
+          label={translate("admin:adminNotificationsPage_concertGuiNhacLich")}
+          placeholder={translate("admin:adminNotificationsPage_chonConcert")}
           disabled={loading || !concerts.length}
         />
         <button
@@ -151,7 +155,7 @@ export function AdminNotificationsPage() {
           disabled={!selectedConcertId || sendingReminder}
         >
           <Send aria-hidden="true" size={16} />
-          {sendingReminder ? 'Đang gửi...' : 'Gửi nhắc lịch'}
+          {sendingReminder ? translate("admin:adminNotificationsPage_dangGui") : translate("admin:adminNotificationsPage_guiNhacLich")}
         </button>
       </div>
 
@@ -159,7 +163,7 @@ export function AdminNotificationsPage() {
         {loading ? (
           <div
             className="admin-row-skeleton"
-            aria-label="Đang tải vận hành thông báo"
+            aria-label={translate("admin:adminNotificationsPage_dangTaiVanHanhThongBao")}
             aria-live="polite"
           >
             {[1, 2, 3].map((item) => (
@@ -171,12 +175,12 @@ export function AdminNotificationsPage() {
             <table className="admin-table">
               <thead>
                 <tr>
-                  <th>Thông báo</th>
-                  <th>Kênh</th>
-                  <th>Trạng thái</th>
-                  <th>Thời gian</th>
+                  <th>{translate("admin:adminNotificationsPage_thongBao")}</th>
+                  <th>{translate("admin:adminNotificationsPage_kenh")}</th>
+                  <th>{translate("admin:adminNotificationsPage_trangThai")}</th>
+                  <th>{translate("admin:adminNotificationsPage_thoiGian")}</th>
                   <th>
-                    <span className="sr-only">Thao tác</span>
+                    <span className="sr-only">{translate("admin:adminNotificationsPage_thaoTac")}</span>
                   </th>
                 </tr>
               </thead>
@@ -196,7 +200,7 @@ export function AdminNotificationsPage() {
                       <span
                         className={`status-badge ${item.status === 'FAILED' ? 'badge-error' : item.status === 'SENT' ? 'badge-success' : 'badge-warning'}`}
                       >
-                        {item.status === 'SENT' ? 'ĐÃ GỬI' : item.status === 'FAILED' ? 'THẤT BẠI' : 'ĐANG CHỜ'}
+                        {item.status === 'SENT' ? translate("admin:adminNotificationsPage_daGui") : item.status === 'FAILED' ? translate("admin:adminNotificationsPage_thatBai") : translate("admin:adminNotificationsPage_dangCho")}
                       </span>
                     </td>
                     <td>
@@ -205,8 +209,8 @@ export function AdminNotificationsPage() {
                       </strong>
                       <span className="admin-table-secondary">
                         {item.sentAt
-                          ? `Đã gửi lúc ${dateTime.format(new Date(item.sentAt))}`
-                          : 'Chưa gửi'}
+                          ? translate("admin:adminNotificationsPage_daGuiLuc", { arg1: dateTime.format(new Date(item.sentAt)) })
+                          : translate("admin:adminNotificationsPage_chuaGui")}
                       </span>
                     </td>
                     <td>
@@ -222,7 +226,7 @@ export function AdminNotificationsPage() {
                             size={15}
                             className={savingId === item.id ? 'spin' : ''}
                           />
-                          Thử lại
+                          {translate("admin:adminNotificationsPage_thuLai")}
                         </button>
                       ) : null}
                     </td>
@@ -234,16 +238,16 @@ export function AdminNotificationsPage() {
         ) : (
           <div className="admin-empty-state">
             <Bell aria-hidden="true" size={28} />
-            <h2>Chưa có thông báo</h2>
-            <p>Thông báo sẽ xuất hiện sau khi thanh toán thành công hoặc tác vụ nhắc lịch chạy.</p>
+            <h2>{translate("admin:adminNotificationsPage_chuaCoThongBao")}</h2>
+            <p>{translate("admin:adminNotificationsPage_thongBaoSeXuatHienSauKhi")}</p>
           </div>
         )}
       </section>
 
       <div className="admin-toolbar">
         <div>
-          <strong className="admin-table-primary">{notifications.length} thông báo gần nhất</strong>
-          <span className="admin-table-secondary">{failedEmailCount} email lỗi có thể thử lại</span>
+          <strong className="admin-table-primary">{notifications.length} {translate("admin:adminNotificationsPage_thongBaoGanNhat")}</strong>
+          <span className="admin-table-secondary">{failedEmailCount} {translate("admin:adminNotificationsPage_emailLoiCoTheThuLai")}</span>
         </div>
       </div>
     </>

@@ -1,3 +1,5 @@
+import { translate } from '../../i18n';
+import { useTranslation } from 'react-i18next';
 import { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
 
@@ -16,6 +18,7 @@ export function ActionMenu<T extends string>({
   disabled,
   onSelect,
 }: ActionMenuProps<T>) {
+  useTranslation();
   const rootRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
 
@@ -43,7 +46,7 @@ export function ActionMenu<T extends string>({
       </button>
       {open ? (
         <div className="action-menu-popover" role="menu">
-          <span>Chọn trạng thái tiếp theo</span>
+          <span>{translate("shared:actionMenu_chonTrangThaiTiepTheo")}</span>
           {options.map((option) => (
             <button
               key={option.value}

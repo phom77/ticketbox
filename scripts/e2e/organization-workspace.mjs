@@ -13,7 +13,7 @@ const secondName = `Buổi diễn B ${suffix}`;
 const browser = await chromium.launch({ headless: true });
 
 async function session(role, viewport = { width: 1440, height: 900 }) {
-  const context = await browser.newContext({ baseURL, viewport });
+  const context = await browser.newContext({ baseURL, locale: 'vi-VN', viewport });
   const login = await context.request.post('/api/auth/login', {
     data: { email: `${role}@ticketbox.com`, password: 'password123' },
   });
@@ -60,6 +60,8 @@ try {
     mask: [invitation] });
 
   await audience.page.goto('/organizer');
+  await audience.page.getByLabel('Tổ chức đang làm việc').selectOption({ label: secondName });
+  await audience.page.getByRole('heading', { name: secondName, exact: true }).waitFor();
   await audience.page.getByLabel('Mã lời mời').fill(code);
   await audience.page.getByRole('button', { name: 'Tham gia tổ chức' }).click();
   await audience.page.getByRole('heading', { name: firstName, exact: true }).waitFor();
@@ -117,12 +119,30 @@ try {
   organizer.page.on('request', (request) => { if (request.url().includes('artist-bio')) aiRequests.push(request.url()); });
   await organizer.page.goto(workspace);
   await organizer.page.getByRole('heading', { name: title }).waitFor();
+  await organizer.page.goto(`${workspace}?tab=details`);
+  const englishFields = organizer.page.getByRole('group', { name: 'English' });
+  const englishTitle = `English title ${suffix}`;
+  await englishFields.getByLabel('Tên concert').fill(englishTitle);
+  const language = organizer.page.getByRole('combobox', { name: 'Ngôn ngữ' });
+  await language.selectOption('en');
+  assert.equal(await englishFields.getByLabel('Event title').inputValue(), englishTitle);
+  assert.equal(await organizer.page.getByRole('group', { name: 'Original text' }).getByLabel('Event title').inputValue(), title);
+  assert.equal(await organizer.page.getByRole('group', { name: 'Tiếng Việt' }).getByLabel('Event title').inputValue(), '');
+  await organizer.page.getByRole('combobox', { name: 'Language' }).selectOption('vi');
+  const saved = organizer.page.waitForResponse((response) => response.request().method() === 'PUT' &&
+    new URL(response.url()).pathname === `/api/organizer/manage/concerts/${concert.id}`);
+  await organizer.page.locator('.concert-settings-form button[type=submit], .concert-settings-form button:not([type])').click();
+  assert.equal((await saved).status(), 200);
+  await organizer.page.goto(workspace);
   await organizer.page.getByText('Thêm hạng vé đang hoạt động', { exact: false }).waitFor();
   assert(await organizer.page.getByRole('button', { name: 'Xác nhận mở bán' }).isDisabled());
   const preview = organizer.page.getByRole('link', { name: 'Xem trước' });
   await preview.focus();
   await organizer.page.keyboard.press('Enter');
   await organizer.page.getByText('Chế độ xem trước', { exact: true }).first().waitFor();
+  await organizer.page.getByRole('combobox', { name: 'Ngôn ngữ' }).selectOption('en');
+  await organizer.page.getByRole('heading', { name: englishTitle, exact: true }).waitFor();
+  await organizer.page.getByRole('combobox', { name: 'Language' }).selectOption('vi');
   assert.equal(await organizer.page.getByRole('link', { name: /Mua ngay|Vào phòng chờ/ }).count(), 0);
   await organizer.page.goto(`${workspace}?tab=operations`);
   const retryOrders = organizer.page.getByRole('alert').filter({ hasText: 'Đơn hàng tạm gián đoạn' })
@@ -194,9 +214,15 @@ try {
   if (await ticketSummary.getAttribute('aria-expanded') === 'false') await ticketSummary.click();
   await ticketGroup.locator('.ticket-row').click();
   const ticket = audience.page.getByRole('dialog', { name: title });
-  await ticket.getByText('Ticket QR code', { exact: true }).waitFor();
+  await ticket.getByText('Mã QR vé', { exact: true }).waitFor();
   assert(await ticket.locator('svg.ticket-qr').isVisible());
   await fits(audience.page, 'Recovered ticket at 390px');
+  await audience.page.getByRole('button', { name: 'Đóng chi tiết vé' }).click();
+  await audience.page.getByRole('combobox', { name: 'Ngôn ngữ' }).selectOption('en');
+  await audience.page.locator('.ticket-concert-card').filter({ hasText: englishTitle }).locator('.ticket-row').click();
+  const englishTicket = audience.page.getByRole('dialog', { name: englishTitle });
+  await englishTicket.getByText('Ticket QR code', { exact: true }).waitFor();
+  assert(await englishTicket.locator('svg.ticket-qr').isVisible());
   console.log('Mobile buyer selected a ticket, paid with MOCK, recovered the order and opened the issued QR after reload.');
 
   console.log('Organization approval, invitation, grant guards and switching passed at 1440, 834 and 390 px.');

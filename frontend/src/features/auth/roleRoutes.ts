@@ -1,3 +1,4 @@
+import { translate } from '../../i18n';
 import type { UserRole } from './AuthContext';
 
 export const roleHome: Record<UserRole, string> = {
@@ -8,10 +9,10 @@ export const roleHome: Record<UserRole, string> = {
 };
 
 export const roleHomeLabel: Record<UserRole, string> = {
-  AUDIENCE: 'Quay lại sự kiện',
-  ORGANIZER: 'Không gian nhà tổ chức',
-  STAFF: 'Vận hành cổng',
-  ADMIN: 'Quản trị hệ thống',
+  get AUDIENCE() { return translate("shared:roleRoutes_quayLaiSuKien"); },
+  get ORGANIZER() { return translate("shared:roleRoutes_khongGianNhaToChuc"); },
+  get STAFF() { return translate("shared:roleRoutes_vanHanhCong"); },
+  get ADMIN() { return translate("shared:roleRoutes_quanTriHeThong"); },
 };
 
 export function getRoleHome(role?: UserRole | null) {
@@ -19,5 +20,5 @@ export function getRoleHome(role?: UserRole | null) {
 }
 
 export function getRoleHomeLabel(role?: UserRole | null) {
-  return role ? roleHomeLabel[role] : 'Trang chủ TicketBox';
+  return role ? roleHomeLabel[role] : translate("shared:roleRoutes_trangChuTicketbox");
 }

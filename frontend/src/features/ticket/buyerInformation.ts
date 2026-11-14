@@ -9,6 +9,6 @@ function configuredHttpsUrl(value: unknown) {
 }
 
 export const buyerInformationLinks = [
-  { label: 'Hỗ trợ TicketBox', url: configuredHttpsUrl(import.meta.env.VITE_SUPPORT_URL) },
-  { label: 'Điều kiện mua và hoàn vé', url: configuredHttpsUrl(import.meta.env.VITE_TERMS_URL) },
+  { label: 'shared:buyerInformation_hoTroTicketbox', url: configuredHttpsUrl(import.meta.env.VITE_SUPPORT_URL) },
+  { label: 'shared:buyerInformation_dieuKienMuaVaHoanVe', url: configuredHttpsUrl(import.meta.env.VITE_TERMS_URL) },
 ].flatMap(({ label, url }) => url ? [{ label, url }] : []);

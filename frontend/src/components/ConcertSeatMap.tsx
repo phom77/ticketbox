@@ -1,3 +1,5 @@
+import { translate } from '../i18n';
+import { useTranslation } from 'react-i18next';
 import DOMPurify from 'dompurify';
 import { useEffect, useMemo, useRef } from 'react';
 
@@ -16,6 +18,7 @@ export function ConcertSeatMap({
   disabledTicketTypeIds = EMPTY_DISABLED_TICKET_TYPES,
   onZoneSelect,
 }: ConcertSeatMapProps) {
+  useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const sanitizedSvg = useMemo(
     () =>
@@ -45,8 +48,8 @@ export function ConcertSeatMap({
     return (
       <div className="seat-map-fallback">
         <span aria-hidden="true">◇</span>
-        <h3>Sơ đồ chỗ không khả dụng</h3>
-        <p>Bạn vẫn có thể chọn khu vé từ danh sách.</p>
+        <h3>{translate("shared:concertSeatMap_soDoChoKhongKhaDung")}</h3>
+        <p>{translate("shared:concertSeatMap_banVanCoTheChonKhuVe")}</p>
       </div>
     );
   }

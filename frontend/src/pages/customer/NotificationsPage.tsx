@@ -1,3 +1,6 @@
+import { dateFormatter } from '../../data/formatters';
+import { translate } from '../../i18n';
+import { useTranslation } from 'react-i18next';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Bell, CheckCircle2, Mail, RefreshCw, Smartphone, TicketCheck } from 'lucide-react';
 import {
@@ -10,18 +13,19 @@ import { isRequestCanceled } from '../../api/client';
 type NotificationFilter = 'all' | 'unread' | 'payment' | 'reminder';
 
 const filters: Array<{ value: NotificationFilter; label: string }> = [
-  { value: 'all', label: 'Tất cả' },
-  { value: 'unread', label: 'Chưa đọc' },
-  { value: 'payment', label: 'Thanh toán' },
-  { value: 'reminder', label: 'Nhắc lịch' },
+  { value: 'all', get label() { return translate("customer:notificationsPage_tatCa"); } },
+  { value: 'unread', get label() { return translate("customer:notificationsPage_chuaDoc"); } },
+  { value: 'payment', get label() { return translate("customer:notificationsPage_thanhToan"); } },
+  { value: 'reminder', get label() { return translate("customer:notificationsPage_nhacLich"); } },
 ];
 
-const dateTime = new Intl.DateTimeFormat('vi-VN', {
+const dateTime = dateFormatter({
   dateStyle: 'medium',
   timeStyle: 'short',
 });
 
 export function NotificationsPage() {
+  useTranslation();
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [activeFilter, setActiveFilter] = useState<NotificationFilter>('all');
   const [loading, setLoading] = useState(true);
@@ -36,7 +40,7 @@ export function NotificationsPage() {
       setItems(page.content);
     } catch (requestError) {
       if (!isRequestCanceled(requestError)) {
-        setError(requestError instanceof Error ? requestError.message : 'Không thể tải thông báo.');
+        setError(requestError instanceof Error ? requestError.message : translate("customer:notificationsPage_khongTheTaiThongBao"));
       }
     } finally {
       if (!signal?.aborted) setLoading(false);
@@ -82,12 +86,11 @@ export function NotificationsPage() {
       <section className="notifications-hero">
         <div>
           <p className="eyebrow">
-            <span /> Trung tâm thông báo
+            <span /> {translate("customer:notificationsPage_trungTamThongBao")}
           </p>
-          <h1>Thông báo</h1>
+          <h1>{translate("customer:notificationsPage_thongBao")}</h1>
           <p>
-            Xác nhận thanh toán, email vé và nhắc lịch concert được gom tại đây để bạn không phải dò
-            từng tin rời rạc.
+            {translate("customer:notificationsPage_xacNhanThanhToanEmailVeVa")}
           </p>
         </div>
         <button
@@ -97,26 +100,26 @@ export function NotificationsPage() {
           disabled={loading}
         >
           <RefreshCw size={16} className={loading ? 'spin' : ''} />
-          Làm mới
+          {translate("customer:notificationsPage_lamMoi")}
         </button>
       </section>
 
-      <section className="notification-summary-grid" aria-label="Tổng quan thông báo">
+      <section className="notification-summary-grid" aria-label={translate("customer:notificationsPage_tongQuanThongBao")}>
         <div>
-          <span>APP chưa đọc</span>
+          <span>{translate("customer:notificationsPage_appChuaDoc")}</span>
           <strong>{unreadCount}</strong>
         </div>
         <div>
-          <span>Email đã tạo</span>
+          <span>{translate("customer:notificationsPage_emailDaTao")}</span>
           <strong>{emailCount}</strong>
         </div>
         <div>
-          <span>Nhắc lịch</span>
+          <span>{translate("customer:notificationsPage_nhacLich")}</span>
           <strong>{reminderCount}</strong>
         </div>
       </section>
 
-      <div className="notification-tabs" role="tablist" aria-label="Bộ lọc thông báo">
+      <div className="notification-tabs" role="tablist" aria-label={translate("customer:notificationsPage_boLocThongBao")}>
         {filters.map((filter) => (
           <button
             key={filter.value}
@@ -137,11 +140,11 @@ export function NotificationsPage() {
         </div>
       ) : null}
 
-      <section className="notification-feed" aria-label="Danh sách thông báo">
+      <section className="notification-feed" aria-label={translate("customer:notificationsPage_danhSachThongBao")}>
         {loading ? (
           <div className="profile-loading" role="status" aria-live="polite">
             <div className="route-spinner" aria-hidden="true" />
-            <span>Đang tải thông báo...</span>
+            <span>{translate("customer:notificationsPage_dangTaiThongBao")}</span>
           </div>
         ) : visibleItems.length ? (
           visibleItems.map((item) => (
@@ -157,8 +160,8 @@ export function NotificationsPage() {
             <span className="state-icon" aria-hidden="true">
               ◇
             </span>
-            <h2>Không có thông báo phù hợp</h2>
-            <p>Thử đổi bộ lọc hoặc quay lại sau khi bạn hoàn tất một đơn vé mới.</p>
+            <h2>{translate("customer:notificationsPage_khongCoThongBaoPhuHop")}</h2>
+            <p>{translate("customer:notificationsPage_thuDoiBoLocHoacQuayLai")}</p>
           </div>
         )}
       </section>
@@ -175,6 +178,7 @@ function NotificationCard({
   saving: boolean;
   onMarkRead: () => void;
 }) {
+  useTranslation();
   const Icon = item.eventType === 'CONCERT_REMINDER' ? Bell : TicketCheck;
   return (
     <article className={`notification-card ${item.read ? 'is-read' : 'is-new'}`}>
@@ -195,7 +199,7 @@ function NotificationCard({
       </div>
       <div className="notification-actions">
         <span className={`status-chip ${item.read ? 'status-paid' : 'status-awaiting-payment'}`}>
-          {item.read ? 'Đã đọc' : 'Mới'}
+          {item.read ? translate("customer:notificationsPage_daDoc") : translate("customer:notificationsPage_moi")}
         </span>
         {!item.read ? (
           <button
@@ -205,7 +209,7 @@ function NotificationCard({
             disabled={saving}
           >
             <CheckCircle2 size={15} />
-            Đã đọc
+            {translate("customer:notificationsPage_daDoc")}
           </button>
         ) : null}
       </div>
@@ -214,7 +218,7 @@ function NotificationCard({
 }
 
 function eventLabel(eventType: string) {
-  if (eventType === 'PAYMENT_SUCCEEDED') return 'Xác nhận vé';
-  if (eventType === 'CONCERT_REMINDER') return 'Nhắc lịch 24h';
+  if (eventType === 'PAYMENT_SUCCEEDED') return translate("customer:notificationsPage_xacNhanVe");
+  if (eventType === 'CONCERT_REMINDER') return translate("customer:notificationsPage_nhacLich24h");
   return eventType.replace(/_/g, ' ').toLowerCase();
 }

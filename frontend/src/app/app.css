@@ -58,6 +58,26 @@ select { color-scheme: light; }
 
 .notification-badge { min-width: 18px; height: 18px; display: inline-grid; place-items: center; padding: 0 5px; border-radius: 999px; background: var(--coral); color: var(--ink); font: 900 10px/1 "Manrope", sans-serif; }
 .header-actions { display: flex; align-items: center; gap: 14px; }
+.language-select {
+  max-width: 100%;
+  min-height: 36px;
+  padding: 4px 8px;
+  color: var(--cream);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 13px;
+}
+.auth-language, .booking-language {
+  display: flex;
+  justify-content: flex-end;
+}
+.auth-content > .auth-language { width: 100%; align-self: end; }
+.booking-language { padding-block: 8px; }
+.operations-account:has(.language-select) { display: flex; align-items: center; gap: 8px; }
+.concert-text-editor { display: grid; gap: 12px; min-width: 0; }
+.concert-text-fields { min-width: 0; border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+.concert-text-fields legend { padding-inline: 6px; font-weight: 700; }
 .header-search { width: 230px; height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 14px; border: 1px solid var(--line); border-radius: 999px; background: rgba(255,255,255,.035); color: var(--muted); }
 .header-search:focus-within { border-color: var(--coral); }
 .header-search input { width: 100%; border: 0; background: transparent; color: var(--cream); font-size: 13px; outline: 0; }
@@ -931,7 +951,8 @@ button.back-link { border: 0; padding: 0; background: transparent; cursor: point
 
 @media (max-width: 700px) {
   .page-width, .header-inner { width: min(100% - 32px,1280px); }
-  .header-inner { height: 64px; }
+  .header-inner { height: 64px; gap: 12px; }
+  .header-actions { gap: 8px; }
   .account-name, .avatar-button > span:last-child { display: none; }
   .hero { min-height: 650px; align-items: flex-end; }
   .hero-scrim { background: linear-gradient(0deg,rgba(8,8,10,.97) 10%,rgba(8,8,10,.25) 100%); }

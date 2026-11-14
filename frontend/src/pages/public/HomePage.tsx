@@ -1,3 +1,6 @@
+import { useTranslation } from 'react-i18next';
+import { concertTitle } from '../../features/concert/concertText';
+import { currentLanguage, translate } from '../../i18n';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -7,15 +10,27 @@ import { getConcerts, type ConcertSummary } from '../../api/concerts';
 import { EventCard } from '../../components/EventCard';
 import { fallbackConcertImage, RemoteImage } from '../../components/RemoteImage';
 
-const statusFilters = ['Tất cả', 'Đang bán', 'Sắp mở bán', 'Hết vé'] as const;
+const statusFilters = [
+  { value: 'all', get label() { return translate("public:homePage_tatCa"); } },
+  { value: 'ON_SALE', get label() { return translate("public:homePage_dangBan"); } },
+  { value: 'DRAFT', get label() { return translate("public:homePage_sapMoBan"); } },
+  { value: 'SOLD_OUT', get label() { return translate("public:homePage_hetVe"); } },
+] as const;
+const legacyFilters: Record<string, string> = {
+  'Tất cả': 'all', 'Đang bán': 'ON_SALE', 'Sắp mở bán': 'DRAFT', 'Hết vé': 'SOLD_OUT',
+};
 
 export function HomePage() {
+  useTranslation();
+  const language = currentLanguage();
   const [searchParams, setSearchParams] = useSearchParams();
   const [concerts, setConcerts] = useState<ConcertSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
-  const selectedStatus = searchParams.get('status') ?? 'Tất cả';
+  const requestedStatus = searchParams.get('status') ?? 'all';
+  const normalizedStatus = legacyFilters[requestedStatus] ?? requestedStatus;
+  const selectedStatus = statusFilters.find(({ value }) => value === normalizedStatus)?.value ?? 'all';
   const searchQuery = searchParams.get('q') ?? '';
   const [searchInput, setSearchInput] = useState(searchQuery);
 
@@ -31,7 +46,7 @@ export function HomePage() {
       })
       .catch((requestError: unknown) => {
         if (active && !isRequestCanceled(requestError)) {
-          setError('Không thể tải danh sách concert. Hãy kiểm tra backend đang chạy rồi thử lại.');
+          setError(translate("public:homePage_khongTheTaiDanhSachConcertHay"));
         }
       })
       .finally(() => {
@@ -51,26 +66,23 @@ export function HomePage() {
     () =>
       sortedConcerts
         .filter((concert) => {
-          if (selectedStatus === 'Đang bán') return concert.status === 'ON_SALE';
-          if (selectedStatus === 'Sắp mở bán') return concert.status === 'DRAFT';
-          if (selectedStatus === 'Hết vé') return concert.status === 'SOLD_OUT';
-          return true;
+          return selectedStatus === 'all' || concert.status === selectedStatus;
         })
         .filter((concert) => {
-          const query = searchQuery.trim().toLocaleLowerCase('vi-VN');
+          const query = searchQuery.trim().toLocaleLowerCase(language);
           if (!query) return true;
-          return `${concert.title} ${concert.venueName}`.toLocaleLowerCase('vi-VN').includes(query);
+          return `${concertTitle(concert, language)} ${concert.venueName}`.toLocaleLowerCase(language).includes(query);
         }),
-    [searchQuery, selectedStatus, sortedConcerts],
+    [language, searchQuery, selectedStatus, sortedConcerts],
   );
 
   const onSale = filteredConcerts.filter((concert) => concert.status === 'ON_SALE').slice(0, 6);
   const soldOut = filteredConcerts.filter((concert) => concert.status === 'SOLD_OUT').slice(0, 6);
   const openingSoon = filteredConcerts.filter((concert) => concert.status === 'DRAFT').slice(0, 6);
 
-  function chooseStatus(status: (typeof statusFilters)[number]) {
+  function chooseStatus(status: (typeof statusFilters)[number]['value']) {
     const next = new URLSearchParams(searchParams);
-    if (status === 'Tất cả') next.delete('status');
+    if (status === 'all') next.delete('status');
     else next.set('status', status);
     setSearchParams(next);
   }
@@ -98,46 +110,45 @@ export function HomePage() {
         <div className="hero-scrim" />
         <div className="hero-content page-width">
           <p className="eyebrow">
-            <span /> Khám phá TicketBox
+            <span /> {translate("public:homePage_khamPhaTicketbox")}
           </p>
           <h1>
-            Tìm concert phù hợp.
+            {translate("public:homePage_timConcertPhuHop")}
             <br />
-            <em>Đặt vé thật yên tâm.</em>
+            <em>{translate("public:homePage_datVeThatYenTam")}</em>
           </h1>
           <p className="hero-copy">
-            Concert được nhóm theo nhu cầu mua vé, giúp bạn nhanh chóng biết chương trình nào đang
-            bán, sắp mở bán hoặc đã hết vé.
+            {translate("public:homePage_concertDuocNhomTheoNhuCauMua")}
           </p>
           <div className="hero-actions">
             {featuredConcert ? (
               <Link className="button button-primary" to={`/concerts/${featuredConcert.id}`}>
-                Xem concert nổi bật <span aria-hidden="true">↗</span>
+                {translate("public:homePage_xemConcertNoiBat")} <span aria-hidden="true">↗</span>
               </Link>
             ) : null}
             <a className="button button-secondary" href="#discover-concerts">
-              Duyệt concert
+              {translate("public:homePage_duyetConcert")}
             </a>
           </div>
         </div>
       </section>
 
-      <section className="market-search-wrap" aria-label="Tìm concert">
+      <section className="market-search-wrap" aria-label={translate("public:homePage_timConcert")}>
         <form className="market-search page-width" onSubmit={submitSearch}>
           <label>
-            <span>Tìm kiếm</span>
+            <span>{translate("public:homePage_timKiem")}</span>
             <input
               value={searchInput}
               onChange={(event) => setSearchInput(event.target.value)}
-              placeholder="Nghệ sĩ, concert hoặc địa điểm"
+              placeholder={translate("public:homePage_ngheSiConcertHoacDiaDiem")}
             />
           </label>
           <label>
-            <span>Khu vực</span>
-            <input value="Việt Nam" readOnly aria-label="Khu vực" />
+            <span>{translate("public:homePage_khuVuc")}</span>
+            <input value={translate('countryVietnam')} readOnly aria-label={translate("public:homePage_khuVuc")} />
           </label>
           <button className="button button-primary" type="submit">
-            <Search size={16} /> Tìm kiếm
+            <Search size={16} /> {translate("public:homePage_timKiem")}
           </button>
         </form>
       </section>
@@ -146,12 +157,12 @@ export function HomePage() {
         <div className="section-heading discover-heading">
           <div>
             <p className="eyebrow">
-              <span /> Danh mục chọn lọc
+              <span /> {translate("public:homePage_danhMucChonLoc")}
             </p>
           </div>
         </div>
-        <div className="category-row" aria-label="Trạng thái concert">
-          {statusFilters.map((status) => (
+        <div className="category-row" aria-label={translate("public:homePage_trangThaiConcert")}>
+          {statusFilters.map(({ value: status, label }) => (
             <button
               key={status}
               type="button"
@@ -159,7 +170,7 @@ export function HomePage() {
               aria-pressed={selectedStatus === status}
               onClick={() => chooseStatus(status)}
             >
-              {status}
+              {label}
             </button>
           ))}
         </div>
@@ -167,39 +178,39 @@ export function HomePage() {
         {loading ? <LoadingGrid /> : null}
         {error ? (
           <StatePanel
-            title="Sân khấu vừa mất tín hiệu."
+            title={translate("public:homePage_sanKhauVuaMatTinHieu")}
             copy={error}
-            action="Thử lại"
+            action={translate("public:homePage_thuLai")}
             onAction={() => setReloadKey((value) => value + 1)}
           />
         ) : null}
         {!loading && !error ? (
           <div className="discover-groups">
-            {selectedStatus === 'Tất cả' || selectedStatus === 'Đang bán' ? (
+            {selectedStatus === 'all' || selectedStatus === 'ON_SALE' ? (
               <ConcertGroup
-                title="Đang bán vé"
-                subtitle="Ưu tiên các concert có thể mua ngay."
+                title={translate("public:homePage_dangBanVe")}
+                subtitle={translate("public:homePage_uuTienCacConcertCoTheMua")}
                 icon={<CalendarDays size={18} />}
                 concerts={onSale}
-                emptyCopy="Chưa có concert đang bán phù hợp bộ lọc."
+                emptyCopy={translate("public:homePage_chuaCoConcertDangBanPhuHop")}
               />
             ) : null}
-            {selectedStatus === 'Tất cả' || selectedStatus === 'Sắp mở bán' ? (
+            {selectedStatus === 'all' || selectedStatus === 'DRAFT' ? (
               <ConcertGroup
-                title="Sắp mở bán"
-                subtitle="Theo dõi trước khi cổng vé mở."
+                title={translate("public:homePage_sapMoBan")}
+                subtitle={translate("public:homePage_theoDoiTruocKhiCongVeMo")}
                 icon={<CalendarDays size={18} />}
                 concerts={openingSoon}
-                emptyCopy="Chưa có concert sắp mở bán phù hợp bộ lọc."
+                emptyCopy={translate("public:homePage_chuaCoConcertSapMoBanPhu")}
               />
             ) : null}
-            {selectedStatus === 'Tất cả' || selectedStatus === 'Hết vé' ? (
+            {selectedStatus === 'all' || selectedStatus === 'SOLD_OUT' ? (
               <ConcertGroup
-                title="Đã hết vé"
-                subtitle="Các concert đã bán hết vé hiện tại."
+                title={translate("public:homePage_daHetVe")}
+                subtitle={translate("public:homePage_cacConcertDaBanHetVeHien")}
                 icon={<CalendarDays size={18} />}
                 concerts={soldOut}
-                emptyCopy="Chưa có concert hết vé phù hợp bộ lọc."
+                emptyCopy={translate("public:homePage_chuaCoConcertHetVePhuHop")}
               />
             ) : null}
           </div>
@@ -222,6 +233,7 @@ function ConcertGroup({
   concerts: ConcertSummary[];
   emptyCopy: string;
 }) {
+  useTranslation();
   return (
     <section className="discover-group">
       <div className="discover-group-head">
@@ -241,7 +253,7 @@ function ConcertGroup({
               priority={index < 2}
               event={{
                 id: concert.id,
-                title: concert.title,
+                title: concertTitle(concert),
                 venue: concert.venueName,
                 eventDate: concert.eventDate,
                 status: concert.status,
@@ -258,8 +270,9 @@ function ConcertGroup({
 }
 
 function LoadingGrid() {
+  useTranslation();
   return (
-    <div className="event-grid" aria-label="Đang tải concert" aria-live="polite">
+    <div className="event-grid" aria-label={translate("public:homePage_dangTaiConcert")} aria-live="polite">
       {[1, 2, 3].map((item) => (
         <div className="event-skeleton" key={item}>
           <div />
@@ -282,6 +295,7 @@ function StatePanel({
   action: string;
   onAction: () => void;
 }) {
+  useTranslation();
   return (
     <div className="state-panel" role="status">
       <span className="state-icon" aria-hidden="true">

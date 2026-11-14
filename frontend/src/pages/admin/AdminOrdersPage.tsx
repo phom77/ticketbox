@@ -1,3 +1,5 @@
+import { translate, formatLanguage } from '../../i18n';
+import { useTranslation } from 'react-i18next';
 import { useOrganization } from '../../features/organizations/OrganizationProvider';
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { ChevronLeft, ChevronRight, Eye, Filter, RefreshCw, Receipt, Search, Ticket, X } from 'lucide-react';
@@ -67,17 +69,18 @@ const variantClass: Record<BadgeVariant, string> = {
 };
 
 function StatusBadge({ label, variant }: { label: string; variant: BadgeVariant }) {
-  return <span className={`status-badge ${variantClass[variant]}`}>{label}</span>;
+  useTranslation();
+  return <span className={`status-badge ${variantClass[variant]}`}>{translate(`status_${label}`, { defaultValue: label })}</span>;
 }
 
 // ---- Formatters ----
 
 function fmt(amount: number) {
-  return amount.toLocaleString('vi-VN', { style: 'currency', currency: 'VND' });
+  return amount.toLocaleString(formatLanguage(), { style: 'currency', currency: 'VND' });
 }
 
 function fmtDate(iso: string) {
-  return new Date(iso).toLocaleString('vi-VN', {
+  return new Date(iso).toLocaleString(formatLanguage(), {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -89,6 +92,7 @@ function fmtDate(iso: string) {
 // ---- Order detail modal ----
 
 function OrderDetailModal({ order, scope, onClose }: { order: Order; scope: ManagementApiScope; onClose: () => void }) {
+  useTranslation();
   const titleId = useId();
   const closeButton = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -118,22 +122,22 @@ function OrderDetailModal({ order, scope, onClose }: { order: Order; scope: Mana
         onClick={(e) => e.stopPropagation()} onKeyDown={handleKey}>
         <header>
           <div>
-            <span>Chi tiết đơn hàng</span>
+            <span>{translate("admin:adminOrdersPage_chiTietDonHang")}</span>
             <h2 id={titleId}>{order.concertTitle}</h2>
           </div>
-          <button type="button" ref={closeButton} onClick={onClose} aria-label="Đóng">
+          <button type="button" ref={closeButton} onClick={onClose} aria-label={translate("admin:adminOrdersPage_dong")}>
             <X aria-hidden="true" size={18} />
           </button>
         </header>
         <div style={{ padding: 24, display: 'grid', gap: 20 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            <InfoRow label="Mã đơn" value={order.id} />
-            <InfoRow label="Trạng thái">
+            <InfoRow label={translate("admin:adminOrdersPage_maDon")} value={order.id} />
+            <InfoRow label={translate("admin:adminOrdersPage_trangThai")}>
               <StatusBadge label={order.status} variant={orderStatusVariant(order.status)} />
             </InfoRow>
-            <InfoRow label="Tổng tiền" value={fmt(order.totalAmount)} />
-            <InfoRow label="Ngày tạo" value={fmtDate(order.createdAt)} />
-            <InfoRow label="Hết hạn" value={fmtDate(order.expiresAt)} />
+            <InfoRow label={translate("admin:adminOrdersPage_tongTien")} value={fmt(order.totalAmount)} />
+            <InfoRow label={translate("admin:adminOrdersPage_ngayTao")} value={fmtDate(order.createdAt)} />
+            <InfoRow label={translate("admin:adminOrdersPage_hetHan")} value={fmtDate(order.expiresAt)} />
           </div>
 
           <div>
@@ -146,16 +150,16 @@ function OrderDetailModal({ order, scope, onClose }: { order: Order; scope: Mana
                 letterSpacing: '.1em',
               }}
             >
-              Sản phẩm
+              {translate("admin:adminOrdersPage_sanPham")}
             </p>
             <div className="admin-table-wrap">
               <table className="admin-table">
                 <thead>
                   <tr>
-                    <th>Loại vé</th>
-                    <th>Số lượng</th>
-                    <th>Đơn giá</th>
-                    <th>Thành tiền</th>
+                    <th>{translate("admin:adminOrdersPage_loaiVe")}</th>
+                    <th>{translate("admin:adminOrdersPage_soLuong")}</th>
+                    <th>{translate("admin:adminOrdersPage_donGia")}</th>
+                    <th>{translate("admin:adminOrdersPage_thanhTien")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -188,6 +192,7 @@ function InfoRow({
   value?: string;
   children?: React.ReactNode;
 }) {
+  useTranslation();
   return (
     <div>
       <span
@@ -216,6 +221,7 @@ function TicketTab({
   concerts: ConcertDetail[];
   apiScope: ManagementApiScope;
 }) {
+  useTranslation();
   const organization = useOrganization();
   const canManageTickets = apiScope === 'admin' || !!organization?.selected?.grants.includes('EVENTS');
   const [concertId, setConcertId] = useState('');
@@ -234,7 +240,7 @@ function TicketTab({
       const data = await getAdminConcertTickets(concertId, statusFilter || undefined, apiScope);
       setTickets(data);
     } catch {
-      setError('Không thể tải danh sách vé.');
+      setError(translate("admin:adminOrdersPage_khongTheTaiDanhSachVe"));
     } finally {
       setLoading(false);
     }
@@ -251,9 +257,9 @@ function TicketTab({
       const result = await updateAdminTicketStatus(ticketId, newStatus, apiScope);
       const updated = result.data;
       setTickets((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
-      setNotice({ type: 'success', msg: 'Cập nhật trạng thái vé thành công.' });
+      setNotice({ type: 'success', msg: translate("admin:adminOrdersPage_capNhatTrangThaiVeThanhCong") });
     } catch {
-      setNotice({ type: 'error', msg: 'Cập nhật trạng thái vé thất bại.' });
+      setNotice({ type: 'error', msg: translate("admin:adminOrdersPage_capNhatTrangThaiVeThatBai") });
     } finally {
       setSavingId(null);
     }
@@ -265,7 +271,7 @@ function TicketTab({
         <div className="admin-filter-controls">
           <Filter size={14} style={{ color: 'var(--muted)' }} />
           <select value={concertId} onChange={(e) => setConcertId(e.target.value)}>
-            <option value="">— Chọn concert —</option>
+            <option value="">{translate("admin:adminOrdersPage_chonConcert")}</option>
             {concerts.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.title}
@@ -277,16 +283,16 @@ function TicketTab({
             onChange={(e) => setStatusFilter(e.target.value)}
             disabled={!concertId}
           >
-            <option value="">Tất cả trạng thái</option>
-            <option value="VALID">VALID</option>
-            <option value="USED">USED</option>
-            <option value="CANCELLED">CANCELLED</option>
-            <option value="TRANSFERRED">TRANSFERRED</option>
+            <option value="">{translate("admin:adminOrdersPage_tatCaTrangThai")}</option>
+            <option value="VALID">{translate('status_VALID')}</option>
+            <option value="USED">{translate('status_USED')}</option>
+            <option value="CANCELLED">{translate('status_CANCELLED')}</option>
+            <option value="TRANSFERRED">{translate('status_TRANSFERRED')}</option>
           </select>
         </div>
         <button onClick={load} disabled={loading || !concertId}>
           <RefreshCw size={12} className={loading ? 'spin' : ''} />
-          {loading ? 'Đang tải…' : 'Làm mới'}
+          {loading ? translate("admin:adminOrdersPage_dangTai") : translate("admin:adminOrdersPage_lamMoi")}
         </button>
       </div>
 
@@ -299,27 +305,27 @@ function TicketTab({
       {!concertId ? (
         <div className="admin-placeholder">
           <Ticket size={40} strokeWidth={1.4} />
-          <h2>Chọn concert để xem vé</h2>
-          <p>Danh sách vé sẽ hiện sau khi bạn chọn concert ở thanh lọc bên trên.</p>
+          <h2>{translate("admin:adminOrdersPage_chonConcertDeXemVe")}</h2>
+          <p>{translate("admin:adminOrdersPage_danhSachVeSeHienSauKhi")}</p>
         </div>
       ) : error ? (
         <div className="admin-notice error">{error}</div>
       ) : (
         <>
           <div style={{ marginBottom: 12, color: 'var(--muted)', fontSize: 12 }}>
-            {loading ? 'Đang tải…' : `${tickets.length} vé`}
+            {loading ? translate("admin:adminOrdersPage_dangTai") : translate("admin:adminOrdersPage_ve", { count: tickets.length })}
           </div>
           <div className="admin-data-panel">
             <div className="admin-table-wrap">
               <table className="admin-table">
                 <thead>
                   <tr>
-                    <th>Ticket ID</th>
-                    <th>QR Code</th>
-                    <th>Loại vé</th>
-                    <th>Ngày cấp</th>
-                    <th>Trạng thái</th>
-                    {canManageTickets ? <th>Thao tác</th> : null}
+                    <th>{translate("admin:adminOrdersPage_ticketId")}</th>
+                    <th>{translate('qrCode')}</th>
+                    <th>{translate("admin:adminOrdersPage_loaiVe")}</th>
+                    <th>{translate("admin:adminOrdersPage_ngayCap")}</th>
+                    <th>{translate("admin:adminOrdersPage_trangThai")}</th>
+                    {canManageTickets ? <th>{translate("admin:adminOrdersPage_thaoTac")}</th> : null}
                   </tr>
                 </thead>
                 <tbody>
@@ -329,7 +335,7 @@ function TicketTab({
                         colSpan={canManageTickets ? 6 : 5}
                         style={{ textAlign: 'center', color: 'var(--muted)', padding: '32px 0' }}
                       >
-                        Không có vé nào.
+                        {translate("admin:adminOrdersPage_khongCoVeNao")}
                       </td>
                     </tr>
                   )}
@@ -363,10 +369,10 @@ function TicketTab({
                               disabled={savingId === t.id}
                               style={{ fontSize: 11 }}
                             >
-                              <option value="VALID">VALID</option>
-                              <option value="USED">USED</option>
-                              <option value="CANCELLED">CANCELLED</option>
-                              <option value="TRANSFERRED">TRANSFERRED</option>
+                              <option value="VALID">{translate('status_VALID')}</option>
+                              <option value="USED">{translate('status_USED')}</option>
+                              <option value="CANCELLED">{translate('status_CANCELLED')}</option>
+                              <option value="TRANSFERRED">{translate('status_TRANSFERRED')}</option>
                             </select>
                             {savingId === t.id && <RefreshCw size={12} className="spin" />}
                           </div>
@@ -388,23 +394,24 @@ function TicketTab({
 
 type TabId = 'orders' | 'tickets';
 const orderLookupLabels = {
-  orderId: 'Mã đơn hàng',
-  buyerEmail: 'Email người mua',
-  transactionRef: 'Mã giao dịch',
+  get orderId() { return translate("admin:adminOrdersPage_maDonHang"); },
+  get buyerEmail() { return translate("admin:adminOrdersPage_emailNguoiMua"); },
+  get transactionRef() { return translate("admin:adminOrdersPage_maGiaoDich"); },
 } satisfies Record<OrderSupportLookup['field'], string>;
 
 function orderLoadMessage(error: unknown, lookup: OrderSupportLookup | null) {
   if (error instanceof ApiClientError && error.status === 403) {
-    return 'Bạn không còn quyền xem đơn hàng trong phạm vi này.';
+    return translate("admin:adminOrdersPage_banKhongConQuyenXemDonHang");
   }
-  if (!lookup) return 'Không thể tải danh sách đơn hàng.';
+  if (!lookup) return translate("admin:adminOrdersPage_khongTheTaiDanhSachDonHang");
   if (error instanceof ApiClientError && error.status === 400) {
-    return `Hãy kiểm tra ${orderLookupLabels[lookup.field].toLowerCase()} rồi tra cứu lại.`;
+    return translate("admin:adminOrdersPage_hayKiemTraRoiTraCuuLai", { arg1: orderLookupLabels[lookup.field].toLowerCase() });
   }
-  return 'Tra cứu đơn hàng tạm thời không khả dụng. Vui lòng thử lại.';
+  return translate("admin:adminOrdersPage_traCuuDonHangTamThoiKhong");
 }
 
 export function AdminOrdersPage({ apiScope = 'admin' }: { apiScope?: ManagementApiScope }) {
+  useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialOrderId = apiScope === 'admin' ? searchParams.get('orderId')?.trim() : undefined;
   const [activeTab, setActiveTab] = useState<TabId>('orders');
@@ -508,15 +515,15 @@ export function AdminOrdersPage({ apiScope = 'admin' }: { apiScope?: ManagementA
   return (
     <>
       <AdminPageHeader
-        eyebrow="Vận hành"
-        title="Đơn hàng & Vé"
+        eyebrow={translate("admin:adminOrdersPage_vanHanh")}
+        title={translate("admin:adminOrdersPage_donHangVe")}
         description={apiScope === 'organizer'
-          ? 'Xem đơn hàng và vé của tổ chức đang chọn.'
-          : 'Xem đơn hàng và vé, tra cứu theo mã đơn, email người mua hoặc mã giao dịch.'}
+          ? translate("admin:adminOrdersPage_xemDonHangVaVeCuaTo")
+          : translate("admin:adminOrdersPage_xemDonHangVaVeTraCuu")}
       />
 
       {/* Tabs */}
-      <div className="admin-section-tabs" role="tablist" aria-label="Đơn hàng và vé">
+      <div className="admin-section-tabs" role="tablist" aria-label={translate("admin:adminOrdersPage_donHangVaVe")}>
         {(['orders', 'tickets'] as TabId[]).map((tab) => (
           <button
             key={tab}
@@ -526,7 +533,7 @@ export function AdminOrdersPage({ apiScope = 'admin' }: { apiScope?: ManagementA
             aria-selected={activeTab === tab}
           >
             {tab === 'orders' ? <Receipt size={14} /> : <Ticket size={14} />}
-            {tab === 'orders' ? 'Đơn hàng' : 'Vé'}
+            {tab === 'orders' ? translate("admin:adminOrdersPage_donHang") : translate("admin:adminOrdersPage_ve_2")}
           </button>
         ))}
       </div>
@@ -537,22 +544,22 @@ export function AdminOrdersPage({ apiScope = 'admin' }: { apiScope?: ManagementA
           {/* Stats */}
           {!lookup && !loadingOrders && !ordersError && <div className="admin-inline-stats admin-order-stats">
             <div>
-              <span>Tổng đơn</span>
+              <span>{translate("admin:adminOrdersPage_tongDon")}</span>
               <strong>{stats.total}</strong>
             </div>
             <div>
-              <span>Đã thanh toán</span>
+              <span>{translate("admin:adminOrdersPage_daThanhToan")}</span>
               <strong>{stats.paid}</strong>
             </div>
             <div>
-              <span>Doanh thu</span>
+              <span>{translate('revenue')}</span>
               <strong>{fmt(stats.revenue)}</strong>
             </div>
           </div>}
 
-          <form className="admin-toolbar admin-order-support-form" role="search" aria-label="Tra cứu đơn hàng" onSubmit={submitLookup}>
+          <form className="admin-toolbar admin-order-support-form" role="search" aria-label={translate("admin:adminOrdersPage_traCuuDonHang")} onSubmit={submitLookup}>
             <select
-              aria-label="Tìm theo"
+              aria-label={translate("admin:adminOrdersPage_timTheo")}
               value={lookupField}
               onChange={(event) => {
                 setLookupField(event.target.value as OrderSupportLookup['field']);
@@ -574,8 +581,8 @@ export function AdminOrdersPage({ apiScope = 'admin' }: { apiScope?: ManagementA
               />
             </label>
             <div className="admin-order-support-actions">
-              <button type="submit" disabled={!lookupValue.trim()}>Tra cứu</button>
-              {lookup && <button type="button" onClick={clearLookup}>Xóa tra cứu</button>}
+              <button type="submit" disabled={!lookupValue.trim()}>{translate("admin:adminOrdersPage_traCuu")}</button>
+              {lookup && <button type="button" onClick={clearLookup}>{translate("admin:adminOrdersPage_xoaTraCuu")}</button>}
             </div>
           </form>
 
@@ -583,12 +590,12 @@ export function AdminOrdersPage({ apiScope = 'admin' }: { apiScope?: ManagementA
           <div className="admin-toolbar admin-filter-toolbar">
             <div className="admin-filter-controls">
               <Filter size={14} style={{ color: 'var(--muted)' }} />
-              <select aria-label="Buổi diễn" value={concertFilter} onChange={(event) => {
+              <select aria-label={translate("admin:adminOrdersPage_buoiDien")} value={concertFilter} onChange={(event) => {
                 setConcertFilter(event.target.value);
                 setSupportPage(null);
                 setPage(0);
               }}>
-                <option value="">Tất cả concert</option>
+                <option value="">{translate("admin:adminOrdersPage_tatCaConcert")}</option>
                 {concerts.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.title}
@@ -596,22 +603,22 @@ export function AdminOrdersPage({ apiScope = 'admin' }: { apiScope?: ManagementA
                 ))}
               </select>
               {!lookup && <select
-                aria-label="Trạng thái đơn hàng"
+                aria-label={translate("admin:adminOrdersPage_trangThaiDonHang")}
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as OrderStatus | '')}
               >
-                <option value="">Tất cả trạng thái</option>
-                <option value="AWAITING_PAYMENT">AWAITING_PAYMENT</option>
-                <option value="PAID">PAID</option>
-                <option value="EXPIRED">EXPIRED</option>
-                <option value="CANCELLED">CANCELLED</option>
-                <option value="PAYMENT_FAILED">PAYMENT_FAILED</option>
-                <option value="REFUNDED">REFUNDED</option>
+                <option value="">{translate("admin:adminOrdersPage_tatCaTrangThai")}</option>
+                <option value="AWAITING_PAYMENT">{translate('status_AWAITING_PAYMENT')}</option>
+                <option value="PAID">{translate('status_PAID')}</option>
+                <option value="EXPIRED">{translate('status_EXPIRED')}</option>
+                <option value="CANCELLED">{translate('status_CANCELLED')}</option>
+                <option value="PAYMENT_FAILED">{translate('status_PAYMENT_FAILED')}</option>
+                <option value="REFUNDED">{translate('status_REFUNDED')}</option>
               </select>}
             </div>
             <button type="button" onClick={() => setRefresh((value) => value + 1)} disabled={loadingOrders}>
               <RefreshCw size={12} className={loadingOrders ? 'spin' : ''} />
-              {loadingOrders ? 'Đang tải…' : 'Làm mới'}
+              {loadingOrders ? translate("admin:adminOrdersPage_dangTai") : translate("admin:adminOrdersPage_lamMoi")}
             </button>
           </div>
 
@@ -622,12 +629,12 @@ export function AdminOrdersPage({ apiScope = 'admin' }: { apiScope?: ManagementA
               <table className="admin-table">
                 <thead>
                   <tr>
-                    <th>Order ID</th>
-                    <th>Concert</th>
-                    <th>Trạng thái</th>
-                    <th>Tổng tiền</th>
-                    <th>Ngày tạo</th>
-                    <th>Hết hạn</th>
+                    <th>{translate('orderId')}</th>
+                    <th>{translate('event')}</th>
+                    <th>{translate("admin:adminOrdersPage_trangThai")}</th>
+                    <th>{translate("admin:adminOrdersPage_tongTien")}</th>
+                    <th>{translate("admin:adminOrdersPage_ngayTao")}</th>
+                    <th>{translate("admin:adminOrdersPage_hetHan")}</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -638,7 +645,7 @@ export function AdminOrdersPage({ apiScope = 'admin' }: { apiScope?: ManagementA
                         colSpan={7}
                         style={{ textAlign: 'center', color: 'var(--muted)', padding: '32px 0' }}
                       >
-                        Đang tải…
+                        {translate("admin:adminOrdersPage_dangTai")}
                       </td>
                     </tr>
                   )}
@@ -648,7 +655,7 @@ export function AdminOrdersPage({ apiScope = 'admin' }: { apiScope?: ManagementA
                         colSpan={7}
                         style={{ textAlign: 'center', color: 'var(--muted)', padding: '32px 0' }}
                       >
-                        {lookup ? 'Không tìm thấy đơn hàng phù hợp.' : 'Không có đơn hàng nào.'}
+                        {lookup ? translate("admin:adminOrdersPage_khongTimThayDonHangPhuHop") : translate("admin:adminOrdersPage_khongCoDonHangNao")}
                       </td>
                     </tr>
                   )}
@@ -687,10 +694,10 @@ export function AdminOrdersPage({ apiScope = 'admin' }: { apiScope?: ManagementA
                           className="admin-secondary-action"
                           style={{ minHeight: 32, padding: '0 12px', fontSize: 11 }}
                           onClick={() => setSelectedOrder(order)}
-                          title="Xem chi tiết"
+                          title={translate("admin:adminOrdersPage_xemChiTiet")}
                         >
                           <Eye size={12} />
-                          Chi tiết
+                          {translate("admin:adminOrdersPage_chiTiet")}
                         </button>
                       </td>
                     </tr>
@@ -702,12 +709,12 @@ export function AdminOrdersPage({ apiScope = 'admin' }: { apiScope?: ManagementA
           {supportPage && supportPage.totalElements > 0 && (
             <div className="admin-pagination admin-order-support-pagination">
               <span role="status">
-                {supportPage.totalElements.toLocaleString('vi-VN')} đơn hàng · Trang {supportPage.page + 1} / {supportPage.totalPages}
+                {translate('orderPageNumber', { orders: supportPage.totalElements.toLocaleString(formatLanguage()), page: supportPage.page + 1, total: supportPage.totalPages })}
               </span>
               {supportPage.totalPages > 1 && <div>
                 <button
                   type="button"
-                  aria-label="Trang trước"
+                  aria-label={translate("admin:adminOrdersPage_trangTruoc")}
                   aria-disabled={loadingOrders || supportPage.page === 0}
                   onClick={() => { if (!loadingOrders && supportPage.page > 0) setPage(supportPage.page - 1); }}
                 >
@@ -715,7 +722,7 @@ export function AdminOrdersPage({ apiScope = 'admin' }: { apiScope?: ManagementA
                 </button>
                 <button
                   type="button"
-                  aria-label="Trang sau"
+                  aria-label={translate('pageNext')}
                   aria-disabled={loadingOrders || supportPage.page + 1 >= supportPage.totalPages}
                   onClick={() => { if (!loadingOrders && supportPage.page + 1 < supportPage.totalPages) setPage(supportPage.page + 1); }}
                 >

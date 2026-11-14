@@ -1,3 +1,8 @@
+import { dateFormatter, numberFormatter } from '../../data/formatters';
+import { translate } from '../../i18n';
+import { useTranslation } from 'react-i18next';
+import { ConcertTextFields } from '../../features/concert/ConcertTextFields';
+import { editConcertText } from '../../features/concert/concertText';
 import { PublicationPanel } from '../../features/organizations/PublicationPanel';
 import { useOrganization } from '../../features/organizations/OrganizationProvider';
 import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
@@ -40,20 +45,20 @@ import { EventDisruptionPanel } from './EventDisruptionPanel';
 
 type WorkspaceTab = 'overview' | 'details' | 'tickets' | 'guests' | 'operations' | 'artist';
 
-const dateTime = new Intl.DateTimeFormat('vi-VN', { dateStyle: 'medium', timeStyle: 'short' });
-const money = new Intl.NumberFormat('vi-VN', {
+const dateTime = dateFormatter({ dateStyle: 'medium', timeStyle: 'short' });
+const money = numberFormatter({
   style: 'currency',
   currency: 'VND',
   maximumFractionDigits: 0,
 });
 
 const tabs: Array<{ id: WorkspaceTab; label: string; icon: typeof CalendarDays }> = [
-  { id: 'overview', label: 'Tổng quan', icon: CalendarDays },
-  { id: 'details', label: 'Thông tin & lịch', icon: Settings2 },
-  { id: 'tickets', label: 'Hạng vé', icon: Ticket },
-  { id: 'guests', label: 'Khách mời', icon: Users },
-  { id: 'operations', label: 'Đơn hàng & check-in', icon: ClipboardCheck },
-  { id: 'artist', label: 'Nghệ sĩ & AI', icon: Sparkles },
+  { id: 'overview', get label() { return translate("admin:concertWorkspacePage_tongQuan"); }, icon: CalendarDays },
+  { id: 'details', get label() { return translate("admin:concertWorkspacePage_thongTinLich"); }, icon: Settings2 },
+  { id: 'tickets', get label() { return translate("admin:concertWorkspacePage_hangVe"); }, icon: Ticket },
+  { id: 'guests', get label() { return translate("admin:concertWorkspacePage_khachMoi"); }, icon: Users },
+  { id: 'operations', get label() { return translate("admin:concertWorkspacePage_donHangCheckIn"); }, icon: ClipboardCheck },
+  { id: 'artist', get label() { return translate("admin:concertWorkspacePage_ngheSiAi"); }, icon: Sparkles },
 ];
 
 function isActiveGuestImport(status: BatchLog['status']) {
@@ -70,6 +75,7 @@ function toForm(concert: ConcertDetail): ConcertMutation {
   return {
     title: concert.title,
     description: concert.description,
+    ...editConcertText(concert),
     venueName: concert.venueName,
     venueAddress: concert.venueAddress,
     eventDate: toLocalInput(concert.eventDate),
@@ -119,7 +125,7 @@ function useWorkspaceSection<T>(enabled: boolean, fetchSection: (signal: AbortSi
     void fetchSection(controller.signal).then((result) => {
       if (!controller.signal.aborted) setData(result);
     }).catch((failure: unknown) => {
-      if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : 'Không tải được dữ liệu.');
+      if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : translate("admin:concertWorkspacePage_khongTaiDuocDuLieu"));
     }).finally(() => {
       if (!controller.signal.aborted) setLoading(false);
     });
@@ -130,17 +136,19 @@ function useWorkspaceSection<T>(enabled: boolean, fetchSection: (signal: AbortSi
 }
 
 function SectionStatus({ error, loading, retry }: { error: string; loading: boolean; retry: () => void }) {
-  if (loading) return <p role="status">Đang tải dữ liệu…</p>;
+  useTranslation();
+  if (loading) return <p role="status">{translate("admin:concertWorkspacePage_dangTaiDuLieu")}</p>;
   if (!error) return null;
-  return <p role="alert">{error} <button type="button" className="admin-secondary-action" onClick={retry}>Thử lại</button></p>;
+  return <p role="alert">{error} <button type="button" className="admin-secondary-action" onClick={retry}>{translate("admin:concertWorkspacePage_thuLai")}</button></p>;
 }
 
 const workspaceStatus: Record<ConcertDetail['status'], string> = {
-  DRAFT: 'Bản nháp', ON_SALE: 'Đã cấu hình mở bán', SOLD_OUT: 'Hết vé',
-  COMPLETED: 'Đã diễn ra', CANCELLED: 'Đã hủy',
+  get DRAFT() { return translate("admin:concertWorkspacePage_banNhap"); }, get ON_SALE() { return translate("admin:concertWorkspacePage_daCauHinhMoBan"); }, get SOLD_OUT() { return translate("admin:concertWorkspacePage_hetVe"); },
+  get COMPLETED() { return translate("admin:concertWorkspacePage_daDienRa"); }, get CANCELLED() { return translate("admin:concertWorkspacePage_daHuy"); },
 };
 
 export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: ManagementApiScope }) {
+  useTranslation();
   const { id } = useParams();
   const organization = useOrganization();
   const canViewOrders = apiScope === 'admin' || !!organization?.selected?.grants.includes('FINANCE');
@@ -201,7 +209,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
           setError(
             requestError instanceof Error
               ? requestError.message
-              : 'Không thể tải Concert Workspace.',
+              : translate("admin:concertWorkspacePage_khongTheTaiConcertWorkspace"),
           );
       } finally {
         if (!background && !signal?.aborted) setLoading(false);
@@ -255,7 +263,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
         if (batch.status === 'SUCCESS' || batch.status === 'PARTIAL') {
           refreshGuests();
           if (!controller.signal.aborted) {
-            toast.success('Danh sách khách mời đã được cập nhật.');
+            toast.success(translate("admin:concertWorkspacePage_danhSachKhachMoiDaDuocCap"));
           }
         }
         if (!controller.signal.aborted) setActiveGuestImportId('');
@@ -264,7 +272,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
           toast.error(
             requestError instanceof Error
               ? requestError.message
-              : 'Không thể cập nhật trạng thái nhập khách mời.',
+              : translate("admin:concertWorkspacePage_khongTheCapNhatTrangThaiNhap"),
           );
           setActiveGuestImportId('');
         }
@@ -309,10 +317,10 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
       const result = await updateConcert(id, payload, apiScope);
       setConcert(result.data);
       setForm(toForm(result.data));
-      toast.success('Đã lưu cấu hình concert.');
+      toast.success(translate("admin:concertWorkspacePage_daLuuCauHinhConcert"));
     } catch (requestError) {
       toast.error(
-        requestError instanceof Error ? requestError.message : 'Không thể lưu cấu hình concert.',
+        requestError instanceof Error ? requestError.message : translate("admin:concertWorkspacePage_khongTheLuuCauHinhConcert"),
       );
     } finally {
       setSaving(false);
@@ -325,10 +333,10 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
     try {
       const result = await uploadConcertPoster(id, file, apiScope);
       setConcert(result.data);
-      toast.success('Đã cập nhật poster concert.');
+      toast.success(translate("admin:concertWorkspacePage_daCapNhatPosterConcert"));
     } catch (requestError) {
       toast.error(
-        requestError instanceof Error ? requestError.message : 'Không thể tải poster lên.',
+        requestError instanceof Error ? requestError.message : translate("admin:concertWorkspacePage_khongTheTaiPosterLen"),
       );
     } finally {
       setUploadingPoster(false);
@@ -348,12 +356,12 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
         apiScope,
       );
       setArtistJobs(refreshed.content);
-      toast.success(`${files.length} tài liệu đã được gửi để tạo bản nháp.`);
+      toast.success(translate("admin:concertWorkspacePage_taiLieuDaDuocGuiDeTao", { arg1: files.length }));
     } catch (requestError) {
       toast.error(
         requestError instanceof Error
           ? requestError.message
-          : 'Không thể gửi tài liệu nguồn cho AI.',
+          : translate("admin:concertWorkspacePage_khongTheGuiTaiLieuNguonCho"),
       );
     } finally {
       setUploadingArtistSources(false);
@@ -368,12 +376,12 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
       setConcert((current) =>
         current ? { ...current, artistBio: artistBioDraft.trim() } : current,
       );
-      toast.success('Đã xuất bản nội dung nghệ sĩ lên trang concert công khai.');
+      toast.success(translate("admin:concertWorkspacePage_daXuatBanNoiDungNgheSi"));
     } catch (requestError) {
       toast.error(
         requestError instanceof Error
           ? requestError.message
-          : 'Không thể xuất bản nội dung nghệ sĩ.',
+          : translate("admin:concertWorkspacePage_khongTheXuatBanNoiDungNghe"),
       );
     } finally {
       setPublishingArtistBio(false);
@@ -394,12 +402,12 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
       setArtistBioDraft(result.data.resultBio ?? '');
       setArtistJobs((current) => [result.data, ...current]);
       setSelectedArtistSourceIds([]);
-      toast.success('Đã tổng hợp các nguồn đã chọn thành một bản nháp để biên tập.');
+      toast.success(translate("admin:concertWorkspacePage_daTongHopCacNguonDaChon"));
     } catch (requestError) {
       toast.error(
         requestError instanceof Error
           ? requestError.message
-          : 'Không thể tổng hợp các tài liệu nguồn.',
+          : translate("admin:concertWorkspacePage_khongTheTongHopCacTaiLieu"),
       );
     } finally {
       setCombiningArtistSources(false);
@@ -412,7 +420,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
       return;
     }
     if (!file.name.toLowerCase().endsWith('.csv')) {
-      toast.error('Chỉ chấp nhận file CSV.');
+      toast.error(translate("admin:concertWorkspacePage_chiChapNhanFileCsv"));
       setGuestImportFile(null);
       return;
     }
@@ -426,8 +434,8 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
       const result = await importGuestList(id, guestImportFile, apiScope, guestImportScheduled);
       toast.success(
         guestImportScheduled
-          ? 'Đã xếp file CSV vào hàng chờ scheduler.'
-          : 'Đã import danh sách khách mời cho concert.',
+          ? translate("admin:concertWorkspacePage_daXepFileCsvVaoHangCho")
+          : translate("admin:concertWorkspacePage_daImportDanhSachKhachMoiCho"),
       );
       setGuestImportFile(null);
       if (guestImportScheduled) {
@@ -439,7 +447,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
       toast.error(
         requestError instanceof Error
           ? requestError.message
-          : 'Không thể import danh sách khách mời.',
+          : translate("admin:concertWorkspacePage_khongTheImportDanhSachKhachMoi"),
       );
     } finally {
       setGuestImporting(false);
@@ -457,7 +465,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
   if (error || !concert || !form)
     return (
       <div className="admin-notice error">
-        {error || 'Concert không tồn tại hoặc bạn không có quyền truy cập.'}
+        {error || translate("admin:concertWorkspacePage_concertKhongTonTaiHoacBanKhong")}
       </div>
     );
 
@@ -466,7 +474,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
   return (
     <>
       <AdminPageHeader
-        eyebrow="Không gian quản lý concert"
+        eyebrow={translate("admin:concertWorkspacePage_khongGianQuanLyConcert")}
         title={concert.title}
         description={`${concert.venueName} · ${dateTime.format(new Date(concert.eventDate))}`}
         actions={
@@ -489,24 +497,24 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
           alt=""
         />
         <div>
-          <span>Vé mở bán</span>
+          <span>{translate("admin:concertWorkspacePage_veMoBan")}</span>
           <strong>{dateTime.format(new Date(concert.saleStartAt))}</strong>
           <p>
             {concert.saleEndAt
-              ? `Kết thúc bán: ${dateTime.format(new Date(concert.saleEndAt))}`
-              : 'Bán đến khi concert diễn ra'}
+              ? translate("admin:concertWorkspacePage_ketThucBan", { arg1: dateTime.format(new Date(concert.saleEndAt)) })
+              : translate("admin:concertWorkspacePage_banDenKhiConcertDienRa")}
           </p>
         </div>
         <div>
-          <span>Trạng thái vận hành</span>
+          <span>{translate("admin:concertWorkspacePage_trangThaiVanHanh")}</span>
           <strong>{workspaceStatus[concert.status]}</strong>
           <p>
-            {ticketStats.available} / {ticketStats.inventory} vé còn khả dụng
+            {ticketStats.available} / {ticketStats.inventory} {translate("admin:concertWorkspacePage_veConKhaDung")}
           </p>
         </div>
       </section>
 
-      <nav className="concert-workspace-tabs" aria-label="Quản lý concert">
+      <nav className="concert-workspace-tabs" aria-label={translate("admin:concertWorkspacePage_quanLyConcert")}>
         {tabs.filter((item) => item.id !== 'artist').map((item) => {
           const Icon = item.icon;
           return (
@@ -532,44 +540,44 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
         <section className="concert-workspace-grid">
           <Metric
             icon={<Ticket size={19} />}
-            label="Vé còn khả dụng"
+            label={translate("admin:concertWorkspacePage_veConKhaDung_2")}
             value={`${ticketStats.available} / ${ticketStats.inventory}`}
             onOpen={() => selectTab('tickets')}
           />
           <Metric
             icon={<Users size={19} />}
-            label="Khách mời theo bộ lọc"
-            value={guestTotal === undefined ? "Chưa có dữ liệu" : String(guestTotal)}
+            label={translate("admin:concertWorkspacePage_khachMoiTheoBoLoc")}
+            value={guestTotal === undefined ? translate("admin:concertWorkspacePage_chuaCoDuLieu") : String(guestTotal)}
             onOpen={() => selectTab('guests')}
           />
           {canViewOrders ? (
             <Metric
               icon={<ReceiptText size={19} />}
-              label="Doanh thu đã thanh toán"
-              value={orders ? money.format(revenue) : "Chưa có dữ liệu"}
+              label={translate("admin:concertWorkspacePage_doanhThuDaThanhToan")}
+              value={orders ? money.format(revenue) : translate("admin:concertWorkspacePage_chuaCoDuLieu")}
               onOpen={() => selectTab('operations')}
             />
           ) : null}
           <Metric
             icon={<ClipboardCheck size={19} />}
-            label="Đã check-in"
-            value={checkin ? `${checkin.checkedIn} / ${checkin.totalTickets}` : 'Chưa có dữ liệu'}
+            label={translate("admin:concertWorkspacePage_daCheckIn")}
+            value={checkin ? `${checkin.checkedIn} / ${checkin.totalTickets}` : translate("admin:concertWorkspacePage_chuaCoDuLieu")}
             onOpen={() => selectTab('operations')}
           />
           <section className="concert-workspace-card concert-workspace-card-wide">
             <div className="concert-card-heading">
               <div>
-                <span>Việc cần hoàn tất</span>
-                <h2>Sẵn sàng mở bán</h2>
+                <span>{translate("admin:concertWorkspacePage_viecCanHoanTat")}</span>
+                <h2>{translate("admin:concertWorkspacePage_sanSangMoBan")}</h2>
               </div>
               <ListChecks size={20} />
             </div>
             <ul className="concert-readiness-list">
               <li className={concert.ticketTypes.length ? 'done' : ''}>
-                {concert.ticketTypes.length ? 'Đã có hạng vé' : 'Cần tạo hạng vé'}
+                {concert.ticketTypes.length ? translate("admin:concertWorkspacePage_daCoHangVe") : translate("admin:concertWorkspacePage_canTaoHangVe")}
               </li>
               <li className={concert.posterUrl ? 'done' : ''}>
-                {concert.posterUrl ? 'Đã có poster' : 'Cần tải poster'}
+                {concert.posterUrl ? translate("admin:concertWorkspacePage_daCoPoster") : translate("admin:concertWorkspacePage_canTaiPoster")}
               </li>
               <li
                 className={
@@ -577,8 +585,8 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
                 }
               >
                 {concert.artistBio
-                  ? 'Đã có nội dung nghệ sĩ'
-                  : 'Có thể bổ sung Artist Bio'}
+                  ? translate("admin:concertWorkspacePage_daCoNoiDungNgheSi")
+                  : translate("admin:concertWorkspacePage_coTheBoSungArtistBio")}
               </li>
             </ul>
           </section>
@@ -590,22 +598,16 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
           <div className="concert-workspace-card concert-workspace-card-wide">
             <div className="concert-card-heading">
               <div>
-                <span>Cấu hình cơ bản</span>
-                <h2>Thông tin, lịch trình và sơ đồ</h2>
+                <span>{translate("admin:concertWorkspacePage_cauHinhCoBan")}</span>
+                <h2>{translate("admin:concertWorkspacePage_thongTinLichTrinhVaSoDo")}</h2>
               </div>
               <Settings2 size={20} />
             </div>
             <div className="admin-form-grid">
-              <label className="admin-field admin-field-wide">
-                <span>Tên concert</span>
-                <input
-                  required
-                  value={form.title}
-                  onChange={(e) => setForm({ ...form, title: e.target.value })}
-                />
-              </label>
+              <ConcertTextFields original={form.original} translations={form.translations}
+                onChange={(text) => setForm({ ...form, ...text })} />
               <label className="admin-field">
-                <span>Thời gian diễn</span>
+                <span>{translate("admin:concertWorkspacePage_thoiGianDien")}</span>
                 <input
                   required
                   type="datetime-local"
@@ -615,7 +617,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
                 />
               </label>
               <label className="admin-field">
-                <span>Mở cửa</span>
+                <span>{translate("admin:concertWorkspacePage_moCua")}</span>
                 <input
                   type="datetime-local"
                   readOnly={concert.status !== 'DRAFT'}
@@ -624,7 +626,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
                 />
               </label>
               <label className="admin-field">
-                <span>Mở bán vé</span>
+                <span>{translate("admin:concertWorkspacePage_moBanVe")}</span>
                 <input
                   required
                   type="datetime-local"
@@ -634,7 +636,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
                 />
               </label>
               <label className="admin-field">
-                <span>Kết thúc bán</span>
+                <span>{translate("admin:concertWorkspacePage_ketThucBan_2")}</span>
                 <input
                   type="datetime-local"
                   readOnly={concert.status !== 'DRAFT'}
@@ -645,12 +647,12 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
               {(concert.status === 'ON_SALE' || concert.status === 'SOLD_OUT') && (
                 <p className="admin-field-wide">
                   {apiScope === 'admin'
-                    ? 'Đổi lịch trong mục Đơn hàng & check-in.'
-                    : 'Liên hệ TicketBox để đổi lịch sau khi mở bán.'}
+                    ? translate("admin:concertWorkspacePage_doiLichTrongMucDonHangCheck")
+                    : translate("admin:concertWorkspacePage_lienHeTicketboxDeDoiLichSau")}
                 </p>
               )}
               <label className="admin-field">
-                <span>Địa điểm</span>
+                <span>{translate("admin:concertWorkspacePage_diaDiem")}</span>
                 <input
                   required
                   value={form.venueName}
@@ -658,7 +660,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
                 />
               </label>
               <label className="admin-field">
-                <span>Địa chỉ</span>
+                <span>{translate("admin:concertWorkspacePage_diaChi")}</span>
                 <input
                   required
                   value={form.venueAddress}
@@ -666,27 +668,19 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
                 />
               </label>
               <label className="admin-field admin-field-wide">
-                <span>Mô tả</span>
-                <textarea
-                  rows={5}
-                  value={form.description ?? ''}
-                  onChange={(e) => setForm({ ...form, description: e.target.value || null })}
-                />
-              </label>
-              <label className="admin-field admin-field-wide">
-                <span>Sơ đồ chỗ (SVG)</span>
+                <span>{translate("admin:concertWorkspacePage_soDoChoSvg")}</span>
                 <textarea
                   rows={5}
                   value={form.seatMapSvg ?? ''}
                   onChange={(e) => setForm({ ...form, seatMapSvg: e.target.value || null })}
-                  placeholder="Dán nội dung SVG đã được kiểm duyệt"
+                  placeholder={translate("admin:concertWorkspacePage_danNoiDungSvgDaDuocKiem")}
                 />
               </label>
             </div>
             <footer>
               <label className="admin-secondary-action">
                 <FileUp size={16} />
-                {uploadingPoster ? 'Đang tải poster...' : 'Thay poster'}
+                {uploadingPoster ? translate("admin:concertWorkspacePage_dangTaiPoster") : translate('admin:concertWorkspacePage_replacePoster')}
                 <input
                   hidden
                   type="file"
@@ -696,7 +690,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
                 />
               </label>
               <button className="admin-primary-action" disabled={saving}>
-                {saving ? 'Đang lưu...' : 'Lưu cấu hình'}
+                {saving ? translate("admin:concertWorkspacePage_dangLuu") : translate("admin:concertWorkspacePage_luuCauHinh")}
               </button>
             </footer>
           </div>
@@ -707,28 +701,27 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
         <section className="concert-workspace-card">
           <div className="concert-card-heading">
             <div>
-              <span>Inventory</span>
-              <h2>Hạng vé và tồn kho</h2>
+              <span>{translate("admin:concertWorkspacePage_inventory")}</span>
+              <h2>{translate("admin:concertWorkspacePage_hangVeVaTonKho")}</h2>
             </div>
             <Link
               className="admin-primary-action"
               to={`${root}/ticket-types?concertId=${id}&returnTo=${encodeURIComponent(`${root}/concerts/${id}?tab=tickets`)}`}
             >
-              Quản lý hạng vé
+              {translate("admin:concertWorkspacePage_quanLyHangVe")}
             </Link>
           </div>
           <p className="concert-workspace-hint">
-            Các hạng vé bên dưới lấy trực tiếp từ concert hiện tại. Nếu cần tạo/sửa/xóa chi tiết,
-            trang quản lý riêng sẽ có nút quay lại đúng tab này.
+            {translate("admin:concertWorkspacePage_cacHangVeBenDuoiLayTruc")}
           </p>
           <div className="admin-table-wrap">
             <table className="admin-table">
               <thead>
                 <tr>
-                  <th>Hạng vé</th>
-                  <th>Giá</th>
-                  <th>Tồn kho</th>
-                  <th>Trạng thái</th>
+                  <th>{translate("admin:concertWorkspacePage_hangVe")}</th>
+                  <th>{translate("admin:concertWorkspacePage_gia")}</th>
+                  <th>{translate("admin:concertWorkspacePage_tonKho")}</th>
+                  <th>{translate("admin:concertWorkspacePage_trangThai")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -747,7 +740,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
                           item.isActive ? 'status-badge badge-success' : 'status-badge badge-muted'
                         }
                       >
-                        {item.isActive ? 'Đang hoạt động' : 'Tạm ngưng'}
+                        {item.isActive ? translate("admin:concertWorkspacePage_dangHoatDong") : translate("admin:concertWorkspacePage_tamNgung")}
                       </span>
                     </td>
                   </tr>
@@ -762,27 +755,26 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
         <section className="concert-workspace-card">
           <div className="concert-card-heading">
             <div>
-              <span>Danh sách khách mời</span>
-              <h2>{guestTotal === undefined ? 'Danh sách khách mời' : `${guestTotal} khách phù hợp`}</h2>
+              <span>{translate("admin:concertWorkspacePage_danhSachKhachMoi")}</span>
+              <h2>{guestTotal === undefined ? translate("admin:concertWorkspacePage_danhSachKhachMoi") : translate("admin:concertWorkspacePage_khachPhuHop", { count: guestTotal })}</h2>
             </div>
             <Link
               className="admin-secondary-action"
               to={`${root}/guests?concertId=${id}&returnTo=${encodeURIComponent(`${root}/concerts/${id}?tab=guests`)}`}
             >
-              Lịch sử batch
+              {translate("admin:concertWorkspacePage_lichSuBatch")}
             </Link>
           </div>
           <div className="concert-inline-action-panel">
             <div>
-              <strong>Import CSV cho concert này</strong>
+              <strong>{translate("admin:concertWorkspacePage_importCsvChoConcertNay")}</strong>
               <span>
-                Chọn file danh sách khách, import ngay hoặc xếp lịch xử lý mà không rời màn chi
-                tiết.
+                {translate("admin:concertWorkspacePage_chonFileDanhSachKhachImportNgay")}
               </span>
             </div>
             <label className="admin-secondary-action">
               <FileUp size={16} />
-              {guestImportFile ? guestImportFile.name : 'Chọn CSV'}
+              {guestImportFile ? guestImportFile.name : translate("admin:concertWorkspacePage_chonCsv")}
               <input
                 hidden
                 type="file"
@@ -799,7 +791,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
                 checked={guestImportScheduled}
                 onChange={(event) => setGuestImportScheduled(event.target.checked)}
               />{' '}
-              Qua lịch xử lý
+              {translate("admin:concertWorkspacePage_quaLichXuLy")}
             </label>
             <button
               className="admin-primary-action"
@@ -807,14 +799,14 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
               disabled={!guestImportFile || guestImporting}
               onClick={() => void submitGuestImport()}
             >
-              {guestImporting ? 'Đang import...' : 'Import vào danh sách khách'}
+              {guestImporting ? translate("admin:concertWorkspacePage_dangImport") : translate("admin:concertWorkspacePage_importVaoDanhSachKhach")}
             </button>
           </div>
           <div className="concert-workspace-toolbar">
             <input
               value={guestQuery}
               onChange={(e) => { setGuestQuery(e.target.value); setGuestPageIndex(0); }}
-              placeholder="Tìm tên, số điện thoại, hạng hoặc đơn vị mời..."
+              placeholder={translate("admin:concertWorkspacePage_timTenSoDienThoaiHangHoac")}
             />
             <label>
               <input
@@ -822,7 +814,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
                 checked={activeOnly}
                 onChange={(e) => { setActiveOnly(e.target.checked); setGuestPageIndex(0); }}
               />{' '}
-              Chỉ khách hiệu lực
+              {translate("admin:concertWorkspacePage_chiKhachHieuLuc")}
             </label>
           </div>
           <SectionStatus {...guestSection} />
@@ -830,12 +822,12 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
             <table className="admin-table">
               <thead>
                 <tr>
-                  <th>Khách mời</th>
-                  <th>Hạng</th>
-                  <th>Đơn vị mời</th>
-                  <th>Trạng thái</th>
-                  <th>Check-in</th>
-                  <th>Ghi chú</th>
+                  <th>{translate("admin:concertWorkspacePage_khachMoi")}</th>
+                  <th>{translate("admin:concertWorkspacePage_hang")}</th>
+                  <th>{translate("admin:concertWorkspacePage_donViMoi")}</th>
+                  <th>{translate("admin:concertWorkspacePage_trangThai")}</th>
+                  <th>{translate("admin:concertWorkspacePage_checkIn")}</th>
+                  <th>{translate("admin:concertWorkspacePage_ghiChu")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -853,20 +845,20 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
                           guest.active ? 'status-badge badge-success' : 'status-badge badge-muted'
                         }
                       >
-                        {guest.active ? 'Hiệu lực' : 'Đã hủy'}
+                        {guest.active ? translate("admin:concertWorkspacePage_hieuLuc") : translate("admin:concertWorkspacePage_daHuy")}
                       </span>
                     </td>
                     <td>
                       {guest.checkedInAt ? (
                         <>
-                          <strong className="admin-table-primary">Đã vào cổng</strong>
+                          <strong className="admin-table-primary">{translate("admin:concertWorkspacePage_daVaoCong")}</strong>
                           <span className="admin-table-secondary">
                             {guest.checkinGate ?? 'VIP'} ·{' '}
                             {dateTime.format(new Date(guest.checkedInAt))}
                           </span>
                         </>
                       ) : (
-                        'Chưa vào'
+                        translate("admin:concertWorkspacePage_chuaVao")
                       )}
                     </td>
                     <td>{guest.notes ?? '—'}</td>
@@ -875,7 +867,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
                 {guestSection.data && !visibleGuests.length ? (
                   <tr>
                     <td colSpan={6} className="concert-empty-row">
-                      Chưa có khách mời phù hợp.
+                      {translate("admin:concertWorkspacePage_chuaCoKhachMoiPhuHop")}
                     </td>
                   </tr>
                 ) : null}
@@ -885,10 +877,10 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
           {guestSection.data && guestSection.data.totalPages > 1 ? (
             <div className="organization-form">
               <button type="button" className="admin-secondary-action" disabled={guestPageIndex === 0}
-                onClick={() => setGuestPageIndex((page) => page - 1)}>Trang trước</button>
-              <span>Trang {guestPageIndex + 1} / {guestSection.data.totalPages}</span>
+                onClick={() => setGuestPageIndex((page) => page - 1)}>{translate("admin:concertWorkspacePage_trangTruoc")}</button>
+              <span>{translate('pageNumber', { page: guestPageIndex + 1, total: guestSection.data.totalPages })}</span>
               <button type="button" className="admin-secondary-action" disabled={guestSection.data.last}
-                onClick={() => setGuestPageIndex((page) => page + 1)}>Trang sau</button>
+                onClick={() => setGuestPageIndex((page) => page + 1)}>{translate('pageNext')}</button>
             </div>
           ) : null}
         </section>
@@ -899,21 +891,21 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
           <section className="concert-workspace-card">
             <div className="concert-card-heading">
               <div>
-                <span>Check-in</span>
-                <h2>Vận hành tại cổng</h2>
+                <span>{translate("admin:concertWorkspacePage_checkIn")}</span>
+                <h2>{translate("admin:concertWorkspacePage_vanHanhTaiCong")}</h2>
               </div>
               {canViewOrders ? (
-                <Link className="admin-secondary-action" to={`${root}/orders?concertId=${id}`}>Xem vé</Link>
+                <Link className="admin-secondary-action" to={`${root}/orders?concertId=${id}`}>{translate("admin:concertWorkspacePage_xemVe")}</Link>
               ) : null}
             </div>
             <SectionStatus {...checkinSection} />
             {checkin ? <dl className="concert-definition-list">
               <div>
-                <dt>Tổng vé</dt>
+                <dt>{translate("admin:concertWorkspacePage_tongVe")}</dt>
                 <dd>{checkin.totalTickets}</dd>
               </div>
               <div>
-                <dt>Đã vào cổng</dt>
+                <dt>{translate("admin:concertWorkspacePage_daVaoCong")}</dt>
                 <dd>{checkin.checkedIn}</dd>
               </div>
               <div>
@@ -928,25 +920,25 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
             <section className="concert-workspace-card">
               <div className="concert-card-heading">
                 <div>
-                  <span>Đơn hàng</span>
-                  <h2>{orders ? `${orders.length} đơn phát sinh` : 'Đơn hàng'}</h2>
+                  <span>{translate("admin:concertWorkspacePage_donHang")}</span>
+                  <h2>{orders ? translate("admin:concertWorkspacePage_donPhatSinh", { count: orders.length }) : translate("admin:concertWorkspacePage_donHang")}</h2>
                 </div>
                 <Link className="admin-secondary-action" to={`${root}/orders?concertId=${id}`}>
-                  Xem đơn hàng
+                  {translate("admin:concertWorkspacePage_xemDonHang")}
                 </Link>
               </div>
               <SectionStatus {...orderSection} />
               {orders ? <dl className="concert-definition-list">
                 <div>
-                  <dt>Đã thanh toán</dt>
+                  <dt>{translate("admin:concertWorkspacePage_daThanhToan")}</dt>
                   <dd>{paidOrders.length}</dd>
                 </div>
                 <div>
-                  <dt>Chờ thanh toán</dt>
+                  <dt>{translate("admin:concertWorkspacePage_choThanhToan")}</dt>
                   <dd>{orders.filter((order) => order.status === 'AWAITING_PAYMENT').length}</dd>
                 </div>
                 <div>
-                  <dt>Doanh thu</dt>
+                  <dt>{translate('revenue')}</dt>
                   <dd>{money.format(revenue)}</dd>
                 </div>
               </dl> : null}
@@ -960,30 +952,29 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
           <SectionStatus {...artistSection} />
           <div className="concert-card-heading">
             <div>
-              <span>Nghệ sĩ & nội dung công khai</span>
-              <h2>Biên tập trước khi xuất bản</h2>
+              <span>{translate("admin:concertWorkspacePage_ngheSiNoiDungCongKhai")}</span>
+              <h2>{translate("admin:concertWorkspacePage_bienTapTruocKhiXuatBan")}</h2>
             </div>
             <Link
               className="admin-secondary-action"
               to={`${root}/artist-bio?concertId=${id}&returnTo=${encodeURIComponent(`${root}/concerts/${id}?tab=artist`)}`}
             >
-              Lịch sử AI đầy đủ
+              {translate("admin:concertWorkspacePage_lichSuAiDayDu")}
             </Link>
           </div>
           <p className="artist-content-intro">
-            Mỗi PDF tạo một bản nháp nguồn. Chọn từ hai nguồn đã hoàn tất trở lên để AI tổng hợp
-            thành một bản nháp chung, sau đó bạn biên tập và xuất bản.
+            {translate("admin:concertWorkspacePage_moiPdfTaoMotBanNhapNguon")}
           </p>
           <div className="artist-content-grid">
             <section>
               <div className="artist-content-section-heading">
                 <div>
-                  <strong>Nguồn tham khảo</strong>
-                  <span>Có thể thêm nhiều press kit hoặc hồ sơ nghệ sĩ.</span>
+                  <strong>{translate("admin:concertWorkspacePage_nguonThamKhao")}</strong>
+                  <span>{translate("admin:concertWorkspacePage_coTheThemNhieuPressKitHoac")}</span>
                 </div>
                 <label className="admin-primary-action">
                   <FileUp size={16} />
-                  {uploadingArtistSources ? 'Đang gửi...' : 'Thêm tài liệu PDF'}
+                  {uploadingArtistSources ? translate("admin:concertWorkspacePage_dangGui") : translate("admin:concertWorkspacePage_themTaiLieuPdf")}
                   <input
                     hidden
                     type="file"
@@ -1007,7 +998,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
                         type="checkbox"
                         checked={selectedArtistSourceIds.includes(job.id)}
                         onChange={() => toggleArtistSource(job.id)}
-                        aria-label={`Chọn ${job.originalFileName} để tổng hợp`}
+                        aria-label={translate("admin:concertWorkspacePage_chonDeTongHop", { arg1: job.originalFileName })}
                       />
                     ) : null}
                     <Music2 size={17} />
@@ -1023,13 +1014,13 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
                         className="admin-secondary-action"
                         onClick={() => setArtistBioDraft(job.resultBio ?? '')}
                       >
-                        Xem riêng
+                        {translate("admin:concertWorkspacePage_xemRieng")}
                       </button>
                     ) : null}
                   </div>
                 ))}
                 {!artistJobs.length ? (
-                  <p>Chưa có tài liệu nguồn. Thêm press kit để bắt đầu tạo bản nháp.</p>
+                  <p>{translate("admin:concertWorkspacePage_chuaCoTaiLieuNguonThemPress")}</p>
                 ) : null}
               </div>
               <button
@@ -1039,22 +1030,22 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
                 onClick={() => void combineArtistSources()}
               >
                 {combiningArtistSources
-                  ? 'Đang tổng hợp...'
-                  : `Tổng hợp ${selectedArtistSourceIds.length} nguồn đã chọn`}
+                  ? translate("admin:concertWorkspacePage_dangTongHop")
+                  : translate("admin:concertWorkspacePage_tongHopNguonDaChon", { arg1: selectedArtistSourceIds.length })}
               </button>
             </section>
             <section className="artist-publish-panel">
               <div className="artist-content-section-heading">
                 <div>
-                  <strong>Nội dung sẽ hiển thị công khai</strong>
-                  <span>Khán giả xem phần này trước khi vào phòng chờ.</span>
+                  <strong>{translate("admin:concertWorkspacePage_noiDungSeHienThiCongKhai")}</strong>
+                  <span>{translate("admin:concertWorkspacePage_khanGiaXemPhanNayTruocKhi")}</span>
                 </div>
                 <span
                   className={
                     concert.artistBio ? 'status-badge badge-success' : 'status-badge badge-muted'
                   }
                 >
-                  {concert.artistBio ? 'Đã xuất bản' : 'Bản nháp'}
+                  {concert.artistBio ? translate("admin:concertWorkspacePage_daXuatBan") : translate("admin:concertWorkspacePage_banNhap")}
                 </span>
               </div>
               <textarea
@@ -1062,17 +1053,17 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
                 maxLength={2000}
                 rows={9}
                 onChange={(event) => setArtistBioDraft(event.target.value)}
-                placeholder="Tổng hợp các nguồn hoặc tự viết giới thiệu nghệ sĩ..."
+                placeholder={translate("admin:concertWorkspacePage_tongHopCacNguonHoacTuViet")}
               />
               <div className="artist-publish-footer">
-                <span>{artistBioDraft.length}/2000 ký tự</span>
+                <span>{artistBioDraft.length}{translate("admin:concertWorkspacePage_2000KyTu")}</span>
                 <button
                   className="admin-primary-action"
                   type="button"
                   disabled={!artistBioDraft.trim() || publishingArtistBio}
                   onClick={() => void publishArtistBio()}
                 >
-                  {publishingArtistBio ? 'Đang xuất bản...' : 'Xuất bản lên trang concert'}
+                  {publishingArtistBio ? translate("admin:concertWorkspacePage_dangXuatBan") : translate("admin:concertWorkspacePage_xuatBanLenTrangConcert")}
                 </button>
               </div>
             </section>
@@ -1094,12 +1085,13 @@ function Metric({
   value: string;
   onOpen: () => void;
 }) {
+  useTranslation();
   return (
     <button type="button" className="concert-workspace-metric" onClick={onOpen}>
       <span>{icon}</span>
       <small>{label}</small>
       <strong>{value}</strong>
-      <em>Xem chi tiết →</em>
+      <em>{translate("admin:concertWorkspacePage_xemChiTiet")}</em>
     </button>
   );
 }

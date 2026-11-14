@@ -1,3 +1,4 @@
+import type { ConcertText, ConcertTranslations } from './concerts';
 import { apiCommand, apiGet, apiMultipartCommand } from './client';
 import type { ConcertDetail, ConcertStatus, Page, TicketType } from './concerts';
 import type { Order, OrderStatus } from './orders';
@@ -14,6 +15,8 @@ function managementBase(scope: ManagementApiScope) {
 export type ConcertMutation = {
   title: string;
   description: string | null;
+  original?: ConcertText | null;
+  translations?: ConcertTranslations;
   venueName: string;
   venueAddress: string;
   eventDate: string;

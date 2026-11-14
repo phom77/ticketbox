@@ -1,3 +1,6 @@
+import { translate } from '../../i18n';
+import { useTranslation } from 'react-i18next';
+import { concertTitle } from '../../features/concert/concertText';
 import { useEffect, useMemo, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Link } from 'react-router-dom';
@@ -6,7 +9,7 @@ import { isRequestCanceled } from '../../api/client';
 import { getConcert, type ConcertDetail } from '../../api/concerts';
 import { getMyTickets, type Ticket, type TicketStatus } from '../../api/tickets';
 import { RemoteImage } from '../../components/RemoteImage';
-import { eventDate } from '../../data/formatters';
+import { eventDate, dateFormatter } from '../../data/formatters';
 import { ModalPortal } from '../../components/feedback/ModalPortal';
 
 type TicketFilter = 'all' | TicketStatus;
@@ -19,19 +22,20 @@ type ConcertTicketGroup = {
 };
 
 const tabs: Array<{ value: TicketFilter; label: string }> = [
-  { value: 'all', label: 'Tất cả' },
-  { value: 'VALID', label: 'Còn hiệu lực' },
-  { value: 'USED', label: 'Đã dùng' },
-  { value: 'CANCELLED', label: 'Đã hủy' },
-  { value: 'TRANSFERRED', label: 'Đã chuyển' },
+  { value: 'all', get label() { return translate("customer:myTicketsPage_tatCa"); } },
+  { value: 'VALID', get label() { return translate("customer:myTicketsPage_conHieuLuc"); } },
+  { value: 'USED', get label() { return translate("customer:myTicketsPage_daDung"); } },
+  { value: 'CANCELLED', get label() { return translate("customer:myTicketsPage_daHuy"); } },
+  { value: 'TRANSFERRED', get label() { return translate("customer:myTicketsPage_daChuyen"); } },
 ];
 
-const issuedDate = new Intl.DateTimeFormat('vi-VN', {
+const issuedDate = dateFormatter({
   dateStyle: 'medium',
   timeStyle: 'short',
 });
 
 export function MyTicketsPage() {
+  useTranslation();
   const [tickets, setTickets] = useState<TicketWithConcert[]>([]);
   const [activeTab, setActiveTab] = useState<TicketFilter>('all');
   const [openConcertId, setOpenConcertId] = useState<string | null>(null);
@@ -73,7 +77,7 @@ export function MyTicketsPage() {
       })
       .catch((requestError: unknown) => {
         if (active && !isRequestCanceled(requestError)) {
-          setError('Không thể tải vé của bạn.');
+          setError(translate("customer:myTicketsPage_khongTheTaiVeCuaBan"));
         }
       })
       .finally(() => {
@@ -100,12 +104,12 @@ export function MyTicketsPage() {
         <div className="tickets-heading">
           <div>
             <p className="eyebrow">
-              <span /> Your live archive
+              <span /> {translate("customer:myTicketsPage_yourLiveArchive")}
             </p>
-            <h1>My Tickets</h1>
+            <h1>{translate("customer:myTicketsPage_myTickets")}</h1>
           </div>
         </div>
-        <div className="ticket-list" aria-label="Đang tải vé" aria-live="polite">
+        <div className="ticket-list" aria-label={translate("customer:myTicketsPage_dangTaiVe")} aria-live="polite">
           {[1, 2].map((item) => (
             <div className="event-skeleton" key={item}>
               <div />
@@ -123,14 +127,14 @@ export function MyTicketsPage() {
       <div className="tickets-page page-width">
         <div className="state-panel">
           <span className="state-icon">!</span>
-          <h3>Tickets unavailable</h3>
+          <h3>{translate("customer:myTicketsPage_ticketsUnavailable")}</h3>
           <p>{error}</p>
           <button
             className="button button-primary"
             type="button"
             onClick={() => setReloadKey((value) => value + 1)}
           >
-            Thử lại
+            {translate("customer:myTicketsPage_thuLai")}
           </button>
         </div>
       </div>
@@ -142,13 +146,13 @@ export function MyTicketsPage() {
       <div className="tickets-heading">
         <div>
           <p className="eyebrow">
-            <span /> Your live archive
+            <span /> {translate("customer:myTicketsPage_yourLiveArchive")}
           </p>
-          <h1>My Tickets</h1>
+          <h1>{translate("customer:myTicketsPage_myTickets")}</h1>
           <p>
             {tickets.length
-              ? `${tickets.length} vé trong ${groupTickets(tickets).length} concert. ${totalValid} vé còn hiệu lực.`
-              : 'Tất cả e-ticket của bạn sẽ được gom theo concert.'}
+              ? translate("customer:myTicketsPage_veTrongConcertVeConHieuLuc", { arg1: tickets.length, arg2: groupTickets(tickets).length, arg3: totalValid })
+              : translate("customer:myTicketsPage_tatCaETicketCuaBanSe")}
           </p>
         </div>
         <div className="tickets-heading-actions">
@@ -158,15 +162,15 @@ export function MyTicketsPage() {
             onClick={() => setReloadKey((value) => value + 1)}
           >
             <RefreshCw size={16} />
-            Làm mới
+            {translate("customer:myTicketsPage_lamMoi")}
           </button>
           <Link className="button button-secondary" to="/">
-            Tìm concert khác ↗
+            {translate("customer:myTicketsPage_timConcertKhac")}
           </Link>
         </div>
       </div>
 
-      <div className="ticket-tabs" role="tablist" aria-label="Trạng thái vé">
+      <div className="ticket-tabs" role="tablist" aria-label={translate("customer:myTicketsPage_trangThaiVe")}>
         {tabs.map((tab) => (
           <button
             key={tab.value}
@@ -200,10 +204,10 @@ export function MyTicketsPage() {
       ) : (
         <div className="state-panel">
           <span className="state-icon">◇</span>
-          <h3>Chưa có vé phù hợp</h3>
-          <p>Đổi bộ lọc hoặc khám phá concert mới để bắt đầu.</p>
+          <h3>{translate("customer:myTicketsPage_chuaCoVePhuHop")}</h3>
+          <p>{translate("customer:myTicketsPage_doiBoLocHoacKhamPhaConcert")}</p>
           <Link className="button button-primary" to="/">
-            Browse events
+            {translate("customer:myTicketsPage_browseEvents")}
           </Link>
         </div>
       )}
@@ -226,11 +230,12 @@ function ConcertTicketCard({
   onToggle: () => void;
   onOpenTicket: (ticket: TicketWithConcert) => void;
 }) {
+  useTranslation();
   const valid = group.tickets.filter((ticket) => ticket.status === 'VALID').length;
   const used = group.tickets.filter((ticket) => ticket.status === 'USED').length;
   const eventTime = group.concert
     ? eventDate.format(new Date(group.concert.eventDate))
-    : 'Đang cập nhật';
+    : translate("customer:myTicketsPage_dangCapNhat");
 
   return (
     <article className={`ticket-concert-card ${open ? 'is-open' : ''}`}>
@@ -248,8 +253,8 @@ function ConcertTicketCard({
           loading="lazy"
         />
         <div className="ticket-concert-copy">
-          <span className="ticket-concert-kicker">{group.tickets.length} vé</span>
-          <h2>{group.concertTitle}</h2>
+          <span className="ticket-concert-kicker">{group.tickets.length} {translate("customer:myTicketsPage_ve")}</span>
+          <h2>{group.concert ? concertTitle(group.concert) : group.concertTitle}</h2>
           <p>
             <CalendarDays size={15} /> {eventTime}
           </p>
@@ -261,11 +266,11 @@ function ConcertTicketCard({
         </div>
         <div className="ticket-concert-stats">
           <div>
-            <span>Hợp lệ</span>
+            <span>{translate("customer:myTicketsPage_hopLe")}</span>
             <strong>{valid}</strong>
           </div>
           <div>
-            <span>Đã dùng</span>
+            <span>{translate("customer:myTicketsPage_daDung")}</span>
             <strong>{used}</strong>
           </div>
         </div>
@@ -284,6 +289,7 @@ function ConcertTicketCard({
 }
 
 function TicketRow({ ticket, onOpen }: { ticket: TicketWithConcert; onOpen: () => void }) {
+  useTranslation();
   const statusClass = ticket.status.toLowerCase();
   return (
     <button className="ticket-row" type="button" onClick={onOpen}>
@@ -291,7 +297,7 @@ function TicketRow({ ticket, onOpen }: { ticket: TicketWithConcert; onOpen: () =
       <div>
         <strong>{ticket.ticketTypeName}</strong>
         <small>
-          Mã vé {ticket.id.slice(0, 8).toUpperCase()} · Phát hành{' '}
+          {translate("customer:myTicketsPage_maVe")} {ticket.id.slice(0, 8).toUpperCase()} {translate("customer:myTicketsPage_phatHanh")}{' '}
           {issuedDate.format(new Date(ticket.issuedAt))}
         </small>
       </div>
@@ -302,7 +308,7 @@ function TicketRow({ ticket, onOpen }: { ticket: TicketWithConcert; onOpen: () =
           size={60}
           level="M"
           marginSize={2}
-          title={`QR code for ${ticket.concertTitle}`}
+          title={translate("customer:myTicketsPage_qrCodeFor", { arg1: ticket.concert ? concertTitle(ticket.concert) : ticket.concertTitle })}
         />
       ) : (
         <TicketIcon size={22} aria-hidden="true" />
@@ -312,6 +318,7 @@ function TicketRow({ ticket, onOpen }: { ticket: TicketWithConcert; onOpen: () =
 }
 
 function TicketDetail({ ticket, onClose }: { ticket: TicketWithConcert; onClose: () => void }) {
+  useTranslation();
   return (
     <ModalPortal>
       <div
@@ -331,41 +338,41 @@ function TicketDetail({ ticket, onClose }: { ticket: TicketWithConcert; onClose:
           className="ticket-detail-close"
           type="button"
           onClick={onClose}
-          aria-label="Đóng chi tiết vé"
+          aria-label={translate("customer:myTicketsPage_dongChiTietVe")}
         >
-          ×
+          {translate("customer:myTicketsPage_message")}
         </button>
         <p className="eyebrow">
-          <span /> E-ticket details
+          <span /> {translate("customer:myTicketsPage_eTicketDetails")}
         </p>
-        <h2 id="ticket-detail-title">{ticket.concertTitle}</h2>
+        <h2 id="ticket-detail-title">{ticket.concert ? concertTitle(ticket.concert) : ticket.concertTitle}</h2>
         <dl className="ticket-detail-facts">
           <div>
-            <dt>Ticket ID</dt>
+            <dt>{translate("customer:myTicketsPage_ticketId")}</dt>
             <dd>{ticket.id}</dd>
           </div>
           <div>
-            <dt>Zone</dt>
+            <dt>{translate("customer:myTicketsPage_zone")}</dt>
             <dd>{ticket.ticketTypeName}</dd>
           </div>
           <div>
-            <dt>Status</dt>
+            <dt>{translate("customer:myTicketsPage_status")}</dt>
             <dd>{statusLabel(ticket.status)}</dd>
           </div>
           {ticket.concert ? (
             <div>
-              <dt>Event date</dt>
+              <dt>{translate("customer:myTicketsPage_eventDate")}</dt>
               <dd>{eventDate.format(new Date(ticket.concert.eventDate))}</dd>
             </div>
           ) : null}
           {ticket.concert ? (
             <div>
-              <dt>Venue</dt>
+              <dt>{translate("customer:myTicketsPage_venue")}</dt>
               <dd>{ticket.concert.venueName}</dd>
             </div>
           ) : null}
           <div>
-            <dt>Issued</dt>
+            <dt>{translate("customer:myTicketsPage_issued")}</dt>
             <dd>{issuedDate.format(new Date(ticket.issuedAt))}</dd>
           </div>
         </dl>
@@ -377,13 +384,13 @@ function TicketDetail({ ticket, onClose }: { ticket: TicketWithConcert; onClose:
               size={180}
               level="M"
               marginSize={3}
-              title={`Ticket QR code for ${ticket.concertTitle}`}
+              title={translate("customer:myTicketsPage_ticketQrCodeFor", { arg1: ticket.concert ? concertTitle(ticket.concert) : ticket.concertTitle })}
             />
             <div>
-              <span>Ticket QR code</span>
-              <strong>Xuất trình tại cổng</strong>
+              <span>{translate("customer:myTicketsPage_ticketQrCode")}</span>
+              <strong>{translate("customer:myTicketsPage_xuatTrinhTaiCong")}</strong>
               <p>
-                Giữ QR riêng tư. Nếu chia sẻ ảnh chụp màn hình, người khác có thể dùng vé trước bạn.
+                {translate("customer:myTicketsPage_giuQrRiengTuNeuChiaSe")}
               </p>
             </div>
           </div>
@@ -404,7 +411,7 @@ function groupTickets(tickets: TicketWithConcert[]): ConcertTicketGroup[] {
     }
     groups.set(ticket.concertId, {
       concertId: ticket.concertId,
-      concertTitle: ticket.concert?.title ?? ticket.concertTitle,
+      concertTitle: ticket.concertTitle,
       concert: ticket.concert,
       tickets: [ticket],
     });
@@ -417,8 +424,8 @@ function groupTickets(tickets: TicketWithConcert[]): ConcertTicketGroup[] {
 }
 
 function statusLabel(status: TicketStatus) {
-  if (status === 'VALID') return 'Hợp lệ';
-  if (status === 'USED') return 'Đã dùng';
-  if (status === 'CANCELLED') return 'Đã hủy';
-  return 'Đã chuyển';
+  if (status === 'VALID') return translate("customer:myTicketsPage_hopLe");
+  if (status === 'USED') return translate("customer:myTicketsPage_daDung");
+  if (status === 'CANCELLED') return translate("customer:myTicketsPage_daHuy");
+  return translate("customer:myTicketsPage_daChuyen");
 }

@@ -1,3 +1,8 @@
+import { dateFormatter } from '../../data/formatters';
+import { translate } from '../../i18n';
+import { useTranslation } from 'react-i18next';
+import { ConcertTextFields } from '../../features/concert/ConcertTextFields';
+import { editConcertText } from '../../features/concert/concertText';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import {
   CalendarPlus,
@@ -38,12 +43,12 @@ import { useToast } from '../../components/feedback/toast-context';
 import { ModalPortal } from '../../components/feedback/ModalPortal';
 
 const statuses: Array<{ value: '' | ConcertStatus; label: string }> = [
-  { value: '', label: 'Tất cả trạng thái' },
-  { value: 'DRAFT', label: 'Bản nháp' },
-  { value: 'ON_SALE', label: 'Đang bán' },
-  { value: 'SOLD_OUT', label: 'Hết vé' },
-  { value: 'COMPLETED', label: 'Đã kết thúc' },
-  { value: 'CANCELLED', label: 'Đã hủy' },
+  { value: '', get label() { return translate("admin:adminConcertsPage_tatCaTrangThai"); } },
+  { value: 'DRAFT', get label() { return translate("admin:adminConcertsPage_banNhap"); } },
+  { value: 'ON_SALE', get label() { return translate("admin:adminConcertsPage_dangBan"); } },
+  { value: 'SOLD_OUT', get label() { return translate("admin:adminConcertsPage_hetVe"); } },
+  { value: 'COMPLETED', get label() { return translate("admin:adminConcertsPage_daKetThuc"); } },
+  { value: 'CANCELLED', get label() { return translate("admin:adminConcertsPage_daHuy"); } },
 ];
 
 const transitions: Record<ConcertStatus, ConcertStatus[]> = {
@@ -54,14 +59,14 @@ const transitions: Record<ConcertStatus, ConcertStatus[]> = {
   CANCELLED: [],
 };
 
-const dateTime = new Intl.DateTimeFormat('vi-VN', {
+const dateTime = dateFormatter({
   dateStyle: 'medium',
   timeStyle: 'short',
 });
 
 type ConcertFormState = {
-  title: string;
-  description: string;
+  original?: ConcertMutation['original'];
+  translations: NonNullable<ConcertMutation['translations']>;
   venueName: string;
   venueAddress: string;
   eventDate: string;
@@ -72,8 +77,7 @@ type ConcertFormState = {
 };
 
 const emptyForm: ConcertFormState = {
-  title: '',
-  description: '',
+  translations: {},
   venueName: '',
   venueAddress: '',
   eventDate: '',
@@ -92,8 +96,7 @@ function toLocalInput(value: string | null) {
 
 function formFromConcert(concert: ConcertDetail): ConcertFormState {
   return {
-    title: concert.title,
-    description: concert.description ?? '',
+    ...editConcertText(concert),
     venueName: concert.venueName,
     venueAddress: concert.venueAddress,
     eventDate: toLocalInput(concert.eventDate),
@@ -106,8 +109,10 @@ function formFromConcert(concert: ConcertDetail): ConcertFormState {
 
 function toPayload(form: ConcertFormState): ConcertMutation {
   return {
-    title: form.title.trim(),
-    description: form.description.trim() || null,
+    title: '',
+    description: null,
+    original: form.original,
+    translations: form.translations,
     venueName: form.venueName.trim(),
     venueAddress: form.venueAddress.trim(),
     eventDate: new Date(form.eventDate).toISOString(),
@@ -123,6 +128,7 @@ function statusLabel(status: ConcertStatus) {
 }
 
 export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: ManagementApiScope }) {
+  useTranslation();
   const toast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const [pageData, setPageData] = useState<Page<ConcertDetail> | null>(null);
@@ -152,7 +158,7 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
           setError(
             requestError instanceof Error
               ? requestError.message
-              : 'Không thể tải danh sách concert.',
+              : translate("admin:adminConcertsPage_khongTheTaiDanhSachConcert"),
           );
         }
       } finally {
@@ -239,20 +245,20 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
           await loadConcerts();
           toast.error(
             uploadError instanceof Error
-              ? `Concert đã được lưu nhưng poster chưa tải lên: ${uploadError.message}`
-              : 'Concert đã được lưu nhưng poster chưa tải lên.',
+              ? translate("admin:adminConcertsPage_concertDaDuocLuuNhungPosterChua", { arg1: uploadError.message })
+              : translate("admin:adminConcertsPage_concertDaDuocLuuNhungPosterChua_2"),
           );
           return;
         }
       }
 
       toast.success(
-        editing ? 'Đã cập nhật concert.' : 'Đã tạo concert ở trạng thái bản nháp.',
+        editing ? translate("admin:adminConcertsPage_daCapNhatConcert") : translate("admin:adminConcertsPage_daTaoConcertOTrangThaiBan"),
       );
       closeForm();
       await loadConcerts();
     } catch (requestError) {
-      toast.error(requestError instanceof Error ? requestError.message : 'Không thể lưu concert.');
+      toast.error(requestError instanceof Error ? requestError.message : translate("admin:adminConcertsPage_khongTheLuuConcert"));
     } finally {
       setSaving(false);
     }
@@ -264,11 +270,11 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
       return;
     }
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      toast.error('Poster phải là ảnh JPEG, PNG hoặc WebP.');
+      toast.error(translate("admin:adminConcertsPage_posterPhaiLaAnhJpegPngHoac"));
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      toast.error('Poster không được vượt quá 5 MB.');
+      toast.error(translate("admin:adminConcertsPage_posterKhongDuocVuotQua5Mb"));
       return;
     }
     setPosterFile(file);
@@ -280,11 +286,11 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
     try {
       const result = await removeConcertPoster(editing.id, apiScope);
       setEditing(result.data);
-      toast.success(result.message || 'Đã xóa poster concert.');
+      toast.success(result.message || translate("admin:adminConcertsPage_daXoaPosterConcert"));
       await loadConcerts();
     } catch (requestError) {
       toast.error(
-        requestError instanceof Error ? requestError.message : 'Không thể xóa poster concert.',
+        requestError instanceof Error ? requestError.message : translate("admin:adminConcertsPage_khongTheXoaPosterConcert"),
       );
     } finally {
       setRemovingPoster(false);
@@ -296,12 +302,12 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
     try {
       await updateConcertStatus(concert.id, next, apiScope);
       toast.success(
-        `Đã chuyển "${concert.title}" sang ${statusLabel(next)}.`,
+        translate("admin:adminConcertsPage_daChuyenSang", { arg1: concert.title, arg2: statusLabel(next) }),
       );
       await loadConcerts();
     } catch (requestError) {
       toast.error(
-        requestError instanceof Error ? requestError.message : 'Không thể đổi trạng thái concert.',
+        requestError instanceof Error ? requestError.message : translate("admin:adminConcertsPage_khongTheDoiTrangThaiConcert"),
       );
     } finally {
       setBusyId('');
@@ -313,14 +319,14 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
     setBusyId(deleteTarget.id);
     try {
       await deleteConcert(deleteTarget.id, apiScope);
-      toast.success('Đã xóa concert.');
+      toast.success(translate("admin:adminConcertsPage_daXoaConcert"));
       setDeleteTarget(null);
       await loadConcerts();
     } catch (requestError) {
       toast.error(
         requestError instanceof Error
           ? requestError.message
-          : 'Chỉ concert bản nháp mới có thể xóa.',
+          : translate("admin:adminConcertsPage_chiConcertBanNhapMoiCoThe"),
       );
     } finally {
       setBusyId('');
@@ -330,34 +336,34 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
   return (
     <>
       <AdminPageHeader
-        eyebrow="Lịch chương trình"
-        title="Quản lý concert"
-        description="Tạo chương trình, kiểm soát nội dung và chuyển trạng thái theo đúng vòng đời bán vé."
+        eyebrow={translate("admin:adminConcertsPage_lichChuongTrinh")}
+        title={translate("admin:adminConcertsPage_quanLyConcert")}
+        description={translate("admin:adminConcertsPage_taoChuongTrinhKiemSoatNoiDung")}
         actions={
           <button className="admin-primary-action" type="button" onClick={openCreate}>
             <Plus aria-hidden="true" size={17} />
-            Tạo concert
+            {translate("admin:adminConcertsPage_taoConcert")}
           </button>
         }
       />
 
-      <section className="admin-inline-stats" aria-label="Tóm tắt concert">
-        <div><span>Buổi diễn phù hợp</span><strong>{pageData?.totalElements ?? '—'}</strong></div>
+      <section className="admin-inline-stats" aria-label={translate("admin:adminConcertsPage_tomTatConcert")}>
+        <div><span>{translate("admin:adminConcertsPage_buoiDienPhuHop")}</span><strong>{pageData?.totalElements ?? '—'}</strong></div>
       </section>
 
       <div className="admin-toolbar">
         <label className="admin-search-control">
           <Search aria-hidden="true" size={16} />
-          <span className="sr-only">Tìm concert</span>
+          <span className="sr-only">{translate("admin:adminConcertsPage_timConcert")}</span>
           <input
             type="search"
             value={query}
             onChange={(event) => { setQuery(event.target.value); setPage(0); }}
-            placeholder="Tìm concert, địa điểm..."
+            placeholder={translate("admin:adminConcertsPage_timConcertDiaDiem")}
           />
         </label>
         <label>
-          <span className="sr-only">Lọc theo trạng thái</span>
+          <span className="sr-only">{translate("admin:adminConcertsPage_locTheoTrangThai")}</span>
           <select
             value={status}
             onChange={(event) => {
@@ -374,7 +380,7 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
         </label>
         <button type="button" onClick={() => void loadConcerts()} disabled={loading}>
           <RefreshCw aria-hidden="true" size={16} />
-          Làm mới
+          {translate("admin:adminConcertsPage_lamMoi")}
         </button>
       </div>
 
@@ -392,13 +398,13 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
             <table className="admin-table">
               <thead>
                 <tr>
-                  <th>Concert</th>
-                  {apiScope === 'admin' ? <th>Check-in</th> : null}
-                  <th>Thời gian</th>
-                  <th>Trạng thái</th>
-                  <th>Điều phối</th>
+                  <th>{translate('event')}</th>
+                  {apiScope === 'admin' ? <th>{translate("admin:adminConcertsPage_checkIn")}</th> : null}
+                  <th>{translate("admin:adminConcertsPage_thoiGian")}</th>
+                  <th>{translate("admin:adminConcertsPage_trangThai")}</th>
+                  <th>{translate("admin:adminConcertsPage_dieuPhoi")}</th>
                   <th>
-                    <span className="sr-only">Thao tác</span>
+                    <span className="sr-only">{translate("admin:adminConcertsPage_thaoTac")}</span>
                   </th>
                 </tr>
               </thead>
@@ -437,7 +443,7 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
                             </span>
                           </>
                         ) : (
-                          <span className="admin-table-secondary">Đang tổng hợp</span>
+                          <span className="admin-table-secondary">{translate("admin:adminConcertsPage_dangTongHop")}</span>
                         )}
                       </td>
                     ) : null}
@@ -446,23 +452,23 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
                         {dateTime.format(new Date(concert.eventDate))}
                       </strong>
                       <span className="admin-table-secondary">
-                        Bán vé: {dateTime.format(new Date(concert.saleStartAt))}
+                        {translate("admin:adminConcertsPage_banVe")} {dateTime.format(new Date(concert.saleStartAt))}
                       </span>
                       <span className="admin-table-secondary">
                         {concert.saleEndAt
-                          ? `Đến ${dateTime.format(new Date(concert.saleEndAt))}`
-                          : 'Đến khi concert diễn ra'}
+                          ? translate("admin:adminConcertsPage_den", { arg1: dateTime.format(new Date(concert.saleEndAt)) })
+                          : translate("admin:adminConcertsPage_denKhiConcertDienRa")}
                       </span>
                     </td>
                     <td>
                       <span className={`admin-status status-${concert.status.toLowerCase()}`}>
-                        {apiScope === 'organizer' && concert.status === 'ON_SALE' ? 'Đã cấu hình mở bán' : statusLabel(concert.status)}
+                        {apiScope === 'organizer' && concert.status === 'ON_SALE' ? translate("admin:adminConcertsPage_daCauHinhMoBan") : statusLabel(concert.status)}
                       </span>
                     </td>
                     <td>
                       <ActionMenu
-                        label="Chuyển trạng thái"
-                        ariaLabel={`Đổi trạng thái ${concert.title}`}
+                        label={translate("admin:adminConcertsPage_chuyenTrangThai")}
+                        ariaLabel={translate("admin:adminConcertsPage_doiTrangThai", { arg1: concert.title })}
                         disabled={!availableTransitions(concert).length || busyId === concert.id}
                         options={availableTransitions(concert).map((next) => ({
                           value: next,
@@ -476,14 +482,14 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
                       <div className="admin-row-actions">
                         <Link
                           className="admin-row-link"
-                          aria-label={`Mở không gian quản lý ${concert.title}`}
+                          aria-label={translate("admin:adminConcertsPage_moKhongGianQuanLy", { arg1: concert.title })}
                           to={`${apiScope === 'admin' ? '/admin' : '/organizer'}/concerts/${concert.id}`}
                         >
                           <ExternalLink size={16} />
                         </Link>
                         <button
                           type="button"
-                          aria-label={`Sửa ${concert.title}`}
+                          aria-label={translate("admin:adminConcertsPage_sua", { arg1: concert.title })}
                           onClick={() => openEdit(concert)}
                           disabled={
                             busyId === concert.id ||
@@ -494,7 +500,7 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
                         </button>
                         <button
                           type="button"
-                          aria-label={`Xóa ${concert.title}`}
+                          aria-label={translate("admin:adminConcertsPage_xoa", { arg1: concert.title })}
                           onClick={() => setDeleteTarget(concert)}
                           disabled={concert.status !== 'DRAFT' || busyId === concert.id}
                         >
@@ -510,14 +516,14 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
         ) : (
           <div className="admin-empty-state">
             <CalendarPlus aria-hidden="true" size={28} />
-            <h2>Chưa có concert phù hợp</h2>
+            <h2>{translate("admin:adminConcertsPage_chuaCoConcertPhuHop")}</h2>
             <p>
               {query.trim()
-                ? 'Thử đổi từ khóa tìm kiếm hoặc bộ lọc trạng thái.'
-                : 'Thay đổi bộ lọc hoặc tạo concert đầu tiên.'}
+                ? translate("admin:adminConcertsPage_thuDoiTuKhoaTimKiemHoac")
+                : translate("admin:adminConcertsPage_thayDoiBoLocHoacTaoConcert")}
             </p>
             <button className="admin-primary-action" type="button" onClick={openCreate}>
-              Tạo concert
+              {translate("admin:adminConcertsPage_taoConcert")}
             </button>
           </div>
         )}
@@ -526,12 +532,12 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
       {pageData && pageData.totalPages > 1 ? (
         <div className="admin-pagination">
           <span>
-            Trang {pageData.number + 1} / {pageData.totalPages}
+            {translate('pageNumber', { page: pageData.number + 1, total: pageData.totalPages })}
           </span>
           <div>
             <button
               type="button"
-              aria-label="Trang trước"
+              aria-label={translate("admin:adminConcertsPage_trangTruoc")}
               disabled={pageData.first}
               onClick={() => setPage((value) => value - 1)}
             >
@@ -539,7 +545,7 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
             </button>
             <button
               type="button"
-              aria-label="Trang sau"
+              aria-label={translate('pageNext')}
               disabled={pageData.last}
               onClick={() => setPage((value) => value + 1)}
             >
@@ -566,9 +572,9 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
 
       {deleteTarget ? (
         <AdminConfirmDialog
-          title={`Xóa concert “${deleteTarget.title}”?`}
-          description="Concert bản nháp và toàn bộ cấu hình liên quan sẽ bị xóa vĩnh viễn. Thao tác này không thể hoàn tác."
-          confirmLabel="Xóa concert"
+          title={translate("admin:adminConcertsPage_xoaConcert", { arg1: deleteTarget.title })}
+          description={translate("admin:adminConcertsPage_concertBanNhapVaToanBoCau")}
+          confirmLabel={translate("admin:adminConcertsPage_xoaConcert_2")}
           loading={busyId === deleteTarget.id}
           onClose={() => setDeleteTarget(null)}
           onConfirm={() => void removeConcert()}
@@ -579,8 +585,9 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
 }
 
 function ConcertRowsSkeleton() {
+  useTranslation();
   return (
-    <div className="admin-row-skeleton" aria-label="Đang tải concert" aria-live="polite">
+    <div className="admin-row-skeleton" aria-label={translate("admin:adminConcertsPage_dangTaiConcert")} aria-live="polite">
       {[1, 2, 3, 4].map((item) => (
         <span key={item} />
       ))}
@@ -611,6 +618,7 @@ function ConcertForm({
   onClose: () => void;
   onSubmit: (event: FormEvent) => void;
 }) {
+  useTranslation();
   const toast = useToast();
   const [selectedPosterPreview, setSelectedPosterPreview] = useState<string | null>(null);
 
@@ -628,7 +636,7 @@ function ConcertForm({
 
   const posterPreview = selectedPosterPreview ?? editing?.posterUrl ?? null;
 
-  const field = (name: keyof ConcertFormState) => ({
+  const field = (name: Exclude<keyof ConcertFormState, 'original' | 'translations'>) => ({
     value: form[name],
     onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       onChange({ ...form, [name]: event.target.value }),
@@ -639,11 +647,11 @@ function ConcertForm({
       return;
     }
     if (file.type !== 'image/svg+xml') {
-      toast.error('Vui lòng chọn file SVG hợp lệ.');
+      toast.error(translate("admin:adminConcertsPage_vuiLongChonFileSvgHopLe"));
       return;
     }
     if (file.size > 2 * 1024 * 1024) {
-      toast.error('File SVG không được vượt quá 2 MB.');
+      toast.error(translate("admin:adminConcertsPage_fileSvgKhongDuocVuotQua2"));
       return;
     }
 
@@ -668,49 +676,47 @@ function ConcertForm({
       >
         <header>
           <div>
-            <span>{editing ? 'Chỉnh sửa chương trình' : 'Chương trình mới'}</span>
-            <h2 id="concert-form-title">{editing ? editing.title : 'Tạo concert'}</h2>
+            <span>{editing ? translate("admin:adminConcertsPage_chinhSuaChuongTrinh") : translate("admin:adminConcertsPage_chuongTrinhMoi")}</span>
+            <h2 id="concert-form-title">{editing ? editing.title : translate("admin:adminConcertsPage_taoConcert")}</h2>
           </div>
-          <button type="button" aria-label="Đóng" onClick={onClose}>
+          <button type="button" aria-label={translate("admin:adminConcertsPage_dong")} onClick={onClose}>
             <X size={20} />
           </button>
         </header>
         <form onSubmit={onSubmit}>
           <div className="admin-form-grid">
-            <label className="admin-field admin-field-wide">
-              <span>Tên concert</span>
-              <input required maxLength={500} {...field('title')} />
-            </label>
+            <ConcertTextFields original={form.original} translations={form.translations}
+              onChange={(text) => onChange({ ...form, ...text })} />
             <label className="admin-field">
-              <span>Thời gian diễn ra</span>
+              <span>{translate("admin:adminConcertsPage_thoiGianDienRa")}</span>
               <input required type="datetime-local" {...field('eventDate')} />
             </label>
             <label className="admin-field">
-              <span>Giờ mở cửa</span>
+              <span>{translate("admin:adminConcertsPage_gioMoCua")}</span>
               <input type="datetime-local" {...field('doorsOpenAt')} />
             </label>
             <label className="admin-field">
-              <span>Bắt đầu bán vé</span>
+              <span>{translate("admin:adminConcertsPage_batDauBanVe")}</span>
               <input required type="datetime-local" {...field('saleStartAt')} />
             </label>
             <label className="admin-field">
-              <span>Kết thúc bán vé</span>
+              <span>{translate("admin:adminConcertsPage_ketThucBanVe")}</span>
               <input type="datetime-local" {...field('saleEndAt')} />
             </label>
             <label className="admin-field">
-              <span>Địa điểm</span>
+              <span>{translate("admin:adminConcertsPage_diaDiem")}</span>
               <input required {...field('venueName')} />
             </label>
             <label className="admin-field">
-              <span>Địa chỉ</span>
+              <span>{translate("admin:adminConcertsPage_diaChi")}</span>
               <input required {...field('venueAddress')} />
             </label>
             <div className="admin-field admin-field-wide">
-              <span>Poster concert</span>
+              <span>{translate('eventPoster')}</span>
               <div className="admin-poster-field">
                 <div className="admin-poster-preview">
                   {posterPreview ? (
-                    <img src={posterPreview} alt="Xem trước poster concert" />
+                    <img src={posterPreview} alt={translate("admin:adminConcertsPage_xemTruocPosterConcert")} />
                   ) : (
                     <ImagePlus aria-hidden="true" size={25} />
                   )}
@@ -718,7 +724,7 @@ function ConcertForm({
                 <div className="admin-poster-controls">
                   <label className="admin-secondary-action">
                     <ImagePlus aria-hidden="true" size={16} />
-                    {posterPreview ? 'Đổi poster' : 'Chọn poster'}
+                    {posterPreview ? translate("admin:adminConcertsPage_doiPoster") : translate("admin:adminConcertsPage_chonPoster")}
                     <input
                       type="file"
                       accept="image/jpeg,image/png,image/webp"
@@ -731,7 +737,7 @@ function ConcertForm({
                       type="button"
                       onClick={() => onPosterChange(null)}
                     >
-                      Bỏ ảnh đã chọn
+                      {translate("admin:adminConcertsPage_boAnhDaChon")}
                     </button>
                   ) : editing?.posterUrl ? (
                     <button
@@ -740,19 +746,15 @@ function ConcertForm({
                       onClick={onRemovePoster}
                       disabled={removingPoster}
                     >
-                      {removingPoster ? 'Đang xóa...' : 'Xóa poster'}
+                      {removingPoster ? translate("admin:adminConcertsPage_dangXoa") : translate("admin:adminConcertsPage_xoaPoster")}
                     </button>
                   ) : null}
-                  <small>JPEG, PNG hoặc WebP. Tối đa 5 MB.</small>
+                  <small>{translate("admin:adminConcertsPage_jpegPngHoacWebpToiDa5")}</small>
                 </div>
               </div>
             </div>
-            <label className="admin-field admin-field-wide">
-              <span>Mô tả</span>
-              <textarea rows={4} {...field('description')} />
-            </label>
             <div className="admin-field admin-field-wide">
-              <span>Sơ đồ chỗ SVG</span>
+              <span>{translate("admin:adminConcertsPage_soDoChoSvg")}</span>
               <div className="admin-poster-field">
                 <div className="admin-poster-preview">
                   {form.seatMapSvg ? (
@@ -773,7 +775,7 @@ function ConcertForm({
                 <div className="admin-poster-controls">
                   <label className="admin-secondary-action">
                     <Map aria-hidden="true" size={16} />
-                    {form.seatMapSvg ? 'Đổi sơ đồ' : 'Chọn sơ đồ SVG'}
+                    {form.seatMapSvg ? translate("admin:adminConcertsPage_doiSoDo") : translate("admin:adminConcertsPage_chonSoDoSvg")}
                     <input
                       type="file"
                       accept=".svg,image/svg+xml"
@@ -789,20 +791,20 @@ function ConcertForm({
                       type="button"
                       onClick={() => onChange({ ...form, seatMapSvg: '' })}
                     >
-                      Xóa sơ đồ
+                      {translate("admin:adminConcertsPage_xoaSoDo")}
                     </button>
                   ) : null}
-                  <small>Định dạng SVG. Tối đa 2 MB.</small>
+                  <small>{translate("admin:adminConcertsPage_dinhDangSvgToiDa2Mb")}</small>
                 </div>
               </div>
             </div>
           </div>
           <footer>
             <button className="admin-secondary-action" type="button" onClick={onClose}>
-              Hủy
+              {translate("admin:adminConcertsPage_huy")}
             </button>
             <button className="admin-primary-action" type="submit" disabled={saving}>
-              {saving ? 'Đang lưu...' : editing ? 'Lưu thay đổi' : 'Tạo bản nháp'}
+              {saving ? translate("admin:adminConcertsPage_dangLuu") : editing ? translate("admin:adminConcertsPage_luuThayDoi") : translate("admin:adminConcertsPage_taoBanNhap")}
             </button>
           </footer>
         </form>

@@ -1,3 +1,6 @@
+import { dateFormatter } from '../../data/formatters';
+import { translate } from '../../i18n';
+import { useTranslation } from 'react-i18next';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarDays, Check, ChevronDown, MapPin, Search, X } from 'lucide-react';
 
@@ -21,7 +24,7 @@ type ConcertPickerProps<T extends ConcertPickerItem> = {
   className?: string;
 };
 
-const dateTime = new Intl.DateTimeFormat('vi-VN', {
+const dateTime = dateFormatter({
   dateStyle: 'medium',
   timeStyle: 'short',
 });
@@ -35,11 +38,11 @@ function normalize(value: string) {
 
 function statusLabel(status?: string | null) {
   const labels: Record<string, string> = {
-    DRAFT: 'Bản nháp',
-    ON_SALE: 'Đang bán',
-    SOLD_OUT: 'Hết vé',
-    COMPLETED: 'Đã kết thúc',
-    CANCELLED: 'Đã hủy',
+    DRAFT: translate("shared:concertPicker_banNhap"),
+    ON_SALE: translate("shared:concertPicker_dangBan"),
+    SOLD_OUT: translate("shared:concertPicker_hetVe"),
+    COMPLETED: translate("shared:concertPicker_daKetThuc"),
+    CANCELLED: translate("shared:concertPicker_daHuy"),
   };
   return status ? (labels[status] ?? status) : '';
 }
@@ -48,13 +51,14 @@ export function ConcertPicker<T extends ConcertPickerItem>({
   concerts,
   value,
   onChange,
-  label = 'Buổi diễn',
-  placeholder = 'Chọn buổi diễn',
+  label = translate("shared:concertPicker_buoiDien"),
+  placeholder = translate("shared:concertPicker_chonBuoiDien"),
   disabled = false,
   allowAll = false,
-  allLabel = 'Tất cả buổi diễn',
+  allLabel = translate("shared:concertPicker_tatCaBuoiDien"),
   className = '',
 }: ConcertPickerProps<T>) {
+  useTranslation();
   const rootRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
@@ -109,8 +113,8 @@ export function ConcertPicker<T extends ConcertPickerItem>({
                   .filter(Boolean)
                   .join(' · ')
               : concerts.length
-                ? 'Tìm theo tên, địa điểm hoặc trạng thái'
-                : 'Chưa có buổi diễn phù hợp'}
+                ? translate("shared:concertPicker_timTheoTenDiaDiemHoacTrang")
+                : translate("shared:concertPicker_chuaCoBuoiDienPhuHop")}
           </small>
         </span>
         {selected?.status ? (
@@ -125,7 +129,7 @@ export function ConcertPicker<T extends ConcertPickerItem>({
         <div className="concert-picker-popover">
           <label className="concert-picker-search">
             <Search aria-hidden="true" size={17} />
-            <span className="sr-only">Tìm buổi diễn</span>
+            <span className="sr-only">{translate("shared:concertPicker_timBuoiDien")}</span>
             <input
               ref={searchRef}
               value={query}
@@ -134,10 +138,10 @@ export function ConcertPicker<T extends ConcertPickerItem>({
                 if (event.key === 'Escape') setOpen(false);
                 if (event.key === 'Enter' && filtered.length === 1) choose(filtered[0].id);
               }}
-              placeholder="Tìm tên, địa điểm, trạng thái..."
+              placeholder={translate("shared:concertPicker_timTenDiaDiemTrangThai")}
             />
             {query ? (
-              <button type="button" aria-label="Xóa từ khóa" onClick={() => setQuery('')}>
+              <button type="button" aria-label={translate("shared:concertPicker_xoaTuKhoa")} onClick={() => setQuery('')}>
                 <X size={15} />
               </button>
             ) : null}
@@ -156,7 +160,7 @@ export function ConcertPicker<T extends ConcertPickerItem>({
                 </span>
                 <span>
                   <strong>{allLabel}</strong>
-                  <small>Không giới hạn theo buổi diễn</small>
+                  <small>{translate("shared:concertPicker_khongGioiHanTheoBuoiDien")}</small>
                 </span>
                 {!value ? <Check size={17} /> : null}
               </button>
@@ -177,7 +181,7 @@ export function ConcertPicker<T extends ConcertPickerItem>({
                   <strong>{concert.title}</strong>
                   <small>
                     <MapPin size={12} />
-                    {concert.venueName || 'Chưa có địa điểm'}
+                    {concert.venueName || translate("shared:concertPicker_chuaCoDiaDiem")}
                     {concert.eventDate ? ` · ${dateTime.format(new Date(concert.eventDate))}` : ''}
                   </small>
                 </span>
@@ -186,7 +190,7 @@ export function ConcertPicker<T extends ConcertPickerItem>({
             ))}
             {!filtered.length ? (
               <p className="concert-picker-empty">
-                Không tìm thấy buổi diễn phù hợp với "{query}".
+                {translate("shared:concertPicker_khongTimThayBuoiDienPhuHop")}{query}".
               </p>
             ) : null}
           </div>

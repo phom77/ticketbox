@@ -1,3 +1,5 @@
+import { translate } from '../i18n';
+import { useTranslation } from 'react-i18next';
 import { ReconciliationPage } from '../pages/organizer/ReconciliationPage';
 import { OrganizationProvider, RequireOrganizationGrant } from '../features/organizations/OrganizationProvider';
 import { AdminOrganizationsPage } from '../pages/admin/AdminOrganizationsPage';
@@ -41,6 +43,7 @@ const audiencePage = (page: React.ReactNode) => (
 const cataloguePage = (page: React.ReactNode) => <CatalogueRoute>{page}</CatalogueRoute>;
 
 export function App() {
+  useTranslation();
   return (
     <AuthProvider>
       <ToastProvider>
@@ -110,8 +113,8 @@ export function App() {
               <ProtectedRoute allowedRoles={['STAFF']}>
                 <main className="route-forbidden page-width">
                   <div className="state-panel" role="status">
-                    <h1>Soát vé chưa mở</h1>
-                    <p>Tính năng sẽ mở cùng phiên bản máy quét mới.</p>
+                    <h1>{translate("shared:app_soatVeChuaMo")}</h1>
+                    <p>{translate("shared:app_tinhNangSeMoCungPhienBan")}</p>
                   </div>
                 </main>
               </ProtectedRoute>

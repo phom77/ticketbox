@@ -28,7 +28,7 @@ export function retrySupportItem(kind: 'UNKNOWN_PAYMENT' | 'FAILED_EMAIL', item:
     return api.post(`/api/admin/payment-workflows/${encodeURIComponent(item.orderId)}/review`, {
       actionId,
       action: 'REDRIVE_QUERY',
-      detail: 'Kiểm tra lại giao dịch từ hàng đợi hỗ trợ',
+      detail: 'Recheck payment from the support queue',
     });
   }
   return api.post(`/api/admin/notifications/${encodeURIComponent(item.sourceId)}/retry`, undefined, {

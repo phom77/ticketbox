@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, Navigate, useLocation } from 'react-router-dom';
 import { useAuth, type UserRole } from './AuthContext';
 import { getRoleHome, getRoleHomeLabel } from './roleRoutes';
@@ -10,6 +11,7 @@ interface ProtectedRouteProps {
 }
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles, redirectUnauthorized = false }) => {
+  const { t } = useTranslation();
   const { user, loading } = useAuth();
   const location = useLocation();
 
@@ -17,7 +19,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
     return (
       <div className="auth-route-loading" role="status" aria-live="polite">
         <div className="route-spinner" aria-hidden="true" />
-        <span className="sr-only">Checking your session</span>
+        <span className="sr-only">{t('sessionChecking')}</span>
       </div>
     );
   }
@@ -38,13 +40,14 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
       <main className="route-forbidden page-width">
         <div className="state-panel" role="alert">
           <span className="state-icon" aria-hidden="true">!</span>
-          <h1>Access limited</h1>
-          <p>
-            This area is reserved for {allowedRoles.join(' / ')} accounts. You are signed in as {user.role}.
-          </p>
+          <h1>{t('accessLimited')}</h1>
+          <p>{t('accessRoleRequired', {
+            allowedRoles: allowedRoles.map((role) => t(`role_${role}`)).join(' / '),
+            currentRole: t(`role_${user.role}`),
+          })}</p>
           <div className="forbidden-actions">
             <Link className="button button-primary" to={homePath}>{homeLabel}</Link>
-            {user.role === 'AUDIENCE' ? <Link className="button button-secondary" to="/profile">View profile</Link> : null}
+            {user.role === 'AUDIENCE' ? <Link className="button button-secondary" to="/profile">{t('viewProfile')}</Link> : null}
           </div>
         </div>
       </main>
@@ -55,13 +58,14 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
 };
 
 export const CatalogueRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { t } = useTranslation();
   const { user, loading } = useAuth();
 
   if (loading) {
     return (
       <div className="auth-route-loading" role="status" aria-live="polite">
         <div className="route-spinner" aria-hidden="true" />
-        <span className="sr-only">Checking your session</span>
+        <span className="sr-only">{t('sessionChecking')}</span>
       </div>
     );
   }
