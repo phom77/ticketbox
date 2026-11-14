@@ -14,4 +14,12 @@
 
 ## 3. Integration and verification
 
-- [ ] 3.1 Run Catalog `clean verify`, its independent build gate, and the applicable shared CI checks. Run web lint/build, gateway split E2E and browser checks for organization workspace and checkout recovery, including responsive and keyboard operation of the selector. Validate this change with `openspec validate web-language-and-concert-translations --type change --strict`. Record executed checks and any operational gaps.
+- [x] 3.1 Run Catalog `clean verify`, its independent build gate, and the applicable shared CI checks. Run web lint/build, gateway split E2E and browser checks for organization workspace and checkout recovery, including responsive and keyboard operation of the selector. Validate this change with `openspec validate web-language-and-concert-translations --type change --strict`. Record executed checks and any operational gaps.
+
+## Verification
+
+- Catalog Maven verification passed 35 tests. The Catalog container built independently and passed source and package ownership checks.
+- The six-service Maven reactor passed 220 tests. The Python CI checks passed 12 tests and both Compose configurations validated.
+- Web lint and build passed. Lint checked 1,473 message keys and reported four React warnings. Vite reported a bundle-size warning.
+- Gateway split E2E passed 16 checks, including private preview, translation edits and cache invalidation. Chromium passed 20 checkout recovery checks, the language and HTTP feedback checks, and the organizer workflow through published event, payment and issued QR. Responsive checks covered desktop, tablet and mobile.
+- OpenSpec strict validation passed. Verification used local fixtures and MOCK payment. Staging and live payment were outside this run.
