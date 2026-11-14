@@ -94,14 +94,14 @@ export function ConcertListScreen({
                 value={searchQuery}
                 onChangeText={setSearchQuery}
               />
-              <Pressable style={styles.datePickerBtn} onPress={() => setShowDatePicker(true)}>
+              <Pressable accessibilityRole="button" style={styles.datePickerBtn} onPress={() => setShowDatePicker(true)}>
                 <MaterialIcons name="date-range" size={20} color={colors.accent} />
                 <Text style={styles.datePickerText}>
                   {searchDate ? searchDate.toLocaleDateString('vi-VN') : 'Lọc theo ngày'}
                 </Text>
               </Pressable>
               {searchDate ? (
-                <Pressable style={styles.clearDateBtn} onPress={() => setSearchDate(null)}>
+                <Pressable accessibilityRole="button" accessibilityLabel="Xóa bộ lọc ngày" style={styles.clearDateBtn} onPress={() => setSearchDate(null)}>
                   <MaterialIcons name="close" size={16} color={colors.textMuted} />
                 </Pressable>
               ) : null}
@@ -217,9 +217,9 @@ const styles = StyleSheet.create({
   meta: { color: colors.textMuted, fontSize: 13 },
   badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 5 },
   chevron: { color: colors.textMuted, fontSize: 28, fontWeight: '300' },
-  filters: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  searchInput: { flex: 1, height: 40, borderWidth: 1, borderColor: colors.border, borderRadius: radius.input, paddingHorizontal: 12, color: colors.text, backgroundColor: colors.surface },
-  datePickerBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 40, borderWidth: 1, borderColor: colors.border, borderRadius: radius.input, paddingHorizontal: 10, backgroundColor: colors.surface },
+  filters: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
+  searchInput: { flex: 1, minWidth: 124, minHeight: 48, borderWidth: 1, borderColor: colors.border, borderRadius: radius.input, paddingHorizontal: 12, color: colors.text, backgroundColor: colors.surface },
+  datePickerBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 48, borderWidth: 1, borderColor: colors.border, borderRadius: radius.input, paddingHorizontal: 10, backgroundColor: colors.surface },
   datePickerText: { color: colors.text, fontSize: 13 },
-  clearDateBtn: { padding: 4 },
+  clearDateBtn: { minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
 });

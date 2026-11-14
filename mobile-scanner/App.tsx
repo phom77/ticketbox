@@ -47,7 +47,6 @@ import {
 } from './src/features/checkin';
 import type { ManualCheckinResult } from './src/features/checkin';
 import { mergeHistory } from './src/features/checkin/history';
-import { ScanHistoryScreen } from './src/screens/ScanHistoryScreen';
 import { downloadCheckinDataset, syncPendingLogs } from './src/features/sync';
 import type { PendingSyncSummary } from './src/features/sync';
 import {
@@ -56,10 +55,10 @@ import {
   ConcertListScreen,
   ConcertOverviewScreen,
   GuestListScreen,
+  ScanHistoryScreen,
   ScannerHomeScreen,
   StaffLoginScreen,
 } from './src/screens';
-
 import { ConcertShell, type ConcertRoute } from './src/ui/ConcertShell';
 
 type Session = { accessToken: string; user: StaffUser };
@@ -84,6 +83,7 @@ function ScannerApp() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const authPending = useRef(false);
   const [loginError, setLoginError] = useState<string | null>(null);
 
   const [concerts, setConcerts] = useState<StaffConcert[]>([]);
@@ -123,6 +123,8 @@ function ScannerApp() {
         } else if (token || user) {
           await logoutStaff();
         }
+      } catch {
+        if (mounted) setLoginError('Không thể mở phiên đã lưu. Vui lòng đăng nhập lại.');
       } finally {
         if (mounted) setIsBooting(false);
       }
@@ -141,10 +143,12 @@ function ScannerApp() {
   }, [session, isOnline]);
 
   async function handleLogin() {
+    if (authPending.current) return;
     if (!email.trim() || !password) {
       setLoginError('Nhập email và mật khẩu STAFF.');
       return;
     }
+    authPending.current = true;
     setIsSubmitting(true);
     setLoginError(null);
     try {
@@ -154,6 +158,7 @@ function ScannerApp() {
     } catch (error) {
       setLoginError(toErrorMessage(error));
     } finally {
+      authPending.current = false;
       setIsSubmitting(false);
     }
   }
@@ -166,7 +171,16 @@ function ScannerApp() {
     setDatasetInfo({});
     setPassword('');
     setInitialGate('');
-    await logoutStaff();
+    authPending.current = true;
+    setIsSubmitting(true);
+    try {
+      await logoutStaff();
+    } catch {
+      setLoginError('Chưa thể xóa phiên đã lưu. Vui lòng thử lại.');
+    } finally {
+      authPending.current = false;
+      setIsSubmitting(false);
+    }
   }
 
   async function loadConcerts() {
@@ -298,6 +312,7 @@ function ConcertWorkspace({
     initialDataset ?? { downloadedAt: null, totalCount: 0 },
   );
   const [syncError, setSyncError] = useState<string | null>(null);
+  const syncOnReconnect = useRef(false);
   const previousConnection = useRef(isOnline);
 
   const [qrCode, setQrCode] = useState('');
@@ -310,8 +325,10 @@ function ConcertWorkspace({
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncSummary, setSyncSummary] = useState<PendingSyncSummary | null>(null);
   const [operationError, setOperationError] = useState<string | null>(null);
+  const [gateError, setGateError] = useState<string | null>(null);
 
   const [localTickets, setLocalTickets] = useState<LocalTicketListItem[]>([]);
+  const [localTicketIndex, setLocalTicketIndex] = useState<Pick<LocalTicketListItem, 'qrCode' | 'ticketId'>[]>([]);
   const [serverTickets, setServerTickets] = useState<StaffTicket[]>([]);
   const [localLogs, setLocalLogs] = useState<LocalCheckinLog[]>([]);
   const [serverHistory, setServerHistory] = useState<ServerCheckinHistory[]>([]);
@@ -324,8 +341,8 @@ function ConcertWorkspace({
   const ticketsRequest = useRef(0);
   const localActivityRequest = useRef(0);
   const history = useMemo(
-    () => mergeHistory(localLogs, serverHistory, [...localTickets, ...serverTickets]),
-    [localLogs, serverHistory, localTickets, serverTickets],
+    () => mergeHistory(localLogs, serverHistory, [...localTicketIndex, ...serverTickets]),
+    [localLogs, serverHistory, localTicketIndex, serverTickets],
   );
 
   const [guestList, setGuestList] = useState<StaffGuestListEntry[]>([]);
@@ -340,11 +357,21 @@ function ConcertWorkspace({
   useEffect(() => {
     setAuthority('unknown');
     void refreshSelectedConcert();
-    void refreshLocalActivity().catch(() => setDataError('Không thể đọc lịch sử trên thiết bị.'));
   }, [isOnline]);
 
   useEffect(() => {
-    if (!previousConnection.current && isOnline) void handleSync();
+    void Promise.all([
+      refreshLocalActivity(),
+      loadLocalTicketIndex(),
+    ]).catch(() => setDataError('Không thể đọc lịch sử trên thiết bị.'));
+    return () => { syncOnReconnect.current = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!previousConnection.current && isOnline) {
+      syncOnReconnect.current = true;
+      void handleSync();
+    }
     previousConnection.current = isOnline;
   }, [isOnline]);
 
@@ -375,7 +402,7 @@ function ConcertWorkspace({
         gate,
         accessToken: session.accessToken,
       });
-      await Promise.all([refreshSelectedConcert(), refreshLocalActivity()]);
+      await Promise.all([refreshSelectedConcert(), loadLocalTicketIndex()]);
     } catch (error) {
       setOperationError(toErrorMessage(error));
     } finally {
@@ -457,19 +484,23 @@ function ConcertWorkspace({
 
   async function refreshLocalActivity() {
     const request = ++localActivityRequest.current;
-    const [logs, counts, tickets] = await Promise.all([
+    const [logs, counts] = await Promise.all([
       listLocalCheckinLogs(selectedConcert.id),
       loadCheckinCounters(selectedConcert.id),
-      listLocalTickets(selectedConcert.id),
     ]);
     if (request !== localActivityRequest.current) return;
     setLocalLogs(logs);
     setCounters(counts);
-    setLocalTickets(tickets);
+  }
+
+  async function loadLocalTicketIndex() {
+    const tickets = await listLocalTickets(selectedConcert.id);
+    setLocalTicketIndex(tickets.map(({ qrCode, ticketId }) => ({ qrCode, ticketId })));
   }
 
   async function handleSync() {
     if (syncPending.current) return;
+    syncOnReconnect.current = false;
     syncPending.current = true;
     setIsSyncing(true);
     setSyncError(null);
@@ -493,6 +524,7 @@ function ConcertWorkspace({
     } finally {
       syncPending.current = false;
       setIsSyncing(false);
+      if (syncOnReconnect.current) void handleSync();
     }
   }
 
@@ -537,7 +569,7 @@ function ConcertWorkspace({
   function navigateWithinConcert(next: ConcertRoute) {
     if ((next === 'scanner' || next === 'guestlist') && !gate.trim()) {
       setScreen('overview');
-      Alert.alert('Chưa xác nhận cổng', 'Nhập cổng đang làm việc trong mục Tổng quan.');
+      setGateError('Nhập cổng đang làm việc trước khi quét.');
       return;
     }
     if (gate.trim() && gate.trim() !== savedGate) {
@@ -604,7 +636,7 @@ function ConcertWorkspace({
         isOnline={isOnline}
         checkingInGuestId={guestCheckinId}
         errorMessage={operationError}
-        onBack={() => setScreen('overview')}
+        onBack={() => navigateWithinConcert('overview')}
         onCheckInGuest={handleCheckInGuest}
       />
     );
@@ -616,12 +648,16 @@ function ConcertWorkspace({
         datasetInfo={selectedDataset}
         counters={counters}
         gate={gate}
+        gateError={gateError}
         isOnline={isOnline}
         isDownloading={isDownloading}
         isSyncing={isSyncing}
         errorMessage={operationError ?? syncError}
         syncSummary={syncSummary}
-        onChangeGate={setGate}
+        onChangeGate={(value) => {
+          setGate(value);
+          setGateError(null);
+        }}
         onDownloadDataset={handleDownloadDataset}
         onSync={handleSync}
         onDownloadGuestList={handleDownloadGuestList}

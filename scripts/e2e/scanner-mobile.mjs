@@ -1,13 +1,20 @@
 import assert from 'node:assert/strict';
+import { mkdir } from 'node:fs/promises';
+import { join } from 'node:path';
 import { chromium } from 'playwright';
 import { scannerFixture } from './scanner-fixture.mjs';
 
 const baseURL = process.env.TICKETBOX_SCANNER_URL ?? 'http://localhost:8092';
 const viewport = { width: Number(process.env.TICKETBOX_SCANNER_WIDTH ?? '360'), height: 640 };
+const captureDir = process.env.TICKETBOX_SCANNER_CAPTURE_DIR;
 const browser = await chromium.launch();
 try {
   const page = await browser.newPage({ baseURL, viewport, reducedMotion: 'reduce' });
   page.setDefaultTimeout(10000);
+  if (captureDir) await mkdir(captureDir, { recursive: true });
+  async function capture(name) {
+    if (captureDir) await page.screenshot({ path: join(captureDir, `${name}.png`) });
+  }
   let syncResponse = 'normal';
   let historyUnavailable = false;
   let submitted = 0;
@@ -47,12 +54,16 @@ try {
   await page.getByPlaceholder('Mật khẩu', { exact: true }).fill('fixture-password');
   await page.getByText('Đăng nhập', { exact: true }).click();
   await page.getByText('Đêm nhạc Sài Gòn', { exact: true }).click();
+  await page.getByRole('button', { name: 'Bắt đầu quét' }).click();
+  await page.getByText('Nhập cổng đang làm việc trước khi quét.', { exact: true }).waitFor();
+  assert.equal(submitted, 0);
   await page.getByPlaceholder('A, B, VIP...').fill('A');
   await page.getByRole('button', { name: 'Tải dữ liệu vé', exact: true }).click();
   await page.getByRole('button', { name: 'Cập nhật dữ liệu vé', exact: true }).waitFor();
   await page.getByRole('button', { name: 'Bắt đầu quét' }).click();
   await page.getByRole('button', { name: 'Mở menu' }).click({ timeout: 6000 });
   await page.getByRole('button', { name: 'Đóng menu', exact: true }).waitFor();
+  await capture('drawer');
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Đóng menu', exact: true }).waitFor({ state: 'hidden' });
   await page.getByRole('button', { name: 'Mở menu' }).focus();
@@ -70,6 +81,7 @@ try {
   await submit('TB-DENIED', 'Không có quyền soát vé');
   await submit('TB-EXPIRED', 'Phiên đăng nhập hết hạn');
   await submit('TB-PENDING', 'Chờ xác nhận');
+  await capture('pending');
   assert.equal(await page.getByText('Cho phép vào cổng', { exact: true }).count(), 0);
   await submit('TB-CONFLICT', 'Chờ xác nhận');
   await submit('TB-CONFLICT', 'Mã đã quét trên thiết bị');
@@ -77,7 +89,7 @@ try {
   historyUnavailable = true;
   await page.getByRole('button', { name: 'Xem tất cả' }).click();
   await page.getByRole('button', { name: 'Tải lại lịch sử' }).waitFor();
-  await page.getByText('Dữ liệu trên thiết bị', { exact: true }).count();
+  assert.match(await page.getByText(/Thiết bị và|Dữ liệu trên thiết bị/).first().textContent(), /[Tt]hiết bị/);
   historyUnavailable = false;
   await page.getByRole('button', { name: 'Tải lại lịch sử' }).click();
   await page.getByRole('button', { name: 'Tải lại lịch sử' }).waitFor({ state: 'hidden' });
@@ -96,6 +108,7 @@ try {
   assert.equal(await page.getByText('Đã xác nhận', { exact: true }).count(), 3);
   await page.getByRole('button', { name: 'Lỗi', exact: true }).click();
   await page.getByText('Xung đột đồng bộ', { exact: true }).waitFor();
+  await capture('history');
   await page.getByRole('textbox', { name: 'Tìm trong lịch sử' }).fill('unknown');
   await page.getByText('Không có lượt nào khớp', { exact: true }).waitFor();
   await page.getByRole('tab', { name: 'Quét vé' }).click();

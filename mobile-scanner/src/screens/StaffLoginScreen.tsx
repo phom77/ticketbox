@@ -3,6 +3,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -37,7 +38,7 @@ export function StaffLoginScreen({
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardView}
       >
-        <View style={styles.content}>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <View style={styles.header}>
             <Text style={styles.kicker}>TicketBox Scanner</Text>
             <Text style={styles.title}>Đăng nhập nhân viên</Text>
@@ -47,6 +48,7 @@ export function StaffLoginScreen({
             <View style={styles.field}>
               <Text style={styles.label}>Email</Text>
               <TextInput
+                accessibilityLabel="Email"
                 autoCapitalize="none"
                 autoComplete="email"
                 editable={!isSubmitting}
@@ -66,6 +68,7 @@ export function StaffLoginScreen({
                 autoCapitalize="none"
                 editable={!isSubmitting}
                 onChangeText={onChangePassword}
+                accessibilityLabel="Mật khẩu"
                 placeholder="Mật khẩu"
                 placeholderTextColor="#7a8991"
                 secureTextEntry
@@ -77,6 +80,9 @@ export function StaffLoginScreen({
             {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
 
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Đăng nhập"
+              accessibilityState={{ disabled: isSubmitting, busy: isSubmitting }}
               disabled={isSubmitting}
               onPress={onSubmit}
               style={({ pressed }) => [
@@ -91,7 +97,7 @@ export function StaffLoginScreen({
               )}
             </Pressable>
           </View>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -106,7 +112,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    flex: 1,
+    flexGrow: 1,
     justifyContent: 'center',
     gap: 24,
     padding: 20,

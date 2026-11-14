@@ -5,3 +5,4 @@ export { ConcertOverviewScreen } from './ConcertOverviewScreen';
 export { ScannerHomeScreen } from './ScannerHomeScreen';
 export { StaffLoginScreen } from './StaffLoginScreen';
 export { GuestListScreen } from './GuestListScreen';
+export { ScanHistoryScreen } from './ScanHistoryScreen';

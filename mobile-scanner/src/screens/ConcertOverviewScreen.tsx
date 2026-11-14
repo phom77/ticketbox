@@ -17,6 +17,7 @@ type Props = {
   datasetInfo: DatasetInfo;
   counters: LogStatusCounts;
   gate: string;
+  gateError: string | null;
   isOnline: boolean;
   isDownloading: boolean;
   isSyncing: boolean;
@@ -60,6 +61,7 @@ export function ConcertOverviewScreen(props: Props) {
           style={styles.input}
           value={props.gate}
         />
+        {props.gateError ? <ErrorBanner message={props.gateError} /> : null}
       </View>
 
       <View style={styles.metrics}>
