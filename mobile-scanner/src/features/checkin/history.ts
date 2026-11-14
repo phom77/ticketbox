@@ -9,7 +9,6 @@ export type HistoryEntry = {
   gate: string | null;
   checkedAt: string;
   status: 'confirmed' | 'pending' | 'conflict' | 'failed';
-  reason?: string;
   source: 'device' | 'server';
 };
 
@@ -43,7 +42,6 @@ export function mergeHistory(
       gate: entry.gate,
       checkedAt: entry.checkedAt,
       status: localAdmissionStatus[entry.status],
-      reason: entry.syncReason ?? undefined,
       source: 'device',
     });
   }

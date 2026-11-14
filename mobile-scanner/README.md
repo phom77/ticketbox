@@ -24,6 +24,10 @@ Copy `.env.example` to `.env` to configure the API:
 
 For a physical device, bind the gateway to the LAN using `APP_BIND_ADDRESS=0.0.0.0` in the root `.env`, set `APP_PUBLIC_URL` to that address and recreate the gateway. Use a trusted local network. Public Expo variables are embedded in the client and must not contain credentials or tokens. Restart Expo after configuration changes.
 
+## Interface language
+
+Use the language selector on sign-in, event selection, or in the scanner menu. Vietnamese is the default. The selection applies immediately and is stored per device, including across sign-out. Event and guest details are shown as supplied. To verify switching and persistence in Chromium, run `node scripts/e2e/scanner-language.mjs` against the web app as described below.
+
 ## At the gate
 
 1. Sign in, select an event, and confirm the gate in Tổng quan. Download the event's ticket data if you expect interruptions.

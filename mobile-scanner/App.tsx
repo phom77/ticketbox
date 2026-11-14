@@ -60,6 +60,7 @@ import {
   StaffLoginScreen,
 } from './src/screens';
 import { ConcertShell, type ConcertRoute } from './src/ui/ConcertShell';
+import { ScannerLanguageProvider, useScannerLanguage, type MessageKey } from './src/i18n';
 
 type Session = { accessToken: string; user: StaffUser };
 
@@ -69,12 +70,15 @@ const SELECTED_GATE_KEY = 'scanner:selectedGate';
 export default function App() {
   return (
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-      <ScannerApp />
+      <ScannerLanguageProvider fallback={<BootScreen />}>
+        <ScannerApp />
+      </ScannerLanguageProvider>
     </SafeAreaProvider>
   );
 }
 
 function ScannerApp() {
+  const { t } = useScannerLanguage();
   const [session, setSession] = useState<Session | null>(null);
   const [isBooting, setIsBooting] = useState(true);
   const [isOnline, setIsOnline] = useState(false);
@@ -84,13 +88,13 @@ function ScannerApp() {
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const authPending = useRef(false);
-  const [loginError, setLoginError] = useState<string | null>(null);
+  const [loginError, setLoginError] = useState<MessageKey | null>(null);
 
   const [concerts, setConcerts] = useState<StaffConcert[]>([]);
   const [selectedConcert, setSelectedConcert] = useState<StaffConcert | null>(null);
   const [datasetInfo, setDatasetInfo] = useState<Record<string, DatasetInfo>>({});
   const [isLoadingConcerts, setIsLoadingConcerts] = useState(false);
-  const [concertError, setConcertError] = useState<string | null>(null);
+  const [concertError, setConcertError] = useState<MessageKey | null>(null);
   const [initialGate, setInitialGate] = useState('');
   const scanPending = useRef(false);
   const syncPending = useRef(false);
@@ -124,7 +128,7 @@ function ScannerApp() {
           await logoutStaff();
         }
       } catch {
-        if (mounted) setLoginError('Không thể mở phiên đã lưu. Vui lòng đăng nhập lại.');
+        if (mounted) setLoginError('restoreError');
       } finally {
         if (mounted) setIsBooting(false);
       }
@@ -145,7 +149,7 @@ function ScannerApp() {
   async function handleLogin() {
     if (authPending.current) return;
     if (!email.trim() || !password) {
-      setLoginError('Nhập email và mật khẩu STAFF.');
+      setLoginError('credentials');
       return;
     }
     authPending.current = true;
@@ -156,7 +160,7 @@ function ScannerApp() {
       setSession({ accessToken: response.accessToken, user: response.user });
       setPassword('');
     } catch (error) {
-      setLoginError(toErrorMessage(error));
+      setLoginError(toErrorKey(error, 'loginFailed'));
     } finally {
       authPending.current = false;
       setIsSubmitting(false);
@@ -176,7 +180,7 @@ function ScannerApp() {
     try {
       await logoutStaff();
     } catch {
-      setLoginError('Chưa thể xóa phiên đã lưu. Vui lòng thử lại.');
+      setLoginError('logoutError');
     } finally {
       authPending.current = false;
       setIsSubmitting(false);
@@ -204,7 +208,7 @@ function ScannerApp() {
         await loadDatasetInfo(page.content, request);
       }
     } catch (error) {
-      if (request === concertLoad.current) setConcertError(toErrorMessage(error));
+      if (request === concertLoad.current) setConcertError(toErrorKey(error));
     } finally {
       if (request === concertLoad.current) setIsLoadingConcerts(false);
     }
@@ -231,7 +235,7 @@ function ScannerApp() {
         await setMetadata(SELECTED_CONCERT_KEY, concertId);
         if (gate) await setMetadata(SELECTED_GATE_KEY, gate);
       })
-      .catch(() => Alert.alert('Không thể lưu cổng', 'Vui lòng xác nhận lại cổng khi mở ứng dụng.'));
+      .catch(() => Alert.alert(t('gateSaveError'), t('gateSaveHint')));
   }
 
   if (isBooting) return <BootScreen />;
@@ -241,7 +245,7 @@ function ScannerApp() {
       <StaffLoginScreen
         email={email}
         password={password}
-        errorMessage={loginError}
+        errorMessage={loginError ? t(loginError) : null}
         isSubmitting={isSubmitting}
         onChangeEmail={setEmail}
         onChangePassword={setPassword}
@@ -258,7 +262,7 @@ function ScannerApp() {
         datasetInfo={datasetInfo}
         isLoading={isLoadingConcerts}
         isOnline={isOnline}
-        errorMessage={concertError}
+        errorMessage={concertError ? t(concertError) : null}
         onRefresh={loadConcerts}
         onSelectConcert={handleSelectConcert}
         onLogout={handleLogout}
@@ -303,6 +307,7 @@ function ConcertWorkspace({
   onChangeEvent: () => void;
   onLogout: () => void;
 }) {
+  const { t } = useScannerLanguage();
   const [screen, setScreen] = useState<ConcertRoute>('overview');
   const [menuOpen, setMenuOpen] = useState(false);
   const [overview, setOverview] = useState<StaffConcertOverview | null>(null);
@@ -311,7 +316,7 @@ function ConcertWorkspace({
   const [selectedDataset, setSelectedDataset] = useState(
     initialDataset ?? { downloadedAt: null, totalCount: 0 },
   );
-  const [syncError, setSyncError] = useState<string | null>(null);
+  const [syncError, setSyncError] = useState<MessageKey | null>(null);
   const syncOnReconnect = useRef(false);
   const previousConnection = useRef(isOnline);
 
@@ -324,8 +329,8 @@ function ConcertWorkspace({
   const [isDownloading, setIsDownloading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncSummary, setSyncSummary] = useState<PendingSyncSummary | null>(null);
-  const [operationError, setOperationError] = useState<string | null>(null);
-  const [gateError, setGateError] = useState<string | null>(null);
+  const [operationError, setOperationError] = useState<MessageKey | null>(null);
+  const [gateError, setGateError] = useState<MessageKey | null>(null);
 
   const [localTickets, setLocalTickets] = useState<LocalTicketListItem[]>([]);
   const [localTicketIndex, setLocalTicketIndex] = useState<Pick<LocalTicketListItem, 'qrCode' | 'ticketId'>[]>([]);
@@ -334,9 +339,9 @@ function ConcertWorkspace({
   const [serverHistory, setServerHistory] = useState<ServerCheckinHistory[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [isLoadingTickets, setIsLoadingTickets] = useState(false);
-  const [ticketsError, setTicketsError] = useState<string | null>(null);
+  const [ticketsError, setTicketsError] = useState<MessageKey | null>(null);
   const [serverTotal, setServerTotal] = useState<number | null>(null);
-  const [dataError, setDataError] = useState<string | null>(null);
+  const [dataError, setDataError] = useState<MessageKey | null>(null);
   const historyRequest = useRef(0);
   const ticketsRequest = useRef(0);
   const localActivityRequest = useRef(0);
@@ -363,7 +368,7 @@ function ConcertWorkspace({
     void Promise.all([
       refreshLocalActivity(),
       loadLocalTicketIndex(),
-    ]).catch(() => setDataError('Không thể đọc lịch sử trên thiết bị.'));
+    ]).catch(() => setDataError('readHistoryError'));
     return () => { syncOnReconnect.current = false; };
   }, []);
 
@@ -388,7 +393,7 @@ function ConcertWorkspace({
         if (error.unreachable) setAuthority('unreachable');
         else if (error.status) setAuthority('reachable');
       }
-      setOperationError(toErrorMessage(error));
+      setOperationError(toErrorKey(error));
     }
   }
 
@@ -404,7 +409,7 @@ function ConcertWorkspace({
       });
       await Promise.all([refreshSelectedConcert(), loadLocalTicketIndex()]);
     } catch (error) {
-      setOperationError(toErrorMessage(error));
+      setOperationError(toErrorKey(error));
     } finally {
       setIsDownloading(false);
     }
@@ -418,7 +423,7 @@ function ConcertWorkspace({
       const response = await getStaffGuestList(selectedConcert.id, session.accessToken);
       setGuestList(response);
     } catch (error) {
-      setOperationError(toErrorMessage(error));
+      setOperationError(toErrorKey(error));
     } finally {
       setIsDownloadingGuestList(false);
     }
@@ -438,7 +443,7 @@ function ConcertWorkspace({
         current.map((item) => (item.guestId === updatedGuest.guestId ? updatedGuest : item)),
       );
     } catch (error) {
-      setOperationError(toErrorMessage(error));
+      setOperationError(toErrorKey(error));
     } finally {
       setGuestCheckinId(null);
     }
@@ -463,7 +468,7 @@ function ConcertWorkspace({
       setCheckinResult(outcome.result);
       if (outcome.inserted || outcome.result.status === 'ONLINE_ACCEPTED') {
         setQrCode('');
-        void refreshLocalActivity().catch(() => setDataError('Không thể đọc lịch sử trên thiết bị.'));
+        void refreshLocalActivity().catch(() => setDataError('readHistoryError'));
         if (outcome.result.status === 'ONLINE_ACCEPTED' && !outcome.inserted) void loadHistory();
       }
     } catch (error) {
@@ -471,9 +476,9 @@ function ConcertWorkspace({
       if (status) setAuthority('reachable');
       setCheckinResult({
         status: status === 401 ? 'UNAUTHENTICATED' : status === 403 ? 'FORBIDDEN' : 'ERROR',
-        message: status === 401 ? 'Đăng nhập lại để tiếp tục soát vé.'
-          : status === 403 ? 'Liên hệ người phụ trách sự kiện để kiểm tra quyền.'
-            : 'Thử lại hoặc kiểm tra kết nối đến Check-in.',
+        message: status === 401 ? 'signInAgain'
+          : status === 403 ? 'contactOrganizer'
+            : 'tryCheckin',
         qrCode: value.trim(),
       });
     } finally {
@@ -518,7 +523,7 @@ function ConcertWorkspace({
         if (error.unreachable) setAuthority('unreachable');
         else if (error.status) setAuthority('reachable');
       }
-      setSyncError(checkinErrorMessage(error, 'đồng bộ'));
+      setSyncError(toErrorKey(error, 'historySyncError'));
       // A batch can have updated some local rows before it failed.
       await refreshLocalActivity().catch(() => undefined);
     } finally {
@@ -541,7 +546,7 @@ function ConcertWorkspace({
         setServerTotal(result.totalElements);
       }
     } catch (error) {
-      if (request === historyRequest.current) setDataError(checkinErrorMessage(error, 'tải lịch sử'));
+      if (request === historyRequest.current) setDataError(toErrorKey(error, 'historyLoadError'));
     } finally {
       if (request === historyRequest.current) setIsLoadingData(false);
     }
@@ -560,7 +565,7 @@ function ConcertWorkspace({
         if (request === ticketsRequest.current) setServerTickets(result.content);
       }
     } catch (error) {
-      if (request === ticketsRequest.current) setTicketsError(checkinErrorMessage(error, 'tải danh sách vé'));
+      if (request === ticketsRequest.current) setTicketsError(toErrorKey(error, 'ticketLoadError'));
     } finally {
       if (request === ticketsRequest.current) setIsLoadingTickets(false);
     }
@@ -569,7 +574,7 @@ function ConcertWorkspace({
   function navigateWithinConcert(next: ConcertRoute) {
     if ((next === 'scanner' || next === 'guestlist') && !gate.trim()) {
       setScreen('overview');
-      setGateError('Nhập cổng đang làm việc trước khi quét.');
+      setGateError('gateRequired');
       return;
     }
     if (gate.trim() && gate.trim() !== savedGate) {
@@ -605,10 +610,10 @@ function ConcertWorkspace({
         entries={history}
         serverTotal={serverTotal}
         isLoading={isLoadingData}
-        errorMessage={dataError}
+        errorMessage={dataError ? t(dataError) : null}
         pending={counters.PENDING}
         syncing={isSyncing}
-        syncError={syncError}
+        syncError={syncError ? t(syncError) : null}
         syncSummary={syncSummary}
         onReload={loadHistory}
         onSync={handleSync}
@@ -622,7 +627,7 @@ function ConcertWorkspace({
         serverTickets={serverTickets}
         isOnline={isOnline}
         isLoading={isLoadingTickets}
-        errorMessage={ticketsError}
+        errorMessage={ticketsError ? t(ticketsError) : null}
         onRefresh={loadTickets}
       />
     );
@@ -634,7 +639,7 @@ function ConcertWorkspace({
         gate={gate}
         isOnline={isOnline}
         checkingInGuestId={guestCheckinId}
-        errorMessage={operationError}
+        errorMessage={operationError ? t(operationError) : null}
         onBack={() => navigateWithinConcert('overview')}
         onCheckInGuest={handleCheckInGuest}
       />
@@ -647,11 +652,11 @@ function ConcertWorkspace({
         datasetInfo={selectedDataset}
         counters={counters}
         gate={gate}
-        gateError={gateError}
+        gateError={gateError ? t(gateError) : null}
         isOnline={isOnline}
         isDownloading={isDownloading}
         isSyncing={isSyncing}
-        errorMessage={operationError ?? syncError}
+        errorMessage={operationError ? t(operationError) : syncError ? t(syncError) : null}
         syncSummary={syncSummary}
         onChangeGate={(value) => {
           setGate(value);
@@ -678,7 +683,7 @@ function ConcertWorkspace({
       hasGuests={guestList.length > 0}
       pending={counters.PENDING}
       syncing={isSyncing}
-      syncError={syncError}
+      syncError={syncError ? t(syncError) : null}
       onMenuChange={setMenuOpen}
       onNavigate={navigateWithinConcert}
       onChangeEvent={onChangeEvent}
@@ -690,16 +695,11 @@ function ConcertWorkspace({
   );
 }
 
-function toErrorMessage(error: unknown) {
-  if (error instanceof ApiClientError || error instanceof Error) return error.message;
-  return 'Có lỗi xảy ra. Vui lòng thử lại.';
-}
-
-function checkinErrorMessage(error: unknown, action: string) {
+function toErrorKey(error: unknown, fallback: MessageKey = 'genericError'): MessageKey {
   if (error instanceof ApiClientError) {
-    if (error.status === 401) return 'Phiên đăng nhập hết hạn. Đăng nhập lại để tiếp tục.';
-    if (error.status === 403) return `Không có quyền ${action}. Liên hệ người phụ trách sự kiện.`;
-    if (error.unreachable) return 'Không kết nối được với Check-in. Kiểm tra mạng rồi thử lại.';
+    if (error.status === 401 && fallback !== 'loginFailed') return 'expiredHint';
+    if (error.status === 403) return fallback === 'loginFailed' ? 'staffOnly' : 'operationForbidden';
+    if (error.unreachable) return 'authorityHint';
   }
-  return `Không thể ${action}. Vui lòng thử lại.`;
+  return fallback;
 }

@@ -11,6 +11,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useScannerLanguage } from '../i18n';
+import { LanguageSelect } from '../ui/LanguageSelect';
 import { colors, radius } from '../ui/theme';
 
 type StaffLoginScreenProps = {
@@ -32,6 +34,7 @@ export function StaffLoginScreen({
   onChangePassword,
   onSubmit,
 }: StaffLoginScreenProps) {
+  const { t } = useScannerLanguage();
   return (
     <SafeAreaView style={styles.screen}>
       <KeyboardAvoidingView
@@ -41,9 +44,10 @@ export function StaffLoginScreen({
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <View style={styles.header}>
             <Text style={styles.kicker}>TicketBox Scanner</Text>
-            <Text style={styles.title}>Đăng nhập nhân viên</Text>
+            <Text style={styles.title}>{t('staffLogin')}</Text>
           </View>
 
+          <LanguageSelect />
           <View style={styles.form}>
             <View style={styles.field}>
               <Text style={styles.label}>Email</Text>
@@ -63,13 +67,13 @@ export function StaffLoginScreen({
             </View>
 
             <View style={styles.field}>
-              <Text style={styles.label}>Mật khẩu</Text>
+              <Text style={styles.label}>{t('password')}</Text>
               <TextInput
                 autoCapitalize="none"
                 editable={!isSubmitting}
                 onChangeText={onChangePassword}
-                accessibilityLabel="Mật khẩu"
-                placeholder="Mật khẩu"
+                accessibilityLabel={t('password')}
+                placeholder={t('password')}
                 placeholderTextColor="#7a8991"
                 secureTextEntry
                 style={styles.input}
@@ -81,7 +85,7 @@ export function StaffLoginScreen({
 
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Đăng nhập"
+              accessibilityLabel={t('login')}
               accessibilityState={{ disabled: isSubmitting, busy: isSubmitting }}
               disabled={isSubmitting}
               onPress={onSubmit}
@@ -93,7 +97,7 @@ export function StaffLoginScreen({
               {isSubmitting ? (
                 <ActivityIndicator color="#ffffff" />
               ) : (
-                <Text style={styles.primaryButtonText}>Đăng nhập</Text>
+                <Text style={styles.primaryButtonText}>{t('login')}</Text>
               )}
             </Pressable>
           </View>

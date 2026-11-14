@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 
+import { useScannerLanguage, type MessageKey } from '../i18n';
 import type { StaffConcert, StaffTicket } from '../api';
 import type { LocalTicketListItem } from '../database';
 import { EmptyState, ErrorBanner, Header, SecondaryButton, StatusBadge } from '../ui/components';
@@ -26,6 +27,7 @@ type Props = {
 };
 
 export function ConcertDataScreen(props: Props) {
+  const { t } = useScannerLanguage();
   const [query, setQuery] = useState('');
   const [ticketStatus, setTicketStatus] = useState<TicketStatusFilter>('ALL');
   const normalizedQuery = query.trim().toLowerCase();
@@ -51,13 +53,13 @@ export function ConcertDataScreen(props: Props) {
         <View style={styles.headerBlock}>
           <Header
             title={props.concert.title}
-            subtitle={props.isOnline ? 'Dữ liệu vé đã tải.' : 'Dữ liệu vé trên thiết bị.'}
+            subtitle={props.isOnline ? t('loadedTickets') : t('localTickets')}
           />
           <TextInput
-            accessibilityLabel="Tìm trong danh sách vé"
+            accessibilityLabel={t('ticketSearch')}
             autoCapitalize="none"
             onChangeText={setQuery}
-            placeholder="Tìm QR hoặc mã vé"
+            placeholder={t('searchCodes')}
             placeholderTextColor={colors.textMuted}
             style={styles.search}
             value={query}
@@ -71,7 +73,7 @@ export function ConcertDataScreen(props: Props) {
               <FilterChip
                 active={ticketStatus === filter.value}
                 key={filter.value}
-                label={filter.label}
+                label={t(filter.label)}
                 onPress={() => setTicketStatus(filter.value)}
               />
             ))}
@@ -79,22 +81,22 @@ export function ConcertDataScreen(props: Props) {
           {props.errorMessage ? (
             <>
               <ErrorBanner message={props.errorMessage} />
-              <SecondaryButton label="Tải lại danh sách vé" disabled={props.isLoading} onPress={props.onRefresh} />
+              <SecondaryButton label={t('reloadTickets')} disabled={props.isLoading} onPress={props.onRefresh} />
             </>
           ) : null}
           {props.isLoading ? (
             <View style={styles.loading}>
               <ActivityIndicator color={colors.accent} />
-              <Text style={styles.meta}>Đang làm mới dữ liệu...</Text>
+              <Text style={styles.meta}>{t('loadingTickets')}</Text>
             </View>
           ) : null}
         </View>
       }
       ListEmptyComponent={!props.isLoading ? (
         <EmptyState
-          title={query.trim() || ticketStatus !== 'ALL' ? 'Không có vé nào khớp' : 'Chưa có danh sách vé'}
+          title={query.trim() || ticketStatus !== 'ALL' ? t('noMatchingTickets') : t('noTickets')}
           message={query.trim() || ticketStatus !== 'ALL'
-            ? 'Đổi bộ lọc hoặc từ khóa tìm kiếm.' : 'Tải dữ liệu vé trong mục Tổng quan.'}
+            ? t('tryFilters') : t('downloadFromOverview')}
         />
       ) : null}
       renderItem={({ item }) => <TicketRow item={item} />}
@@ -106,12 +108,12 @@ export function ConcertDataScreen(props: Props) {
 
 type TicketStatusFilter = 'ALL' | 'VALID' | 'CHECKED_IN' | 'PENDING' | 'ERROR';
 
-const TICKET_STATUS_FILTERS: { label: string; value: TicketStatusFilter }[] = [
-  { label: 'Tất cả', value: 'ALL' },
-  { label: 'Hợp lệ', value: 'VALID' },
-  { label: 'Đã xác nhận', value: 'CHECKED_IN' },
-  { label: 'Chờ xác nhận', value: 'PENDING' },
-  { label: 'Lỗi', value: 'ERROR' },
+const TICKET_STATUS_FILTERS: { label: MessageKey; value: TicketStatusFilter }[] = [
+  { label: 'all', value: 'ALL' },
+  { label: 'valid', value: 'VALID' },
+  { label: 'confirmed', value: 'CHECKED_IN' },
+  { label: 'pending', value: 'PENDING' },
+  { label: 'error', value: 'ERROR' },
 ];
 
 function FilterChip({
@@ -149,35 +151,31 @@ function matchesTicketStatus(
 }
 
 function TicketRow({ item }: { item: LocalTicketListItem | StaffTicket }) {
+  const { t } = useScannerLanguage();
   const isLocal = 'checkinStatus' in item;
   const status = isLocal ? item.checkinStatus ?? 'VALID_LOCAL' : item.status;
   return (
     <View style={styles.row}>
       <View style={styles.rowCopy}>
-        <Text style={styles.code}>Mã vé {item.ticketId}</Text>
-        <Text style={styles.meta}>Loại vé {shortCode(item.ticketTypeId)}</Text>
+        <Text style={styles.code}>{t('ticketId', { value: item.ticketId })}</Text>
+        <Text style={styles.meta}>{t('ticketType', { value: item.ticketTypeId })}</Text>
       </View>
-      <StatusBadge label={ticketLabels[status]} tone={ticketTone(status)} />
+      <StatusBadge label={t(ticketLabels[status])} tone={ticketTone(status)} />
     </View>
   );
 }
 
 const ticketLabels = {
-  VALID: 'Hợp lệ', VALID_LOCAL: 'Có trong dữ liệu đã tải', USED: 'Vé đã dùng',
-  SYNCED: 'Đã xác nhận', PENDING: 'Chờ xác nhận', CONFLICT: 'Xung đột',
-  FAILED: 'Lỗi', CANCELLED: 'Đã hủy', TRANSFERRED: 'Đã chuyển nhượng',
-};
+  VALID: 'valid', VALID_LOCAL: 'cached', USED: 'used',
+  SYNCED: 'confirmed', PENDING: 'pending', CONFLICT: 'conflict',
+  FAILED: 'error', CANCELLED: 'cancelled', TRANSFERRED: 'transferred',
+} as const;
 
 function ticketTone(status: string): 'neutral' | 'success' | 'warning' | 'danger' {
   if (['USED', 'SYNCED', 'CHECKED_IN'].includes(status)) return 'success';
   if (['PENDING', 'CONFLICT'].includes(status)) return 'warning';
   if (['FAILED', 'CANCELLED', 'TRANSFERRED'].includes(status)) return 'danger';
   return 'neutral';
-}
-
-function shortCode(value: string) {
-  if (!value) return 'Không có QR';
-  return value.length > 28 ? `${value.slice(0, 14)}…${value.slice(-8)}` : value;
 }
 
 const styles = StyleSheet.create({

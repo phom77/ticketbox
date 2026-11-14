@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 
+import { formatDateTime, useScannerLanguage } from '../i18n';
 import type { StaffConcert, StaffGuestListEntry } from '../api';
 import { EmptyState, ErrorBanner, Header, SecondaryButton, StatusBadge } from '../ui/components';
 import { colors, radius, spacing } from '../ui/theme';
@@ -35,6 +36,7 @@ export function GuestListScreen({
   onBack,
   onCheckInGuest,
 }: Props) {
+  const { t, locale, number } = useScannerLanguage();
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<'ALL' | 'PENDING' | 'CHECKED_IN'>('ALL');
 
@@ -42,7 +44,7 @@ export function GuestListScreen({
   const pendingCount = guestList.length - checkedInCount;
 
   const filteredGuests = useMemo(() => {
-    const query = searchQuery.toLocaleLowerCase('vi').trim();
+    const query = searchQuery.toLocaleLowerCase(locale).trim();
     return guestList.filter((guest) => {
       const checkedIn = Boolean(guest.checkedInAt);
       const matchesFilter =
@@ -55,23 +57,23 @@ export function GuestListScreen({
         guest.category,
         guest.sponsorName,
         guest.notes,
-      ].filter(Boolean).join(' ').toLocaleLowerCase('vi');
+      ].filter(Boolean).join(' ').toLocaleLowerCase(locale);
       return matchesFilter && (!query || haystack.includes(query));
     });
-  }, [filter, guestList, searchQuery]);
+  }, [filter, guestList, locale, searchQuery]);
 
   function confirmCheckIn(guest: StaffGuestListEntry) {
     if (guest.checkedInAt) return;
     if (!isOnline) {
-      Alert.alert('Đang offline', 'Điểm danh khách mời cần kết nối mạng để cập nhật lên server.');
+      Alert.alert(t('deviceOffline'), t('guestNeedsNetwork'));
       return;
     }
     Alert.alert(
-      'Điểm danh khách mời',
-      `Xác nhận ${guest.fullName} vào cổng ${gate.trim()}?`,
+      t('guestCheckin'),
+      t('confirmGuest', { name: guest.fullName, gate: gate.trim() }),
       [
-        { text: 'Hủy', style: 'cancel' },
-        { text: 'Điểm danh', onPress: () => onCheckInGuest(guest) },
+        { text: t('cancel'), style: 'cancel' },
+        { text: t('guestAction'), onPress: () => onCheckInGuest(guest) },
       ],
     );
   }
@@ -84,40 +86,40 @@ export function GuestListScreen({
       ListHeaderComponent={
         <View style={styles.headerBlock}>
           <View style={styles.topActions}>
-            <SecondaryButton label="‹ Tổng quan" onPress={onBack} />
-            <StatusBadge label={isOnline ? 'Có kết nối mạng' : 'Mất kết nối mạng'} tone={isOnline ? 'neutral' : 'warning'} />
+            <SecondaryButton label={t('backOverview')} onPress={onBack} />
+            <StatusBadge label={isOnline ? t('connected') : t('disconnected')} tone={isOnline ? 'neutral' : 'warning'} />
           </View>
           <Header
             title={concert.title}
-            subtitle={`${guestList.length} khách mời · cổng ${gate.trim()}`}
+            subtitle={t('guestCount', { count: number(guestList.length), gate: gate.trim() })}
           />
           {errorMessage ? <ErrorBanner message={errorMessage} /> : null}
 
           <View style={styles.stats}>
-            <GuestMetric label="Chưa vào" value={pendingCount} tone="warning" />
-            <GuestMetric label="Đã vào" value={checkedInCount} tone="success" />
+            <GuestMetric label={t('guestNotAdmitted')} value={pendingCount} tone="warning" />
+            <GuestMetric label={t('guestAdmitted')} value={checkedInCount} tone="success" />
           </View>
 
           <TextInput
             autoCapitalize="none"
             style={styles.searchInput}
-            placeholder="Tìm tên, SĐT, hạng hoặc sponsor..."
+            placeholder={t('guestSearch')}
             placeholderTextColor={colors.textMuted}
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
 
           <View style={styles.filters}>
-            <FilterChip active={filter === 'ALL'} label="Tất cả" onPress={() => setFilter('ALL')} />
-            <FilterChip active={filter === 'PENDING'} label="Chưa vào" onPress={() => setFilter('PENDING')} />
-            <FilterChip active={filter === 'CHECKED_IN'} label="Đã vào" onPress={() => setFilter('CHECKED_IN')} />
+            <FilterChip active={filter === 'ALL'} label={t('all')} onPress={() => setFilter('ALL')} />
+            <FilterChip active={filter === 'PENDING'} label={t('guestNotAdmitted')} onPress={() => setFilter('PENDING')} />
+            <FilterChip active={filter === 'CHECKED_IN'} label={t('guestAdmitted')} onPress={() => setFilter('CHECKED_IN')} />
           </View>
         </View>
       }
       ListEmptyComponent={
         <EmptyState
-          title="Không có khách mời"
-          message="Đổi bộ lọc hoặc tải lại danh sách khách mời từ màn Tổng quan."
+          title={t('noGuests')}
+          message={t('guestEmpty')}
         />
       }
       renderItem={({ item }) => {
@@ -140,14 +142,14 @@ export function GuestListScreen({
                 <Text style={styles.guestPhone}>{item.phone}</Text>
               </View>
               <StatusBadge
-                label={checkedIn ? 'Đã vào' : 'Chờ điểm danh'}
+                label={checkedIn ? t('guestAdmitted') : t('guestPending')}
                 tone={checkedIn ? 'success' : 'warning'}
               />
             </View>
 
             <View style={styles.metaGrid}>
-              <Meta label="Hạng" value={item.category || 'Khách mời'} />
-              <Meta label="Đơn vị mời" value={item.sponsorName || 'Không ghi'} />
+              <Meta label={t('category')} value={item.category || t('guests')} />
+              <Meta label={t('sponsor')} value={item.sponsorName || t('unspecified')} />
             </View>
 
             {item.notes ? <Text style={styles.notes}>{item.notes}</Text> : null}
@@ -155,17 +157,17 @@ export function GuestListScreen({
             <View style={styles.footerRow}>
               <Text style={styles.checkinMeta}>
                 {checkedIn
-                  ? `${formatDateTime(item.checkedInAt!)} · ${item.checkinGate || 'VIP'}`
+                  ? `${formatDateTime(item.checkedInAt!, locale)} · ${item.checkinGate || 'VIP'}`
                   : isOnline
-                    ? `Sẵn sàng điểm danh tại cổng ${gate.trim()}`
-                    : 'Cần online để điểm danh khách mời'}
+                    ? t('guestReady', { gate: gate.trim() })
+                    : t('guestOffline')}
               </Text>
               <View style={[styles.checkInButton, checkedIn && styles.checkInButtonDone]}>
                 {isLoading ? (
                   <ActivityIndicator color="#FFFFFF" size="small" />
                 ) : (
                   <Text style={[styles.checkInButtonText, checkedIn && styles.checkInButtonDoneText]}>
-                    {checkedIn ? 'Hoàn tất' : isOnline ? 'Điểm danh' : 'Offline'}
+                    {checkedIn ? t('done') : isOnline ? t('guestAction') : t('offline')}
                   </Text>
                 )}
               </View>
@@ -178,9 +180,10 @@ export function GuestListScreen({
 }
 
 function GuestMetric({ label, value, tone }: { label: string; value: number; tone: 'success' | 'warning' }) {
+  const { number } = useScannerLanguage();
   return (
     <View style={styles.metric}>
-      <Text style={[styles.metricValue, tone === 'success' ? styles.successText : styles.warningText]}>{value}</Text>
+      <Text style={[styles.metricValue, tone === 'success' ? styles.successText : styles.warningText]}>{number(value)}</Text>
       <Text style={styles.metricLabel}>{label}</Text>
     </View>
   );
@@ -201,15 +204,6 @@ function Meta({ label, value }: { label: string; value: string }) {
       <Text numberOfLines={1} style={styles.metaValue}>{value}</Text>
     </View>
   );
-}
-
-function formatDateTime(value: string) {
-  return new Date(value).toLocaleString('vi-VN', {
-    hour: '2-digit',
-    minute: '2-digit',
-    day: '2-digit',
-    month: '2-digit',
-  });
 }
 
 const styles = StyleSheet.create({

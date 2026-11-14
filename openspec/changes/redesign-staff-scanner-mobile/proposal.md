@@ -20,5 +20,5 @@ Nhân viên cần nhìn thấy sự kiện, cổng và quyết định soát vé
 
 ## Impact
 
-- Phạm vi triển khai nằm trong [ứng dụng Expo React Native hiện tại](../../../mobile-scanner/README.md). Giao diện dùng nội dung tiếng Việt như các mẫu và giữ các mã trạng thái giao tiếp hiện hành.
+- Phạm vi triển khai nằm trong [ứng dụng Expo React Native hiện tại](../../../mobile-scanner/README.md). Giao diện hỗ trợ Tiếng Việt và English, cho phép nhân viên chọn và lưu ngôn ngữ trên thiết bị. Các mã trạng thái giao tiếp giữ nguyên.
 - Việc phân công theo sự kiện hoặc ca, cấp lại quyền trên API và triển khai tại cổng thuộc đợt scanner trong [roadmap A1 và A5](../../../docs/superpowers/plans/2026-11-11-ticketbox-production-roadmap.md). [Quy tắc chặn API staff toàn cục](../organizer-identity-and-access/specs/scoped-admission-access/spec.md) tiếp tục áp dụng. Dùng dữ liệu mô phỏng trong môi trường phát triển để nghiệm thu luồng UI khi các tuyến staff đang bị chặn.

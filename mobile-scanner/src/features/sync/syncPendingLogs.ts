@@ -24,11 +24,11 @@ export async function syncPendingLogs({
   const selectedDeviceId = deviceId.trim();
 
   if (!selectedConcertId) {
-    throw new Error('Chọn concert trước khi đồng bộ.');
+    throw new Error('Missing event ID for sync');
   }
 
   if (!selectedDeviceId) {
-    throw new Error('Thiết bị chưa có mã định danh để đồng bộ.');
+    throw new Error('Missing device ID for sync');
   }
 
   const pendingLogs = await listPendingLogs(selectedConcertId, MAX_SYNC_BATCH_SIZE);

@@ -12,6 +12,7 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { MaterialIcons } from '@expo/vector-icons';
 
+import { formatDateTime, useScannerLanguage } from '../i18n';
 import type { StaffConcert, StaffUser } from '../api';
 import type { DatasetInfo } from '../database';
 import {
@@ -22,6 +23,7 @@ import {
   SecondaryButton,
   StatusBadge,
 } from '../ui/components';
+import { LanguageSelect } from '../ui/LanguageSelect';
 import { colors, radius, spacing } from '../ui/theme';
 
 type Props = {
@@ -47,6 +49,7 @@ export function ConcertListScreen({
   onSelectConcert,
   onLogout,
 }: Props) {
+  const { t, locale, number } = useScannerLanguage();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchDate, setSearchDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -74,22 +77,23 @@ export function ConcertListScreen({
         ListHeaderComponent={
           <View style={styles.headerBlock}>
             <Header
-              title="Chọn sự kiện"
-              subtitle={`Xin chào ${user.fullName}. Chọn sự kiện trước khi tải dữ liệu và quét vé.`}
+              title={t('selectEvent')}
+              subtitle={t('welcome', { name: user.fullName })}
               right={
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <StatusBadge label={isOnline ? 'Có kết nối mạng' : 'Mất kết nối mạng'} tone={isOnline ? 'neutral' : 'warning'} />
-                  <Pressable accessibilityRole="button" accessibilityLabel="Đăng xuất" onPress={onLogout} style={styles.iconButton}>
+                  <StatusBadge label={isOnline ? t('connected') : t('disconnected')} tone={isOnline ? 'neutral' : 'warning'} />
+                  <Pressable accessibilityRole="button" accessibilityLabel={t('logout')} onPress={onLogout} style={styles.iconButton}>
                     <MaterialIcons name="logout" size={24} color={colors.danger} />
                   </Pressable>
                 </View>
               }
             />
+            <LanguageSelect />
             {errorMessage ? <ErrorBanner message={errorMessage} /> : null}
             <View style={styles.filters}>
               <TextInput
                 style={styles.searchInput}
-                placeholder="Tìm tên sự kiện..."
+                placeholder={t('eventSearch')}
                 placeholderTextColor={colors.textMuted}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
@@ -97,11 +101,11 @@ export function ConcertListScreen({
               <Pressable accessibilityRole="button" style={styles.datePickerBtn} onPress={() => setShowDatePicker(true)}>
                 <MaterialIcons name="date-range" size={20} color={colors.accent} />
                 <Text style={styles.datePickerText}>
-                  {searchDate ? searchDate.toLocaleDateString('vi-VN') : 'Lọc theo ngày'}
+                  {searchDate ? searchDate.toLocaleDateString(locale) : t('filterDate')}
                 </Text>
               </Pressable>
               {searchDate ? (
-                <Pressable accessibilityRole="button" accessibilityLabel="Xóa bộ lọc ngày" style={styles.clearDateBtn} onPress={() => setSearchDate(null)}>
+                <Pressable accessibilityRole="button" accessibilityLabel={t('clearDate')} style={styles.clearDateBtn} onPress={() => setSearchDate(null)}>
                   <MaterialIcons name="close" size={16} color={colors.textMuted} />
                 </Pressable>
               ) : null}
@@ -123,15 +127,15 @@ export function ConcertListScreen({
           isLoading ? (
             <View style={styles.loading}>
               <ActivityIndicator color={colors.accent} />
-              <Text style={styles.muted}>Đang tải danh sách sự kiện...</Text>
+              <Text style={styles.muted}>{t('loadingEvents')}</Text>
             </View>
           ) : (
             <EmptyState
-              title="Chưa có sự kiện"
+              title={t('noEvents')}
               message={
                 isOnline
-                  ? 'Không có sự kiện đang mở bán để soát vé.'
-                  : 'Thiết bị chưa có sự kiện đã lưu. Hãy kết nối mạng và tải lại.'
+                  ? t('noOnSaleEvents')
+                  : t('noCachedEvents')
               }
             />
           )
@@ -145,17 +149,17 @@ export function ConcertListScreen({
               style={({ pressed }) => [styles.concertRow, pressed && styles.pressed]}
             >
               <View style={styles.dateBlock}>
-                <Text style={styles.dateDay}>{formatDay(item.eventDate)}</Text>
-                <Text style={styles.dateMonth}>{formatMonth(item.eventDate)}</Text>
+                <Text style={styles.dateDay}>{formatDay(item.eventDate, locale)}</Text>
+                <Text style={styles.dateMonth}>{formatMonth(item.eventDate, locale)}</Text>
               </View>
               <View style={styles.concertCopy}>
                 <Text numberOfLines={2} style={styles.concertTitle}>{item.title}</Text>
                 <Text numberOfLines={1} style={styles.meta}>{item.venueName}</Text>
-                <Text style={styles.meta}>{formatDateTime(item.eventDate)}</Text>
+                <Text style={styles.meta}>{formatDateTime(item.eventDate, locale)}</Text>
                 <View style={styles.badges}>
-                  <StatusBadge label={item.status} tone="success" />
+                  <StatusBadge label={t(eventStatusLabels[item.status])} tone="success" />
                   <StatusBadge
-                    label={localDataset?.downloadedAt ? `${localDataset.totalCount} vé đã tải` : 'Chưa tải dữ liệu'}
+                    label={localDataset?.downloadedAt ? t('ticketCount', { count: number(localDataset.totalCount) }) : t('noTicketData')}
                     tone={localDataset?.downloadedAt ? 'success' : 'neutral'}
                   />
                 </View>
@@ -169,22 +173,16 @@ export function ConcertListScreen({
   );
 }
 
-function formatDay(value: string) {
-  return new Date(value).toLocaleDateString('vi-VN', { day: '2-digit' });
+const eventStatusLabels = {
+  ON_SALE: 'onSale', SOLD_OUT: 'soldOut', COMPLETED: 'completed', CANCELLED: 'cancelled',
+} as const;
+
+function formatDay(value: string, locale: string) {
+  return new Date(value).toLocaleDateString(locale, { day: '2-digit' });
 }
 
-function formatMonth(value: string) {
-  return new Date(value).toLocaleDateString('vi-VN', { month: 'short' }).replace('.', '');
-}
-
-function formatDateTime(value: string) {
-  return new Date(value).toLocaleString('vi-VN', {
-    hour: '2-digit',
-    minute: '2-digit',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
+function formatMonth(value: string, locale: string) {
+  return new Date(value).toLocaleDateString(locale, { month: 'short' }).replace('.', '');
 }
 
 const styles = StyleSheet.create({

@@ -6,14 +6,16 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { LanguageSelect } from './LanguageSelect';
 import { Screen, SecondaryButton } from './components';
+import { useScannerLanguage, type MessageKey } from '../i18n';
 import { colors, radius, spacing } from './theme';
 
 export type ConcertRoute = 'overview' | 'scanner' | 'history' | 'data' | 'guestlist';
 
-const titles: Record<ConcertRoute, string> = {
-  overview: 'Tổng quan', scanner: 'Quét vé', history: 'Lịch sử quét',
-  data: 'Danh sách vé', guestlist: 'Khách mời',
+const titles: Record<ConcertRoute, MessageKey> = {
+  overview: 'overview', scanner: 'scan', history: 'history',
+  data: 'tickets', guestlist: 'guests',
 };
 
 type IconName = ComponentProps<typeof MaterialIcons>['name'];
@@ -37,6 +39,7 @@ type Props = {
 };
 
 export function ConcertShell(props: Props) {
+  const { t, number } = useScannerLanguage();
   const menuButton = useRef<View>(null);
   const closeButton = useRef<View>(null);
   const heading = useRef<View>(null);
@@ -102,7 +105,7 @@ export function ConcertShell(props: Props) {
           <Pressable
             ref={menuButton}
             accessibilityRole="button"
-            accessibilityLabel="Mở menu"
+            accessibilityLabel={t('menuOpen')}
             onPress={() => props.onMenuChange(true)}
             style={styles.iconButton}
           >
@@ -112,21 +115,21 @@ export function ConcertShell(props: Props) {
             ref={heading}
             accessible
             accessibilityRole="header"
-            accessibilityLabel={titles[props.screen]}
+            accessibilityLabel={t(titles[props.screen])}
             tabIndex={-1}
             style={styles.heading}
           >
-            <Text style={styles.title}>{titles[props.screen]}</Text>
+            <Text style={styles.title}>{t(titles[props.screen])}</Text>
           </View>
         </View>
         <View style={styles.workspace}>{props.children}</View>
         <View accessibilityRole="tablist" style={styles.tabs}>
           <NavTab
-            icon="qr-code-scanner" label="Quét vé" selected={props.screen === 'scanner'}
+            icon="qr-code-scanner" label={t('scan')} selected={props.screen === 'scanner'}
             onPress={() => props.onNavigate('scanner')}
           />
           <NavTab
-            icon="history" label="Lịch sử" selected={props.screen === 'history'}
+            icon="history" label={t('historyTab')} selected={props.screen === 'history'}
             onPress={() => props.onNavigate('history')}
           />
         </View>
@@ -155,7 +158,7 @@ export function ConcertShell(props: Props) {
                 <Pressable
                   ref={closeButton}
                   accessibilityRole="button"
-                  accessibilityLabel="Đóng menu"
+                  accessibilityLabel={t('menuClose')}
                   onPress={dismissMenu}
                   style={styles.iconButton}
                 >
@@ -165,21 +168,22 @@ export function ConcertShell(props: Props) {
               <View style={styles.context}>
                 <Text style={styles.muted}>{props.staffName}</Text>
                 <Text style={styles.event}>{props.eventTitle}</Text>
-                <Text style={styles.muted}>{props.gate.trim() ? `Cổng ${props.gate.trim()}` : 'Chưa xác nhận cổng'}</Text>
+                <Text style={styles.muted}>{props.gate.trim() ? t('gate', { value: props.gate.trim() }) : t('noGate')}</Text>
               </View>
-              <MenuItem icon="tune" label="Tổng quan và cổng" onPress={() => openRoute('overview')} />
-              <MenuItem icon="confirmation-number" label="Danh sách vé" onPress={() => openRoute('data')} />
+              <MenuItem icon="tune" label={t('overviewGate')} onPress={() => openRoute('overview')} />
+              <MenuItem icon="confirmation-number" label={t('tickets')} onPress={() => openRoute('data')} />
               {props.hasGuests ? (
-                <MenuItem icon="people-outline" label="Khách mời" onPress={() => openRoute('guestlist')} />
+                <MenuItem icon="people-outline" label={t('guests')} onPress={() => openRoute('guestlist')} />
               ) : null}
-              <MenuItem icon="event" label="Đổi sự kiện" onPress={props.onChangeEvent} />
-              <MenuItem icon="logout" label="Đăng xuất" onPress={props.onLogout} />
+              <MenuItem icon="event" label={t('changeEvent')} onPress={props.onChangeEvent} />
+              <MenuItem icon="logout" label={t('logout')} onPress={props.onLogout} />
+              <LanguageSelect />
             </ScrollView>
             <View style={styles.drawerFooter}>
-              <Text style={styles.event}>{props.pending} lượt chờ xác nhận</Text>
+              <Text style={styles.event}>{t('pendingCount', { count: number(props.pending) })}</Text>
               {props.syncError ? <Text role="alert" style={styles.error}>{props.syncError}</Text> : null}
               <SecondaryButton
-                label={props.syncing ? 'Đang đồng bộ…' : 'Đồng bộ dữ liệu'}
+                label={props.syncing ? t('syncing') : t('syncData')}
                 disabled={props.syncing || props.pending === 0}
                 onPress={props.onSync}
               />

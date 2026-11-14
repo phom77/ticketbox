@@ -8,14 +8,15 @@ import {
   getTicketByQrCode,
   insertLocalCheckinLog,
 } from '../../database';
-import type { LogStatusCounts } from '../../database';
-import { admissionStatus, localAdmissionStatus } from './status';
+import type { LocalCheckinStatus, LogStatusCounts } from '../../database';
+import type { MessageKey } from '../../i18n';
 
 export type ManualCheckinResult = {
   status:
     | 'PENDING' | 'INVALID_LOCAL' | 'DUPLICATE_LOCAL' | 'ONLINE_ACCEPTED' | 'ONLINE_FAILED'
     | 'UNAUTHENTICATED' | 'FORBIDDEN' | 'ERROR';
-  message: string;
+  message: MessageKey;
+  previousStatus?: LocalCheckinStatus;
   checkedAt?: string;
   qrCode: string;
 };
@@ -53,17 +54,17 @@ export async function performManualOfflineCheckin({
   const selectedGate = gate.trim();
 
   if (!selectedConcertId) {
-    return invalidResult('Chọn sự kiện trước khi soát vé.', selectedQrCode);
+    return invalidResult('selectEventForScan', selectedQrCode);
   }
 
   if (!selectedQrCode) {
-    return invalidResult('Nhập hoặc quét mã QR trước khi check-in.', selectedQrCode);
+    return invalidResult('codeRequired', selectedQrCode);
   }
 
   const ticket = await getTicketByQrCode(selectedConcertId, selectedQrCode);
 
   if (!ticket) {
-    return invalidResult('Thử lại khi kết nối được với Check-in. Có thể tải dữ liệu vé trong mục Tổng quan.', selectedQrCode);
+    return invalidResult('missingCodeHint', selectedQrCode);
   }
 
   const duplicate = await getLocalCheckinLogByQrCode(selectedConcertId, selectedQrCode);
@@ -73,7 +74,8 @@ export async function performManualOfflineCheckin({
       inserted: false,
       result: {
         status: 'DUPLICATE_LOCAL',
-        message: `Lượt trước: ${admissionStatus[localAdmissionStatus[duplicate.status]].label}.`,
+        message: 'previousScan',
+        previousStatus: duplicate.status,
         checkedAt: duplicate.checkedAt,
         qrCode: selectedQrCode,
       },
@@ -93,7 +95,7 @@ export async function performManualOfflineCheckin({
     inserted: true,
     result: {
       status: 'PENDING',
-      message: 'Đã lưu trên thiết bị. Đợi Check-in xác nhận trước khi cho khách vào.',
+      message: 'pendingHint',
       checkedAt,
       qrCode: selectedQrCode,
     },
@@ -112,15 +114,15 @@ export async function performOnlineCheckin({
   const selectedDeviceId = deviceId.trim();
 
   if (!selectedConcertId) {
-    return invalidResult('Chọn sự kiện trước khi soát vé.', selectedQrCode);
+    return invalidResult('selectEventForScan', selectedQrCode);
   }
 
   if (!selectedQrCode) {
-    return invalidResult('Nhập hoặc quét mã QR trước khi check-in.', selectedQrCode);
+    return invalidResult('codeRequired', selectedQrCode);
   }
 
   if (!selectedDeviceId) {
-    return invalidResult('Thiết bị chưa có mã định danh để check-in online.', selectedQrCode);
+    return invalidResult('deviceIdMissing', selectedQrCode);
   }
 
   let response;
@@ -157,7 +159,7 @@ export async function performOnlineCheckin({
         inserted: false,
         result: {
           status: 'ONLINE_ACCEPTED',
-          message: 'Check-in đã xác nhận. Thiết bị chưa lưu được lượt này vào lịch sử.',
+          message: 'admitStorageWarning',
           checkedAt: response.checkAt,
           qrCode: selectedQrCode,
         },
@@ -169,7 +171,7 @@ export async function performOnlineCheckin({
     inserted: accepted,
     result: {
       status: accepted ? 'ONLINE_ACCEPTED' : 'ONLINE_FAILED',
-      message: response.message,
+      message: accepted ? 'checkinConfirmed' : 'rejectedHint',
       checkedAt: response.checkAt,
       qrCode: selectedQrCode,
     },
@@ -186,7 +188,7 @@ export function loadCheckinCounters(concertId: string) {
   return countLogsByStatus(selectedConcertId);
 }
 
-function invalidResult(message: string, qrCode: string): ManualCheckinOutcome {
+function invalidResult(message: MessageKey, qrCode: string): ManualCheckinOutcome {
   return {
     inserted: false,
     result: {

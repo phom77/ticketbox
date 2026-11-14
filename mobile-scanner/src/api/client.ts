@@ -6,6 +6,7 @@ import axios, {
   type Method,
 } from 'axios';
 
+import { currentLanguage } from '../i18n/preference';
 import { getApiBaseUrl } from './config';
 import { getAccessToken } from './tokenStorage';
 import type { ApiFieldError, ApiResponse } from './types';
@@ -19,7 +20,6 @@ type JsonRequestOptions = {
 export const apiClient = axios.create({
   headers: {
     Accept: 'application/json',
-    'Accept-Language': 'vi',
     'Content-Type': 'application/json',
   },
 });
@@ -32,6 +32,7 @@ apiClient.interceptors.request.use(async (config: InternalAxiosRequestConfig) =>
   config.timeout = 8000;
 
   const headers = AxiosHeaders.from(config.headers);
+  headers.set('Accept-Language', currentLanguage());
   if (!headers.has('Authorization')) {
     const accessToken = await getAccessToken();
     if (accessToken) {

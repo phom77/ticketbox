@@ -23,9 +23,14 @@
 - [x] 4.1 Chạy `npm run typecheck` trong `mobile-scanner/` và `openspec validate redesign-staff-scanner-mobile --type change --strict`. Rà diff để xác nhận API, setting bảo mật của Check-in, hợp đồng HTTP và schema SQLite giữ nguyên.
 - [ ] 4.2 Chạy walkthrough trên Android cho toàn bộ luồng chọn sự kiện, xác nhận cổng, quét QR thật, nhập tay, mở menu, tra lịch sử và đồng bộ lại. Lưu bằng chứng với màn thấp, chữ lớn và TalkBack. Ghi riêng kết quả fixture và giới hạn nghiệm thu với API staff hiện hành.
 
+## 5. Ngôn ngữ giao diện
+
+- [x] 5.1 Dùng danh mục Tiếng Việt và English cho scanner. Kiểm tra đổi ngôn ngữ khi đang nhập và sau khi quét, nhớ lựa chọn khi đăng xuất hoặc tải lại, quản lý lượt chờ và gửi đúng `Accept-Language`. Chạy TypeScript, hồi quy Chromium và export Android.
+
 ## Kết quả kiểm tra
 
 - Chromium với fixture ở 320×640 và 360×640 đã đi qua chọn sự kiện, xác nhận cổng, nhập tay, cách ly phản hồi đến muộn, kết nối lại, lịch sử và đồng bộ. Camera ảo đọc QR một lần và dừng preview khi mở menu. Bài thử kết nối giả lập tín hiệu thiết bị mất mạng trong khi điểm cuối Check-in vẫn truy cập được.
 - SQLite cục bộ đọc được một file fixture tạo bằng schema bản cũ sau khi mở lại. Dữ liệu cổng và các lượt chờ được đọc đúng theo sự kiện. Phần SQLite qua Expo trên Android cần walkthrough.
 - Gradle `:scanner-hardware:compileDebugKotlin` đạt sau Expo prebuild trong thư mục tạm. Export bundle Android thành công. Fixture nằm ngoài app và các giá trị test không có trong bundle. Diff không thay đổi Check-in, cấu trúc dữ liệu API hoặc schema SQLite.
 - Android Emulator 36.3.10 và 37.2.13 gặp SIGSEGV khi boot trên máy kiểm tra. Các mục 1.3, 2.1, 3.3 và 4.2 còn bước xác nhận trên thiết bị hoặc emulator hoạt động, gồm Android Back, TalkBack, quyền camera, đèn pin, SQLite qua Expo và hướng dẫn fixture trên thiết bị.
+- Chromium xác nhận đổi ngôn ngữ khi đang nhập, cập nhật lỗi và lượt chờ đang hiển thị, `Accept-Language` theo lựa chọn, lưu qua đăng xuất và tải lại, và fallback về tiếng Việt. TypeScript, hồi quy ở 320/360 px và export Android đều đạt. Lưu lựa chọn qua SecureStore còn cần kiểm tra trên Android.

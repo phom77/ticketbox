@@ -7,11 +7,12 @@ import {
   Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View,
 } from 'react-native';
 
+import { useScannerLanguage } from '../i18n';
 import { SCAN_DUPLICATE_WINDOW_MS, type StaffConcert } from '../api';
 import type { ManualCheckinResult } from '../features/checkin';
 import type { HistoryEntry } from '../features/checkin/history';
 import { ScanHistoryRow } from '../ui/ScanHistoryRow';
-import { scanStatus } from '../features/checkin/status';
+import { admissionStatus, localAdmissionStatus, scanStatus } from '../features/checkin/status';
 import { PrimaryButton, SecondaryButton, StatusBadge } from '../ui/components';
 import { colors, radius, spacing } from '../ui/theme';
 
@@ -35,6 +36,7 @@ type Props = {
 };
 
 export function ScannerHomeScreen(props: Props) {
+  const { t } = useScannerLanguage();
   const [permission, requestPermission, getPermission] = useCameraPermissions({ get: false });
   const [manual, setManual] = useState(false);
   const [foreground, setForeground] = useState(AppState.currentState === 'active' || AppState.currentState == null);
@@ -136,27 +138,27 @@ export function ScannerHomeScreen(props: Props) {
       <View style={styles.event}>
         <View style={styles.eventCopy}>
           <Text style={styles.eventTitle}>{props.concert.title}</Text>
-          <Text style={styles.muted}>Cổng {props.gate.trim()}</Text>
+          <Text style={styles.muted}>{t('gate', { value: props.gate.trim() })}</Text>
         </View>
         <StatusBadge
-          label={props.authority === 'reachable' ? 'Đã kết nối Check-in'
-            : props.authority === 'unreachable' ? 'Mất kết nối Check-in' : 'Chưa xác minh kết nối'}
+          label={props.authority === 'reachable' ? t('connectedAuthority')
+            : props.authority === 'unreachable' ? t('unreachableAuthority') : t('unknownAuthority')}
           tone={props.authority === 'unreachable' ? 'warning' : 'neutral'}
         />
       </View>
 
       {manual ? (
         <View style={styles.manual}>
-          <Text style={styles.label}>Mã vé hoặc nội dung QR</Text>
+          <Text style={styles.label}>{t('ticketCode')}</Text>
           <TextInput
             ref={entry}
-            accessibilityLabel="Mã vé hoặc nội dung QR"
+            accessibilityLabel={t('ticketCode')}
             value={props.qrCode}
             onChangeText={props.onChangeQrCode}
             onSubmitEditing={() => {
               if (props.qrCode.trim() && !props.isCheckingIn) props.onCheckin();
             }}
-            placeholder="Nhập hoặc dán mã vé"
+            placeholder={t('enterCode')}
             placeholderTextColor={colors.textMuted}
             returnKeyType="go"
             autoCapitalize="none"
@@ -165,7 +167,7 @@ export function ScannerHomeScreen(props: Props) {
             style={styles.input}
           />
           <PrimaryButton
-            label="Soát vé" loading={props.isCheckingIn} disabled={!props.qrCode.trim()}
+            label={t('checkTicket')} loading={props.isCheckingIn} disabled={!props.qrCode.trim()}
             onPress={props.onCheckin}
           />
         </View>
@@ -187,7 +189,7 @@ export function ScannerHomeScreen(props: Props) {
               {cameraReady && hasTorch ? (
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={torch ? 'Tắt đèn pin' : 'Bật đèn pin'}
+                  accessibilityLabel={torch ? t('torchOff') : t('torchOn')}
                   accessibilityState={{ selected: torch }}
                   onPress={() => setTorch((enabled) => !enabled)}
                   style={styles.torch}
@@ -200,17 +202,17 @@ export function ScannerHomeScreen(props: Props) {
             <View style={styles.fallback}>
               <MaterialIcons name="videocam-off" size={30} color={colors.surface} />
               <Text style={styles.cameraLabel}>
-                {cameraError ? 'Không thể mở camera' : !permission ? 'Đang kiểm tra camera…'
-                  : permission.granted ? 'Camera tạm dừng' : 'Cần quyền camera để đọc mã QR'}
+                {cameraError ? t('cameraError') : !permission ? t('cameraChecking')
+                  : permission.granted ? t('cameraPaused') : t('cameraRequired')}
               </Text>
               {cameraError || (permission && !permission.granted && (permission.canAskAgain || Platform.OS !== 'web')) ? (
-                <SecondaryButton label={cameraError ? 'Thử mở lại camera'
-                  : permission?.canAskAgain ? 'Cho phép camera' : 'Mở cài đặt camera'} onPress={recoverCamera} />
+                <SecondaryButton label={cameraError ? t('cameraRetry')
+                  : permission?.canAskAgain ? t('cameraAllow') : t('cameraSettings')} onPress={recoverCamera} />
               ) : null}
             </View>
           )}
           {showCamera ? (
-            <Text style={styles.cameraHint}>{cameraReady ? 'Căn mã QR vào khung' : 'Đang mở camera…'}</Text>
+            <Text style={styles.cameraHint}>{cameraReady ? t('cameraAim') : t('cameraOpening')}</Text>
           ) : null}
         </View>
       )}
@@ -218,7 +220,7 @@ export function ScannerHomeScreen(props: Props) {
       {props.isCheckingIn ? (
         <View aria-live="polite" accessibilityLiveRegion="polite" style={styles.processing}>
           <ActivityIndicator color={colors.accent} />
-          <Text style={styles.label}>Đang kiểm tra vé…</Text>
+          <Text style={styles.label}>{t('checkingTicket')}</Text>
         </View>
       ) : feedback && props.result ? (
         <View
@@ -228,8 +230,10 @@ export function ScannerHomeScreen(props: Props) {
         >
           <MaterialIcons name={feedback.icon} size={24} color={resultColors[feedback.tone].text} />
           <View style={styles.eventCopy}>
-            <Text style={[styles.resultTitle, { color: resultColors[feedback.tone].text }]}>{feedback.label}</Text>
-            <Text style={styles.label}>{props.result.message}</Text>
+            <Text style={[styles.resultTitle, { color: resultColors[feedback.tone].text }]}>{t(feedback.label)}</Text>
+            <Text style={styles.label}>{t(props.result.message, props.result.previousStatus ? {
+              status: t(admissionStatus[localAdmissionStatus[props.result.previousStatus]].label),
+            } : undefined)}</Text>
           </View>
         </View>
       ) : null}
@@ -247,18 +251,18 @@ export function ScannerHomeScreen(props: Props) {
         style={styles.manualButton}
       >
         <MaterialIcons name={manual ? 'qr-code-scanner' : 'keyboard'} size={22} color={colors.text} />
-        <Text style={styles.label}>{manual ? 'Quay lại camera' : 'Nhập mã thủ công'}</Text>
+        <Text style={styles.label}>{manual ? t('backCamera') : t('manualEntry')}</Text>
       </Pressable>
       <View style={styles.recent}>
         <View style={styles.recentHeader}>
-          <Text accessibilityRole="header" style={styles.eventTitle}>Lượt quét gần đây</Text>
+          <Text accessibilityRole="header" style={styles.eventTitle}>{t('recentScans')}</Text>
           <Pressable accessibilityRole="button" onPress={props.onOpenHistory} style={styles.historyButton}>
-            <Text style={styles.historyLink}>Xem tất cả</Text>
+            <Text style={styles.historyLink}>{t('seeAll')}</Text>
           </Pressable>
         </View>
         {props.recent.length
           ? props.recent.map((item) => <ScanHistoryRow key={item.id} item={item} compact />)
-          : <Text style={styles.muted}>Chưa có lượt quét nào.</Text>}
+          : <Text style={styles.muted}>{t('noScans')}</Text>}
       </View>
     </ScrollView>
   );

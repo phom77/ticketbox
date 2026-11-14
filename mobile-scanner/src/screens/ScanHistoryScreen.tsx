@@ -2,14 +2,15 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { syncSummaryText, useScannerLanguage, type MessageKey } from '../i18n';
 import { filterHistory, type HistoryEntry, type HistoryFilter } from '../features/checkin/history';
 import type { PendingSyncSummary } from '../features/sync';
 import { EmptyState, ErrorBanner, SecondaryButton } from '../ui/components';
 import { ScanHistoryRow } from '../ui/ScanHistoryRow';
 import { colors, radius, spacing } from '../ui/theme';
 
-const filters: ReadonlyArray<readonly [HistoryFilter, string]> = [
-  ['all', 'Tất cả'], ['confirmed', 'Đã xác nhận'], ['pending', 'Đang chờ'], ['error', 'Lỗi'],
+const filters: ReadonlyArray<readonly [HistoryFilter, MessageKey]> = [
+  ['all', 'all'], ['confirmed', 'confirmed'], ['pending', 'pendingFilter'], ['error', 'error'],
 ];
 
 type Props = {
@@ -27,6 +28,7 @@ type Props = {
 };
 
 export function ScanHistoryScreen(props: Props) {
+  const { t, number } = useScannerLanguage();
   const [filter, setFilter] = useState<HistoryFilter>('all');
   const [query, setQuery] = useState('');
   const rows = filterHistory(props.entries, filter, query);
@@ -35,8 +37,8 @@ export function ScanHistoryScreen(props: Props) {
   const failures = props.entries.filter((entry) => entry.status === 'conflict' || entry.status === 'failed').length;
   const loadedServer = props.entries.filter((entry) => entry.source === 'server').length;
   const scope = props.serverTotal !== null
-    ? `Thiết bị và ${loadedServer}/${props.serverTotal} lượt trên Check-in`
-    : 'Dữ liệu trên thiết bị';
+    ? t('historyScope', { loaded: number(loadedServer), total: number(props.serverTotal) })
+    : t('onDevice');
 
   return (
     <View style={styles.screen}>
@@ -53,15 +55,15 @@ export function ScanHistoryScreen(props: Props) {
             <Text style={styles.event}>{props.eventTitle}</Text>
             <Text style={styles.muted}>{scope}</Text>
             <View style={styles.totals}>
-              <Metric value={props.entries.length} label="Đã tải" />
-              <Metric value={confirmed} label="Xác nhận" />
-              <Metric value={failures} label="Lỗi" />
+              <Metric value={props.entries.length} label={t('loaded')} />
+              <Metric value={confirmed} label={t('confirmedMetric')} />
+              <Metric value={failures} label={t('error')} />
             </View>
             <View style={styles.search}>
               <MaterialIcons name="search" size={20} color={colors.textMuted} />
               <TextInput
-                accessibilityLabel="Tìm trong lịch sử"
-                placeholder="Tìm mã vé hoặc QR"
+                accessibilityLabel={t('historySearch')}
+                placeholder={t('searchCodes')}
                 placeholderTextColor={colors.textMuted}
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -79,43 +81,43 @@ export function ScanHistoryScreen(props: Props) {
                   onPress={() => setFilter(key)}
                   style={[styles.filter, key === filter && styles.filterSelected]}
                 >
-                  <Text style={styles.filterLabel}>{label}</Text>
+                  <Text style={styles.filterLabel}>{t(label)}</Text>
                 </Pressable>
               ))}
             </View>
             {props.errorMessage ? (
               <>
                 <ErrorBanner message={props.errorMessage} />
-                <SecondaryButton label="Tải lại lịch sử" disabled={props.isLoading} onPress={props.onReload} />
+                <SecondaryButton label={t('reloadHistory')} disabled={props.isLoading} onPress={props.onReload} />
               </>
             ) : null}
             {props.isLoading ? (
               <View accessibilityLiveRegion="polite" style={styles.loading}>
                 <ActivityIndicator color={colors.accent} />
-                <Text style={styles.muted}>Đang tải lịch sử…</Text>
+                <Text style={styles.muted}>{t('loadingHistory')}</Text>
               </View>
             ) : null}
           </View>
         )}
         ListEmptyComponent={!props.isLoading ? (
           <EmptyState
-            title={filtered ? 'Không có lượt nào khớp' : props.errorMessage ? 'Chưa tải được lịch sử' : 'Chưa có lịch sử quét'}
-            message={filtered ? 'Đổi bộ lọc hoặc từ khóa tìm kiếm.' : props.errorMessage
-              ? 'Kiểm tra kết nối và thử tải lại.' : 'Lượt quét của sự kiện sẽ hiển thị tại đây.'}
+            title={filtered ? t('noMatchingScans') : props.errorMessage ? t('historyUnavailable') : t('noScanHistory')}
+            message={filtered ? t('tryFilters') : props.errorMessage
+              ? t('tryConnection') : t('historyEmpty')}
           />
         ) : null}
       />
       <View style={styles.sync}>
         <View style={styles.syncCopy} accessibilityLiveRegion="polite" aria-live="polite">
-          <Text style={styles.filterLabel}>{props.pending} lượt chờ xác nhận</Text>
+          <Text style={styles.filterLabel}>{t('pendingCount', { count: number(props.pending) })}</Text>
           {props.syncError ? <Text style={styles.error}>{props.syncError}</Text> : null}
           {!props.syncError && props.syncSummary ? (
             <Text style={styles.muted}>
-              {props.syncSummary.accepted} xác nhận · {props.syncSummary.skipped} xung đột · {props.syncSummary.invalid} lỗi
+              {syncSummaryText(t, number, props.syncSummary)}
             </Text>
           ) : null}
         </View>
-        <SecondaryButton label={props.syncing ? 'Đang đồng bộ…' : 'Đồng bộ ngay'}
+        <SecondaryButton label={props.syncing ? t('syncing') : t('syncNow')}
           disabled={props.syncing || props.pending === 0} onPress={props.onSync} />
       </View>
     </View>
@@ -123,9 +125,10 @@ export function ScanHistoryScreen(props: Props) {
 }
 
 function Metric({ value, label }: { value: number; label: string }) {
+  const { number } = useScannerLanguage();
   return (
     <View style={styles.metric}>
-      <Text style={styles.event}>{value.toLocaleString('vi-VN')}</Text>
+      <Text style={styles.event}>{number(value)}</Text>
       <Text style={styles.muted}>{label}</Text>
     </View>
   );

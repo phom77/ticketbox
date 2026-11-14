@@ -50,6 +50,11 @@
 - Tìm theo mã vé hoặc QR tương ứng với trường có sẵn. Hiện mã vé khi API cung cấp, che QR trong danh sách. Chỉ hiện tên hạng vé hoặc giờ vé đã dùng khi có dữ liệu. Nhãn số liệu lịch sử mô tả các lượt đã tải, số lượt chờ theo bộ đếm SQLite cho sự kiện; lý do bị từ chối chưa được lưu chỉ hiện trong kết quả ngay sau khi quét.
 - Làm mới phần máy chủ và SQLite sau đồng bộ. Khi API lỗi, giữ dữ liệu đang có của cùng sự kiện và hiện thử lại. Chặn chạy hai lượt đồng bộ cùng lúc từ nhiều nút, khóa kết quả bất đồng bộ theo sự kiện và phiên để kết quả đến muộn không lẫn sang sự kiện khác.
 
+### Ngôn ngữ giao diện
+
+- Các màn dùng chung danh mục `vi` và `en`. Bộ chọn có trên màn đăng nhập, chọn sự kiện và trong menu. Mặc định là tiếng Việt. Native lưu trong SecureStore và web dùng localStorage, độc lập với phiên đăng nhập.
+- Lỗi và kết quả đang hiển thị lưu khóa bản dịch hoặc trạng thái có cấu trúc để đổi ngôn ngữ ngay cả khi yêu cầu trước đó còn đang xử lý. API client gửi `Accept-Language` của phiên giao diện. Ngôn ngữ nội bộ và nội dung nguồn giữ nguyên. Component định dạng ngày giờ và số theo ngôn ngữ được chọn.
+
 ## Risks / Trade-offs
 
 - Camera, menu và bàn phím có thể che nhau trên màn thấp. Kiểm tra Android với màn nhỏ, chữ lớn, bàn phím đang mở, TalkBack và trạng thái thiếu quyền.

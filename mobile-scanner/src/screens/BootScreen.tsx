@@ -1,13 +1,15 @@
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useScannerLanguage } from '../i18n';
 import { colors } from '../ui/theme';
 
 export function BootScreen() {
+  const { t } = useScannerLanguage();
   return (
     <SafeAreaView style={styles.screen}>
       <View style={styles.centerPanel}>
         <ActivityIndicator color={colors.accent} />
-        <Text style={styles.mutedText}>Đang chuẩn bị phiên làm việc...</Text>
+        <Text style={styles.mutedText}>{t('boot')}</Text>
       </View>
     </SafeAreaView>
   );

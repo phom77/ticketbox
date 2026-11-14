@@ -23,7 +23,7 @@ export async function downloadCheckinDataset({
   const selectedConcertId = concertId.trim();
 
   if (!selectedConcertId) {
-    throw new Error('Chọn concert trước khi tải dataset.');
+    throw new Error('Missing event ID for ticket dataset');
   }
 
   const downloadedAt = new Date().toISOString();

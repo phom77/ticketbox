@@ -110,3 +110,18 @@ Giúp nhân viên TicketBox soát vé nhanh trên Android, nhận biết quyết
 
 - **WHEN** nhân viên cần tải dữ liệu, tra vé, đổi sự kiện hoặc đăng xuất
 - **THEN** các thao tác tương ứng có lối vào từ menu, và khách mời xuất hiện khi dữ liệu và quyền hiện hành cho phép
+
+### Requirement: Scanner language preference
+
+Ứng dụng SHALL cho nhân viên chọn Tiếng Việt hoặc English trên màn đăng nhập, màn chọn sự kiện và trong menu. Ứng dụng SHALL lưu lựa chọn trên thiết bị, dùng tiếng Việt khi chưa có lựa chọn và dùng ngôn ngữ đã chọn cho nhãn, phản hồi và định dạng.
+
+#### Scenario: Đổi ngôn ngữ khi đang làm việc
+
+- **WHEN** nhân viên đổi ngôn ngữ trong lúc nhập liệu hoặc sau khi ghi lượt chờ
+- **THEN** ứng dụng cập nhật nội dung giao diện và phản hồi hiện tại, đồng thời giữ phiên, dữ liệu nhập và lượt quét
+- **AND** các yêu cầu API tiếp theo gửi ngôn ngữ đã chọn, với mã trạng thái và dữ liệu nguồn giữ nguyên
+
+#### Scenario: Mở lại app hoặc đăng xuất
+
+- **WHEN** nhân viên khởi động lại app hoặc đăng xuất sau khi chọn ngôn ngữ
+- **THEN** giao diện tiếp tục dùng ngôn ngữ đã lưu trên thiết bị

@@ -1,5 +1,6 @@
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { formatDateTime, syncSummaryText, useScannerLanguage } from '../i18n';
 import type { StaffConcert, StaffConcertOverview } from '../api';
 import type { DatasetInfo, LogStatusCounts } from '../database';
 import type { PendingSyncSummary } from '../features/sync';
@@ -34,6 +35,7 @@ type Props = {
 };
 
 export function ConcertOverviewScreen(props: Props) {
+  const { t, locale, number } = useScannerLanguage();
   const hasDataset = Boolean(props.datasetInfo.downloadedAt);
   const hasUpdate = Boolean(
     props.overview?.datasetUpdatedAt &&
@@ -45,15 +47,15 @@ export function ConcertOverviewScreen(props: Props) {
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <View style={styles.topActions}>
         <Text style={styles.eventName}>{props.concert.title}</Text>
-        <StatusBadge label={props.isOnline ? 'Có kết nối mạng' : 'Mất kết nối mạng'} tone={props.isOnline ? 'neutral' : 'warning'} />
+        <StatusBadge label={props.isOnline ? t('connected') : t('disconnected')} tone={props.isOnline ? 'neutral' : 'warning'} />
       </View>
 
       {props.errorMessage ? <ErrorBanner message={props.errorMessage} /> : null}
 
       <View style={styles.field}>
-        <Text style={styles.label}>Cổng đang làm việc</Text>
+        <Text style={styles.label}>{t('gateField')}</Text>
         <TextInput
-          accessibilityLabel="Cổng đang làm việc"
+          accessibilityLabel={t('gateField')}
           autoCapitalize="characters"
           onChangeText={props.onChangeGate}
           placeholder="A, B, VIP..."
@@ -65,35 +67,35 @@ export function ConcertOverviewScreen(props: Props) {
       </View>
 
       <View style={styles.metrics}>
-        <Metric label="Tổng vé" value={props.overview?.totalTickets ?? props.datasetInfo.totalCount} />
-        <Metric label="Đã check-in" value={props.overview?.totalCheckins ?? 0} />
-        <Metric label="Chờ xác nhận" value={props.counters.PENDING} tone="warning" />
-        <Metric label="Xung đột/lỗi" value={props.counters.CONFLICT + props.counters.FAILED} tone="danger" />
+        <Metric label={t('totalTickets')} value={props.overview?.totalTickets ?? props.datasetInfo.totalCount} />
+        <Metric label={t('totalCheckins')} value={props.overview?.totalCheckins ?? 0} />
+        <Metric label={t('pending')} value={props.counters.PENDING} tone="warning" />
+        <Metric label={t('conflictsErrors')} value={props.counters.CONFLICT + props.counters.FAILED} tone="danger" />
       </View>
 
       <PrimaryButton
-        label="Bắt đầu quét"
+        label={t('startScanning')}
         onPress={props.onOpenScanner}
       />
 
       <View style={styles.datasetPanel}>
         <View style={styles.sectionHeader}>
           <View style={styles.sectionCopy}>
-            <Text style={styles.sectionTitle}>Dữ liệu vé trên thiết bị</Text>
+            <Text style={styles.sectionTitle}>{t('ticketData')}</Text>
             <Text style={styles.helper}>
               {hasDataset
-                ? `${props.datasetInfo.totalCount} vé · tải ${formatDateTime(props.datasetInfo.downloadedAt!)}`
-                : 'Tải dữ liệu vé để ghi nhận lượt quét khi mất kết nối.'}
+                ? t('datasetStamp', { count: number(props.datasetInfo.totalCount), date: formatDateTime(props.datasetInfo.downloadedAt!, locale) })
+                : t('ticketDataHint')}
             </Text>
           </View>
           <StatusBadge
-            label={hasUpdate ? 'Có cập nhật' : hasDataset ? 'Sẵn sàng' : 'Chưa tải'}
+            label={hasUpdate ? t('updateAvailable') : hasDataset ? t('ready') : t('notDownloaded')}
             tone={hasUpdate ? 'warning' : hasDataset ? 'success' : 'neutral'}
           />
         </View>
         <PrimaryButton
           disabled={!props.isOnline}
-          label={hasDataset ? 'Cập nhật dữ liệu vé' : 'Tải dữ liệu vé'}
+          label={hasDataset ? t('updateTicketData') : t('downloadTicketData')}
           loading={props.isDownloading}
           onPress={props.onDownloadDataset}
         />
@@ -102,15 +104,15 @@ export function ConcertOverviewScreen(props: Props) {
       <View style={styles.datasetPanel}>
         <View style={styles.sectionHeader}>
           <View style={styles.sectionCopy}>
-            <Text style={styles.sectionTitle}>Danh sách khách mời</Text>
+            <Text style={styles.sectionTitle}>{t('guestList')}</Text>
             <Text style={styles.helper}>
               {props.hasGuestList
-                ? 'Đã tải danh sách khách mời.'
-                : 'Chưa có dữ liệu khách mời.'}
+                ? t('guestDownloadDone')
+                : t('guestDownloadEmpty')}
             </Text>
           </View>
           <StatusBadge
-            label={props.hasGuestList ? 'Sẵn sàng' : 'Chưa tải'}
+            label={props.hasGuestList ? t('ready') : t('notDownloaded')}
             tone={props.hasGuestList ? 'success' : 'neutral'}
           />
         </View>
@@ -118,7 +120,7 @@ export function ConcertOverviewScreen(props: Props) {
           <View style={{ flex: 1 }}>
             <PrimaryButton
               disabled={!props.isOnline}
-              label="Tải khách mời"
+              label={t('downloadGuests')}
               loading={props.isDownloadingGuestList}
               onPress={props.onDownloadGuestList}
             />
@@ -126,7 +128,7 @@ export function ConcertOverviewScreen(props: Props) {
           {props.hasGuestList && (
             <View style={{ flex: 1 }}>
               <SecondaryButton
-                label="Xem danh sách"
+                label={t('viewGuestList')}
                 onPress={props.onOpenGuests}
               />
             </View>
@@ -136,21 +138,21 @@ export function ConcertOverviewScreen(props: Props) {
 
       <View style={styles.syncPanel}>
         <View style={styles.sectionCopy}>
-          <Text style={styles.sectionTitle}>Đồng bộ lượt quét</Text>
+          <Text style={styles.sectionTitle}>{t('syncScans')}</Text>
           <Text style={styles.helper}>
             {props.counters.PENDING
-              ? `${props.counters.PENDING} lượt chờ xác nhận.`
-              : 'Không có lượt quét nào đang chờ.'}
+              ? t('pendingCount', { count: number(props.counters.PENDING) })
+              : t('noPending')}
           </Text>
         </View>
         <SecondaryButton
           disabled={props.isSyncing || props.counters.PENDING === 0}
-          label={props.isSyncing ? 'Đang đồng bộ...' : 'Đồng bộ ngay'}
+          label={props.isSyncing ? t('syncing') : t('syncNow')}
           onPress={props.onSync}
         />
         {props.syncSummary ? (
           <Text style={styles.helper}>
-            {props.syncSummary.accepted} đã xác nhận · {props.syncSummary.skipped} xung đột · {props.syncSummary.invalid} lỗi
+            {syncSummaryText(t, number, props.syncSummary)}
           </Text>
         ) : null}
       </View>
@@ -167,6 +169,7 @@ function Metric({
   value: number;
   tone?: 'warning' | 'danger';
 }) {
+  const { number } = useScannerLanguage();
   return (
     <View style={styles.metric}>
       <Text style={[styles.metricValue, tone === 'warning' && styles.warning, tone === 'danger' && styles.danger]}>
@@ -175,16 +178,6 @@ function Metric({
       <Text style={styles.metricLabel}>{label}</Text>
     </View>
   );
-}
-
-function formatDateTime(value: string) {
-  return new Date(value).toLocaleString('vi-VN', {
-    hour: '2-digit',
-    minute: '2-digit',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
 }
 
 const styles = StyleSheet.create({

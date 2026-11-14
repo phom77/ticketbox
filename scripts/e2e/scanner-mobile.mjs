@@ -136,7 +136,7 @@ try {
     for (const failure of ['forbidden', 'offline']) {
       syncResponse = failure;
       await page.getByRole('button', { name: 'Đồng bộ ngay', exact: true }).click();
-      await page.getByText(failure === 'forbidden' ? /Không có quyền đồng bộ/ : /Không kết nối được với Check-in/).waitFor();
+      await page.getByText(failure === 'forbidden' ? /Không có quyền thực hiện thao tác này/ : /Không kết nối được với Check-in/).waitFor();
       assert.equal(await page.getByText('2 lượt chờ xác nhận', { exact: true }).count(), 1);
     }
     syncResponse = 'normal';
