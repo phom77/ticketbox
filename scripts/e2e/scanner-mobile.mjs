@@ -1,0 +1,124 @@
+import assert from 'node:assert/strict';
+import { chromium } from 'playwright';
+import { scannerFixture } from './scanner-fixture.mjs';
+
+const baseURL = process.env.TICKETBOX_SCANNER_URL ?? 'http://localhost:8092';
+const viewport = { width: Number(process.env.TICKETBOX_SCANNER_WIDTH ?? '360'), height: 640 };
+const browser = await chromium.launch();
+try {
+  const page = await browser.newPage({ baseURL, viewport, reducedMotion: 'reduce' });
+  page.setDefaultTimeout(10000);
+  let syncResponse = 'normal';
+  let historyUnavailable = false;
+  let submitted = 0;
+  let releaseLateScan;
+  let signalLateScan;
+  const lateScanStarted = new Promise((resolve) => { signalLateScan = resolve; });
+  const lateScanReleased = new Promise((resolve) => { releaseLateScan = resolve; });
+  const fixture = scannerFixture();
+  await page.route('**/api/**', async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const payload = request.postDataJSON() ?? {};
+    if (url.pathname.endsWith('/checkins/scan')) {
+      submitted += 1;
+      if (payload.qrCode === 'TB-LATE') {
+        signalLateScan();
+        await lateScanReleased;
+        return route.fulfill({ json: {
+          success: true, message: 'OK', data: {
+            status: 'SUCCESS', concertId: payload.concertId, ticketId: null,
+            message: 'Phản hồi từ sự kiện trước', checkAt: new Date().toISOString(),
+          },
+        } });
+      }
+    }
+    if (url.pathname.endsWith('/checkins/sync') && syncResponse !== 'normal') {
+      if (syncResponse === 'offline') return route.abort('connectionrefused');
+      return route.fulfill({ status: 403, json: { success: false, message: 'Không có quyền' } });
+    }
+    if (url.pathname.endsWith('/checkins') && historyUnavailable) return route.abort('connectionrefused');
+    const result = fixture(url, payload);
+    if (!result) return route.abort('connectionrefused');
+    await route.fulfill(result);
+  });
+  await page.goto('/');
+  await page.getByPlaceholder('staff@example.com').fill('scanner@example.test');
+  await page.getByPlaceholder('Mật khẩu', { exact: true }).fill('fixture-password');
+  await page.getByText('Đăng nhập', { exact: true }).click();
+  await page.getByText('Đêm nhạc Sài Gòn', { exact: true }).click();
+  await page.getByPlaceholder('A, B, VIP...').fill('A');
+  await page.getByRole('button', { name: 'Tải dữ liệu vé', exact: true }).click();
+  await page.getByRole('button', { name: 'Cập nhật dữ liệu vé', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Bắt đầu quét' }).click();
+  await page.getByRole('button', { name: 'Mở menu' }).click({ timeout: 6000 });
+  await page.getByRole('button', { name: 'Đóng menu', exact: true }).waitFor();
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Đóng menu', exact: true }).waitFor({ state: 'hidden' });
+  await page.getByRole('button', { name: 'Mở menu' }).focus();
+  await page.keyboard.press('Enter');
+  await page.getByRole('button', { name: 'Đóng menu', exact: true }).click();
+  await page.getByRole('button', { name: 'Nhập mã thủ công' }).click();
+  const entry = page.getByRole('textbox', { name: 'Mã vé hoặc nội dung QR' });
+  async function submit(value, label) {
+    await entry.fill(value);
+    await page.getByRole('button', { name: 'Soát vé', exact: true }).click();
+    await page.getByText(label, { exact: true }).first().waitFor();
+  }
+  await submit('TB-UNKNOWN', 'Vé không được chấp nhận');
+  assert.equal(await entry.inputValue(), 'TB-UNKNOWN');
+  await submit('TB-DENIED', 'Không có quyền soát vé');
+  await submit('TB-EXPIRED', 'Phiên đăng nhập hết hạn');
+  await submit('TB-PENDING', 'Chờ xác nhận');
+  assert.equal(await page.getByText('Cho phép vào cổng', { exact: true }).count(), 0);
+  await submit('TB-CONFLICT', 'Chờ xác nhận');
+  await submit('TB-CONFLICT', 'Mã đã quét trên thiết bị');
+  await submit('TB-ACCEPTED', 'Cho phép vào cổng');
+  historyUnavailable = true;
+  await page.getByRole('button', { name: 'Xem tất cả' }).click();
+  await page.getByRole('button', { name: 'Tải lại lịch sử' }).waitFor();
+  await page.getByText('Dữ liệu trên thiết bị', { exact: true }).count();
+  historyUnavailable = false;
+  await page.getByRole('button', { name: 'Tải lại lịch sử' }).click();
+  await page.getByRole('button', { name: 'Tải lại lịch sử' }).waitFor({ state: 'hidden' });
+  await page.getByRole('button', { name: 'Đang chờ', exact: true }).click();
+  await page.getByText('2 lượt chờ xác nhận', { exact: true }).waitFor();
+  for (const failure of ['forbidden', 'offline']) {
+    syncResponse = failure;
+    await page.getByRole('button', { name: 'Đồng bộ ngay', exact: true }).click();
+    await page.getByText(failure === 'forbidden' ? /Không có quyền đồng bộ/ : /Không kết nối được với Check-in/).waitFor();
+    assert.equal(await page.getByText('2 lượt chờ xác nhận', { exact: true }).count(), 1);
+  }
+  syncResponse = 'normal';
+  await page.getByRole('button', { name: 'Đồng bộ ngay', exact: true }).click();
+  await page.getByText('Không có lượt nào khớp', { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Đã xác nhận', exact: true }).click();
+  assert.equal(await page.getByText('Đã xác nhận', { exact: true }).count(), 3);
+  await page.getByRole('button', { name: 'Lỗi', exact: true }).click();
+  await page.getByText('Xung đột đồng bộ', { exact: true }).waitFor();
+  await page.getByRole('textbox', { name: 'Tìm trong lịch sử' }).fill('unknown');
+  await page.getByText('Không có lượt nào khớp', { exact: true }).waitFor();
+  await page.getByRole('tab', { name: 'Quét vé' }).click();
+  await page.getByRole('button', { name: 'Nhập mã thủ công' }).click();
+  await entry.fill('TB-LATE');
+  const before = submitted;
+  await page.getByRole('button', { name: 'Soát vé', exact: true }).press('Enter');
+  await lateScanStarted;
+  assert.equal(submitted, before + 1);
+  await page.getByText('Đang kiểm tra vé…', { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Mở menu' }).click();
+  await page.getByRole('button', { name: 'Đổi sự kiện' }).click();
+  await page.getByText('Hoà nhạc Hà Nội', { exact: true }).click();
+  assert.equal(await page.getByPlaceholder('A, B, VIP...').inputValue(), '');
+  releaseLateScan();
+  await page.getByPlaceholder('A, B, VIP...').fill('B');
+  await page.getByRole('button', { name: 'Bắt đầu quét' }).click();
+  await page.getByRole('button', { name: 'Nhập mã thủ công' }).click();
+  assert.equal(await page.getByText('Phản hồi từ sự kiện trước', { exact: true }).count(), 0);
+  await submit('TB-PENDING', 'Mã không có trong dữ liệu đã tải');
+  await page.getByRole('tab', { name: 'Lịch sử' }).click();
+  await page.getByText('0 lượt chờ xác nhận', { exact: true }).waitFor();
+  console.log(`Scanner flow passed at ${viewport.width}×${viewport.height}`);
+} finally {
+  await browser.close();
+}

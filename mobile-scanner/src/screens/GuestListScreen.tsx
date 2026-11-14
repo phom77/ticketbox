@@ -68,7 +68,7 @@ export function GuestListScreen({
     }
     Alert.alert(
       'Điểm danh khách mời',
-      `Xác nhận ${guest.fullName} vào cổng ${gate.trim() || 'VIP'}?`,
+      `Xác nhận ${guest.fullName} vào cổng ${gate.trim()}?`,
       [
         { text: 'Hủy', style: 'cancel' },
         { text: 'Điểm danh', onPress: () => onCheckInGuest(guest) },
@@ -77,103 +77,103 @@ export function GuestListScreen({
   }
 
   return (
-      <FlatList
-        contentContainerStyle={styles.listContent}
-        data={filteredGuests}
-        keyExtractor={(item) => item.guestId}
-        ListHeaderComponent={
-          <View style={styles.headerBlock}>
-            <View style={styles.topActions}>
-              <SecondaryButton label="‹ Tổng quan" onPress={onBack} />
-              <StatusBadge label={isOnline ? 'Online' : 'Offline'} tone={isOnline ? 'success' : 'warning'} />
-            </View>
-            <Header
-              title={concert.title}
-              subtitle={`${guestList.length} khách mời · cổng ${gate.trim() || 'VIP'}`}
-            />
-            {errorMessage ? <ErrorBanner message={errorMessage} /> : null}
-
-            <View style={styles.stats}>
-              <GuestMetric label="Chưa vào" value={pendingCount} tone="warning" />
-              <GuestMetric label="Đã vào" value={checkedInCount} tone="success" />
-            </View>
-
-            <TextInput
-              autoCapitalize="none"
-              style={styles.searchInput}
-              placeholder="Tìm tên, SĐT, hạng hoặc sponsor..."
-              placeholderTextColor={colors.textMuted}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-
-            <View style={styles.filters}>
-              <FilterChip active={filter === 'ALL'} label="Tất cả" onPress={() => setFilter('ALL')} />
-              <FilterChip active={filter === 'PENDING'} label="Chưa vào" onPress={() => setFilter('PENDING')} />
-              <FilterChip active={filter === 'CHECKED_IN'} label="Đã vào" onPress={() => setFilter('CHECKED_IN')} />
-            </View>
+    <FlatList
+      contentContainerStyle={styles.listContent}
+      data={filteredGuests}
+      keyExtractor={(item) => item.guestId}
+      ListHeaderComponent={
+        <View style={styles.headerBlock}>
+          <View style={styles.topActions}>
+            <SecondaryButton label="‹ Tổng quan" onPress={onBack} />
+            <StatusBadge label={isOnline ? 'Có kết nối mạng' : 'Mất kết nối mạng'} tone={isOnline ? 'neutral' : 'warning'} />
           </View>
-        }
-        ListEmptyComponent={
-          <EmptyState
-            title="Không có khách mời"
-            message="Đổi bộ lọc hoặc tải lại danh sách khách mời từ màn Tổng quan."
+          <Header
+            title={concert.title}
+            subtitle={`${guestList.length} khách mời · cổng ${gate.trim()}`}
           />
-        }
-        renderItem={({ item }) => {
-          const checkedIn = Boolean(item.checkedInAt);
-          const isLoading = checkingInGuestId === item.guestId;
-          return (
-            <Pressable
-              accessibilityRole="button"
-              disabled={checkedIn || isLoading}
-              onPress={() => confirmCheckIn(item)}
-              style={({ pressed }) => [
-                styles.guestCard,
-                checkedIn && styles.guestCardChecked,
-                pressed && styles.cardPressed,
-              ]}
-            >
-              <View style={styles.guestHeader}>
-                <View style={styles.guestCopy}>
-                  <Text numberOfLines={1} style={styles.guestName}>{item.fullName}</Text>
-                  <Text style={styles.guestPhone}>{item.phone}</Text>
-                </View>
-                <StatusBadge
-                  label={checkedIn ? 'Đã vào' : 'Chờ điểm danh'}
-                  tone={checkedIn ? 'success' : 'warning'}
-                />
-              </View>
+          {errorMessage ? <ErrorBanner message={errorMessage} /> : null}
 
-              <View style={styles.metaGrid}>
-                <Meta label="Hạng" value={item.category || 'Khách mời'} />
-                <Meta label="Đơn vị mời" value={item.sponsorName || 'Không ghi'} />
-              </View>
+          <View style={styles.stats}>
+            <GuestMetric label="Chưa vào" value={pendingCount} tone="warning" />
+            <GuestMetric label="Đã vào" value={checkedInCount} tone="success" />
+          </View>
 
-              {item.notes ? <Text style={styles.notes}>{item.notes}</Text> : null}
+          <TextInput
+            autoCapitalize="none"
+            style={styles.searchInput}
+            placeholder="Tìm tên, SĐT, hạng hoặc sponsor..."
+            placeholderTextColor={colors.textMuted}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
 
-              <View style={styles.footerRow}>
-                <Text style={styles.checkinMeta}>
-                  {checkedIn
-                    ? `${formatDateTime(item.checkedInAt!)} · ${item.checkinGate || 'VIP'}`
-                    : isOnline
-                      ? `Sẵn sàng điểm danh tại cổng ${gate.trim() || 'VIP'}`
-                      : 'Cần online để điểm danh khách mời'}
-                </Text>
-                <View style={[styles.checkInButton, checkedIn && styles.checkInButtonDone]}>
-                  {isLoading ? (
-                    <ActivityIndicator color="#FFFFFF" size="small" />
-                  ) : (
-                    <Text style={[styles.checkInButtonText, checkedIn && styles.checkInButtonDoneText]}>
-                      {checkedIn ? 'Hoàn tất' : isOnline ? 'Điểm danh' : 'Offline'}
-                    </Text>
-                  )}
-                </View>
+          <View style={styles.filters}>
+            <FilterChip active={filter === 'ALL'} label="Tất cả" onPress={() => setFilter('ALL')} />
+            <FilterChip active={filter === 'PENDING'} label="Chưa vào" onPress={() => setFilter('PENDING')} />
+            <FilterChip active={filter === 'CHECKED_IN'} label="Đã vào" onPress={() => setFilter('CHECKED_IN')} />
+          </View>
+        </View>
+      }
+      ListEmptyComponent={
+        <EmptyState
+          title="Không có khách mời"
+          message="Đổi bộ lọc hoặc tải lại danh sách khách mời từ màn Tổng quan."
+        />
+      }
+      renderItem={({ item }) => {
+        const checkedIn = Boolean(item.checkedInAt);
+        const isLoading = checkingInGuestId === item.guestId;
+        return (
+          <Pressable
+            accessibilityRole="button"
+            disabled={checkedIn || isLoading}
+            onPress={() => confirmCheckIn(item)}
+            style={({ pressed }) => [
+              styles.guestCard,
+              checkedIn && styles.guestCardChecked,
+              pressed && styles.cardPressed,
+            ]}
+          >
+            <View style={styles.guestHeader}>
+              <View style={styles.guestCopy}>
+                <Text numberOfLines={1} style={styles.guestName}>{item.fullName}</Text>
+                <Text style={styles.guestPhone}>{item.phone}</Text>
               </View>
-            </Pressable>
-          );
-        }}
-      />
+              <StatusBadge
+                label={checkedIn ? 'Đã vào' : 'Chờ điểm danh'}
+                tone={checkedIn ? 'success' : 'warning'}
+              />
+            </View>
+
+            <View style={styles.metaGrid}>
+              <Meta label="Hạng" value={item.category || 'Khách mời'} />
+              <Meta label="Đơn vị mời" value={item.sponsorName || 'Không ghi'} />
+            </View>
+
+            {item.notes ? <Text style={styles.notes}>{item.notes}</Text> : null}
+
+            <View style={styles.footerRow}>
+              <Text style={styles.checkinMeta}>
+                {checkedIn
+                  ? `${formatDateTime(item.checkedInAt!)} · ${item.checkinGate || 'VIP'}`
+                  : isOnline
+                    ? `Sẵn sàng điểm danh tại cổng ${gate.trim()}`
+                    : 'Cần online để điểm danh khách mời'}
+              </Text>
+              <View style={[styles.checkInButton, checkedIn && styles.checkInButtonDone]}>
+                {isLoading ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Text style={[styles.checkInButtonText, checkedIn && styles.checkInButtonDoneText]}>
+                    {checkedIn ? 'Hoàn tất' : isOnline ? 'Điểm danh' : 'Offline'}
+                  </Text>
+                )}
+              </View>
+            </View>
+          </Pressable>
+        );
+      }}
+    />
   );
 }
 
@@ -240,7 +240,7 @@ const styles = StyleSheet.create({
   },
   filters: { flexDirection: 'row', gap: 8 },
   filterChip: {
-    minHeight: 38,
+    minHeight: 48,
     paddingHorizontal: 13,
     alignItems: 'center',
     justifyContent: 'center',
@@ -275,7 +275,7 @@ const styles = StyleSheet.create({
   checkinMeta: { flex: 1, color: colors.textMuted, fontSize: 12, lineHeight: 17 },
   checkInButton: {
     minWidth: 104,
-    minHeight: 42,
+    minHeight: 48,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radius.button,

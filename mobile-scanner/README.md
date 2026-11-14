@@ -12,7 +12,7 @@ npm ci
 npm start
 ```
 
-Use Expo Go on a supported device or an emulator. Sign in with `staff@ticketbox.com` / `password123`.
+Open the scanner on Android. Expo Go can exercise the camera and manual entry. To test the torch on hardware, use an Android development build that includes the local ScannerHardware module. The module uses the Android Camera2 flash capability for the rear camera. Staff access is currently denied by the Check-in policy. Use the development fixture below for an isolated UI walkthrough.
 
 Copy `.env.example` to `.env` to configure the API:
 
@@ -24,19 +24,46 @@ Copy `.env.example` to `.env` to configure the API:
 
 For a physical device, bind the gateway to the LAN using `APP_BIND_ADDRESS=0.0.0.0` in the root `.env`, set `APP_PUBLIC_URL` to that address and recreate the gateway. Use a trusted local network. Public Expo variables are embedded in the client and must not contain credentials or tokens. Restart Expo after configuration changes.
 
-## Offline workflow
+## At the gate
 
-1. Sign in online, select a concert and download its valid-ticket dataset.
-2. Select the gate and scan QR codes. Offline matches create PENDING local logs; duplicate scans on the same device are rejected.
-3. Reconnect to upload pending logs. Accepted entries become SYNCED; already-used tickets become CONFLICT; invalid entries become FAILED.
-4. Review local/server history. Refresh the dataset online before a new shift.
+1. Sign in, select an event, and confirm the gate in Tổng quan. Download the event's ticket data if you expect interruptions.
+2. Use Quét vé to scan a QR or enter its contents manually. “Cho phép vào cổng” means Check-in confirmed admission. “Chờ xác nhận” means the device stored the attempt and staff must wait.
+3. Open Lịch sử to review results or select “Đồng bộ ngay” after reconnecting. Accepted entries become confirmed. Sync conflicts and failures stay visible separately. Keep app data while there are pending entries.
+4. Check-in on the venue LAN can confirm admission when the Internet is unavailable. Set `EXPO_PUBLIC_ADMISSION_API_BASE_URL` to the venue Check-in API, including `/api`, if it has its own address. The direct Compose binding uses `CHECKIN_BIND_ADDRESS` and `CHECKIN_PORT` (default 18093). Keep all scanners pointed at the same authority during the event.
 
-Online scans atomically consume tickets in Core. Separate offline devices can both admit a ticket before synchronization; conflicts are resolved on the server after sync. Do not remove app data while unsynced logs remain.
+## Development fixture and checks
 
-Run `npm run typecheck` for static verification. Camera behavior and multi-device offline operation require device testing.
+The fixture lives in `scripts/e2e/`, outside the Expo app. It binds to loopback by default, uses synthetic staff, events and tickets, and does not call real services. Start it from the repository root.
 
-## Admission authority on a local network
+```sh
+node scripts/e2e/scanner-fixture.mjs
+```
 
-Set EXPO_PUBLIC_ADMISSION_API_BASE_URL to the venue Check-in API, including /api, when the venue authority has its own address. Every scanner uses the same Check-in database for admission decisions. The direct Compose binding uses CHECKIN_BIND_ADDRESS and CHECKIN_PORT (default 18093).
+For the Android emulator, start Expo with `EXPO_PUBLIC_API_BASE_URL=http://10.0.2.2:8093/api` and leave the LAN override unset. On a physical device you can use USB port forwarding (`adb reverse tcp:8093 tcp:8093`) and `http://127.0.0.1:8093/api`. If Metro also uses the USB connection, forward its port the same way. Use `scanner@example.test` / `fixture-password`. Select “Đêm nhạc Sài Gòn”, enter a gate and download the ticket data. The codes below can be entered by hand or encoded as QR.
 
-A Wi-Fi/LAN connection is sufficient even when Internet connectivity is unavailable. If the authority cannot be reached, scans are stored PENDING and staff must wait for confirmation before admitting attendees. Keep the configured authority stable during the event. Repeated uploads of the same pending scan recover the accepted result.
+| Fixture code | Behavior |
+| --- | --- |
+| `TB-ACCEPTED` | First scan confirmed, subsequent scans rejected. |
+| `TB-PENDING` | Scan connection fails. The downloaded dataset allows a pending entry that sync accepts. |
+| `TB-CONFLICT` | Scan connection fails. The downloaded dataset allows a pending entry that sync marks as a conflict. |
+| `TB-UNKNOWN` | Check-in rejects the code. |
+| `TB-EXPIRED` / `TB-DENIED` | Scan responds with HTTP 401 / 403. |
+
+Use `node scripts/e2e/scanner-fixture.mjs --deny-staff` to return 403 on every staff endpoint after fixture login. This exercises the current disabled-route response without changing Check-in security.
+
+For Chromium, run the scanner web app with request interception and use the repo's Playwright installation.
+
+```sh
+npm ci --prefix scripts/e2e
+npx --prefix scripts/e2e playwright install chromium
+EXPO_PUBLIC_API_BASE_URL=http://localhost:8092/api npm --prefix mobile-scanner run web -- --port 8092
+```
+
+In a separate terminal, run:
+
+```sh
+node scripts/e2e/scanner-mobile.mjs
+npm --prefix mobile-scanner run typecheck
+```
+
+The browser uses in-memory storage. Verify camera permission, Android Back, TalkBack, large text, duplicate reads and SQLite persistence by reopening the app on Android. A fixture walkthrough verifies the app flow. Production acceptance requires the scoped staff work in the scanner roadmap.

@@ -9,6 +9,7 @@ import {
   insertLocalCheckinLog,
 } from '../../database';
 import type { LogStatusCounts } from '../../database';
+import { admissionStatus, localAdmissionStatus } from './status';
 
 export type ManualCheckinResult = {
   status:
@@ -72,7 +73,7 @@ export async function performManualOfflineCheckin({
       inserted: false,
       result: {
         status: 'DUPLICATE_LOCAL',
-        message: `Mã QR này đã có lượt check-in local với trạng thái ${({ PENDING: 'chờ xác nhận', SYNCED: 'đã xác nhận', CONFLICT: 'xung đột đồng bộ', FAILED: 'đồng bộ thất bại' })[duplicate.status]}.`,
+        message: `Lượt trước: ${admissionStatus[localAdmissionStatus[duplicate.status]].label}.`,
         checkedAt: duplicate.checkedAt,
         qrCode: selectedQrCode,
       },

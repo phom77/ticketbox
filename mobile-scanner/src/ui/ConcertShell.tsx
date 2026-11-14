@@ -1,5 +1,5 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import {
   AccessibilityInfo, BackHandler, findNodeHandle, Modal, Platform, Pressable,
   ScrollView, StyleSheet, Text, View,
@@ -39,9 +39,10 @@ type Props = {
 export function ConcertShell(props: Props) {
   const menuButton = useRef<View>(null);
   const closeButton = useRef<View>(null);
-  const heading = useRef<Text>(null);
+  const heading = useRef<View>(null);
   const previousScreen = useRef(props.screen);
   const [reduceMotion, setReduceMotion] = useState(true);
+  const handleBack = useRef(() => {});
 
   useEffect(() => {
     let mounted = true;
@@ -62,17 +63,20 @@ export function ConcertShell(props: Props) {
     return () => cancelAnimationFrame(frame);
   }, [props.screen]);
 
+  useLayoutEffect(() => {
+    handleBack.current = () => {
+      if (props.screen === 'overview') props.onChangeEvent();
+      else props.onNavigate('overview');
+    };
+  }, [props.screen, props.onNavigate, props.onChangeEvent]);
+
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (props.screen === 'overview') {
-        props.onChangeEvent();
-      } else {
-        props.onNavigate('overview');
-      }
+      handleBack.current();
       return true;
     });
     return () => subscription.remove();
-  }, [props.screen, props.onNavigate, props.onChangeEvent]);
+  }, []);
 
   function dismissMenu() {
     props.onMenuChange(false);
@@ -104,13 +108,16 @@ export function ConcertShell(props: Props) {
           >
             <MaterialIcons name="menu" size={24} color={colors.text} />
           </Pressable>
-          <Text
+          <View
             ref={heading}
+            accessible
             accessibilityRole="header"
-            style={styles.title}
+            accessibilityLabel={titles[props.screen]}
+            tabIndex={-1}
+            style={styles.heading}
           >
-            {titles[props.screen]}
-          </Text>
+            <Text style={styles.title}>{titles[props.screen]}</Text>
+          </View>
         </View>
         <View style={styles.workspace}>{props.children}</View>
         <View accessibilityRole="tablist" style={styles.tabs}>
@@ -137,13 +144,14 @@ export function ConcertShell(props: Props) {
           <Pressable
             accessible={false}
             importantForAccessibility="no"
+            tabIndex={-1}
             style={StyleSheet.absoluteFill}
             onPress={dismissMenu}
           />
           <SafeAreaView accessibilityViewIsModal style={styles.drawer}>
             <ScrollView contentContainerStyle={styles.drawerContent}>
               <View style={styles.drawerHeader}>
-                <Text accessibilityRole="header" style={styles.title}>TicketBox</Text>
+                <Text accessibilityRole="header" style={[styles.title, styles.heading]}>TicketBox</Text>
                 <Pressable
                   ref={closeButton}
                   accessibilityRole="button"
@@ -183,7 +191,7 @@ export function ConcertShell(props: Props) {
   );
 }
 
-function focus(node: View | Text | null) {
+function focus(node: View | null) {
   if (!node) return;
   if (Platform.OS === 'web') node.focus();
   else {
@@ -231,7 +239,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: spacing.screen,
     paddingVertical: 4, borderBottomWidth: 1, borderBottomColor: colors.border,
   },
-  title: { flex: 1, color: colors.text, fontSize: 20, fontWeight: '700' },
+  heading: { flex: 1 },
+  title: { color: colors.text, fontSize: 20, fontWeight: '700' },
   iconButton: {
     minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center',
     backgroundColor: colors.surfaceMuted, borderRadius: radius.button,

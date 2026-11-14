@@ -9,6 +9,8 @@ import {
 
 import { SCAN_DUPLICATE_WINDOW_MS, type StaffConcert } from '../api';
 import type { ManualCheckinResult } from '../features/checkin';
+import type { HistoryEntry } from '../features/checkin/history';
+import { ScanHistoryRow } from '../ui/ScanHistoryRow';
 import { scanStatus } from '../features/checkin/status';
 import { PrimaryButton, SecondaryButton, StatusBadge } from '../ui/components';
 import { colors, radius, spacing } from '../ui/theme';
@@ -25,28 +27,31 @@ type Props = {
   menuOpen: boolean;
   isCheckingIn: boolean;
   result: ManualCheckinResult | null;
+  recent: HistoryEntry[];
+  onOpenHistory: () => void;
   onChangeQrCode: (value: string) => void;
   onCheckin: () => void;
   onCameraQrScanned: (value: string) => void;
 };
 
 export function ScannerHomeScreen(props: Props) {
-  const [permission, requestPermission, getPermission] = useCameraPermissions();
+  const [permission, requestPermission, getPermission] = useCameraPermissions({ get: false });
   const [manual, setManual] = useState(false);
-  const [foreground, setForeground] = useState(AppState.currentState !== 'background');
+  const [foreground, setForeground] = useState(AppState.currentState === 'active' || AppState.currentState == null);
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState(false);
   const [torch, setTorch] = useState(false);
   const [hasTorch] = useState(() => hardware?.hasTorch() ?? false);
   const lastRead = useRef<{ value: string; time: number } | null>(null);
   const { width, height, fontScale } = useWindowDimensions();
-  const cameraHeight = Math.max(152, Math.min(width - 32, height * 0.42 / Math.max(1, fontScale), 330));
+  const cameraHeight = Math.max(152, Math.min(width - 32, (height * 0.42) / Math.max(1, fontScale), 330));
   const showCamera = !manual && foreground && !props.menuOpen && !cameraError && permission?.granted;
   const feedback = props.result ? scanStatus(props.result) : null;
   const manualButton = useRef<View>(null);
   const entry = useRef<TextInput>(null);
 
   useEffect(() => {
+    void getPermission().catch(() => setCameraError(true));
     const change = AppState.addEventListener('change', (state) => {
       setForeground(state === 'active');
       if (state === 'active') void getPermission().catch(() => setCameraError(true));
@@ -93,14 +98,18 @@ export function ScannerHomeScreen(props: Props) {
     if (AppState.currentState && AppState.currentState !== 'active') return;
     const value = scan.data.trim();
     const time = Date.now();
-    if (!value || (lastRead.current?.value === value && time - lastRead.current.time < SCAN_DUPLICATE_WINDOW_MS)) return;
+    const repeated = lastRead.current?.value === value && time - lastRead.current.time < SCAN_DUPLICATE_WINDOW_MS;
+    if (!value || repeated) return;
     lastRead.current = { value, time };
     props.onCameraQrScanned(value);
   }
 
   async function recoverCamera() {
     try {
-      if (cameraError) setCameraError(false);
+      if (cameraError) {
+        await getPermission();
+        setCameraError(false);
+      }
       else if (permission?.canAskAgain) await requestPermission();
       else if (Platform.OS !== 'web') await Linking.openSettings();
     } catch {
@@ -230,6 +239,17 @@ export function ScannerHomeScreen(props: Props) {
         <MaterialIcons name={manual ? 'qr-code-scanner' : 'keyboard'} size={22} color={colors.text} />
         <Text style={styles.label}>{manual ? 'Quay lại camera' : 'Nhập mã thủ công'}</Text>
       </Pressable>
+      <View style={styles.recent}>
+        <View style={styles.recentHeader}>
+          <Text accessibilityRole="header" style={styles.eventTitle}>Lượt quét gần đây</Text>
+          <Pressable accessibilityRole="button" onPress={props.onOpenHistory} style={styles.historyButton}>
+            <Text style={styles.historyLink}>Xem tất cả</Text>
+          </Pressable>
+        </View>
+        {props.recent.length
+          ? props.recent.map((item) => <ScanHistoryRow key={item.id} item={item} compact />)
+          : <Text style={styles.muted}>Chưa có lượt quét nào.</Text>}
+      </View>
     </ScrollView>
   );
 }
@@ -271,5 +291,10 @@ const styles = StyleSheet.create({
   },
   result: { flexDirection: 'row', gap: 10, padding: 12, borderRadius: radius.card, alignItems: 'flex-start' },
   resultTitle: { fontSize: 18, fontWeight: '700' },
+  recent: { paddingHorizontal: 12, paddingBottom: 12, borderWidth: 1,
+    borderColor: colors.border, borderRadius: radius.card },
+  recentHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6, flexWrap: 'wrap' },
+  historyButton: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 4 },
+  historyLink: { color: colors.accent, fontSize: 14, fontWeight: '700' },
   processing: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12 },
 });

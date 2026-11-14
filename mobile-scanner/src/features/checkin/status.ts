@@ -1,3 +1,4 @@
+import type { LocalCheckinStatus } from '../../database';
 import type { ManualCheckinResult } from './manualCheckin';
 
 export const admissionStatus = {
@@ -13,7 +14,14 @@ export const admissionStatus = {
   error: { label: 'Không thể soát vé', tone: 'danger', icon: 'error-outline' },
 } as const;
 
-export type AdmissionStatus = keyof typeof admissionStatus;
+type AdmissionStatus = keyof typeof admissionStatus;
+
+export const localAdmissionStatus = {
+  SYNCED: 'confirmed',
+  PENDING: 'pending',
+  CONFLICT: 'conflict',
+  FAILED: 'failed',
+} as const satisfies Record<LocalCheckinStatus, AdmissionStatus>;
 
 const resultStatus: Record<ManualCheckinResult['status'], AdmissionStatus> = {
   PENDING: 'pending',

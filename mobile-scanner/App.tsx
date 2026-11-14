@@ -1,5 +1,5 @@
 import NetInfo from '@react-native-community/netinfo';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 
@@ -46,6 +46,8 @@ import {
   performOnlineCheckin,
 } from './src/features/checkin';
 import type { ManualCheckinResult } from './src/features/checkin';
+import { mergeHistory } from './src/features/checkin/history';
+import { ScanHistoryScreen } from './src/screens/ScanHistoryScreen';
 import { downloadCheckinDataset, syncPendingLogs } from './src/features/sync';
 import type { PendingSyncSummary } from './src/features/sync';
 import {
@@ -58,8 +60,9 @@ import {
   StaffLoginScreen,
 } from './src/screens';
 
-type Session = { accessToken: string; user: StaffUser };
 import { ConcertShell, type ConcertRoute } from './src/ui/ConcertShell';
+
+type Session = { accessToken: string; user: StaffUser };
 
 const SELECTED_CONCERT_KEY = 'scanner:selectedConcertId';
 const SELECTED_GATE_KEY = 'scanner:selectedGate';
@@ -313,19 +316,31 @@ function ConcertWorkspace({
   const [localLogs, setLocalLogs] = useState<LocalCheckinLog[]>([]);
   const [serverHistory, setServerHistory] = useState<ServerCheckinHistory[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(false);
+  const [isLoadingTickets, setIsLoadingTickets] = useState(false);
+  const [ticketsError, setTicketsError] = useState<string | null>(null);
+  const [serverTotal, setServerTotal] = useState<number | null>(null);
   const [dataError, setDataError] = useState<string | null>(null);
+  const historyRequest = useRef(0);
+  const ticketsRequest = useRef(0);
+  const localActivityRequest = useRef(0);
+  const history = useMemo(
+    () => mergeHistory(localLogs, serverHistory, [...localTickets, ...serverTickets]),
+    [localLogs, serverHistory, localTickets, serverTickets],
+  );
 
   const [guestList, setGuestList] = useState<StaffGuestListEntry[]>([]);
   const [isDownloadingGuestList, setIsDownloadingGuestList] = useState(false);
   const [guestCheckinId, setGuestCheckinId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (screen !== 'overview' && screen !== 'guestlist') void loadConcertData();
+    if (screen === 'data') void loadTickets();
+    if (screen === 'history' || screen === 'scanner') void loadHistory();
   }, [screen, isOnline]);
 
   useEffect(() => {
     setAuthority('unknown');
     void refreshSelectedConcert();
+    void refreshLocalActivity().catch(() => setDataError('Không thể đọc lịch sử trên thiết bị.'));
   }, [isOnline]);
 
   useEffect(() => {
@@ -336,12 +351,7 @@ function ConcertWorkspace({
   async function refreshSelectedConcert() {
     if (!selectedConcert || !session) return;
     try {
-      const [info, nextCounters] = await Promise.all([
-        getDatasetInfo(selectedConcert.id),
-        loadCheckinCounters(selectedConcert.id),
-      ]);
-      setSelectedDataset(info);
-      setCounters(nextCounters);
+      setSelectedDataset(await getDatasetInfo(selectedConcert.id));
       if (isOnline) {
         setOverview(await getStaffConcertOverview(selectedConcert.id, session.accessToken));
         setAuthority('reachable');
@@ -365,7 +375,7 @@ function ConcertWorkspace({
         gate,
         accessToken: session.accessToken,
       });
-      await refreshSelectedConcert();
+      await Promise.all([refreshSelectedConcert(), refreshLocalActivity()]);
     } catch (error) {
       setOperationError(toErrorMessage(error));
     } finally {
@@ -426,7 +436,8 @@ function ConcertWorkspace({
       setCheckinResult(outcome.result);
       if (outcome.inserted || outcome.result.status === 'ONLINE_ACCEPTED') {
         setQrCode('');
-        void refreshLocalActivity();
+        void refreshLocalActivity().catch(() => setDataError('Không thể đọc lịch sử trên thiết bị.'));
+        if (outcome.result.status === 'ONLINE_ACCEPTED' && !outcome.inserted) void loadHistory();
       }
     } catch (error) {
       const status = error instanceof ApiClientError ? error.status : null;
@@ -445,16 +456,16 @@ function ConcertWorkspace({
   }
 
   async function refreshLocalActivity() {
-    try {
-      const [logs, counts] = await Promise.all([
-        listLocalCheckinLogs(selectedConcert.id),
-        loadCheckinCounters(selectedConcert.id),
-      ]);
-      setLocalLogs(logs);
-      setCounters(counts);
-    } catch {
-      setDataError('Không thể đọc lịch sử trên thiết bị. Vui lòng thử lại.');
-    }
+    const request = ++localActivityRequest.current;
+    const [logs, counts, tickets] = await Promise.all([
+      listLocalCheckinLogs(selectedConcert.id),
+      loadCheckinCounters(selectedConcert.id),
+      listLocalTickets(selectedConcert.id),
+    ]);
+    if (request !== localActivityRequest.current) return;
+    setLocalLogs(logs);
+    setCounters(counts);
+    setLocalTickets(tickets);
   }
 
   async function handleSync() {
@@ -463,45 +474,63 @@ function ConcertWorkspace({
     setIsSyncing(true);
     setSyncError(null);
     try {
-      setSyncSummary(
-        await syncPendingLogs({
-          concertId: selectedConcert.id,
-          deviceId,
-          accessToken: session.accessToken,
-        }),
-      );
-      setCounters(await loadCheckinCounters(selectedConcert.id));
+      const summary = await syncPendingLogs({
+        concertId: selectedConcert.id,
+        deviceId,
+        accessToken: session.accessToken,
+      });
+      setSyncSummary(summary);
+      if (summary.total) setAuthority('reachable');
+      if (summary.total) await loadHistory();
     } catch (error) {
-      setSyncError(toErrorMessage(error));
+      if (error instanceof ApiClientError) {
+        if (error.unreachable) setAuthority('unreachable');
+        else if (error.status) setAuthority('reachable');
+      }
+      setSyncError(checkinErrorMessage(error, 'đồng bộ'));
+      // A batch can have updated some local rows before it failed.
+      await refreshLocalActivity().catch(() => undefined);
     } finally {
       syncPending.current = false;
       setIsSyncing(false);
     }
   }
 
-  async function loadConcertData() {
-    if (!selectedConcert || !session) return;
+  async function loadHistory() {
+    const request = ++historyRequest.current;
     setIsLoadingData(true);
     setDataError(null);
     try {
-      const [tickets, logs] = await Promise.all([
-        listLocalTickets(selectedConcert.id),
-        listLocalCheckinLogs(selectedConcert.id),
-      ]);
-      setLocalTickets(tickets);
-      setLocalLogs(logs);
+      await refreshLocalActivity();
       if (isOnline) {
-        const [ticketPage, historyPage] = await Promise.all([
-          getStaffTickets(selectedConcert.id, { size: 100 }, session.accessToken),
-          getCheckinHistory(selectedConcert.id, { size: 100 }, session.accessToken),
-        ]);
-        setServerTickets(ticketPage.content);
-        setServerHistory(historyPage.content);
+        const result = await getCheckinHistory(selectedConcert.id, { size: 100 }, session.accessToken);
+        if (request !== historyRequest.current) return;
+        setServerHistory(result.content);
+        setServerTotal(result.totalElements);
       }
     } catch (error) {
-      setDataError(toErrorMessage(error));
+      if (request === historyRequest.current) setDataError(checkinErrorMessage(error, 'tải lịch sử'));
     } finally {
-      setIsLoadingData(false);
+      if (request === historyRequest.current) setIsLoadingData(false);
+    }
+  }
+
+  async function loadTickets() {
+    const request = ++ticketsRequest.current;
+    setIsLoadingTickets(true);
+    setTicketsError(null);
+    try {
+      const local = await listLocalTickets(selectedConcert.id);
+      if (request !== ticketsRequest.current) return;
+      setLocalTickets(local);
+      if (isOnline) {
+        const result = await getStaffTickets(selectedConcert.id, { size: 100 }, session.accessToken);
+        if (request === ticketsRequest.current) setServerTickets(result.content);
+      }
+    } catch (error) {
+      if (request === ticketsRequest.current) setTicketsError(checkinErrorMessage(error, 'tải danh sách vé'));
+    } finally {
+      if (request === ticketsRequest.current) setIsLoadingTickets(false);
     }
   }
 
@@ -530,25 +559,40 @@ function ConcertWorkspace({
         menuOpen={menuOpen}
         isCheckingIn={isCheckingIn}
         result={checkinResult}
+        recent={history.slice(0, 3)}
+        onOpenHistory={() => navigateWithinConcert('history')}
         onChangeQrCode={setQrCode}
         onCheckin={() => runCheckin(qrCode)}
         onCameraQrScanned={runCheckin}
       />
     );
-  } else if (screen === 'data' || screen === 'history') {
+  } else if (screen === 'history') {
+    content = (
+      <ScanHistoryScreen
+        eventTitle={selectedConcert.title}
+        entries={history}
+        hasServerData={serverTotal !== null}
+        serverTotal={serverTotal}
+        isLoading={isLoadingData}
+        errorMessage={dataError}
+        pending={counters.PENDING}
+        syncing={isSyncing}
+        syncError={syncError}
+        syncSummary={syncSummary}
+        onReload={loadHistory}
+        onSync={handleSync}
+      />
+    );
+  } else if (screen === 'data') {
     content = (
       <ConcertDataScreen
-        key={screen}
-        initialTab={screen === 'history' ? 'history' : 'tickets'}
         concert={selectedConcert}
         localTickets={localTickets}
         serverTickets={serverTickets}
-        localLogs={localLogs}
-        serverHistory={serverHistory}
         isOnline={isOnline}
-        isLoading={isLoadingData}
-        errorMessage={dataError}
-        onRefresh={loadConcertData}
+        isLoading={isLoadingTickets}
+        errorMessage={ticketsError}
+        onRefresh={loadTickets}
       />
     );
   } else if (screen === 'guestlist') {
@@ -566,26 +610,26 @@ function ConcertWorkspace({
     );
   } else {
     content = (
-    <ConcertOverviewScreen
-      concert={selectedConcert}
-      overview={overview}
-      datasetInfo={selectedDataset}
-      counters={counters}
-      gate={gate}
-      isOnline={isOnline}
-      isDownloading={isDownloading}
-      isSyncing={isSyncing}
-      errorMessage={operationError ?? syncError}
-      syncSummary={syncSummary}
-      onChangeGate={setGate}
-      onDownloadDataset={handleDownloadDataset}
-      onSync={handleSync}
-      onDownloadGuestList={handleDownloadGuestList}
-      onOpenScanner={() => navigateWithinConcert('scanner')}
-      onOpenGuests={() => navigateWithinConcert('guestlist')}
-      hasGuestList={guestList.length > 0}
-      isDownloadingGuestList={isDownloadingGuestList}
-    />
+      <ConcertOverviewScreen
+        concert={selectedConcert}
+        overview={overview}
+        datasetInfo={selectedDataset}
+        counters={counters}
+        gate={gate}
+        isOnline={isOnline}
+        isDownloading={isDownloading}
+        isSyncing={isSyncing}
+        errorMessage={operationError ?? syncError}
+        syncSummary={syncSummary}
+        onChangeGate={setGate}
+        onDownloadDataset={handleDownloadDataset}
+        onSync={handleSync}
+        onDownloadGuestList={handleDownloadGuestList}
+        onOpenScanner={() => navigateWithinConcert('scanner')}
+        onOpenGuests={() => navigateWithinConcert('guestlist')}
+        hasGuestList={guestList.length > 0}
+        isDownloadingGuestList={isDownloadingGuestList}
+      />
     );
   }
 
@@ -614,4 +658,13 @@ function ConcertWorkspace({
 function toErrorMessage(error: unknown) {
   if (error instanceof ApiClientError || error instanceof Error) return error.message;
   return 'Có lỗi xảy ra. Vui lòng thử lại.';
+}
+
+function checkinErrorMessage(error: unknown, action: string) {
+  if (error instanceof ApiClientError) {
+    if (error.status === 401) return 'Phiên đăng nhập hết hạn. Đăng nhập lại để tiếp tục.';
+    if (error.status === 403) return `Không có quyền ${action}. Liên hệ người phụ trách sự kiện.`;
+    if (error.unreachable) return 'Không kết nối được với Check-in. Kiểm tra mạng rồi thử lại.';
+  }
+  return `Không thể ${action}. Vui lòng thử lại.`;
 }
