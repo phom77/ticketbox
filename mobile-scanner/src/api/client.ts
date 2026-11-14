@@ -46,12 +46,14 @@ apiClient.interceptors.request.use(async (config: InternalAxiosRequestConfig) =>
 export class ApiClientError extends Error {
   status: number;
   errors: ApiFieldError[] | null;
+  unreachable: boolean;
 
-  constructor(message: string, status: number, errors: ApiFieldError[] | null = null) {
+  constructor(message: string, status: number, errors: ApiFieldError[] | null = null, unreachable = false) {
     super(message);
     this.name = 'ApiClientError';
     this.status = status;
     this.errors = errors;
+    this.unreachable = unreachable;
   }
 }
 
@@ -81,7 +83,7 @@ export async function requestJson<T>(path: string, options: JsonRequestOptions =
       throw toApiClientError(error);
     }
 
-    throw new ApiClientError(error instanceof Error ? error.message : 'Network request failed', 0);
+    throw new ApiClientError(error instanceof Error ? error.message : 'Request failed', 0);
   }
 }
 
@@ -107,7 +109,10 @@ function toApiClientError(error: AxiosError<ApiResponse<unknown>>) {
     );
   }
 
-  return new ApiClientError(error.message || 'Network request failed', status);
+  const unreachable = !error.response && (
+    error.code === 'ERR_NETWORK' || error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT'
+  );
+  return new ApiClientError(error.message || 'Network request failed', status, null, unreachable);
 }
 
 function isSuccessResponse<T>(payload: ApiResponse<T>, httpStatus: number) {

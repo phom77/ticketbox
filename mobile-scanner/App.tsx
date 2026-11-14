@@ -43,7 +43,6 @@ import type {
 import {
   EMPTY_LOG_COUNTERS,
   loadCheckinCounters,
-  performManualOfflineCheckin,
   performOnlineCheckin,
 } from './src/features/checkin';
 import type { ManualCheckinResult } from './src/features/checkin';
@@ -300,6 +299,7 @@ function ConcertWorkspace({
 
   const [qrCode, setQrCode] = useState('');
   const [isCheckingIn, setIsCheckingIn] = useState(false);
+  const [authority, setAuthority] = useState<'unknown' | 'reachable' | 'unreachable'>('unknown');
   const [checkinResult, setCheckinResult] = useState<ManualCheckinResult | null>(null);
   const [counters, setCounters] = useState<LogStatusCounts>(EMPTY_LOG_COUNTERS);
 
@@ -320,9 +320,13 @@ function ConcertWorkspace({
   const [guestCheckinId, setGuestCheckinId] = useState<string | null>(null);
 
   useEffect(() => {
-    void refreshSelectedConcert();
     if (screen !== 'overview' && screen !== 'guestlist') void loadConcertData();
   }, [screen, isOnline]);
+
+  useEffect(() => {
+    setAuthority('unknown');
+    void refreshSelectedConcert();
+  }, [isOnline]);
 
   useEffect(() => {
     if (!previousConnection.current && isOnline) void handleSync();
@@ -331,18 +335,23 @@ function ConcertWorkspace({
 
   async function refreshSelectedConcert() {
     if (!selectedConcert || !session) return;
-    const [info, nextCounters] = await Promise.all([
-      getDatasetInfo(selectedConcert.id),
-      loadCheckinCounters(selectedConcert.id),
-    ]);
-    setSelectedDataset(info);
-    setCounters(nextCounters);
-    if (isOnline) {
-      try {
+    try {
+      const [info, nextCounters] = await Promise.all([
+        getDatasetInfo(selectedConcert.id),
+        loadCheckinCounters(selectedConcert.id),
+      ]);
+      setSelectedDataset(info);
+      setCounters(nextCounters);
+      if (isOnline) {
         setOverview(await getStaffConcertOverview(selectedConcert.id, session.accessToken));
-      } catch (error) {
-        setOperationError(toErrorMessage(error));
+        setAuthority('reachable');
       }
+    } catch (error) {
+      if (error instanceof ApiClientError) {
+        if (error.unreachable) setAuthority('unreachable');
+        else if (error.status) setAuthority('reachable');
+      }
+      setOperationError(toErrorMessage(error));
     }
   }
 
@@ -403,33 +412,48 @@ function ConcertWorkspace({
     scanPending.current = true;
     setIsCheckingIn(true);
     try {
-      const outcome = isOnline
-        ? await performOnlineCheckin({
-            concertId: selectedConcert.id,
-            qrCode: value,
-            gate,
-            deviceId,
-            accessToken: session.accessToken,
-          })
-        : await performManualOfflineCheckin({
-            concertId: selectedConcert.id,
-            qrCode: value,
-            gate,
-          });
+      const outcome = await performOnlineCheckin({
+        concertId: selectedConcert.id,
+        qrCode: value,
+        gate,
+        deviceId,
+        accessToken: session.accessToken,
+      });
+      setAuthority(
+        outcome.result.status === 'ONLINE_ACCEPTED' || outcome.result.status === 'ONLINE_FAILED'
+          ? 'reachable' : 'unreachable',
+      );
       setCheckinResult(outcome.result);
       if (outcome.inserted || outcome.result.status === 'ONLINE_ACCEPTED') {
         setQrCode('');
-        setCounters(await loadCheckinCounters(selectedConcert.id));
+        void refreshLocalActivity();
       }
     } catch (error) {
+      const status = error instanceof ApiClientError ? error.status : null;
+      if (status) setAuthority('reachable');
       setCheckinResult({
-        status: isOnline ? 'ONLINE_FAILED' : 'INVALID_LOCAL',
-        message: toErrorMessage(error),
+        status: status === 401 ? 'UNAUTHENTICATED' : status === 403 ? 'FORBIDDEN' : 'ERROR',
+        message: status === 401 ? 'Đăng nhập lại để tiếp tục soát vé.'
+          : status === 403 ? 'Liên hệ người phụ trách sự kiện để kiểm tra quyền.'
+            : 'Thử lại hoặc kiểm tra kết nối đến Check-in.',
         qrCode: value.trim(),
       });
     } finally {
       scanPending.current = false;
       setIsCheckingIn(false);
+    }
+  }
+
+  async function refreshLocalActivity() {
+    try {
+      const [logs, counts] = await Promise.all([
+        listLocalCheckinLogs(selectedConcert.id),
+        loadCheckinCounters(selectedConcert.id),
+      ]);
+      setLocalLogs(logs);
+      setCounters(counts);
+    } catch {
+      setDataError('Không thể đọc lịch sử trên thiết bị. Vui lòng thử lại.');
     }
   }
 
@@ -502,9 +526,8 @@ function ConcertWorkspace({
         concert={selectedConcert}
         gate={gate}
         qrCode={qrCode}
-        counters={counters}
-        isOnline={isOnline}
-        hasDataset={Boolean(selectedDataset.downloadedAt)}
+        authority={authority}
+        menuOpen={menuOpen}
         isCheckingIn={isCheckingIn}
         result={checkinResult}
         onChangeQrCode={setQrCode}
