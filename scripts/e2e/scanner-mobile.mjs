@@ -85,7 +85,17 @@ try {
   assert.equal(await page.getByText('Cho phép vào cổng', { exact: true }).count(), 0);
   await submit('TB-CONFLICT', 'Chờ xác nhận');
   await submit('TB-CONFLICT', 'Mã đã quét trên thiết bị');
+  // Simulate the device's offline signal while leaving the fixture endpoint reachable.
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+    window.dispatchEvent(new Event('offline'));
+  });
   await submit('TB-ACCEPTED', 'Cho phép vào cổng');
+  syncResponse = 'forbidden';
+  await page.evaluate(() => {
+    Reflect.deleteProperty(navigator, 'onLine');
+    window.dispatchEvent(new Event('online'));
+  });
   historyUnavailable = true;
   await page.getByRole('button', { name: 'Xem tất cả' }).click();
   await page.getByRole('button', { name: 'Tải lại lịch sử' }).waitFor();
@@ -115,7 +125,10 @@ try {
   await page.getByRole('button', { name: 'Nhập mã thủ công' }).click();
   await entry.fill('TB-LATE');
   const before = submitted;
-  await page.getByRole('button', { name: 'Soát vé', exact: true }).press('Enter');
+  await page.getByRole('button', { name: 'Soát vé', exact: true }).evaluate((button) => {
+    button.click();
+    button.click();
+  });
   await lateScanStarted;
   assert.equal(submitted, before + 1);
   await page.getByText('Đang kiểm tra vé…', { exact: true }).waitFor();

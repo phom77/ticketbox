@@ -15,7 +15,6 @@ const filters: ReadonlyArray<readonly [HistoryFilter, string]> = [
 type Props = {
   eventTitle: string;
   entries: HistoryEntry[];
-  hasServerData: boolean;
   serverTotal: number | null;
   isLoading: boolean;
   errorMessage: string | null;
@@ -35,8 +34,8 @@ export function ScanHistoryScreen(props: Props) {
   const confirmed = props.entries.filter((entry) => entry.status === 'confirmed').length;
   const failures = props.entries.filter((entry) => entry.status === 'conflict' || entry.status === 'failed').length;
   const loadedServer = props.entries.filter((entry) => entry.source === 'server').length;
-  const scope = props.hasServerData
-    ? `Thiết bị và ${loadedServer}/${props.serverTotal ?? loadedServer} lượt trên Check-in`
+  const scope = props.serverTotal !== null
+    ? `Thiết bị và ${loadedServer}/${props.serverTotal} lượt trên Check-in`
     : 'Dữ liệu trên thiết bị';
 
   return (

@@ -603,7 +603,6 @@ function ConcertWorkspace({
       <ScanHistoryScreen
         eventTitle={selectedConcert.title}
         entries={history}
-        hasServerData={serverTotal !== null}
         serverTotal={serverTotal}
         isLoading={isLoadingData}
         errorMessage={dataError}
