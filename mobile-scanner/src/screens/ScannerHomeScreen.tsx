@@ -1,7 +1,7 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import { requireOptionalNativeModule } from 'expo';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   AccessibilityInfo, ActivityIndicator, AppState, BackHandler, findNodeHandle, Linking,
   Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View,
@@ -46,6 +46,9 @@ export function ScannerHomeScreen(props: Props) {
   const { width, height, fontScale } = useWindowDimensions();
   const cameraHeight = Math.max(152, Math.min(width - 32, (height * 0.42) / Math.max(1, fontScale), 330));
   const showCamera = !manual && foreground && !props.menuOpen && !cameraError && permission?.granted;
+  const canRead = Boolean(showCamera && cameraReady && !props.isCheckingIn && props.gate.trim());
+  const processQr = useRef(props.onCameraQrScanned);
+  const reading = useRef(canRead);
   const feedback = props.result ? scanStatus(props.result) : null;
   const manualButton = useRef<View>(null);
   const entry = useRef<TextInput>(null);
@@ -93,16 +96,23 @@ export function ScannerHomeScreen(props: Props) {
     });
   }
 
-  function onBarcodeScanned(scan: BarcodeScanningResult) {
-    if (!showCamera || !cameraReady || props.isCheckingIn || !props.gate.trim()) return;
+  useLayoutEffect(() => {
+    processQr.current = props.onCameraQrScanned;
+    reading.current = canRead;
+    return () => { reading.current = false; };
+  }, [canRead, props.onCameraQrScanned]);
+
+  // Expo Camera's web scanner can keep the callback from its first render.
+  const onBarcodeScanned = useCallback((scan: BarcodeScanningResult) => {
+    if (!reading.current) return;
     if (AppState.currentState && AppState.currentState !== 'active') return;
     const value = scan.data.trim();
     const time = Date.now();
     const repeated = lastRead.current?.value === value && time - lastRead.current.time < SCAN_DUPLICATE_WINDOW_MS;
     if (!value || repeated) return;
     lastRead.current = { value, time };
-    props.onCameraQrScanned(value);
-  }
+    processQr.current(value);
+  }, []);
 
   async function recoverCamera() {
     try {
@@ -170,7 +180,7 @@ export function ScannerHomeScreen(props: Props) {
                 barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
                 onCameraReady={() => setCameraReady(true)}
                 onMountError={() => setCameraError(true)}
-                onBarcodeScanned={onBarcodeScanned}
+                onBarcodeScanned={cameraReady ? onBarcodeScanned : undefined}
                 accessible={false}
               />
               <View pointerEvents="none" style={styles.frame} />

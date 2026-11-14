@@ -7,13 +7,25 @@ import { scannerFixture } from './scanner-fixture.mjs';
 const baseURL = process.env.TICKETBOX_SCANNER_URL ?? 'http://localhost:8092';
 const viewport = { width: Number(process.env.TICKETBOX_SCANNER_WIDTH ?? '360'), height: 640 };
 const captureDir = process.env.TICKETBOX_SCANNER_CAPTURE_DIR;
-const browser = await chromium.launch();
+const cameraVideo = process.env.TICKETBOX_SCANNER_CAMERA_VIDEO;
+const qrDecoder = process.env.TICKETBOX_SCANNER_QR_DECODER;
+const browser = await chromium.launch({
+  args: cameraVideo ? [
+    '--use-fake-device-for-media-stream',
+    '--use-fake-ui-for-media-stream',
+    `--use-file-for-fake-video-capture=${cameraVideo}`,
+  ] : [],
+});
 try {
   const page = await browser.newPage({ baseURL, viewport, reducedMotion: 'reduce' });
   page.setDefaultTimeout(10000);
   if (captureDir) await mkdir(captureDir, { recursive: true });
   async function capture(name) {
     if (captureDir) await page.screenshot({ path: join(captureDir, `${name}.png`) });
+  }
+  if (cameraVideo && qrDecoder) {
+    await page.route('https://cdn.jsdelivr.net/npm/jsqr@1.2.0/dist/jsQR.min.js', (route) =>
+      route.fulfill({ path: qrDecoder, contentType: 'application/javascript' }));
   }
   let syncResponse = 'normal';
   let historyUnavailable = false;
@@ -61,90 +73,107 @@ try {
   await page.getByRole('button', { name: 'Tải dữ liệu vé', exact: true }).click();
   await page.getByRole('button', { name: 'Cập nhật dữ liệu vé', exact: true }).waitFor();
   await page.getByRole('button', { name: 'Bắt đầu quét' }).click();
-  await page.getByRole('button', { name: 'Mở menu' }).click({ timeout: 6000 });
-  await page.getByRole('button', { name: 'Đóng menu', exact: true }).waitFor();
-  await capture('drawer');
-  await page.keyboard.press('Escape');
-  await page.getByRole('button', { name: 'Đóng menu', exact: true }).waitFor({ state: 'hidden' });
-  await page.getByRole('button', { name: 'Mở menu' }).focus();
-  await page.keyboard.press('Enter');
-  await page.getByRole('button', { name: 'Đóng menu', exact: true }).click();
-  await page.getByRole('button', { name: 'Nhập mã thủ công' }).click();
-  const entry = page.getByRole('textbox', { name: 'Mã vé hoặc nội dung QR' });
-  async function submit(value, label) {
-    await entry.fill(value);
-    await page.getByRole('button', { name: 'Soát vé', exact: true }).click();
-    await page.getByText(label, { exact: true }).first().waitFor();
-  }
-  await submit('TB-UNKNOWN', 'Vé không được chấp nhận');
-  assert.equal(await entry.inputValue(), 'TB-UNKNOWN');
-  await submit('TB-DENIED', 'Không có quyền soát vé');
-  await submit('TB-EXPIRED', 'Phiên đăng nhập hết hạn');
-  await submit('TB-PENDING', 'Chờ xác nhận');
-  await capture('pending');
-  assert.equal(await page.getByText('Cho phép vào cổng', { exact: true }).count(), 0);
-  await submit('TB-CONFLICT', 'Chờ xác nhận');
-  await submit('TB-CONFLICT', 'Mã đã quét trên thiết bị');
-  // Simulate the device's offline signal while leaving the fixture endpoint reachable.
-  await page.evaluate(() => {
-    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
-    window.dispatchEvent(new Event('offline'));
-  });
-  await submit('TB-ACCEPTED', 'Cho phép vào cổng');
-  syncResponse = 'forbidden';
-  await page.evaluate(() => {
-    Reflect.deleteProperty(navigator, 'onLine');
-    window.dispatchEvent(new Event('online'));
-  });
-  historyUnavailable = true;
-  await page.getByRole('button', { name: 'Xem tất cả' }).click();
-  await page.getByRole('button', { name: 'Tải lại lịch sử' }).waitFor();
-  assert.match(await page.getByText(/Thiết bị và|Dữ liệu trên thiết bị/).first().textContent(), /[Tt]hiết bị/);
-  historyUnavailable = false;
-  await page.getByRole('button', { name: 'Tải lại lịch sử' }).click();
-  await page.getByRole('button', { name: 'Tải lại lịch sử' }).waitFor({ state: 'hidden' });
-  await page.getByRole('button', { name: 'Đang chờ', exact: true }).click();
-  await page.getByText('2 lượt chờ xác nhận', { exact: true }).waitFor();
-  for (const failure of ['forbidden', 'offline']) {
-    syncResponse = failure;
+  if (cameraVideo) {
+    const permission = page.getByRole('button', { name: 'Cho phép camera' });
+    await permission.click();
+    await page.getByText('Căn mã QR vào khung', { exact: true }).waitFor();
+    await page.getByText('Cho phép vào cổng', { exact: true }).waitFor();
+    await capture('camera');
+    await page.getByRole('button', { name: 'Mở menu' }).click();
+    await page.getByRole('button', { name: 'Đóng menu' }).waitFor();
+    const duringDrawer = submitted;
+    await page.waitForFunction(
+      () => !document.querySelector('video') && Boolean(document.querySelector('[role="dialog"]')),
+    );
+    assert.equal(submitted, duringDrawer);
+    assert.equal(submitted, 1);
+    console.log('Chromium camera fixture decoded the QR once and released the camera when opening the drawer');
+  } else {
+    await page.getByRole('button', { name: 'Mở menu' }).click({ timeout: 6000 });
+    await page.getByRole('button', { name: 'Đóng menu', exact: true }).waitFor();
+    await capture('drawer');
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Đóng menu', exact: true }).waitFor({ state: 'hidden' });
+    await page.getByRole('button', { name: 'Mở menu' }).focus();
+    await page.keyboard.press('Enter');
+    await page.getByRole('button', { name: 'Đóng menu', exact: true }).click();
+    await page.getByRole('button', { name: 'Nhập mã thủ công' }).click();
+    const entry = page.getByRole('textbox', { name: 'Mã vé hoặc nội dung QR' });
+    async function submit(value, label) {
+      await entry.fill(value);
+      await page.getByRole('button', { name: 'Soát vé', exact: true }).click();
+      await page.getByText(label, { exact: true }).first().waitFor();
+    }
+    await submit('TB-UNKNOWN', 'Vé không được chấp nhận');
+    assert.equal(await entry.inputValue(), 'TB-UNKNOWN');
+    await submit('TB-DENIED', 'Không có quyền soát vé');
+    await submit('TB-EXPIRED', 'Phiên đăng nhập hết hạn');
+    await submit('TB-PENDING', 'Chờ xác nhận');
+    await capture('pending');
+    assert.equal(await page.getByText('Cho phép vào cổng', { exact: true }).count(), 0);
+    await submit('TB-CONFLICT', 'Chờ xác nhận');
+    await submit('TB-CONFLICT', 'Mã đã quét trên thiết bị');
+    // Simulate the device's offline signal while leaving the fixture endpoint reachable.
+    await page.evaluate(() => {
+      Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+      window.dispatchEvent(new Event('offline'));
+    });
+    await submit('TB-ACCEPTED', 'Cho phép vào cổng');
+    syncResponse = 'forbidden';
+    await page.evaluate(() => {
+      Reflect.deleteProperty(navigator, 'onLine');
+      window.dispatchEvent(new Event('online'));
+    });
+    historyUnavailable = true;
+    await page.getByRole('button', { name: 'Xem tất cả' }).click();
+    await page.getByRole('button', { name: 'Tải lại lịch sử' }).waitFor();
+    assert.match(await page.getByText(/Thiết bị và|Dữ liệu trên thiết bị/).first().textContent(), /[Tt]hiết bị/);
+    historyUnavailable = false;
+    await page.getByRole('button', { name: 'Tải lại lịch sử' }).click();
+    await page.getByRole('button', { name: 'Tải lại lịch sử' }).waitFor({ state: 'hidden' });
+    await page.getByRole('button', { name: 'Đang chờ', exact: true }).click();
+    await page.getByText('2 lượt chờ xác nhận', { exact: true }).waitFor();
+    for (const failure of ['forbidden', 'offline']) {
+      syncResponse = failure;
+      await page.getByRole('button', { name: 'Đồng bộ ngay', exact: true }).click();
+      await page.getByText(failure === 'forbidden' ? /Không có quyền đồng bộ/ : /Không kết nối được với Check-in/).waitFor();
+      assert.equal(await page.getByText('2 lượt chờ xác nhận', { exact: true }).count(), 1);
+    }
+    syncResponse = 'normal';
     await page.getByRole('button', { name: 'Đồng bộ ngay', exact: true }).click();
-    await page.getByText(failure === 'forbidden' ? /Không có quyền đồng bộ/ : /Không kết nối được với Check-in/).waitFor();
-    assert.equal(await page.getByText('2 lượt chờ xác nhận', { exact: true }).count(), 1);
+    await page.getByText('Không có lượt nào khớp', { exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Đã xác nhận', exact: true }).click();
+    assert.equal(await page.getByText('Đã xác nhận', { exact: true }).count(), 3);
+    await page.getByRole('button', { name: 'Lỗi', exact: true }).click();
+    await page.getByText('Xung đột đồng bộ', { exact: true }).waitFor();
+    await capture('history');
+    await page.getByRole('textbox', { name: 'Tìm trong lịch sử' }).fill('unknown');
+    await page.getByText('Không có lượt nào khớp', { exact: true }).waitFor();
+    await page.getByRole('tab', { name: 'Quét vé' }).click();
+    await page.getByRole('button', { name: 'Nhập mã thủ công' }).click();
+    await entry.fill('TB-LATE');
+    const before = submitted;
+    await page.getByRole('button', { name: 'Soát vé', exact: true }).evaluate((button) => {
+      button.click();
+      button.click();
+    });
+    await lateScanStarted;
+    assert.equal(submitted, before + 1);
+    await page.getByText('Đang kiểm tra vé…', { exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Mở menu' }).click();
+    await page.getByRole('button', { name: 'Đổi sự kiện' }).click();
+    await page.getByText('Hoà nhạc Hà Nội', { exact: true }).click();
+    assert.equal(await page.getByPlaceholder('A, B, VIP...').inputValue(), '');
+    releaseLateScan();
+    await page.getByPlaceholder('A, B, VIP...').fill('B');
+    await page.getByRole('button', { name: 'Bắt đầu quét' }).click();
+    await page.getByRole('button', { name: 'Nhập mã thủ công' }).click();
+    assert.equal(await page.getByText('Phản hồi từ sự kiện trước', { exact: true }).count(), 0);
+    await submit('TB-PENDING', 'Mã không có trong dữ liệu đã tải');
+    await page.getByRole('tab', { name: 'Lịch sử' }).click();
+    await page.getByText('0 lượt chờ xác nhận', { exact: true }).waitFor();
+    console.log(`Scanner flow passed at ${viewport.width}×${viewport.height}`);
   }
-  syncResponse = 'normal';
-  await page.getByRole('button', { name: 'Đồng bộ ngay', exact: true }).click();
-  await page.getByText('Không có lượt nào khớp', { exact: true }).waitFor();
-  await page.getByRole('button', { name: 'Đã xác nhận', exact: true }).click();
-  assert.equal(await page.getByText('Đã xác nhận', { exact: true }).count(), 3);
-  await page.getByRole('button', { name: 'Lỗi', exact: true }).click();
-  await page.getByText('Xung đột đồng bộ', { exact: true }).waitFor();
-  await capture('history');
-  await page.getByRole('textbox', { name: 'Tìm trong lịch sử' }).fill('unknown');
-  await page.getByText('Không có lượt nào khớp', { exact: true }).waitFor();
-  await page.getByRole('tab', { name: 'Quét vé' }).click();
-  await page.getByRole('button', { name: 'Nhập mã thủ công' }).click();
-  await entry.fill('TB-LATE');
-  const before = submitted;
-  await page.getByRole('button', { name: 'Soát vé', exact: true }).evaluate((button) => {
-    button.click();
-    button.click();
-  });
-  await lateScanStarted;
-  assert.equal(submitted, before + 1);
-  await page.getByText('Đang kiểm tra vé…', { exact: true }).waitFor();
-  await page.getByRole('button', { name: 'Mở menu' }).click();
-  await page.getByRole('button', { name: 'Đổi sự kiện' }).click();
-  await page.getByText('Hoà nhạc Hà Nội', { exact: true }).click();
-  assert.equal(await page.getByPlaceholder('A, B, VIP...').inputValue(), '');
-  releaseLateScan();
-  await page.getByPlaceholder('A, B, VIP...').fill('B');
-  await page.getByRole('button', { name: 'Bắt đầu quét' }).click();
-  await page.getByRole('button', { name: 'Nhập mã thủ công' }).click();
-  assert.equal(await page.getByText('Phản hồi từ sự kiện trước', { exact: true }).count(), 0);
-  await submit('TB-PENDING', 'Mã không có trong dữ liệu đã tải');
-  await page.getByRole('tab', { name: 'Lịch sử' }).click();
-  await page.getByText('0 lượt chờ xác nhận', { exact: true }).waitFor();
-  console.log(`Scanner flow passed at ${viewport.width}×${viewport.height}`);
 } finally {
   await browser.close();
 }

@@ -66,4 +66,6 @@ node scripts/e2e/scanner-mobile.mjs
 npm --prefix mobile-scanner run typecheck
 ```
 
+To exercise the camera path in Chromium, set `TICKETBOX_SCANNER_CAMERA_VIDEO` to a Y4M video of a QR containing `TB-ACCEPTED`. The camera run checks that the decoder submits once and that opening the menu releases the preview. An optional `TICKETBOX_SCANNER_QR_DECODER` points to a local copy of the same jsQR script loaded by Expo Camera on web.
+
 The browser uses in-memory storage. Verify camera permission, Android Back, TalkBack, large text, duplicate reads and SQLite persistence by reopening the app on Android. A fixture walkthrough verifies the app flow. Production acceptance requires the scoped staff work in the scanner roadmap.
