@@ -4,11 +4,9 @@ import type { StaffConcert, StaffConcertOverview } from '../api';
 import type { DatasetInfo, LogStatusCounts } from '../database';
 import type { PendingSyncSummary } from '../features/sync';
 import {
-  BottomNav,
   ErrorBanner,
   Header,
   PrimaryButton,
-  Screen,
   SecondaryButton,
   StatusBadge,
 } from '../ui/components';
@@ -21,17 +19,16 @@ type Props = {
   counters: LogStatusCounts;
   gate: string;
   isOnline: boolean;
-  isLoading: boolean;
   isDownloading: boolean;
   isSyncing: boolean;
   errorMessage: string | null;
   syncSummary: PendingSyncSummary | null;
   onChangeGate: (gate: string) => void;
-  onBack: () => void;
   onDownloadDataset: () => void;
   onSync: () => void;
   onDownloadGuestList: () => void;
-  onNavigate: (screen: 'overview' | 'scanner' | 'data' | 'guestlist') => void;
+  onOpenScanner: () => void;
+  onOpenGuests: () => void;
   hasGuestList: boolean;
   isDownloadingGuestList: boolean;
 };
@@ -45,11 +42,10 @@ export function ConcertOverviewScreen(props: Props) {
   );
 
   return (
-    <Screen footer={<BottomNav active="overview" onChange={props.onNavigate} showGuestList={props.hasGuestList} />}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.topActions}>
-          <SecondaryButton label="‹ Concerts" onPress={props.onBack} />
-          <StatusBadge label={props.isOnline ? 'Online' : 'Offline'} tone={props.isOnline ? 'success' : 'warning'} />
+          <Text style={styles.eventName}>{props.concert.title}</Text>
+          <StatusBadge label={props.isOnline ? 'Có kết nối mạng' : 'Mất kết nối mạng'} tone={props.isOnline ? 'neutral' : 'warning'} />
         </View>
 
         {props.errorMessage ? <ErrorBanner message={props.errorMessage} /> : null}
@@ -57,6 +53,7 @@ export function ConcertOverviewScreen(props: Props) {
         <View style={styles.field}>
           <Text style={styles.label}>Cổng đang làm việc</Text>
           <TextInput
+            accessibilityLabel="Cổng đang làm việc"
             autoCapitalize="characters"
             onChangeText={props.onChangeGate}
             placeholder="A, B, VIP..."
@@ -69,24 +66,23 @@ export function ConcertOverviewScreen(props: Props) {
         <View style={styles.metrics}>
           <Metric label="Tổng vé" value={props.overview?.totalTickets ?? props.datasetInfo.totalCount} />
           <Metric label="Đã check-in" value={props.overview?.totalCheckins ?? 0} />
-          <Metric label="Chờ sync" value={props.counters.PENDING} tone="warning" />
+          <Metric label="Chờ xác nhận" value={props.counters.PENDING} tone="warning" />
           <Metric label="Xung đột/lỗi" value={props.counters.CONFLICT + props.counters.FAILED} tone="danger" />
         </View>
 
         <PrimaryButton
-          disabled={!hasDataset && !props.isOnline}
           label="Bắt đầu quét"
-          onPress={() => props.onNavigate('scanner')}
+          onPress={props.onOpenScanner}
         />
 
         <View style={styles.datasetPanel}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionCopy}>
-              <Text style={styles.sectionTitle}>Dataset trên thiết bị</Text>
+              <Text style={styles.sectionTitle}>Dữ liệu vé trên thiết bị</Text>
               <Text style={styles.helper}>
                 {hasDataset
                   ? `${props.datasetInfo.totalCount} vé · tải ${formatDateTime(props.datasetInfo.downloadedAt!)}`
-                  : 'Chưa có dữ liệu local để quét offline.'}
+                  : 'Tải dữ liệu vé để ghi nhận lượt quét khi mất kết nối.'}
               </Text>
             </View>
             <StatusBadge
@@ -96,7 +92,7 @@ export function ConcertOverviewScreen(props: Props) {
           </View>
           <PrimaryButton
             disabled={!props.isOnline}
-            label={hasDataset ? 'Cập nhật dataset' : 'Tải dataset'}
+            label={hasDataset ? 'Cập nhật dữ liệu vé' : 'Tải dữ liệu vé'}
             loading={props.isDownloading}
             onPress={props.onDownloadDataset}
           />
@@ -130,7 +126,7 @@ export function ConcertOverviewScreen(props: Props) {
               <View style={{ flex: 1 }}>
                 <SecondaryButton
                   label="Xem danh sách"
-                  onPress={() => props.onNavigate('guestlist')}
+                  onPress={props.onOpenGuests}
                 />
               </View>
             )}
@@ -139,10 +135,10 @@ export function ConcertOverviewScreen(props: Props) {
 
         <View style={styles.syncPanel}>
           <View style={styles.sectionCopy}>
-            <Text style={styles.sectionTitle}>Đồng bộ lượt quét offline</Text>
+            <Text style={styles.sectionTitle}>Đồng bộ lượt quét</Text>
             <Text style={styles.helper}>
               {props.counters.PENDING
-                ? `${props.counters.PENDING} lượt đang chờ gửi lên server.`
+                ? `${props.counters.PENDING} lượt chờ xác nhận.`
                 : 'Không có lượt quét nào đang chờ.'}
             </Text>
           </View>
@@ -153,12 +149,11 @@ export function ConcertOverviewScreen(props: Props) {
           />
           {props.syncSummary ? (
             <Text style={styles.helper}>
-              Gần nhất: {props.syncSummary.accepted} accepted, {props.syncSummary.skipped} skipped, {props.syncSummary.invalid} invalid.
+              {props.syncSummary.accepted} đã xác nhận · {props.syncSummary.skipped} xung đột · {props.syncSummary.invalid} lỗi
             </Text>
           ) : null}
         </View>
       </ScrollView>
-    </Screen>
   );
 }
 
@@ -193,7 +188,8 @@ function formatDateTime(value: string) {
 
 const styles = StyleSheet.create({
   content: { padding: spacing.screen, gap: spacing.section },
-  topActions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  eventName: { flex: 1, color: colors.text, fontSize: 20, fontWeight: '700' },
+  topActions: { gap: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   datasetPanel: {
     gap: 16,
     padding: spacing.card,

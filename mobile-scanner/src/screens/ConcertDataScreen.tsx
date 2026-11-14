@@ -12,11 +12,12 @@ import {
 
 import type { ServerCheckinHistory, StaffConcert, StaffTicket } from '../api';
 import type { LocalCheckinLog, LocalTicketListItem } from '../database';
-import { BottomNav, EmptyState, ErrorBanner, Header, Screen, StatusBadge } from '../ui/components';
+import { EmptyState, ErrorBanner, Header, StatusBadge } from '../ui/components';
 import { colors, radius, spacing } from '../ui/theme';
 
 type Props = {
   concert: StaffConcert;
+  initialTab: 'tickets' | 'history';
   localTickets: LocalTicketListItem[];
   serverTickets: StaffTicket[];
   localLogs: LocalCheckinLog[];
@@ -25,11 +26,10 @@ type Props = {
   isLoading: boolean;
   errorMessage: string | null;
   onRefresh: () => void;
-  onNavigate: (screen: 'overview' | 'scanner' | 'data' | 'guestlist') => void;
 };
 
 export function ConcertDataScreen(props: Props) {
-  const [tab, setTab] = useState<'tickets' | 'history'>('tickets');
+  const [tab, setTab] = useState(props.initialTab);
   const [query, setQuery] = useState('');
   const [ticketStatus, setTicketStatus] = useState<TicketStatusFilter>('ALL');
   const normalizedQuery = query.trim().toLowerCase();
@@ -71,7 +71,6 @@ export function ConcertDataScreen(props: Props) {
       : history.map((item) => ({ kind: 'history', item }));
 
   return (
-    <Screen footer={<BottomNav active="data" onChange={props.onNavigate} />}>
       <FlatList
         contentContainerStyle={styles.content}
         data={data}
@@ -137,7 +136,6 @@ export function ConcertDataScreen(props: Props) {
         refreshing={props.isLoading}
         onRefresh={props.onRefresh}
       />
-    </Screen>
   );
 }
 

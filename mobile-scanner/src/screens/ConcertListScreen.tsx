@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Pressable,
   RefreshControl,
@@ -65,17 +64,6 @@ export function ConcertListScreen({
     return matchesQuery && matchesDate;
   });
 
-  const handleSelectConcert = (concert: StaffConcert) => {
-    Alert.alert(
-      'Xác nhận',
-      `Bạn có chắc chắn muốn chọn concert "${concert.title}"?`,
-      [
-        { text: 'Hủy', style: 'cancel' },
-        { text: 'Chọn', onPress: () => onSelectConcert(concert) },
-      ]
-    );
-  };
-
   return (
     <Screen>
       <FlatList
@@ -86,13 +74,12 @@ export function ConcertListScreen({
         ListHeaderComponent={
           <View style={styles.headerBlock}>
             <Header
-              eyebrow="TicketBox Scanner"
-              title="Chọn concert"
-              subtitle={`Xin chào ${user.fullName}. Chọn concert trước khi tải dữ liệu và quét vé.`}
+              title="Chọn sự kiện"
+              subtitle={`Xin chào ${user.fullName}. Chọn sự kiện trước khi tải dữ liệu và quét vé.`}
               right={
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <StatusBadge label={isOnline ? 'Online' : 'Offline'} tone={isOnline ? 'success' : 'warning'} />
-                  <Pressable onPress={onLogout} style={{ padding: 4 }}>
+                  <StatusBadge label={isOnline ? 'Có kết nối mạng' : 'Mất kết nối mạng'} tone={isOnline ? 'neutral' : 'warning'} />
+                  <Pressable accessibilityRole="button" accessibilityLabel="Đăng xuất" onPress={onLogout} style={styles.iconButton}>
                     <MaterialIcons name="logout" size={24} color={colors.danger} />
                   </Pressable>
                 </View>
@@ -102,7 +89,7 @@ export function ConcertListScreen({
             <View style={styles.filters}>
               <TextInput
                 style={styles.searchInput}
-                placeholder="Tìm tên concert..."
+                placeholder="Tìm tên sự kiện..."
                 placeholderTextColor={colors.textMuted}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
@@ -136,15 +123,15 @@ export function ConcertListScreen({
           isLoading ? (
             <View style={styles.loading}>
               <ActivityIndicator color={colors.accent} />
-              <Text style={styles.muted}>Đang tải danh sách concert...</Text>
+              <Text style={styles.muted}>Đang tải danh sách sự kiện...</Text>
             </View>
           ) : (
             <EmptyState
-              title="Chưa có concert"
+              title="Chưa có sự kiện"
               message={
                 isOnline
-                  ? 'Không có concert ON_SALE để quét.'
-                  : 'Thiết bị chưa cache concert nào. Hãy kết nối mạng và tải lại.'
+                  ? 'Không có sự kiện đang mở bán để soát vé.'
+                  : 'Thiết bị chưa có sự kiện đã lưu. Hãy kết nối mạng và tải lại.'
               }
             />
           )
@@ -153,7 +140,8 @@ export function ConcertListScreen({
           const localDataset = datasetInfo[item.id];
           return (
             <Pressable
-              onPress={() => handleSelectConcert(item)}
+              accessibilityRole="button"
+              onPress={() => onSelectConcert(item)}
               style={({ pressed }) => [styles.concertRow, pressed && styles.pressed]}
             >
               <View style={styles.dateBlock}>
@@ -167,7 +155,7 @@ export function ConcertListScreen({
                 <View style={styles.badges}>
                   <StatusBadge label={item.status} tone="success" />
                   <StatusBadge
-                    label={localDataset?.downloadedAt ? `${localDataset.totalCount} vé local` : 'Chưa tải dataset'}
+                    label={localDataset?.downloadedAt ? `${localDataset.totalCount} vé đã tải` : 'Chưa tải dữ liệu'}
                     tone={localDataset?.downloadedAt ? 'success' : 'neutral'}
                   />
                 </View>
@@ -200,6 +188,7 @@ function formatDateTime(value: string) {
 }
 
 const styles = StyleSheet.create({
+  iconButton: { minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   content: { padding: spacing.screen, gap: 12 },
   headerBlock: { gap: 14, marginBottom: 8 },
   loading: { padding: 40, alignItems: 'center', gap: 12 },

@@ -13,7 +13,7 @@ import {
 import { SCAN_DUPLICATE_WINDOW_MS, type StaffConcert } from '../api';
 import type { LogStatusCounts } from '../database';
 import type { ManualCheckinResult } from '../features/checkin';
-import { BottomNav, Header, PrimaryButton, Screen, SecondaryButton, StatusBadge } from '../ui/components';
+import { Header, PrimaryButton, SecondaryButton, StatusBadge } from '../ui/components';
 import { colors, radius, spacing } from '../ui/theme';
 
 type Props = {
@@ -28,7 +28,6 @@ type Props = {
   onChangeQrCode: (value: string) => void;
   onCheckin: () => void;
   onCameraQrScanned: (value: string) => void;
-  onNavigate: (screen: 'overview' | 'scanner' | 'data' | 'guestlist') => void;
 };
 
 export function ScannerHomeScreen({
@@ -43,7 +42,6 @@ export function ScannerHomeScreen({
   onChangeQrCode,
   onCheckin,
   onCameraQrScanned,
-  onNavigate,
 }: Props) {
   const [permission, requestPermission] = useCameraPermissions();
   const [cameraActive, setCameraActive] = useState(true);
@@ -51,7 +49,6 @@ export function ScannerHomeScreen({
   const canScan = isOnline || hasDataset;
 
   return (
-    <Screen footer={<BottomNav active="scanner" onChange={onNavigate} />}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.headerRow}>
           <Header
@@ -149,7 +146,6 @@ export function ScannerHomeScreen({
           <Counter value={counters.CONFLICT + counters.FAILED} label="Lỗi" />
         </View>
       </ScrollView>
-    </Screen>
   );
 
   function handleBarcodeScanned(scan: BarcodeScanningResult) {

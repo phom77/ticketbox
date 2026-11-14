@@ -2,27 +2,23 @@ import type { ReactNode } from 'react';
 import {
   ActivityIndicator,
   Pressable,
-  SafeAreaView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 
-import { colors, radius, spacing } from './theme';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-type BottomNavScreen = 'overview' | 'scanner' | 'data' | 'guestlist';
+import { colors, radius, spacing } from './theme';
 
 export function Screen({
   children,
-  footer,
 }: {
   children: ReactNode;
-  footer?: ReactNode;
 }) {
   return (
     <SafeAreaView style={styles.screen}>
       <View style={styles.body}>{children}</View>
-      {footer}
     </SafeAreaView>
   );
 }
@@ -42,7 +38,7 @@ export function Header({
     <View style={styles.header}>
       <View style={styles.headerCopy}>
         {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
-        <Text style={styles.title}>{title}</Text>
+        <Text accessibilityRole="header" style={styles.title}>{title}</Text>
         {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
       </View>
       {right}
@@ -64,6 +60,8 @@ export function PrimaryButton({
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: disabled || loading, busy: loading }}
       disabled={disabled || loading}
       onPress={onPress}
       style={({ pressed }) => [
@@ -75,7 +73,7 @@ export function PrimaryButton({
       {loading ? (
         <ActivityIndicator color="#FFFFFF" />
       ) : (
-        <Text numberOfLines={1} style={styles.primaryButtonText}>
+        <Text style={styles.primaryButtonText}>
           {label}
         </Text>
       )}
@@ -95,6 +93,7 @@ export function SecondaryButton({
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => [
@@ -103,7 +102,7 @@ export function SecondaryButton({
         disabled && styles.buttonDisabled,
       ]}
     >
-      <Text numberOfLines={1} style={styles.secondaryButtonText}>
+      <Text style={styles.secondaryButtonText}>
         {label}
       </Text>
     </Pressable>
@@ -151,45 +150,8 @@ export function EmptyState({
 
 export function ErrorBanner({ message }: { message: string }) {
   return (
-    <View style={styles.errorBanner}>
+    <View role="alert" style={styles.errorBanner}>
       <Text style={styles.errorText}>{message}</Text>
-    </View>
-  );
-}
-
-export function BottomNav({
-  active,
-  onChange,
-  showGuestList = false,
-}: {
-  active: BottomNavScreen;
-  onChange: (screen: BottomNavScreen) => void;
-  showGuestList?: boolean;
-}) {
-  const items: ReadonlyArray<readonly [BottomNavScreen, string]> = [
-    ['overview', 'Tổng quan'],
-    ['scanner', 'Quét vé'],
-    ['data', 'Dữ liệu'],
-    ...(showGuestList ? ([['guestlist', 'Khách mời']] as const) : []),
-  ] as const;
-
-  return (
-    <View style={styles.bottomNav}>
-      {items.map(([key, label]) => {
-        const isActive = active === key;
-        return (
-          <Pressable
-            accessibilityRole="tab"
-            accessibilityState={{ selected: isActive }}
-            key={key}
-            onPress={() => onChange(key)}
-            style={({ pressed }) => [styles.navItem, pressed && styles.buttonPressed]}
-          >
-            <Text style={[styles.navText, isActive && styles.navTextActive]}>{label}</Text>
-            {isActive ? <View style={styles.navIndicator} /> : null}
-          </Pressable>
-        );
-      })}
     </View>
   );
 }
@@ -221,9 +183,9 @@ const styles = StyleSheet.create({
     borderRadius: radius.button,
     backgroundColor: colors.accent,
   },
-  primaryButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+  primaryButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700', textAlign: 'center' },
   secondaryButton: {
-    minHeight: 46,
+    minHeight: 48,
     paddingHorizontal: 16,
     alignItems: 'center',
     justifyContent: 'center',
@@ -232,7 +194,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.surface,
   },
-  secondaryButtonText: { color: colors.text, fontSize: 14, fontWeight: '800' },
+  secondaryButtonText: { color: colors.text, fontSize: 14, fontWeight: '700', textAlign: 'center' },
   buttonPressed: { opacity: 0.72, transform: [{ scale: 0.99 }] },
   buttonDisabled: { opacity: 0.48 },
   badge: {
@@ -269,17 +231,4 @@ const styles = StyleSheet.create({
     backgroundColor: colors.dangerSoft,
   },
   errorText: { color: colors.danger, fontSize: 14, lineHeight: 20, fontWeight: '600' },
-  bottomNav: {
-    flexDirection: 'row',
-    paddingHorizontal: 8,
-    paddingTop: 8,
-    paddingBottom: 10,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  navItem: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', gap: 5 },
-  navText: { color: colors.textMuted, fontSize: 13, fontWeight: '700' },
-  navTextActive: { color: colors.accent, fontWeight: '900' },
-  navIndicator: { width: 24, height: 3, borderRadius: 2, backgroundColor: colors.accent },
 });

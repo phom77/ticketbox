@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 
 import type { StaffConcert, StaffGuestListEntry } from '../api';
-import { BottomNav, EmptyState, ErrorBanner, Header, Screen, SecondaryButton, StatusBadge } from '../ui/components';
+import { EmptyState, ErrorBanner, Header, SecondaryButton, StatusBadge } from '../ui/components';
 import { colors, radius, spacing } from '../ui/theme';
 
 type Props = {
@@ -23,7 +23,6 @@ type Props = {
   errorMessage: string | null;
   onBack: () => void;
   onCheckInGuest: (guest: StaffGuestListEntry) => void;
-  onNavigate: (screen: 'overview' | 'scanner' | 'data' | 'guestlist') => void;
 };
 
 export function GuestListScreen({
@@ -35,7 +34,6 @@ export function GuestListScreen({
   errorMessage,
   onBack,
   onCheckInGuest,
-  onNavigate,
 }: Props) {
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<'ALL' | 'PENDING' | 'CHECKED_IN'>('ALL');
@@ -79,7 +77,6 @@ export function GuestListScreen({
   }
 
   return (
-    <Screen footer={<BottomNav active="guestlist" onChange={onNavigate} showGuestList />}>
       <FlatList
         contentContainerStyle={styles.listContent}
         data={filteredGuests}
@@ -91,7 +88,6 @@ export function GuestListScreen({
               <StatusBadge label={isOnline ? 'Online' : 'Offline'} tone={isOnline ? 'success' : 'warning'} />
             </View>
             <Header
-              eyebrow="Guest List"
               title={concert.title}
               subtitle={`${guestList.length} khách mời · cổng ${gate.trim() || 'VIP'}`}
             />
@@ -178,7 +174,6 @@ export function GuestListScreen({
           );
         }}
       />
-    </Screen>
   );
 }
 
