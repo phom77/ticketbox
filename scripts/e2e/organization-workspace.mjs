@@ -14,6 +14,9 @@ const browser = await chromium.launch({ headless: true });
 
 async function session(role, viewport = { width: 1440, height: 900 }) {
   const context = await browser.newContext({ baseURL, locale: 'vi-VN', viewport });
+  // The gateway journey should run independently of hosted posters and fonts.
+  const origin = new URL(baseURL).origin;
+  await context.route((url) => url.origin !== origin, (route) => route.abort());
   const login = await context.request.post('/api/auth/login', {
     data: { email: `${role}@ticketbox.com`, password: 'password123' },
   });
@@ -201,28 +204,30 @@ try {
     await audience.page.waitForURL('**/checkout?orderId=*');
     await pay.click();
   }
-  await audience.page.getByRole('link', { name: 'Xem vé của tôi' }).waitFor();
+  const viewTickets = audience.page.getByRole('link', { name: 'Xem vé của tôi' });
+  await viewTickets.waitFor();
   await fits(audience.page, 'Booking confirmation at 390px');
+  await viewTickets.click();
+  await audience.page.waitForURL('**/my-tickets');
   await audience.page.goto('/profile?tab=orders');
   await audience.page.getByRole('region', { name: 'Lịch sử đơn hàng' })
     .getByRole('heading', { name: title }).waitFor();
   await audience.page.goto('/my-tickets');
   await audience.page.reload();
-  const ticketGroup = audience.page.locator('.ticket-concert-card').filter({ hasText: title });
-  const ticketSummary = ticketGroup.locator('.ticket-concert-summary');
-  await ticketSummary.waitFor();
-  if (await ticketSummary.getAttribute('aria-expanded') === 'false') await ticketSummary.click();
-  await ticketGroup.locator('.ticket-row').click();
+  const ticketGroup = audience.page.getByRole('article', { name: title, exact: true });
+  await ticketGroup.getByRole('button', { name: `Xem vé · ${title}`, exact: true }).click();
+  const openTicket = ticketGroup.getByRole('button', { name: /^Mở mã QR · / });
+  const ticketReference = (await openTicket.getAttribute('aria-label')).split(' · ')[1];
+  await openTicket.click();
   const ticket = audience.page.getByRole('dialog', { name: title });
-  await ticket.getByText('Mã QR vé', { exact: true }).waitFor();
-  assert(await ticket.locator('svg.ticket-qr').isVisible());
+  await ticket.getByRole('img', { name: `Mã QR vé cho ${title}`, exact: true }).waitFor();
   await fits(audience.page, 'Recovered ticket at 390px');
   await audience.page.getByRole('button', { name: 'Đóng chi tiết vé' }).click();
   await audience.page.getByRole('combobox', { name: 'Ngôn ngữ' }).selectOption('en');
-  await audience.page.locator('.ticket-concert-card').filter({ hasText: englishTitle }).locator('.ticket-row').click();
+  await audience.page.getByRole('article', { name: englishTitle, exact: true })
+    .getByRole('button', { name: `Show QR code · ${ticketReference}`, exact: true }).click();
   const englishTicket = audience.page.getByRole('dialog', { name: englishTitle });
-  await englishTicket.getByText('Ticket QR code', { exact: true }).waitFor();
-  assert(await englishTicket.locator('svg.ticket-qr').isVisible());
+  await englishTicket.getByRole('img', { name: `Ticket QR code for ${englishTitle}`, exact: true }).waitFor();
   console.log('Mobile buyer selected a ticket, paid with MOCK, recovered the order and opened the issued QR after reload.');
 
   console.log('Organization approval, invitation, grant guards and switching passed at 1440, 834 and 390 px.');

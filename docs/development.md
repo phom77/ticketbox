@@ -153,6 +153,19 @@ node scripts/e2e/web-language.mjs
 
 Add web translations in `frontend/src/i18n/<language>/`. The supported language list lives in `frontend/src/i18n/index.ts`. Use stable message keys, translate complete phrases, and run `npm --prefix frontend run lint` to check catalog coverage, interpolation variables and plural forms.
 
+Run the buyer ticket wallet and notification inbox fixtures against the Vite server.
+
+```sh
+VITE_API_BASE_URL=http://localhost:5185 npm --prefix frontend run dev -- --host 127.0.0.1 --port 5185 --strictPort
+```
+
+```sh
+node scripts/e2e/buyer-ticket-wallet.mjs
+node scripts/e2e/buyer-notification-inbox.mjs
+```
+
+The fixtures cover responsive behavior, keyboard interaction and recovery using mocked API responses. Use `organization-workspace.mjs` with the isolated gateway to verify that a MOCK purchase results in a ticket the buyer can reopen after reload.
+
 ## Database changes
 
 Add new Flyway migrations to the owning application's migration directory. Keep existing migrations intact: their checksums are part of already initialized databases. The six services and Core legacy each have their own Flyway history. Generated reports, credentials, database dumps and local datasets must stay out of Git.

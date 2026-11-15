@@ -1,9 +1,9 @@
 import { translate } from '../../i18n';
 import { useTranslation } from 'react-i18next';
-import { type FormEvent, useEffect, useState } from 'react';
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, LogOut, Search } from 'lucide-react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { getUnreadNotificationCount } from '../../api/notifications';
+import { getUnreadNotificationCount, isNotificationAccessDenied } from '../../api/notifications';
 import { useAuth } from '../../features/auth/AuthContext';
 import { getRoleHome, getRoleHomeLabel } from '../../features/auth/roleRoutes';
 import { buyerInformationLinks } from '../../features/ticket/buyerInformation';
@@ -39,20 +39,25 @@ function NotificationLabel({ count }: { count: number }) {
     <span className="notification-link-label">
       {translate("shared:publicLayout_thongBao")}
       {count > 0 ? (
-        <span className="notification-badge" aria-label={translate("shared:publicLayout_thongBaoChuaDoc", { count })}>
-          {count > 99 ? '99+' : count}
-        </span>
+        <>
+          <span className="notification-badge" aria-hidden="true">{count > 99 ? '99+' : count}</span>
+          <span className="sr-only">{translate("shared:publicLayout_thongBaoChuaDoc", { count })}</span>
+        </>
       ) : null}
     </span>
   );
 }
 
+export type PublicLayoutContext = {
+  refreshUnreadNotifications: () => void;
+  clearUnreadNotifications: () => void;
+};
+
 export function PublicLayout() {
   useTranslation();
-  const { user, logout } = useAuth();
+  const { user, token, loading, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [headerSearch, setHeaderSearch] = useState('');
   const navigate = useNavigate();
   const location = useLocation();
@@ -65,11 +70,42 @@ export function PublicLayout() {
   const homeLabel = getRoleHomeLabel(user?.role);
   const canBrowseCatalogue = !user || user.role === 'AUDIENCE' || user.role === 'ORGANIZER';
   const isAudience = user?.role === 'AUDIENCE';
+  const audienceId = isAudience && !loading ? user.id : null;
+  const notificationSession = useMemo(
+    () => audienceId && token ? { audienceId, token } : null,
+    [audienceId, token],
+  );
+  const [unreadResult, setUnreadResult] = useState<{ session: typeof notificationSession; count: number }>();
+  const unreadRequest = useRef<AbortController>();
+  const unreadNotifications = unreadResult?.session === notificationSession ? unreadResult.count : 0;
+
+  const refreshUnreadNotifications = useCallback(() => {
+    if (!notificationSession) return;
+    unreadRequest.current?.abort();
+    const controller = new AbortController();
+    unreadRequest.current = controller;
+
+    void getUnreadNotificationCount(controller.signal).then(({ count }) => {
+      if (!controller.signal.aborted) setUnreadResult({ session: notificationSession, count });
+    }).catch((error) => {
+      if (!controller.signal.aborted && isNotificationAccessDenied(error)) setUnreadResult(undefined);
+    });
+  }, [notificationSession]);
+
+  const clearUnreadNotifications = useCallback(() => {
+    unreadRequest.current?.abort();
+    setUnreadResult(undefined);
+  }, []);
+
+  useEffect(() => {
+    refreshUnreadNotifications();
+    return () => unreadRequest.current?.abort();
+  }, [refreshUnreadNotifications]);
 
   function logOut() {
     setMenuOpen(false);
     setMobileOpen(false);
-    setUnreadNotifications(0);
+    unreadRequest.current?.abort();
     logout();
     navigate('/');
   }
@@ -80,20 +116,6 @@ export function PublicLayout() {
     navigate(query ? `/?q=${encodeURIComponent(query)}` : '/');
     setHeaderSearch('');
   }
-
-  useEffect(() => {
-    if (!user) {
-      setUnreadNotifications(0);
-      return;
-    }
-
-    const controller = new AbortController();
-    getUnreadNotificationCount(controller.signal)
-      .then((result) => setUnreadNotifications(result.count))
-      .catch(() => setUnreadNotifications(0));
-
-    return () => controller.abort();
-  }, [user?.id]);
 
   return (
     <div className="site-shell">
@@ -267,7 +289,7 @@ export function PublicLayout() {
       ) : <div className="page-width booking-language"><LanguageSelect /></div>}
       <main id="main-content">
         <div key={location.pathname} className="route-transition">
-          <Outlet />
+          <Outlet context={{ refreshUnreadNotifications, clearUnreadNotifications } satisfies PublicLayoutContext} />
         </div>
       </main>
       {!isBookingFlow ? <Footer homePath={homePath} homeLabel={homeLabel} /> : null}
