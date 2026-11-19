@@ -1,8 +1,8 @@
 import { translate } from '../../i18n';
 import { useTranslation } from 'react-i18next';
 import { concertTitle } from '../../features/concert/concertText';
-import { useEffect, useMemo, useState } from 'react';
-import { Client, type IMessage, type StompSubscription } from '@stomp/stompjs';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Client, type IMessage } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ApiClientError, apiBaseUrl, isRequestCanceled } from '../../api/client';
@@ -28,6 +28,8 @@ export function WaitingRoomPage() {
   const [joining, setJoining] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  const stopWaitingRef = useRef<(() => void) | null>(null);
+  const leavingRef = useRef(false);
 
   useEffect(() => {
     if (!id) return;
@@ -57,131 +59,157 @@ export function WaitingRoomPage() {
     if (!id) return;
     const concertId = id;
     const controller = new AbortController();
-    let active = true;
+    const { signal } = controller;
+    leavingRef.current = false;
     let stompClient: Client | null = null;
-    let subscription: StompSubscription | null = null;
-    let snapshotSubscription: StompSubscription | null = null;
     let refreshTimer: number | undefined;
     let requestInProgress = false;
-    let hasAdmission = false;
     let joinRetryTimer: number | undefined;
     let joinAttempts = 0;
+    let pollAfterMs: number | undefined;
+
+    function stopRealtime() {
+      const client = stompClient;
+      stompClient = null;
+      void client?.deactivate();
+    }
+
+    function stopWaiting() {
+      controller.abort();
+      window.clearTimeout(refreshTimer);
+      window.clearTimeout(joinRetryTimer);
+      stopRealtime();
+    }
+
+    stopWaitingRef.current = stopWaiting;
+
+    function scheduleRefresh() {
+      window.clearTimeout(refreshTimer);
+      if (signal.aborted) return;
+      const delay = pollAfterMs == null
+        ? 12_000 + Math.random() * 3_000
+        : pollAfterMs * (0.8 + Math.random() * 0.4);
+      refreshTimer = window.setTimeout(refreshStatus, delay);
+    }
 
     async function refreshStatus() {
-      if (!active || requestInProgress) return;
+      if (signal.aborted || requestInProgress) return;
       requestInProgress = true;
       try {
-        handleStatus(await getQueueStatus(concertId, controller.signal));
+        handleStatus(await getQueueStatus(concertId, signal));
       } catch (requestError) {
-        if (active && !isRequestCanceled(requestError)) setError(messageForQueueError(requestError));
+        if (!signal.aborted && !isRequestCanceled(requestError)) {
+          setError(messageForQueueError(requestError));
+        }
       } finally {
         requestInProgress = false;
-        if (active) refreshTimer = window.setTimeout(refreshStatus, 12_000 + Math.random() * 3_000);
+        scheduleRefresh();
       }
     }
 
     function handleStatus(nextStatus: QueueStatusResponse) {
-      if (!active || (hasAdmission && nextStatus.status !== 'ADMITTED')) return;
-      if (nextStatus.status === 'ADMITTED') hasAdmission = true;
+      if (signal.aborted) return;
+      if (nextStatus.status === 'ADMITTED') {
+        const expiry = nextStatus.sessionExpiresAt ? Date.parse(nextStatus.sessionExpiresAt) : NaN;
+        if (!Number.isFinite(expiry) || expiry <= Date.now() || !storeQueueAdmission(concertId, nextStatus)) {
+          return;
+        }
+        stopWaiting();
+        navigate(`/concerts/${concertId}/seats`, { replace: true });
+        return;
+      }
+
+      if (nextStatus.status === 'EXPIRED' || nextStatus.status === 'LEFT') {
+        stopWaiting();
+      } else {
+        pollAfterMs = nextStatus.pollAfterMs;
+        const nearFront = nextStatus.status === 'WAITING'
+          && nextStatus.position != null && nextStatus.position <= 1_000;
+        if (pollAfterMs == null || nearFront) connectRealtime();
+        else stopRealtime();
+      }
       setQueueStatus(nextStatus);
       setError(null);
       setJoining(false);
-
-      if (nextStatus.status === 'ADMITTED') {
-        const admission = storeQueueAdmission(concertId, nextStatus);
-        if (admission) {
-          navigate(`/concerts/${concertId}/seats`, { replace: true });
-        }
-      }
     }
 
     async function join() {
+      if (signal.aborted) return;
       clearStoredQueueAdmission();
       setJoining(true);
       setError(null);
 
       try {
-        const joined = await joinQueue(concertId, controller.signal);
-        handleStatus(joined);
-        if (
-          joined.status !== 'ADMITTED' &&
-          joined.status !== 'EXPIRED' &&
-          joined.status !== 'LEFT'
-        ) {
-          connectRealtime();
-          refreshTimer = window.setTimeout(refreshStatus, 12_000 + Math.random() * 3_000);
-        }
+        handleStatus(await joinQueue(concertId, signal));
+        scheduleRefresh();
       } catch (requestError) {
-        if (active && !isRequestCanceled(requestError)) {
-          if (requestError instanceof ApiClientError && [429, 503].includes(requestError.status) && joinAttempts < 6) {
-            const delay = Math.min(5_000, 1_000 * 2 ** joinAttempts++) + Math.random() * 500;
-            setError(translate("customer:waitingRoomPage_hangChoDangChuanBiDangThu"));
-            joinRetryTimer = window.setTimeout(join, delay);
-            return;
-          }
-          setJoining(false);
-          setError(messageForQueueError(requestError));
+        if (signal.aborted || isRequestCanceled(requestError)) return;
+        if (requestError instanceof ApiClientError && [429, 503].includes(requestError.status) && joinAttempts < 6) {
+          const delay = Math.min(5_000, 1_000 * 2 ** joinAttempts++) + Math.random() * 500;
+          setError(translate("customer:waitingRoomPage_hangChoDangChuanBiDangThu"));
+          joinRetryTimer = window.setTimeout(join, delay);
+          return;
         }
+        setJoining(false);
+        setError(messageForQueueError(requestError));
       }
     }
 
     function connectRealtime() {
       const token = getAuthToken();
-      if (!token || !active) return;
+      if (!token || signal.aborted || stompClient) return;
 
-      stompClient = new Client({
+      function disconnected() {
+        if (!signal.aborted && stompClient === client) {
+          setError(translate("customer:waitingRoomPage_ketNoiHangChoTrucTiepBi"));
+        }
+      }
+
+      const client = new Client({
         webSocketFactory: () => new SockJS(`${apiBaseUrl}/ws`),
         connectHeaders: { Authorization: `Bearer ${token}` },
         reconnectDelay: 5_000 + Math.random() * 5_000,
         heartbeatIncoming: 10_000,
         heartbeatOutgoing: 10_000,
         onConnect: () => {
-          if (!active || !stompClient) return;
-          window.clearTimeout(refreshTimer);
-          void refreshStatus();
-          snapshotSubscription = stompClient.subscribe(`/topic/queue/concerts/${concertId}`, (message: IMessage) => {
-            try {
-              const snapshot = JSON.parse(message.body) as Pick<QueueStatusResponse, 'waitingRoomCount' | 'queueSize' | 'activeShoppers'>;
-              if (active) setQueueStatus((previous) => previous && previous.status !== 'ADMITTED'
-                ? { ...previous, waitingRoomCount: snapshot.waitingRoomCount, queueSize: snapshot.queueSize, activeShoppers: snapshot.activeShoppers }
-                : previous);
-            } catch { /* A private status refresh repairs a missed snapshot. */ }
-          });
-          subscription = stompClient.subscribe(
-            `/user/queue/concerts/${concertId}`,
-            (message: IMessage) => {
+          if (signal.aborted || stompClient !== client) return;
+          if (pollAfterMs == null) {
+            window.clearTimeout(refreshTimer);
+            void refreshStatus();
+            client.subscribe(`/topic/queue/concerts/${concertId}`, (message: IMessage) => {
+              if (signal.aborted || stompClient !== client) return;
               try {
-                handleStatus(JSON.parse(message.body) as QueueStatusResponse);
-              } catch {
-                setError(translate("customer:waitingRoomPage_khongDocDuocCapNhatHangCho"));
-              }
-            },
-          );
-          stompClient.publish({
+                const snapshot = JSON.parse(message.body) as Pick<QueueStatusResponse, 'waitingRoomCount' | 'queueSize' | 'activeShoppers'>;
+                setQueueStatus((previous) => previous && previous.status !== 'ADMITTED'
+                  ? { ...previous, waitingRoomCount: snapshot.waitingRoomCount, queueSize: snapshot.queueSize, activeShoppers: snapshot.activeShoppers }
+                  : previous);
+              } catch { /* A private status refresh repairs a missed snapshot. */ }
+            });
+          }
+          client.subscribe(`/user/queue/concerts/${concertId}`, (message: IMessage) => {
+            if (signal.aborted || stompClient !== client) return;
+            try {
+              handleStatus(JSON.parse(message.body) as QueueStatusResponse);
+            } catch {
+              setError(translate("customer:waitingRoomPage_khongDocDuocCapNhatHangCho"));
+            }
+          });
+          client.publish({
             destination: '/app/queue/subscribe',
             body: JSON.stringify({ concertId }),
           });
         },
-        onStompError: () => {
-          if (active) setError(translate("customer:waitingRoomPage_ketNoiHangChoTrucTiepBi"));
-        },
-        onWebSocketClose: () => {
-          if (active) setError(translate("customer:waitingRoomPage_ketNoiHangChoTrucTiepBi"));
-        },
+        onStompError: disconnected,
+        onWebSocketClose: disconnected,
       });
-      stompClient.activate();
+      stompClient = client;
+      client.activate();
     }
 
     void join();
-
     return () => {
-      active = false;
-      controller.abort();
-      window.clearTimeout(refreshTimer);
-      window.clearTimeout(joinRetryTimer);
-      snapshotSubscription?.unsubscribe();
-      subscription?.unsubscribe();
-      void stompClient?.deactivate();
+      stopWaiting();
+      if (stopWaitingRef.current === stopWaiting) stopWaitingRef.current = null;
     };
   }, [id, navigate]);
 
@@ -197,15 +225,18 @@ export function WaitingRoomPage() {
   }, [queueStatus]);
 
   async function leave() {
-    if (id) {
-      try {
-        await leaveQueue(id);
-      } catch {
-        // Leaving is best-effort; route change should not be blocked by a network miss.
-      }
+    const stopWaiting = stopWaitingRef.current;
+    if (!id || leavingRef.current || !stopWaiting) return;
+    leavingRef.current = true;
+    stopWaiting();
+    try {
+      await leaveQueue(id);
+    } catch {
+      // Leaving is best-effort; route change should not be blocked by a network miss.
     }
+    if (stopWaitingRef.current !== stopWaiting) return;
     clearStoredQueueAdmission();
-    navigate(id ? `/concerts/${id}` : '/');
+    navigate(`/concerts/${id}`);
   }
 
   if (loading) {

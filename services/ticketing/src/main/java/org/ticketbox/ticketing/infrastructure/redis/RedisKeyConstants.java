@@ -17,6 +17,7 @@ public class RedisKeyConstants {
     public static final String WAITING_ROOM_SEQUENCE = "waiting-room:sequence:";
     public static final String QUEUE_DRAW_STATE = "queue:draw-state:";
     public static final String QUEUE_DRAW_LOCK = "queue:draw-lock:";
+    public static final String QUEUE_OPENING_SEED = "queue:opening-seed:v1:";
     public static final String QUEUE_ACTIVE = "queue:active:";
     public static final String QUEUE_SESSION = "shopping-session:";
     public static final String QUEUE_LEFT = "queue:left:";

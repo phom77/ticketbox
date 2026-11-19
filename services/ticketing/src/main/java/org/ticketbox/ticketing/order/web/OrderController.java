@@ -1,5 +1,6 @@
 package org.ticketbox.ticketing.order.web;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
@@ -12,6 +13,7 @@ import org.ticketbox.ticketing.order.application.OrderService;
 import org.ticketbox.ticketing.order.application.dto.CreateOrderRequest;
 import org.ticketbox.ticketing.order.application.dto.OrderResponse;
 import org.ticketbox.ticketing.web.ApiResponse;
+import org.ticketbox.ticketing.web.PurchaseAdmissionHealthInterceptor;
 
 import java.util.List;
 import java.util.UUID;
@@ -28,7 +30,8 @@ public class OrderController {
             @Valid @RequestBody CreateOrderRequest request,
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @RequestHeader(value = "Queue-Access-Token", required = false) String queueAccessToken,
-            Authentication authentication) {
+            Authentication authentication, HttpServletRequest httpRequest) {
+        httpRequest.setAttribute(PurchaseAdmissionHealthInterceptor.CONCERT, request.concertId());
         UUID userId = UUID.fromString(authentication.getName());
         OrderResponse response =
                 orderService.createOrder(request, userId, idempotencyKey, queueAccessToken);
