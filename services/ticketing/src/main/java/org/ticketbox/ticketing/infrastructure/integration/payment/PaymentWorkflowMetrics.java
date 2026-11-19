@@ -6,12 +6,13 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.ticketbox.ticketing.queue.application.port.DispatchBacklog;
 
 import java.util.concurrent.atomic.AtomicLong;
 
 @Component
 @ConditionalOnProperty(name = "ticketbox.payments.mode", havingValue = "remote")
-public class PaymentWorkflowMetrics {
+public class PaymentWorkflowMetrics implements DispatchBacklog {
     private final JdbcTemplate db;
     private final AtomicLong pending = new AtomicLong(), oldest = new AtomicLong();
 
@@ -19,6 +20,18 @@ public class PaymentWorkflowMetrics {
         this.db = db;
         metrics.gauge("ticketbox.payment.intents.pending", pending);
         metrics.gauge("ticketbox.payment.intents.oldest.seconds", oldest);
+    }
+
+    @Override
+    public boolean overdue() {
+        return Boolean.TRUE.equals(db.queryForObject("""
+                SELECT EXISTS (
+                    SELECT 1 FROM ticketing_payment_intents
+                    WHERE state IN ('CREATED', 'UNKNOWN') AND attempt_id IS NULL AND payment_url IS NULL
+                      AND next_attempt_at <= now() AND expires_at > now()
+                      AND created_at < now() - interval '15 seconds'
+                )
+                """, Boolean.class));
     }
 
     @Scheduled(fixedDelay = 10000)

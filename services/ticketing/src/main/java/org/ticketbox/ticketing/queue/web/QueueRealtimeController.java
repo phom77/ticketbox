@@ -22,6 +22,9 @@ public class QueueRealtimeController {
             QueueSubscriptionRequest request,
             Principal principal,
             @Header("simpSessionId") String sessionId) {
+        if (principal == null || request == null || request.concertId() == null) {
+            throw new IllegalArgumentException("Authenticated queue subscription requires a concert");
+        }
         queueRealtimeService.subscribe(
                 sessionId, UUID.fromString(principal.getName()), request.concertId());
     }

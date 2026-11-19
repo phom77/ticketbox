@@ -77,6 +77,7 @@ public class PurchasePaymentRateLimitInterceptor implements HandlerInterceptor {
                         : properties.globalPayment();
         if (!rateLimiter.tryConsume(
                 "rate-limit:global:" + bucket.name().toLowerCase(Locale.ROOT), global)) {
+            request.setAttribute(PurchaseAdmissionHealthInterceptor.GLOBAL_THROTTLE, true);
             throw new AppException(ErrorCode.RATE_LIMIT_EXCEEDED, "error.rate-limit.service-busy");
         }
         return true;

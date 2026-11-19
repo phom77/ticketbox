@@ -12,6 +12,7 @@ export type QueueStatusResponse = {
   waitingRoomCount: number;
   queueSize: number;
   activeShoppers: number;
+  pollAfterMs?: number;
 };
 
 export type QueueAdmission = {

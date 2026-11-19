@@ -2,6 +2,7 @@ package org.ticketbox.ticketing.queue.web.websocket;
 
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.simp.stomp.StompCommand;
@@ -12,8 +13,12 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.stereotype.Component;
 import org.ticketbox.ticketing.infrastructure.security.JwtService;
+import org.ticketbox.ticketing.queue.application.port.WaitingRoomOperations;
+import org.ticketbox.ticketing.queue.domain.AdmissionPolicy;
+import org.ticketbox.ticketing.queue.domain.QueueStatus;
 
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.context.event.EventListener;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
@@ -34,7 +39,11 @@ public class JwtStompChannelInterceptor implements ChannelInterceptor {
 
     private final JwtService jwtService;
     private final BuyerSessions sessions;
+    private final WaitingRoomOperations waitingRoom;
     private final ConcurrentHashMap<String, String> authorizations = new ConcurrentHashMap<>();
+
+    @Value("${ticketbox.queue.adaptive-enabled:false}")
+    private boolean adaptiveEnabled;
 
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
@@ -48,7 +57,10 @@ public class JwtStompChannelInterceptor implements ChannelInterceptor {
                             && !destination.matches("/topic/queue/concerts/[0-9a-fA-F-]+"))) {
                 throw new IllegalArgumentException("Unsupported queue subscription");
             }
-            if (destination.startsWith("/user/")) requireSession(accessor.getSessionId());
+            if (destination.startsWith("/user/")) {
+                requireSession(accessor.getSessionId());
+                if (adaptiveEnabled) requireQueueAudience(accessor, destination);
+            }
             return message;
         }
         if (StompCommand.SEND.equals(accessor.getCommand())) requireSession(accessor.getSessionId());
@@ -99,6 +111,17 @@ public class JwtStompChannelInterceptor implements ChannelInterceptor {
     @EventListener
     public void disconnect(SessionDisconnectEvent event) {
         authorizations.remove(event.getSessionId());
+    }
+
+    private void requireQueueAudience(StompHeaderAccessor accessor, String destination) {
+        if (accessor.getUser() == null) throw new IllegalArgumentException("WebSocket authentication is required");
+        UUID user = UUID.fromString(accessor.getUser().getName());
+        UUID concert = UUID.fromString(destination.substring(destination.lastIndexOf('/') + 1));
+        var status = waitingRoom.status(concert, user);
+        if (status.status() != QueueStatus.ADMITTED
+                && !AdmissionPolicy.nearFront(status.status(), status.position())) {
+            throw new IllegalArgumentException("Queue subscription requires a current place near the front");
+        }
     }
 
     private void requireSession(String id) {

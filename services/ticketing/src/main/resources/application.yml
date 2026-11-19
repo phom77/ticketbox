@@ -50,6 +50,8 @@ ticketbox:
     retry-age-seconds: 5
     recovery-interval-ms: 2000
   queue:
+    adaptive-enabled: ${TICKETBOX_QUEUE_ADAPTIVE_ENABLED:false}
+    adaptive-presence-ttl: ${TICKETBOX_QUEUE_ADAPTIVE_PRESENCE_TTL:PT3M}
     admission-capacity: ${TICKETBOX_QUEUE_ADMISSION_CAPACITY:8}
     global-admission-capacity: ${TICKETBOX_QUEUE_GLOBAL_ADMISSION_CAPACITY:32}
     admission-rate: ${TICKETBOX_QUEUE_ADMISSION_RATE:2}

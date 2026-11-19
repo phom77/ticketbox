@@ -81,6 +81,49 @@ class OrderConcurrencyIntegrationTest {
                 OffsetDateTime.now());
     }
 
+    @Autowired
+    private org.ticketbox.ticketing.queue.application.port.DispatchBacklog admissionDispatchBacklog;
+
+    @Test
+    void adaptiveSessionIsReleasedAfterCheckoutCommits() {
+        var fixture = createFixture(10, 4);
+        var buyer = createAudienceUsers(1).getFirst();
+        org.springframework.test.util.ReflectionTestUtils.setField(waitingRoomService, "adaptiveEnabled", true);
+        try {
+            UUID order = createPaymentOrder(fixture, buyer);
+            assertThat(orderRepository.findById(order)).isPresent();
+            assertThat(waitingRoomService.snapshot(fixture.concert().getId()).activeShoppers()).isZero();
+        } finally {
+            org.springframework.test.util.ReflectionTestUtils.setField(waitingRoomService, "adaptiveEnabled", false);
+        }
+    }
+
+    @Test
+    void adaptiveBacklogOnlyIncludesDueUnexpiredIntentsAwaitingFirstDispatch() {
+        var fixture = createFixture(10, 4);
+        var user = createAudienceUsers(1).getFirst();
+        var order = createPaymentOrder(fixture, user);
+        workflow.prepare(order, user.getId(), "MOCK");
+        try {
+            inventoryJdbc.update("""
+                    UPDATE ticketing_payment_intents SET created_at=now()-interval '30 seconds',
+                        next_attempt_at=now(), expires_at=now()+interval '5 minutes' WHERE order_id=?
+                    """, order);
+            assertThat(admissionDispatchBacklog.overdue()).isTrue();
+            inventoryJdbc.update("""
+                    UPDATE ticketing_payment_intents SET state='READY', attempt_id=?, payment_url=? WHERE order_id=?
+                    """, UUID.randomUUID(), "https://payments.example/checkout", order);
+            assertThat(admissionDispatchBacklog.overdue()).isFalse();
+            inventoryJdbc.update("""
+                    UPDATE ticketing_payment_intents SET state='UNKNOWN', attempt_id=NULL, payment_url=NULL,
+                        next_attempt_at=now()+interval '1 minute' WHERE order_id=?
+                    """, order);
+            assertThat(admissionDispatchBacklog.overdue()).isFalse();
+        } finally {
+            inventoryJdbc.update("DELETE FROM ticketing_payment_intents WHERE order_id=?", order);
+        }
+    }
+
     @Test
     void paymentWorkflowConcurrentIntentAndReceiptIssueOneTicket() throws Exception {
         var fixture = createFixture(10, 4);

@@ -93,6 +93,32 @@ npm ci
 npm run typecheck
 ```
 
+## Adaptive concert admission
+
+The existing fixed queue policy is the default. To try the adaptive policy locally, start the
+updated Ticketing service before serving the updated web client. Enable the policy when no
+opening draw is in progress. Use the same setting for every Ticketing worker.
+
+```sh
+TICKETBOX_QUEUE_ADAPTIVE_ENABLED=true \
+PURCHASE_GLOBAL_RATE=250 PURCHASE_GLOBAL_BURST=250 \
+PAYMENT_GLOBAL_RATE=170 PAYMENT_GLOBAL_BURST=170 \
+docker compose up -d --build ticketing
+```
+
+Redis keeps a buyer's queue place for three minutes after their last successful renewal
+(`TICKETBOX_QUEUE_ADAPTIVE_PRESENCE_TTL=PT3M`). Checkout sessions still use their existing expiry.
+The example request budgets allow up to 66 new shopping sessions per second across concerts
+before health reductions. They are sizing inputs for local testing. The existing payment
+dispatcher claims two intents per scheduled invocation per worker. Its backlog can slow admission
+even when the HTTP endpoints are healthy.
+
+Set `TICKETBOX_QUEUE_ADAPTIVE_ENABLED=false` and recreate every Ticketing worker together to roll
+back. Restore the original purchase and payment request budgets if they were raised for the
+adaptive run. Keep the Redis data so waiting order and issued shopping-session tokens carry over.
+The web client falls back to its original polling and socket behavior when the server omits
+`pollAfterMs`.
+
 ## Distributed and browser regression
 
 ```sh
