@@ -38,7 +38,7 @@ public class PerformanceAvailability {
 
     public Section section(UUID performanceId, UUID sectionId) {
         var sale = publicSale(performanceId);
-        if (stock.groups(performanceId).stream().noneMatch(group -> sectionId.equals(group.sectionId()))) {
+        if (!stock.hasSection(performanceId, sectionId)) {
             throw new AppException(ErrorCode.RESOURCE_NOT_FOUND);
         }
         return new Section(sale.layoutVersion(), sale.saleVersion(), sectionId, stock.seats(performanceId, sectionId)

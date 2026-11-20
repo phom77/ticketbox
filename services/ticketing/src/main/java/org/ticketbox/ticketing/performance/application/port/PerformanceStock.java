@@ -43,6 +43,8 @@ public interface PerformanceStock {
 
     List<Group> groups(UUID performanceId);
 
+    boolean hasSection(UUID performanceId, UUID sectionId);
+
     List<Offer> offers(UUID performanceId);
 
     Optional<Seat> seat(UUID performanceId, UUID seatId);

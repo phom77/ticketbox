@@ -62,6 +62,13 @@ class JdbcPerformanceStock implements PerformanceStock {
     }
 
     @Override
+    public boolean hasSection(UUID performanceId, UUID sectionId) {
+        return Boolean.TRUE.equals(jdbc.queryForObject("""
+                SELECT EXISTS(SELECT 1 FROM performance_groups WHERE performance_id=? AND section_id=?)
+                """, Boolean.class, performanceId, sectionId));
+    }
+
+    @Override
     public List<Offer> offers(UUID performanceId) {
         return jdbc.query("""
                 SELECT o.id,o.group_id,t.name,g.section_label,g.kind,t.price,o.sale_start_at,o.sale_end_at,t.is_active
