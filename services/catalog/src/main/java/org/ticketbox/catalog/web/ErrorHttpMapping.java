@@ -20,6 +20,7 @@ public final class ErrorHttpMapping {
             case ARTIST_BIO_ALREADY_EXISTS -> HttpStatus.CONFLICT;
             case INVALID_STATUS_TRANSITION -> HttpStatus.BAD_REQUEST;
             case CONCERT_NOT_DELETABLE -> HttpStatus.CONFLICT;
+            case PERFORMANCE_VERSION_CONFLICT -> HttpStatus.CONFLICT;
             case INVALID_DATE -> HttpStatus.BAD_REQUEST;
             case RATE_LIMIT_EXCEEDED -> HttpStatus.TOO_MANY_REQUESTS;
             case REDIS_UNAVAILABLE -> HttpStatus.SERVICE_UNAVAILABLE;

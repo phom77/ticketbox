@@ -1,0 +1,173 @@
+package org.ticketbox.catalog.performance.web;
+
+import java.security.Principal;
+import java.util.List;
+import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.http.CacheControl;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestAttribute;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+import org.ticketbox.catalog.performance.application.PerformanceCatalog;
+import org.ticketbox.catalog.performance.application.PerformanceViews.*;
+import org.ticketbox.catalog.performance.domain.PerformanceLayout;
+import org.ticketbox.catalog.performance.domain.PerformanceSale;
+import org.ticketbox.catalog.web.ApiResponse;
+import org.ticketbox.catalog.web.security.OrganizationAccess;
+import org.ticketbox.catalog.web.security.OrganizerPermission;
+
+@RestController
+@RequestMapping("/api/organizer/manage/v2")
+@OrganizerPermission(OrganizerPermission.Grant.EVENTS)
+public class OrganizerPerformanceController {
+    private final PerformanceCatalog catalog;
+
+    public OrganizerPerformanceController(PerformanceCatalog catalog) {
+        this.catalog = catalog;
+    }
+
+    @GetMapping("/events")
+    public ApiResponse<Page<Event>> events(
+            @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID owner,
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "12") int size) {
+        return ApiResponse.success(catalog.events(owner, PageRequest.of(Math.max(page, 0), Math.clamp(size, 1, 100))));
+    }
+
+    @PostMapping("/events")
+    public ApiResponse<Event> createEvent(
+            @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID owner, @RequestBody EventRequest request) {
+        return ApiResponse.success(catalog.createEvent(owner, request.title(), request.description(), request.category()));
+    }
+
+    @GetMapping("/events/{id}")
+    public ApiResponse<Event> event(@PathVariable UUID id, @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID owner) {
+        return ApiResponse.success(catalog.event(id, owner));
+    }
+
+    @GetMapping("/venues")
+    public ApiResponse<List<Venue>> venues(@RequestAttribute(OrganizationAccess.ORGANIZATION) UUID owner) {
+        return ApiResponse.success(catalog.venues(owner));
+    }
+
+    @PostMapping("/venues")
+    public ApiResponse<Venue> createVenue(
+            @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID owner, @RequestBody VenueRequest request) {
+        return ApiResponse.success(catalog.createVenue(owner, request.name(), request.address(), request.spaceName()));
+    }
+
+    @PostMapping("/events/{id}/performances")
+    public ApiResponse<Performance> createPerformance(
+            @PathVariable UUID id, @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID owner,
+            @RequestBody PerformanceCatalog.Schedule request) {
+        return ApiResponse.success(catalog.createPerformance(owner, id, request));
+    }
+
+    @GetMapping("/performances/{id}/sale")
+    public ApiResponse<Sale> sale(@PathVariable UUID id, @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID owner) {
+        return ApiResponse.success(catalog.sale(owner, id));
+    }
+
+    @PutMapping("/performances/{id}/sale")
+    public ApiResponse<Sale> saveSale(
+            @PathVariable UUID id, @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID owner,
+            Principal actor, @RequestBody SaleRequest request) {
+        return ApiResponse.success(catalog.saveSale(owner, actor(actor), id, request.expectedSaleVersion(),
+                new PerformanceSale(request.groups(), request.offers())));
+    }
+
+    @GetMapping("/performances/{id}/publication")
+    public ApiResponse<Publication> publication(
+            @PathVariable UUID id, @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID owner) {
+        return ApiResponse.success(catalog.publication(owner, id));
+    }
+
+    @PostMapping("/performances/{id}/publication")
+    public ApiResponse<Publication> publish(
+            @PathVariable UUID id, @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID owner, Principal actor,
+            @RequestBody(required = false) PublishRequest request) {
+        return ApiResponse.success(catalog.publish(owner, actor(actor), id,
+                request == null ? null : request.expectedSaleVersion(),
+                request == null ? null : request.expectedLayoutVersion()));
+    }
+
+    @GetMapping("/performances/{id}/layout")
+    public ApiResponse<Layout> draft(@PathVariable UUID id, @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID owner) {
+        return ApiResponse.success(catalog.draftLayout(owner, id));
+    }
+
+    @PutMapping("/performances/{id}/layout")
+    public ApiResponse<Layout> saveDraft(
+            @PathVariable UUID id, @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID owner,
+            @RequestBody LayoutRequest request) {
+        return ApiResponse.success(catalog.saveLayout(owner, id, request.expectedVersion(), request.layout()));
+    }
+
+    @PostMapping(value = "/performances/{id}/layout/background", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<Layout> uploadBackground(
+            @PathVariable UUID id, @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID owner,
+            @RequestParam long expectedVersion, @RequestPart("file") MultipartFile file) {
+        return ApiResponse.success(catalog.saveBackground(owner, id, expectedVersion, LayoutImages.read(file)));
+    }
+
+    @GetMapping("/performances/{id}/layout/background/{asset}")
+    public ResponseEntity<byte[]> draftBackground(
+            @PathVariable UUID id, @PathVariable UUID asset, @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID owner) {
+        var image = catalog.draftBackground(owner, id, asset);
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .header("X-Content-Type-Options", "nosniff")
+                .contentType(MediaType.parseMediaType(image.contentType())).body(image.content());
+    }
+
+    @GetMapping("/venues/{venue}/templates")
+    public ApiResponse<List<Template>> templates(
+            @PathVariable UUID venue, @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID owner) {
+        return ApiResponse.success(catalog.templates(owner, venue));
+    }
+
+    @PostMapping("/venues/{venue}/templates")
+    public ApiResponse<Template> createTemplate(
+            @PathVariable UUID venue, @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID owner,
+            @RequestBody TemplateRequest request) {
+        return ApiResponse.success(catalog.createTemplate(owner, venue, request.venueSpaceId(), request.name(),
+                request.layout()));
+    }
+
+    @PutMapping("/venues/{venue}/templates/{template}")
+    public ApiResponse<Template> reviseTemplate(
+            @PathVariable UUID venue, @PathVariable UUID template,
+            @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID owner, @RequestBody LayoutRequest request) {
+        return ApiResponse.success(catalog.reviseTemplate(owner, venue, template, request.expectedVersion(),
+                request.layout()));
+    }
+
+    @PostMapping("/performances/{id}/layout/copy")
+    public ApiResponse<Layout> copyTemplate(
+            @PathVariable UUID id, @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID owner,
+            @RequestBody CopyRequest request) {
+        return ApiResponse.success(catalog.copyTemplate(owner, id, request.templateId(), request.revision(),
+                request.expectedVersion()));
+    }
+
+    private static UUID actor(Principal actor) {
+        return UUID.fromString(actor.getName());
+    }
+
+    record EventRequest(String title, String description, String category) {}
+    record VenueRequest(String name, String address, String spaceName) {}
+    record SaleRequest(long expectedSaleVersion, List<PerformanceSale.Group> groups, List<PerformanceSale.Offer> offers) {}
+    record PublishRequest(Long expectedSaleVersion, Long expectedLayoutVersion) {}
+    record LayoutRequest(long expectedVersion, PerformanceLayout layout) {}
+    record TemplateRequest(UUID venueSpaceId, String name, PerformanceLayout layout) {}
+    record CopyRequest(UUID templateId, long revision, long expectedVersion) {}
+}

@@ -107,7 +107,8 @@ public class SecurityConfig {
                                                 "/api/auth/login")
                                         .permitAll()
                                         .requestMatchers(
-                                                HttpMethod.GET, "/api/concerts", "/api/concerts/**")
+                                                HttpMethod.GET, "/api/concerts", "/api/concerts/**",
+                                                "/api/v2/events", "/api/v2/events/**", "/api/v2/performances/**")
                                         .permitAll()
                                         .requestMatchers("/ws/**")
                                         .permitAll()

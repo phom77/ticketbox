@@ -8,7 +8,7 @@
 
 ## 2. Nền dữ liệu và chạy song song
 
-- [ ] 2.1 Thêm Event, Performance, Venue/Space và ánh xạ Concert cũ trong Catalog. Dùng Flyway mới và chạy backfill hai lượt trên bản sao kiểm thử. So ID, URL, ownership, giờ địa phương, trạng thái và dữ liệu cũ chưa có tổ chức. Kiểm thử phân quyền draft, hai suất cùng Event và xuất bản/ACK độc lập.
+- [x] 2.1 Thêm Event, Performance, Venue/Space và ánh xạ Concert cũ trong Catalog. Dùng Flyway mới và chạy backfill hai lượt trên bản sao kiểm thử. So ID, URL, ownership, giờ địa phương, trạng thái và dữ liệu cũ chưa có tổ chức. Kiểm thử phân quyền draft, hai suất cùng Event và xuất bản/ACK độc lập.
 - [ ] 2.2 Thêm projection v2 và guard mode theo suất ở Ticketing. Dựng gate đầu nhận trước khi phát bản tin. Kiểm thử bằng PostgreSQL với rollout, restart, ACK trễ, worker hỗn hợp và v1/v2 tranh ghi vào cùng suất. Fixture cũ phải còn hoạt động qua v1, kể cả đơn chờ.
 - [ ] 2.3 Nối trang Event và workspace với lịch suất, lựa chọn đúng route mua/phòng chờ, hoãn/hủy theo từng suất và logic hiển thị bản nháp. Kiểm tra Chromium trên lịch hai đêm và truy cập trực tiếp URL cũ, cùng frontend lint/build.
 
@@ -19,7 +19,7 @@
 
 ## 4. Phiên bản sơ đồ và công cụ ban tổ chức
 
-- [ ] 4.1 Thêm template, layout revision, section/row/seat, liên kết group và bản chụp khi publish ở Catalog. Kiểm thử unique ghế, FK theo scope, chặn ghế ngoài khu, khóa bán, quyền dùng template và giữ nguyên snapshot đã bán khi sửa mẫu.
+- [x] 4.1 Thêm template, layout revision, section/row/seat, liên kết group và bản chụp khi publish ở Catalog. Kiểm thử unique ghế, FK theo scope, chặn ghế ngoài khu, khóa bán, quyền dùng template và giữ nguyên snapshot đã bán khi sửa mẫu.
 - [ ] 4.2 Dựng editor tạo từ trắng hoặc sao mẫu, tải ảnh nền, vẽ khu/lối đi/sân khấu, sinh và đánh số hàng ghế, nhập CSV có kiểm tra từng dòng. Dùng fixture hybrid để tạo hai cấu hình cùng địa điểm, chạy preview và publish. Kiểm tra hai editor tranh lưu, CSV lỗi và từ chối truy cập từ tổ chức khác.
 
 ## 5. Ghế đánh số, sơ đồ người mua và Check-in
