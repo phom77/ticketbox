@@ -42,9 +42,7 @@ export type AuthResponse = {
 export type TicketDatasetEntry = {
   ticketId: string;
   qrCode: string;
-  qrSecret: string;
   ticketTypeId: string;
-  userId: string;
 };
 
 export type CheckinDatasetResponse = {
@@ -97,14 +95,20 @@ export type ScanTicketResponse = {
   checkAt: string;
 };
 
+export type StaffScope = {
+  organizationId: string;
+  token?: string;
+};
+
 export type StaffConcert = {
+  organizationId: string;
   id: string;
   title: string;
   venueName: string;
   venueAddress: string;
   eventDate: string;
   doorsOpenAt: string | null;
-  status: 'ON_SALE' | 'SOLD_OUT' | 'COMPLETED' | 'CANCELLED';
+  status: 'DRAFT' | 'ON_SALE' | 'SOLD_OUT' | 'COMPLETED' | 'CANCELLED';
   posterUrl: string | null;
 };
 
@@ -127,6 +131,9 @@ export type StaffTicket = {
   status: 'VALID' | 'USED' | 'CANCELLED' | 'TRANSFERRED';
   issuedAt: string;
   usedAt: string | null;
+  sectionLabel?: string | null;
+  rowLabel?: string | null;
+  seatLabel?: string | null;
 };
 
 export type ServerCheckinHistory = {

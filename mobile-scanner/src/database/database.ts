@@ -13,13 +13,23 @@ import type {
   UpdateSyncResultInput,
 } from './types';
 
-const DATABASE_NAME = 'ticketbox-scanner.db';
+const databases = new Map<string, Promise<SQLiteDatabase>>();
 
-let databasePromise: Promise<SQLiteDatabase> | null = null;
+export function initDatabase(accountId: string) {
+  const cached = databases.get(accountId);
+  if (cached) return cached;
+  if (!/^[a-z0-9-]{1,80}$/i.test(accountId)) throw new Error('Invalid scanner account ID');
+  const database = openDatabaseAsync(`ticketbox-scanner-${accountId}.db`)
+    .then(initializeDatabase)
+    .catch((error) => {
+      databases.delete(accountId);
+      throw error;
+    });
+  databases.set(accountId, database);
+  return database;
+}
 
-export async function initDatabase() {
-  const db = await getDatabase();
-
+async function initializeDatabase(db: SQLiteDatabase) {
   await db.execAsync(`
     PRAGMA journal_mode = WAL;
 
@@ -27,9 +37,7 @@ export async function initDatabase() {
       concert_id TEXT NOT NULL,
       ticket_id TEXT NOT NULL,
       qr_code TEXT NOT NULL,
-      qr_secret TEXT NOT NULL,
       ticket_type_id TEXT NOT NULL,
-      user_id TEXT NOT NULL,
       downloaded_at TEXT NOT NULL,
       PRIMARY KEY (concert_id, ticket_id)
     );
@@ -62,6 +70,7 @@ export async function initDatabase() {
 
     CREATE TABLE IF NOT EXISTS local_concerts (
       id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL,
       title TEXT NOT NULL,
       venue_name TEXT NOT NULL,
       venue_address TEXT NOT NULL,
@@ -76,18 +85,20 @@ export async function initDatabase() {
   return db;
 }
 
-export async function cacheStaffConcerts(concerts: Omit<LocalConcert, 'cachedAt'>[]) {
-  const db = await initDatabase();
+export async function cacheStaffConcerts(accountId: string, concerts: Omit<LocalConcert, 'cachedAt'>[]) {
+  const db = await initDatabase(accountId);
   const cachedAt = nowIso();
 
   await db.withTransactionAsync(async () => {
+    await db.runAsync('DELETE FROM local_concerts');
     for (const concert of concerts) {
       await db.runAsync(
         `INSERT INTO local_concerts (
-          id, title, venue_name, venue_address, event_date, doors_open_at,
+          id, organization_id, title, venue_name, venue_address, event_date, doors_open_at,
           status, poster_url, cached_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
+          organization_id = excluded.organization_id,
           title = excluded.title,
           venue_name = excluded.venue_name,
           venue_address = excluded.venue_address,
@@ -97,6 +108,7 @@ export async function cacheStaffConcerts(concerts: Omit<LocalConcert, 'cachedAt'
           poster_url = excluded.poster_url,
           cached_at = excluded.cached_at`,
         concert.id,
+        concert.organizationId,
         concert.title,
         concert.venueName,
         concert.venueAddress,
@@ -110,11 +122,12 @@ export async function cacheStaffConcerts(concerts: Omit<LocalConcert, 'cachedAt'
   });
 }
 
-export async function listCachedConcerts() {
-  const db = await initDatabase();
+export async function listCachedConcerts(accountId: string) {
+  const db = await initDatabase(accountId);
   return db.getAllAsync<LocalConcertRow>(
     `SELECT
       id,
+      organization_id AS organizationId,
       title,
       venue_name AS venueName,
       venue_address AS venueAddress,
@@ -128,8 +141,8 @@ export async function listCachedConcerts() {
   );
 }
 
-export async function saveCheckinDataset(dataset: SaveDatasetInput, downloadedAt = nowIso()) {
-  const db = await initDatabase();
+export async function saveCheckinDataset(accountId: string, dataset: SaveDatasetInput, downloadedAt = nowIso()) {
+  const db = await initDatabase(accountId);
 
   await db.withTransactionAsync(async () => {
     await db.runAsync('DELETE FROM ticket_snapshots WHERE concert_id = ?', dataset.concertId);
@@ -140,37 +153,31 @@ export async function saveCheckinDataset(dataset: SaveDatasetInput, downloadedAt
           concert_id,
           ticket_id,
           qr_code,
-          qr_secret,
           ticket_type_id,
-          user_id,
           downloaded_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?)`,
         dataset.concertId,
         ticket.ticketId,
         ticket.qrCode,
-        ticket.qrSecret,
         ticket.ticketTypeId,
-        ticket.userId,
         downloadedAt,
       );
     }
   });
 
-  await setMetadata(`dataset:${dataset.concertId}:downloadedAt`, downloadedAt);
-  await setMetadata(`dataset:${dataset.concertId}:totalCount`, String(dataset.totalCount));
+  await setMetadata(accountId, `dataset:${dataset.concertId}:downloadedAt`, downloadedAt);
+  await setMetadata(accountId, `dataset:${dataset.concertId}:totalCount`, String(dataset.totalCount));
 }
 
-export async function getTicketByQrCode(concertId: string, qrCode: string) {
-  const db = await initDatabase();
+export async function getTicketByQrCode(accountId: string, concertId: string, qrCode: string) {
+  const db = await initDatabase(accountId);
 
   return db.getFirstAsync<TicketSnapshotRow>(
     `SELECT
       concert_id AS concertId,
       ticket_id AS ticketId,
       qr_code AS qrCode,
-      qr_secret AS qrSecret,
       ticket_type_id AS ticketTypeId,
-      user_id AS userId,
       downloaded_at AS downloadedAt
     FROM ticket_snapshots
     WHERE concert_id = ? AND qr_code = ?
@@ -180,16 +187,14 @@ export async function getTicketByQrCode(concertId: string, qrCode: string) {
   );
 }
 
-export async function listLocalTickets(concertId: string) {
-  const db = await initDatabase();
+export async function listLocalTickets(accountId: string, concertId: string) {
+  const db = await initDatabase(accountId);
   return db.getAllAsync<LocalTicketListItemRow>(
     `SELECT
       ticket.concert_id AS concertId,
       ticket.ticket_id AS ticketId,
       ticket.qr_code AS qrCode,
-      ticket.qr_secret AS qrSecret,
       ticket.ticket_type_id AS ticketTypeId,
-      ticket.user_id AS userId,
       ticket.downloaded_at AS downloadedAt,
       log.status AS checkinStatus,
       log.checked_at AS checkedAt
@@ -209,8 +214,8 @@ export async function listLocalTickets(concertId: string) {
   );
 }
 
-export async function insertLocalCheckinLog(input: InsertLocalCheckinLogInput) {
-  const db = await initDatabase();
+export async function insertLocalCheckinLog(accountId: string, input: InsertLocalCheckinLogInput) {
+  const db = await initDatabase(accountId);
   const log: LocalCheckinLog = {
     localId: createLocalId(),
     concertId: input.concertId,
@@ -249,8 +254,8 @@ export async function insertLocalCheckinLog(input: InsertLocalCheckinLogInput) {
   return log;
 }
 
-export async function getLocalCheckinLogByQrCode(concertId: string, qrCode: string) {
-  const db = await initDatabase();
+export async function getLocalCheckinLogByQrCode(accountId: string, concertId: string, qrCode: string) {
+  const db = await initDatabase(accountId);
 
   return db.getFirstAsync<LocalCheckinLogRow>(
     `SELECT
@@ -274,8 +279,8 @@ export async function getLocalCheckinLogByQrCode(concertId: string, qrCode: stri
   );
 }
 
-export async function listPendingLogs(concertId: string, limit = 500) {
-  const db = await initDatabase();
+export async function listPendingLogs(accountId: string, concertId: string, limit = 500) {
+  const db = await initDatabase(accountId);
 
   return db.getAllAsync<LocalCheckinLogRow>(
     `SELECT
@@ -297,8 +302,8 @@ export async function listPendingLogs(concertId: string, limit = 500) {
   );
 }
 
-export async function listLocalCheckinLogs(concertId: string, limit = 200) {
-  const db = await initDatabase();
+export async function listLocalCheckinLogs(accountId: string, concertId: string, limit = 200) {
+  const db = await initDatabase(accountId);
   return db.getAllAsync<LocalCheckinLogRow>(
     `SELECT
       local_id AS localId,
@@ -319,10 +324,10 @@ export async function listLocalCheckinLogs(concertId: string, limit = 200) {
   );
 }
 
-export async function getDatasetInfo(concertId: string): Promise<DatasetInfo> {
+export async function getDatasetInfo(accountId: string, concertId: string): Promise<DatasetInfo> {
   const [downloadedAt, rawTotalCount] = await Promise.all([
-    getMetadata(`dataset:${concertId}:downloadedAt`),
-    getMetadata(`dataset:${concertId}:totalCount`),
+    getMetadata(accountId, `dataset:${concertId}:downloadedAt`),
+    getMetadata(accountId, `dataset:${concertId}:totalCount`),
   ]);
 
   return {
@@ -331,8 +336,8 @@ export async function getDatasetInfo(concertId: string): Promise<DatasetInfo> {
   };
 }
 
-export async function updateSyncResult(input: UpdateSyncResultInput) {
-  const db = await initDatabase();
+export async function updateSyncResult(accountId: string, input: UpdateSyncResultInput) {
+  const db = await initDatabase(accountId);
 
   await db.runAsync(
     `UPDATE local_checkin_logs
@@ -345,8 +350,8 @@ export async function updateSyncResult(input: UpdateSyncResultInput) {
   );
 }
 
-export async function countLogsByStatus(concertId?: string) {
-  const db = await initDatabase();
+export async function countLogsByStatus(accountId: string, concertId?: string) {
+  const db = await initDatabase(accountId);
   const counts = createEmptyStatusCounts();
   const rows =
     concertId === undefined
@@ -372,8 +377,8 @@ export async function countLogsByStatus(concertId?: string) {
   return counts;
 }
 
-export async function setMetadata(key: string, value: string) {
-  const db = await getDatabase();
+export async function setMetadata(accountId: string, key: string, value: string) {
+  const db = await initDatabase(accountId);
 
   await db.runAsync(
     `INSERT INTO app_metadata (key, value)
@@ -384,19 +389,14 @@ export async function setMetadata(key: string, value: string) {
   );
 }
 
-export async function getMetadata(key: string) {
-  const db = await initDatabase();
+export async function getMetadata(accountId: string, key: string) {
+  const db = await initDatabase(accountId);
   const row = await db.getFirstAsync<{ value: string }>(
     'SELECT value FROM app_metadata WHERE key = ? LIMIT 1',
     key,
   );
 
   return row?.value ?? null;
-}
-
-async function getDatabase() {
-  databasePromise ??= openDatabaseAsync(DATABASE_NAME);
-  return databasePromise;
 }
 
 function nowIso() {

@@ -1,4 +1,4 @@
-import { getCheckinDataset } from '../../api';
+import { getCheckinDataset, type StaffScope } from '../../api';
 import { saveCheckinDataset } from '../../database';
 
 export type DatasetDownloadSummary = {
@@ -9,16 +9,18 @@ export type DatasetDownloadSummary = {
   downloadedAt: string;
 };
 
-type DownloadCheckinDatasetInput = {
+type DownloadCheckinDatasetInput = StaffScope & {
+  accountId: string;
   concertId: string;
   gate: string;
-  accessToken?: string;
 };
 
 export async function downloadCheckinDataset({
+  accountId,
   concertId,
   gate,
-  accessToken,
+  organizationId,
+  token,
 }: DownloadCheckinDatasetInput): Promise<DatasetDownloadSummary> {
   const selectedConcertId = concertId.trim();
 
@@ -27,9 +29,10 @@ export async function downloadCheckinDataset({
   }
 
   const downloadedAt = new Date().toISOString();
-  const dataset = await getCheckinDataset(selectedConcertId, accessToken);
+  const dataset = await getCheckinDataset(selectedConcertId, { organizationId, token });
 
-  await saveCheckinDataset(dataset, downloadedAt);
+  if (dataset.concertId !== selectedConcertId) throw new Error('Ticket dataset has the wrong event');
+  await saveCheckinDataset(accountId, dataset, downloadedAt);
 
   return {
     concertId: dataset.concertId,

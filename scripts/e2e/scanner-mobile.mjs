@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { chromium } from 'playwright';
-import { scannerFixture } from './scanner-fixture.mjs';
+import { scannerFixture, scannerOrganizationId } from './scanner-fixture.mjs';
 
 const baseURL = process.env.TICKETBOX_SCANNER_URL ?? 'http://localhost:8092';
 const viewport = { width: Number(process.env.TICKETBOX_SCANNER_WIDTH ?? '360'), height: 640 };
@@ -39,25 +39,28 @@ try {
     const request = route.request();
     const url = new URL(request.url());
     const payload = request.postDataJSON() ?? {};
-    if (url.pathname.endsWith('/checkins/scan')) {
+    if (url.pathname.startsWith('/api/v2/staff/')) {
+      assert.equal(request.headers()['x-organization-id'], scannerOrganizationId);
+    }
+    if (url.pathname.endsWith('/scan')) {
       submitted += 1;
       if (payload.qrCode === 'TB-LATE') {
         signalLateScan();
         await lateScanReleased;
         return route.fulfill({ json: {
           success: true, message: 'OK', data: {
-            status: 'SUCCESS', concertId: payload.concertId, ticketId: null,
+            status: 'SUCCESS', concertId: url.pathname.split('/').at(-2), ticketId: null,
             message: 'Phản hồi từ sự kiện trước', checkAt: new Date().toISOString(),
           },
         } });
       }
     }
-    if (url.pathname.endsWith('/checkins/sync') && syncResponse !== 'normal') {
+    if (url.pathname.endsWith('/sync') && syncResponse !== 'normal') {
       if (syncResponse === 'offline') return route.abort('connectionrefused');
       return route.fulfill({ status: 403, json: { success: false, message: 'Không có quyền' } });
     }
     if (url.pathname.endsWith('/checkins') && historyUnavailable) return route.abort('connectionrefused');
-    const result = fixture(url, payload);
+    const result = fixture(url, payload, request.headers());
     if (!result) return route.abort('connectionrefused');
     await route.fulfill(result);
   });

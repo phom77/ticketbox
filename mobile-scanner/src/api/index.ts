@@ -37,6 +37,7 @@ export type {
   ServerCheckinHistory,
   StaffUser,
   StaffConcert,
+  StaffScope,
   StaffConcertOverview,
   StaffTicket,
   CheckinDatasetResponse,

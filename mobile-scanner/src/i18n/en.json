@@ -151,6 +151,7 @@
   "deviceIdMissing": "This device has no ID for online check-in.",
   "admitStorageWarning": "Check-in confirmed entry. The device could not save this scan to its history.",
   "hiddenQr": "QR code hidden",
+  "draft": "Draft",
   "onSale": "On sale",
   "soldOut": "Sold out",
   "completed": "Ended",

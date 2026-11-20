@@ -8,6 +8,7 @@ import {
   getTicketByQrCode,
   insertLocalCheckinLog,
 } from '../../database';
+import type { StaffScope } from '../../api';
 import type { LocalCheckinStatus, LogStatusCounts } from '../../database';
 import type { MessageKey } from '../../i18n';
 
@@ -27,14 +28,14 @@ export type ManualCheckinOutcome = {
 };
 
 type ManualOfflineCheckinInput = {
+  accountId: string;
   concertId: string;
   qrCode: string;
   gate: string;
 };
 
-type OnlineCheckinInput = ManualOfflineCheckinInput & {
+type OnlineCheckinInput = ManualOfflineCheckinInput & StaffScope & {
   deviceId: string;
-  accessToken?: string;
 };
 
 export const EMPTY_LOG_COUNTERS: LogStatusCounts = {
@@ -45,6 +46,7 @@ export const EMPTY_LOG_COUNTERS: LogStatusCounts = {
 };
 
 export async function performManualOfflineCheckin({
+  accountId,
   concertId,
   qrCode,
   gate,
@@ -61,13 +63,13 @@ export async function performManualOfflineCheckin({
     return invalidResult('codeRequired', selectedQrCode);
   }
 
-  const ticket = await getTicketByQrCode(selectedConcertId, selectedQrCode);
+  const ticket = await getTicketByQrCode(accountId, selectedConcertId, selectedQrCode);
 
   if (!ticket) {
     return invalidResult('missingCodeHint', selectedQrCode);
   }
 
-  const duplicate = await getLocalCheckinLogByQrCode(selectedConcertId, selectedQrCode);
+  const duplicate = await getLocalCheckinLogByQrCode(accountId, selectedConcertId, selectedQrCode);
 
   if (duplicate) {
     return {
@@ -83,7 +85,7 @@ export async function performManualOfflineCheckin({
   }
 
   const checkedAt = new Date().toISOString();
-  await insertLocalCheckinLog({
+  await insertLocalCheckinLog(accountId, {
     concertId: selectedConcertId,
     qrCode: selectedQrCode,
     checkedAt,
@@ -103,11 +105,13 @@ export async function performManualOfflineCheckin({
 }
 
 export async function performOnlineCheckin({
+  accountId,
   concertId,
   qrCode,
   gate,
   deviceId,
-  accessToken,
+  organizationId,
+  token,
 }: OnlineCheckinInput): Promise<ManualCheckinOutcome> {
   const selectedConcertId = concertId.trim();
   const selectedQrCode = qrCode.trim();
@@ -134,20 +138,21 @@ export async function performOnlineCheckin({
         deviceId: selectedDeviceId,
         gate: gate.trim() || null,
       },
-      accessToken,
+      { organizationId, token },
     );
   } catch (error) {
     if (error instanceof ApiClientError && error.unreachable) {
-      return performManualOfflineCheckin({ concertId, qrCode, gate });
+      return performManualOfflineCheckin({ accountId, concertId, qrCode, gate });
     }
     throw error;
   }
 
+  if (response.concertId !== selectedConcertId) throw new Error('Scan response has the wrong event');
   const accepted = response.status === 'SUCCESS';
 
   if (accepted) {
     try {
-      await insertLocalCheckinLog({
+      await insertLocalCheckinLog(accountId, {
         concertId: selectedConcertId,
         qrCode: selectedQrCode,
         checkedAt: response.checkAt,
@@ -178,14 +183,14 @@ export async function performOnlineCheckin({
   };
 }
 
-export function loadCheckinCounters(concertId: string) {
+export function loadCheckinCounters(accountId: string, concertId: string) {
   const selectedConcertId = concertId.trim();
 
   if (!selectedConcertId) {
     return Promise.resolve(EMPTY_LOG_COUNTERS);
   }
 
-  return countLogsByStatus(selectedConcertId);
+  return countLogsByStatus(accountId, selectedConcertId);
 }
 
 function invalidResult(message: MessageKey, qrCode: string): ManualCheckinOutcome {

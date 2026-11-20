@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { scannerFixture } from './scanner-fixture.mjs';
+import { scannerFixture, scannerOrganizationId } from './scanner-fixture.mjs';
 
 const browser = await chromium.launch();
 try {
@@ -15,9 +15,12 @@ try {
   let syncLanguage;
   await page.route('**/api/**', (route) => {
     const request = route.request();
-    if (request.url().endsWith('/checkins/scan')) scanLanguage = request.headers()['accept-language'];
-    if (request.url().endsWith('/checkins/sync')) syncLanguage = request.headers()['accept-language'];
-    const result = fixture(new URL(request.url()), request.postDataJSON() ?? {});
+    if (request.url().endsWith('/scan')) scanLanguage = request.headers()['accept-language'];
+    if (request.url().endsWith('/sync')) syncLanguage = request.headers()['accept-language'];
+    if (new URL(request.url()).pathname.startsWith('/api/v2/staff/')) {
+      assert.equal(request.headers()['x-organization-id'], scannerOrganizationId);
+    }
+    const result = fixture(new URL(request.url()), request.postDataJSON() ?? {}, request.headers());
     return result ? route.fulfill(result) : route.abort('connectionrefused');
   });
   await page.goto('/');

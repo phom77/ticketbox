@@ -1,4 +1,4 @@
-import { MAX_SYNC_BATCH_SIZE, syncCheckinLogs } from '../../api';
+import { MAX_SYNC_BATCH_SIZE, syncCheckinLogs, type StaffScope } from '../../api';
 import { listPendingLogs, updateSyncResult } from '../../database';
 import type { LocalCheckinStatus } from '../../database';
 
@@ -9,16 +9,18 @@ export type PendingSyncSummary = {
   invalid: number;
 };
 
-type SyncPendingLogsInput = {
+type SyncPendingLogsInput = StaffScope & {
+  accountId: string;
   concertId: string;
   deviceId: string;
-  accessToken?: string;
 };
 
 export async function syncPendingLogs({
+  accountId,
   concertId,
   deviceId,
-  accessToken,
+  organizationId,
+  token,
 }: SyncPendingLogsInput): Promise<PendingSyncSummary> {
   const selectedConcertId = concertId.trim();
   const selectedDeviceId = deviceId.trim();
@@ -31,7 +33,7 @@ export async function syncPendingLogs({
     throw new Error('Missing device ID for sync');
   }
 
-  const pendingLogs = await listPendingLogs(selectedConcertId, MAX_SYNC_BATCH_SIZE);
+  const pendingLogs = await listPendingLogs(accountId, selectedConcertId, MAX_SYNC_BATCH_SIZE);
 
   if (pendingLogs.length === 0) {
     return {
@@ -53,7 +55,7 @@ export async function syncPendingLogs({
         notes: log.notes,
       })),
     },
-    accessToken,
+    { organizationId, token },
   );
 
   for (const result of response.results) {
@@ -63,7 +65,7 @@ export async function syncPendingLogs({
       continue;
     }
 
-    await updateSyncResult({
+    await updateSyncResult(accountId, {
       localId: localLog.localId,
       status: toLocalStatus(result.result),
       syncResult: result.result,

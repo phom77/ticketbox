@@ -174,7 +174,7 @@ export function ConcertListScreen({
 }
 
 const eventStatusLabels = {
-  ON_SALE: 'onSale', SOLD_OUT: 'soldOut', COMPLETED: 'completed', CANCELLED: 'cancelled',
+  DRAFT: 'draft', ON_SALE: 'onSale', SOLD_OUT: 'soldOut', COMPLETED: 'completed', CANCELLED: 'cancelled',
 } as const;
 
 function formatDay(value: string, locale: string) {
