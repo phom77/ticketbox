@@ -1,3 +1,6 @@
+import { EventPage, EventsPage } from '../pages/public/EventsPage';
+import { PerformanceSelectionPage } from '../pages/customer/PerformanceSelectionPage';
+import '../pages/public/Performances.css';
 import { translate } from '../i18n';
 import { useTranslation } from 'react-i18next';
 import { ReconciliationPage } from '../pages/organizer/ReconciliationPage';
@@ -52,6 +55,10 @@ export function App() {
           <Routes>
             <Route element={<PublicLayout />}>
               <Route path="/" element={cataloguePage(<HomePage />)} />
+              <Route path="/events" element={cataloguePage(<EventsPage />)} />
+              <Route path="/events/:eventId" element={cataloguePage(<EventPage />)} />
+              <Route path="/events/:eventId/performances/:id/waiting-room" element={audiencePage(<WaitingRoomPage />)} />
+              <Route path="/events/:eventId/performances/:id/seats" element={audiencePage(<PerformanceSelectionPage />)} />
               <Route path="/concerts/:id" element={<ConcertDetailPage />} />
               <Route path="/concerts/:id/waiting-room" element={audiencePage(<WaitingRoomPage />)} />
               <Route path="/concerts/:id/seats" element={audiencePage(<SeatSelectionPage />)} />
