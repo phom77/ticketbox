@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Catalog performance sale snapshot v2",
+  "type": "object",
+  "required": [
+    "id", "eventId", "organizationId", "version", "layoutVersion", "layoutChecksum",
+    "title", "venueName", "startsAt", "endsAt", "timezone", "saleStartAt", "saleEndAt",
+    "status", "salesSuspended", "publicVisible", "maxPerAccount", "groups", "offers"
+  ],
+  "properties": {
+    "id": { "$ref": "#/$defs/id" },
+    "eventId": { "$ref": "#/$defs/id" },
+    "legacyConcertId": {"type": ["string", "null"], "format": "uuid"},
+    "organizationId": { "$ref": "#/$defs/id" },
+    "version": { "type": "integer", "minimum": 1 },
+    "layoutVersion": { "type": ["integer", "null"], "minimum": 1 },
+    "layoutChecksum": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+    "title": { "type": "string", "minLength": 1 },
+    "venueName": { "type": "string", "minLength": 1 },
+    "startsAt": { "$ref": "#/$defs/time" },
+    "endsAt": { "$ref": "#/$defs/time" },
+    "doorsOpenAt": { "type": ["string", "null"], "format": "date-time" },
+    "timezone": { "type": "string", "minLength": 1 },
+    "saleStartAt": { "$ref": "#/$defs/time" },
+    "saleEndAt": { "$ref": "#/$defs/time" },
+    "status": { "enum": ["ON_SALE", "SOLD_OUT", "CANCELLED", "COMPLETED"] },
+    "salesSuspended": { "type": "boolean" },
+    "publicVisible": { "type": "boolean" },
+    "resumedAdmissionAt": {"type": ["string", "null"], "format": "date-time"},
+    "maxPerAccount": { "type": "integer", "minimum": 1, "maximum": 100 },
+    "groups": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/group" }
+    },
+    "offers": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/offer" }
+    }
+  },
+  "allOf": [{
+    "if": { "properties": { "layoutVersion": { "type": "null" } } },
+    "then": { "properties": { "layoutChecksum": { "type": "null" } } },
+    "else": { "properties": { "layoutChecksum": { "type": "string" } } }
+  }],
+  "$defs": {
+    "id": { "type": "string", "format": "uuid" },
+    "time": { "type": "string", "format": "date-time" },
+    "group": {
+      "type": "object",
+      "required": ["id", "sectionLabel", "capacity", "kind", "seats"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "sectionId": { "type": ["string", "null"], "format": "uuid" },
+        "sectionLabel": { "type": "string", "minLength": 1 },
+        "capacity": { "type": "integer", "minimum": 1 },
+        "kind": { "enum": ["GA", "ASSIGNED"] },
+        "seats": { "type": "array", "items": { "$ref": "#/$defs/seat" } }
+      },
+      "if": { "properties": { "kind": { "const": "GA" } } },
+      "then": { "properties": { "seats": { "maxItems": 0 } } },
+      "else": {
+        "required": ["sectionId"],
+        "properties": {
+          "sectionId": { "$ref": "#/$defs/id" },
+          "seats": { "minItems": 1 }
+        }
+      }
+    },
+    "seat": {
+      "type": "object",
+      "required": ["id", "rowLabel", "seatLabel", "blocked"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "rowLabel": { "type": "string", "minLength": 1 },
+        "seatLabel": { "type": "string", "minLength": 1 },
+        "blocked": { "type": "boolean" }
+      }
+    },
+    "offer": {
+      "type": "object",
+      "required": ["id", "groupId", "name", "price", "currency", "saleStartAt", "saleEndAt", "active"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "groupId": { "$ref": "#/$defs/id" },
+        "name": { "type": "string", "minLength": 1 },
+        "price": { "type": "integer", "minimum": 1, "maximum": 999999999999 },
+        "currency": { "const": "VND" },
+        "saleStartAt": { "$ref": "#/$defs/time" },
+        "saleEndAt": { "$ref": "#/$defs/time" },
+        "active": { "type": "boolean" }
+      }
+    }
+  }
+}

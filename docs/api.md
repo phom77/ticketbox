@@ -64,3 +64,19 @@ Initiation accepts `{ "provider": "MOCK" }` (or `MOMO` / `VNPAY`). Remote dispat
 Public concert summaries and details can include a `translations` object keyed by language (`vi` or `en`). Each entry contains the organizer's title and description for that language. The existing `title` and `description` fields provide fallback values. Detail and management responses also expose `original` for text saved without a language.
 
 Concert create and update requests accept optional `translations` and `original`. Supplying a language replaces its title and description. A null entry or two blank fields removes it. Omitted languages keep their stored values. Supply an `original` object with both fields blank to clear the unlabelled text. At least one title must remain and each title has a 500-character limit. Requests using the existing top-level fields update the original and preserve saved translations. Catalog keeps the usual concert access and publication rules.
+
+## Performance purchase v2
+
+| Method and path | Access |
+| --- | --- |
+| `GET /api/v2/events`, `GET /api/v2/events/{eventId}` | Public published schedule |
+| `GET /api/v2/performances/{id}/layout`, `GET .../layout/sections/{sectionId}` | Public published geometry |
+| `GET /api/v2/performances/{id}/availability`, `GET .../availability/sections/{sectionId}` | Public sellable groups and available seats |
+| `PUT`, `GET`, `DELETE /api/v2/performances/{id}/hold` | Buyer with a queue token for that performance |
+| `POST /api/v2/performances/{id}/orders` | Buyer with a queue token and idempotency key |
+| `/api/organizer/manage/v2/events/**`, `.../venues/**`, `.../performances/**` | Organizer with matching grants and organization |
+| `/api/v2/staff/performances/**` | Active staff with organization access and performance assignment |
+
+Use the existing queue endpoints with the performance ID. The hold command replaces the basket and sends its last confirmed `holdVersion` and the map's `layoutVersion`. A basket can select GA quantity by offer ID and assigned seats by offer and seat IDs. Use the returned hold version to create the order. The resulting order ID works with existing payment, recovery and ticket endpoints. The API returns 401 for missing authentication, 403 for failed scope or shopping-session permission, and 409 for stale versions, an unavailable seat or a conflicting idempotency key. Reload availability and confirm the current hold after a conflict. Keep the order request key when recovering an ambiguous result.
+
+Catalog publishes the [performance sale snapshot](../contracts/catalog.performance-sale-snapshot.v2.json) to authenticated Ticketing and Check-in receivers. A version must arrive whole before activation. Repeated equal versions are safe. An equal version with different content is rejected. Offer references and capacity invariants are checked by the receiver in addition to JSON shape. See also the [purchase command bodies](../contracts/ticketing.performance-purchase.v2.json) and [performance ticket snapshot](../contracts/ticketing.ticket-snapshot.v2.json).
