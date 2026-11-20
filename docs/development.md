@@ -148,6 +148,19 @@ The command uses project `ticketbox-e2e-acceptance`, loopback ports 18096 and 18
 
 The journey reports aggregate operations counts by owner. For a failed email, use the platform exception queue, inspect the delivery status, retry the same command once and confirm the record becomes sent. For pending settlement or reconciliation, inspect the Payment review and result backlog. For missing issuance or delayed admission projection, inspect the corresponding Ticketing and Check-in outbox and confirm it drains after recovery. The A6 report records an injected email failure and the count after retry. CI publishes the named JSON summaries. Dumps, generated overlays and raw E2E logs stay local.
 
+For performance sales, start an isolated `ticketbox-e2e-seating` project on loopback ports 18105 and 18106 with `TICKETBOX_PAYMENT_PROFILE=dev` and `TICKETBOX_PERFORMANCE_SALES_ORGANIZATIONS=*`. Use this fixture to rehearse one-room GA, multiple GA areas, a hybrid with numbered seats, and an arena-sized map.
+
+```sh
+export E2E_PROJECT=ticketbox-e2e-seating E2E_PORT=18105 CHECKIN_PORT=18106
+export E2E_REPORT_DIRECTORY=.artifacts/e2e/seating
+python3 scripts/e2e/performance-sales.py
+node scripts/e2e/performance-organizer.mjs
+python3 scripts/e2e/performance-arena.py
+node scripts/e2e/performance-arena-browser.mjs
+```
+
+Use `E2E_COMPOSE_OVERRIDE` if the isolated project uses additional Compose files. Run the basic split journey before the restore rehearsal. If the report directory contains fresh output from `performance-sales.py`, restore also verifies the V2 write mode and paid-order replay against the copied databases. Recreate Catalog with an empty publication allowlist to close publication of new shows. For a show that is already on sale, disabling its offers through a sale revision stops new holds while honoring confirmed quotes until they expire. A formal postponement or cancellation uses the performance operations workspace and dispatches notifications.
+
 While the acceptance stack is running, repeat the aggregate check from a second terminal.
 
 ```sh

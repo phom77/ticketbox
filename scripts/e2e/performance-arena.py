@@ -140,10 +140,14 @@ def main():
     assert sql("ticketing", f"SELECT count(*) FROM performance_seats WHERE performance_id='{show}' AND id='{first_seat}' AND status='ALLOCATED'") == "1"
     assert sql("ticketing", f"SELECT available || ':' || held || ':' || allocated FROM performance_groups WHERE performance_id='{show}' AND kind='GA'") == "0:0:2"
     assert sql("ticketing", f"SELECT count(*) FROM orders WHERE concert_id='{show}'") == "3"
-    memory = next(line for line in Path("/proc/meminfo").read_text().splitlines() if line.startswith("MemTotal:"))
+    host = {"logicalCpu": os.cpu_count()}
+    meminfo = Path("/proc/meminfo")
+    if meminfo.exists():
+        memory = next(line for line in meminfo.read_text().splitlines() if line.startswith("MemTotal:"))
+        host["memoryKiB"] = int(memory.split()[1])
     report = {
         "event": event["id"], "performance": show, "section": sample_section, "venue": venue["name"],
-        "host": {"logicalCpu": os.cpu_count(), "memoryKiB": int(memory.split()[1])},
+        "host": host,
         "fixture": {"assignedSeats": section_count * rows_per_section * seats_per_row, "sections": len(sections),
                     "layoutBytes": len(json.dumps(layout_args).encode()), "concurrentBuyers": len(shoppers)},
         "saveLayoutMs": round(layout_ms, 1), "savePricingMs": round(sale_ms, 1), "publishAndAcknowledgeMs": round(publish_ms, 1),

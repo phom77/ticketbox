@@ -47,7 +47,7 @@ def main():
             "saleStartAt": opened, "saleEndAt": closes, "maxPerAccount": 3, "publicVisible": True,
         }, headers=scope)
 
-    ga, hybrid = schedule(3), schedule(4)
+    small, ga, hybrid = schedule(2), schedule(3), schedule(4)
     draft = schedule(5)
     assert draft["status"] == "DRAFT"
     floor, balcony, row, seat = [new_id() for _ in range(4)]
@@ -104,13 +104,14 @@ def main():
     def pool(label, section=None):
         return dict(id=new_id(), sectionId=section, sectionLabel=label, kind="GA", capacity=3, seats=[])
 
+    small_offers = publish(small, [pool("One room")], 0)
     ga_offers = publish(ga, [pool("Open floor"), pool("Mezzanine")], 0, shared_offer=True)
     hybrid_offers = publish(hybrid, [pool("Floor", floor), dict(
         id=new_id(), sectionId=balcony, sectionLabel="Balcony", kind="ASSIGNED", capacity=1,
         seats=[dict(id=seat, rowLabel="A", seatLabel="12", blocked=False)],
     )], 1)
     public = request("GET", f"/api/v2/events/{event['id']}")
-    assert {show["id"] for show in public["performances"]} == {ga["id"], hybrid["id"]}
+    assert {show["id"] for show in public["performances"]} == {small["id"], ga["id"], hybrid["id"]}
     v2 = f"/api/v2/performances/{hybrid['id']}"
     assert "rows" not in request("GET", v2 + "/layout")["sections"][0]
     assert request("GET", v2 + f"/layout/sections/{balcony}")["section"]["rows"][0]["seats"][0]["id"] == seat
@@ -143,6 +144,7 @@ def main():
         until(settle)
         return order
 
+    small_order = buy(small, [dict(offerId=small_offers[0]["id"], quantity=1)], None)
     ga_order = buy(ga, [dict(offerId=ga_offers[0]["id"], quantity=1)], None)
     hybrid_order = buy(hybrid, [dict(offerId=hybrid_offers[0]["id"], quantity=1),
                                dict(offerId=hybrid_offers[1]["id"], seatId=seat)], 1)
@@ -208,7 +210,8 @@ def main():
     assert sum(zone["totalQuantity"] for zone in zones) == 6
     assert sum(zone["soldQuantity"] for zone in zones) == 1
 
-    report = dict(eventId=event["id"], gaPerformance=ga["id"], hybridPerformance=hybrid["id"],
+    report = dict(eventId=event["id"], smallPerformance=small["id"], smallOrder=small_order["id"],
+                  gaPerformance=ga["id"], hybridPerformance=hybrid["id"],
                   gaOrder=ga_order["id"], hybridOrder=hybrid_order["id"], assignedSeatScans=scans)
     REPORT_DIRECTORY.mkdir(parents=True, exist_ok=True)
     (REPORT_DIRECTORY / "performance-sales.json").write_text(json.dumps(report, indent=2) + "\n")
