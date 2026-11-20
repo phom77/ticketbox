@@ -17,6 +17,8 @@ The SMTP sink accepts email locally without forwarding it. Its private HTTP endp
 
 For a separate staging deployment, set `TICKETBOX_PAYMENT_PROFILE=staging` for the shared Payment and Ticketing profiles. Use the staging secret store for `VNPAY_TMN_CODE` and `VNPAY_HASH_SECRET`. Set `VNPAY_PAY_URL` and `VNPAY_QUERY_URL` to the merchant's sandbox endpoints. Set `VNPAY_RETURN_URL` and `VNPAY_IPN_URL` to the staging HTTPS origin at `/payment/result` and `/api/payments/webhooks/vnpay`, and register the IPN with the merchant. Confirm `GET /api/payments/providers` returns only `VNPAY` as a buyer before running the checkout. The provider list is empty until the VNPAY settings pass readiness checks.
 
+To enable initial publication of new performances, set `TICKETBOX_PERFORMANCE_SALES_ORGANIZATIONS` on Catalog to the comma-separated UUIDs of the approved organizations. Use `*` for isolated local fixtures that create a new organization on each run. An empty list closes initial publication. Existing performances keep their stored write mode and continue to process holds, payments and admission. Use the performance operations workspace to suspend sales for an individual show during an incident.
+
 Set a separate `PASSWORD_RESET_KEY` of at least 32 bytes in Identity's secret store to enable buyer account recovery. Configure Notification with the HTTPS `APP_PUBLIC_URL` as the origin for reset emails and use the staging SMTP relay. Keep the reset key stable while encrypted deliveries are pending. Set the approved HTTPS destinations `VITE_SUPPORT_URL` and `VITE_TERMS_URL` before building the web image. An absent or invalid destination hides its link.
 
 ```sh

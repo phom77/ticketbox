@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.ticketbox.catalog.concert.application.port.EventDisruptionImpact;
 import org.ticketbox.catalog.performance.application.PerformanceDisruptions;
+import org.ticketbox.catalog.performance.application.PerformanceViews;
 import org.ticketbox.catalog.web.ApiResponse;
 
 @RestController
@@ -41,6 +42,11 @@ public class PerformanceDisruptionController {
     public ApiResponse<PerformanceDisruptions.Status> confirm(
             @PathVariable UUID id, Principal actor, @RequestBody PerformanceDisruptions.Command command) {
         return ApiResponse.success(disruptions.confirm(id, UUID.fromString(actor.getName()), command));
+    }
+
+    @PostMapping("/complete")
+    public ApiResponse<PerformanceViews.Publication> complete(@PathVariable UUID id, Principal actor) {
+        return ApiResponse.success(disruptions.complete(id, UUID.fromString(actor.getName())));
     }
 
     @PostMapping("/{actionId}/resume")

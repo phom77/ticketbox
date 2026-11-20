@@ -65,7 +65,7 @@ class PerformanceCatalogIntegrationTest {
         jdbc = new JdbcTemplate(source);
         transaction = new TransactionTemplate(new DataSourceTransactionManager(source));
         json = new ObjectMapper().findAndRegisterModules().disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-        catalog = new PerformanceCatalog(new JdbcPerformanceStore(jdbc, json));
+        catalog = new PerformanceCatalog(new JdbcPerformanceStore(jdbc, json), "*");
     }
 
     @BeforeEach
@@ -76,6 +76,20 @@ class PerformanceCatalogIntegrationTest {
         var created = tx(() -> catalog.createVenue(owner, "Room", "Address", "Stage"));
         venue = created.id();
         space = created.spaces().getFirst().id();
+    }
+
+    @Test
+    void organizationRolloutOnlyControlsNewPublications() {
+        var night = newPerformance(3);
+        var draft = newPerformance(4);
+        var enabled = new PerformanceCatalog(new JdbcPerformanceStore(jdbc, json), owner.toString());
+        var disabled = new PerformanceCatalog(new JdbcPerformanceStore(jdbc, json), "");
+        tx(() -> catalog.saveSale(owner, owner, night.id(), 0, maplessSale(night.saleStartAt(), night.saleEndAt())));
+        assertThatThrownBy(() -> tx(() -> disabled.publish(owner, owner, night.id(), 1L, 0L)))
+                .isInstanceOf(AppException.class).hasMessage("error.performance.rollout-disabled");
+        assertThat(tx(() -> enabled.publish(owner, owner, night.id(), 1L, 0L)).status()).isEqualTo("ON_SALE");
+        assertThat(tx(() -> disabled.publish(owner, owner, night.id(), 2L, 0L)).saleVersion()).isEqualTo(2);
+        assertThat(tx(() -> disabled.publication(owner, draft.id()).status())).isEqualTo("DRAFT");
     }
 
     @Test

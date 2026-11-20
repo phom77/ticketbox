@@ -1,11 +1,14 @@
 package org.ticketbox.catalog.performance.application;
 
 import java.time.OffsetDateTime;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -20,9 +23,13 @@ import org.ticketbox.catalog.performance.domain.PerformanceSale;
 @Service
 public class PerformanceCatalog {
     private final PerformanceStore store;
+    private final Set<String> publishingOrganizations;
 
-    public PerformanceCatalog(PerformanceStore store) {
+    public PerformanceCatalog(PerformanceStore store,
+                              @Value("${ticketbox.performance-sales.organizations:}") String organizations) {
         this.store = store;
+        publishingOrganizations = Arrays.stream(organizations.split(",")).map(String::trim)
+                .collect(Collectors.toUnmodifiableSet());
     }
 
     @Transactional(readOnly = true)
@@ -130,6 +137,9 @@ public class PerformanceCatalog {
     public Publication publish(UUID owner, UUID actor, UUID id, Long expectedSale, Long expectedLayout) {
         var performance = owned(owner, id);
         if (!"DRAFT".equals(performance.status())) return store.publication(performance);
+        if (!publishingOrganizations.contains("*") && !publishingOrganizations.contains(owner.toString())) {
+            throw new AppException(ErrorCode.UNAUTHORIZED, "error.performance.rollout-disabled");
+        }
         var draft = store.draftLayout(id).orElse(null);
         if (expectedSale != null) version(expectedSale, performance.saleVersion());
         if (expectedLayout != null) version(expectedLayout, draft == null ? 0 : draft.version());

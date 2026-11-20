@@ -106,6 +106,19 @@ public class PerformanceDisruptions {
         return status(disruptions.find(action).orElseThrow());
     }
 
+    @Transactional
+    public PerformanceViews.Publication complete(UUID id, UUID actor) {
+        var performance = lock(id);
+        if ("COMPLETED".equals(performance.status())) return performances.publication(performance);
+        if (performance.salesSuspended() || !List.of("ON_SALE", "SOLD_OUT").contains(performance.status())
+                || performance.endsAt().isAfter(OffsetDateTime.now())
+                || !performances.publication(performance).ticketingAcknowledged()) throw invalid();
+        long version = performance.saleVersion() + 1;
+        publish(performance, actor, version, "COMPLETED", false,
+                performance.resumedAdmissionAt(), performances.sale(id));
+        return new PerformanceViews.Publication("COMPLETED", version, false, false);
+    }
+
     private void publish(Performance performance, UUID actor, long version, String status, boolean suspended,
                          OffsetDateTime resumedAdmissionAt, PerformanceSale sale) {
         UUID owner = performances.nativeOwner(performance.id()).orElseThrow(PerformanceDisruptions::missing);
