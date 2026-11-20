@@ -1,0 +1,85 @@
+.performance-admin {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+.performance-admin h1,
+.performance-admin h2,
+.performance-admin p {
+  margin-block: 0;
+}
+.performance-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  align-items: end;
+  gap: .75rem 1rem;
+}
+.performance-form label,
+.performance-options > label {
+  display: grid;
+  gap: .3rem;
+  font-weight: 600;
+}
+.performance-form input:not([type="checkbox"]),
+.performance-form select,
+.performance-form textarea,
+.performance-options select,
+.performance-options input:not([type="checkbox"]) {
+  border: 1px solid var(--line);
+  border-radius: .5rem;
+  background: var(--surface);
+  color: var(--cream);
+  padding: .45rem .65rem;
+  min-width: 0;
+  max-width: 100%;
+}
+.performance-form fieldset,
+fieldset.performance-form {
+  border: 1px solid var(--line);
+  border-radius: .65rem;
+  padding: .75rem;
+}
+fieldset.performance-form > legend {
+  padding-inline: .25rem;
+}
+.performance-form .performance-inline {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+}
+.performance-wide {
+  grid-column: 1 / -1;
+}
+.performance-admin details > form,
+.performance-admin details > div {
+  margin-block-start: .75rem;
+}
+.performance-event-link {
+  text-decoration: underline;
+  text-underline-offset: .2em;
+}
+.editor-map.is-editing {
+  cursor: crosshair;
+}
+.editor-map.is-editing .performance-map-area {
+  cursor: crosshair;
+}
+.performance-draft-line {
+  fill: none;
+  stroke: var(--coral);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.publication-status {
+  margin: 0;
+  display: grid;
+  gap: .4rem;
+}
+.publication-status > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.publication-status dd {
+  margin: 0;
+}

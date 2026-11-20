@@ -1,9 +1,10 @@
 import { translate } from '../i18n';
 import { api, apiGet } from './client';
 
-export type OrganizationGrant = 'MEMBERS' | 'EVENTS' | 'FINANCE';
+export type OrganizationGrant = 'MEMBERS' | 'EVENTS' | 'FINANCE' | 'ADMISSION';
 
 export const organizationGrantLabels: Record<OrganizationGrant, string> = {
+  get ADMISSION() { return translate('performances:admissionGrant'); },
   get MEMBERS() { return translate("shared:organizations_quanLyThanhVien"); },
   get EVENTS() { return translate("shared:organizations_quanLyBuoiDien"); },
   get FINANCE() { return translate("shared:organizations_xemDonHangVaDoanhThu"); },

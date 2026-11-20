@@ -1,3 +1,5 @@
+import { PerformanceOperationsPage } from '../pages/admin/PerformanceOperationsPage';
+import { PerformanceEventPage, PerformanceEventsPage } from '../pages/organizer/PerformanceEventsPage';
 import { EventPage, EventsPage } from '../pages/public/EventsPage';
 import { PerformanceSelectionPage } from '../pages/customer/PerformanceSelectionPage';
 import '../pages/public/Performances.css';
@@ -82,6 +84,7 @@ export function App() {
               }
             >
               <Route index element={<AdminOverviewPage />} />
+              <Route path="performance-operations" element={<PerformanceOperationsPage />} />
               <Route path="concerts" element={<AdminConcertsPage />} />
               <Route path="concerts/:id" element={<ConcertWorkspacePage />} />
               <Route path="artist-bio" element={<AdminArtistBioPage />} />
@@ -105,6 +108,8 @@ export function App() {
               }
             >
               <Route index element={<OrganizerOverviewPage />} />
+              <Route path="events" element={<RequireOrganizationGrant grant="EVENTS"><PerformanceEventsPage /></RequireOrganizationGrant>} />
+              <Route path="events/:eventId" element={<RequireOrganizationGrant grant="EVENTS"><PerformanceEventPage /></RequireOrganizationGrant>} />
               <Route path="concerts" element={<RequireOrganizationGrant grant="EVENTS"><AdminConcertsPage apiScope="organizer" /></RequireOrganizationGrant>} />
               <Route path="concerts/:id/preview" element={<RequireOrganizationGrant grant="EVENTS"><ConcertDetailPage preview /></RequireOrganizationGrant>} />
               <Route path="concerts/:id" element={<RequireOrganizationGrant grant="EVENTS"><ConcertWorkspacePage apiScope="organizer" /></RequireOrganizationGrant>} />

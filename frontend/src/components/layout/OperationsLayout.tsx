@@ -36,6 +36,7 @@ type NavigationItem = {
 
 const adminNavigation: NavigationItem[] = [
   { to: '/admin', get label() { return translate("shared:operationsLayout_tongQuan"); }, icon: BarChart3, end: true },
+  { to: '/admin/performance-operations', get label() { return translate('performances:operations'); }, icon: CalendarDays },
   { to: '/admin/concerts', get label() { return translate("shared:operationsLayout_buoiDien"); }, icon: CalendarDays },
   { to: '/admin/ticket-types', get label() { return translate("shared:operationsLayout_hangVe"); }, icon: Ticket },
   { to: '/admin/reconciliation', get label() { return translate("shared:operationsLayout_doiSoat"); }, icon: CircleDollarSign },
@@ -55,6 +56,7 @@ const staffNavigation: NavigationItem[] = [
 
 const organizerNavigation: NavigationItem[] = [
   { to: '/organizer', get label() { return translate("shared:operationsLayout_tongQuan"); }, icon: BarChart3, end: true },
+  { to: '/organizer/events', grant: 'EVENTS', get label() { return translate('performances:events'); }, icon: CalendarDays },
   { to: '/organizer/concerts', grant: 'EVENTS', get label() { return translate("shared:operationsLayout_buoiDien"); }, icon: CalendarDays },
   { to: '/organizer/ticket-types', grant: 'EVENTS', get label() { return translate("shared:operationsLayout_hangVe"); }, icon: Ticket },
   { to: '/organizer/reconciliation', grant: 'FINANCE', get label() { return translate("shared:operationsLayout_doiSoat"); }, icon: CircleDollarSign },
