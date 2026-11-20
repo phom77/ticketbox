@@ -27,7 +27,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
         AdmissionHealth health = admissionHealthProvider.getIfAvailable();
         if (health != null && health.enabled()) {
             registry.addInterceptor(new PurchaseAdmissionHealthInterceptor(health))
-                    .addPathPatterns("/api/orders", "/api/reservations/**",
+                    .addPathPatterns("/api/orders", "/api/reservations/**", "/api/v2/performances/**",
                             "/api/mock-payments/**", "/api/payments/**");
         }
 
@@ -37,6 +37,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                     .addPathPatterns(
                             "/api/orders",
                             "/api/reservations/**",
+                            "/api/v2/performances/**",
                             "/api/mock-payments/**",
                             "/api/payments/**");
         }

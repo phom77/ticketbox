@@ -1,6 +1,7 @@
 package org.ticketbox.ticketing.order.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -22,6 +23,15 @@ import org.ticketbox.ticketing.order.application.port.OrderItemRepository;
 import org.ticketbox.ticketing.order.application.port.OrderRepository;
 import org.ticketbox.ticketing.order.domain.Order;
 import org.ticketbox.ticketing.queue.infrastructure.WaitingRoomService;
+import org.ticketbox.ticketing.performance.application.PerformanceHolds;
+import org.ticketbox.ticketing.performance.application.PerformanceHolds.Pick;
+import org.ticketbox.ticketing.performance.application.port.PerformanceCatalog;
+import org.ticketbox.ticketing.performance.application.port.PerformanceStock.Scope;
+import org.ticketbox.ticketing.performance.domain.PerformanceSale;
+import org.ticketbox.ticketing.performance.domain.PerformanceSale.Group;
+import org.ticketbox.ticketing.performance.domain.PerformanceSale.Kind;
+import org.ticketbox.ticketing.performance.domain.PerformanceSale.Offer;
+import org.ticketbox.ticketing.performance.domain.PerformanceSale.Seat;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -61,6 +71,145 @@ class OrderConcurrencyIntegrationTest {
 
     @Autowired
     private org.ticketbox.ticketing.application.port.payment.PaymentWorkflowPort workflow;
+
+    @Autowired private PerformanceCatalog performanceCatalog;
+    @Autowired private PerformanceHolds performanceHolds;
+
+    @Test
+    void hybridCheckoutAllocatesBothKindsAndVerifiedPaymentIssuesOneTicketForEach() {
+        var sale = createHybrid();
+        var buyer = new Scope(sale.id(), UUID.randomUUID());
+        String token = admitPerformance(buyer);
+        var selection = hybridPicks(sale);
+        var hold = performanceHolds.replace(buyer, token, "initial", 1L, 0, selection);
+        assertThat(hold.items()).hasSize(2);
+        assertThat(hold.totalAmount()).isEqualByComparingTo("310000");
+        assertThat(performanceHolds.replace(buyer, token, "initial", 1L, 0, selection).version())
+                .isEqualTo(hold.version());
+        assertThatThrownBy(() -> performanceHolds.replace(buyer, token, "initial", 1L, 0, List.of()))
+                .isInstanceOfSatisfying(AppException.class, err ->
+                        assertThat(err.getErrorCode()).isEqualTo(ErrorCode.DUPLICATE_IDEMPOTENCY_KEY));
+
+        var order = orderService.createPerformanceOrder(sale.id(), buyer.userId(), hold.version(), "checkout", token);
+        assertThat(order.performanceId()).isEqualTo(sale.id());
+        assertThat(order.performanceVenueName()).isEqualTo("Hybrid venue");
+        assertThat(order.items()).anySatisfy(line -> assertThat(line.seatLabel()).isEqualTo("12"));
+        assertThat(orderService.createPerformanceOrder(sale.id(), buyer.userId(), hold.version(), "checkout", token).id())
+                .isEqualTo(order.id());
+        assertThat(inventoryJdbc.queryForObject("SELECT allocated FROM performance_groups WHERE performance_id=? AND kind='GA'",
+                Integer.class, sale.id())).isEqualTo(1);
+        assertThat(inventoryJdbc.queryForObject("SELECT status FROM performance_seats WHERE performance_id=?",
+                String.class, sale.id())).isEqualTo("ALLOCATED");
+
+        var intent = workflow.prepare(order.id(), buyer.userId(), "MOCK");
+        var result = money(intent, UUID.randomUUID());
+        assertThat(workflow.receive(result).decision()).isEqualTo("ACCEPTED");
+        assertThat(workflow.receive(result).decision()).isEqualTo("ACCEPTED");
+        assertThat(inventoryJdbc.queryForObject("""
+                SELECT count(*) FROM tickets t JOIN order_items i ON i.id=t.order_item_id WHERE i.order_id=?
+                """, Integer.class,order.id())).isEqualTo(2);
+        assertThat(orderService.getOrderDetail(order.id(), buyer.userId()).items())
+                .anySatisfy(line -> assertThat(line.rowLabel()).isEqualTo("B"));
+        assertThat(inventoryJdbc.queryForObject("""
+                SELECT (replay_order(o.id) - 'updated_at' - 'paid_at') =
+                       (order_projection_snapshot(o.id) - 'updated_at' - 'paid_at')
+                   AND CAST(replay_order(o.id) ->> 'paid_at' AS timestamptz) = o.paid_at
+                FROM orders o WHERE o.id=?
+                """, Boolean.class, order.id())).isTrue();
+    }
+
+    @Test
+    void hybridConflictLeavesPreviousGaAndDoesNotLeakSeats() throws Exception {
+        var sale = createHybrid();
+        var selection = hybridPicks(sale);
+        var buyers = List.of(new Scope(sale.id(), UUID.randomUUID()), new Scope(sale.id(), UUID.randomUUID()));
+        var tokens = buyers.stream().map(this::admitPerformance).toList();
+        var initial = buyers.stream()
+                .map(buyer -> performanceHolds.replace(buyer, tokens.get(buyers.indexOf(buyer)), "ga", 1L, 0,
+                        List.of(selection.getFirst())))
+                .toList();
+        var successes = runConcurrently(2, index -> {
+            try {
+                performanceHolds.replace(buyers.get(index), tokens.get(index), "seat", 1L,
+                        initial.get(index).version(), selection);
+                return AttemptResult.succeeded();
+            } catch (AppException conflict) {
+                assertThat(conflict.getErrorCode()).isEqualTo(ErrorCode.TICKET_SOLD_OUT);
+                return AttemptResult.failed(conflict.getErrorCode());
+            }
+        });
+        assertThat(successes.stream().filter(AttemptResult::success).count()).isEqualTo(1);
+        assertThat(inventoryJdbc.queryForObject("SELECT held FROM performance_groups WHERE performance_id=? AND kind='GA'",
+                Integer.class, sale.id())).isEqualTo(2);
+        assertThat(inventoryJdbc.queryForObject("SELECT count(*) FROM performance_seats WHERE performance_id=? AND status='HELD'",
+                Integer.class, sale.id())).isEqualTo(1);
+        for (int i=0; i<2; i++) performanceHolds.release(buyers.get(i), tokens.get(i));
+        assertThat(inventoryJdbc.queryForObject("SELECT held FROM performance_groups WHERE performance_id=? AND kind='GA'",
+                Integer.class, sale.id())).isZero();
+        assertThat(inventoryJdbc.queryForObject("SELECT status FROM performance_seats WHERE performance_id=?",
+                String.class, sale.id())).isEqualTo("AVAILABLE");
+    }
+
+    @Test
+    void expiredHybridOrderReleasesSeatAndPoolBeforeLatePayment() {
+        var sale = createHybrid();
+        var buyer = new Scope(sale.id(), UUID.randomUUID());
+        String token = admitPerformance(buyer);
+        var hold = performanceHolds.replace(buyer, token, "initial", 1L, 0, hybridPicks(sale));
+        var order = orderService.createPerformanceOrder(sale.id(), buyer.userId(), hold.version(), "checkout", token);
+        var intent = workflow.prepare(order.id(), buyer.userId(), "MOCK");
+        var past = OffsetDateTime.now().minusMinutes(1);
+        inventoryJdbc.update("UPDATE orders SET expires_at=? WHERE id=?", past, order.id());
+        inventoryJdbc.update("""
+                UPDATE order_events SET payload=jsonb_set(payload,'{expires_at}',to_jsonb(CAST(? AS text)))
+                WHERE order_id=? AND stream_version=1
+                """, past.toString(), order.id());
+        assertThat(orderService.expireOrderIfDue(order.id())).isTrue();
+
+        var replacement = new Scope(sale.id(), UUID.randomUUID());
+        String replacementToken = admitPerformance(replacement);
+        var replacementHold = performanceHolds.replace(replacement, replacementToken, "new", 1L, 0, hybridPicks(sale));
+        assertThat(replacementHold.items()).hasSize(2);
+        var late = workflow.receive(money(intent, UUID.randomUUID()));
+        assertThat(late.decision()).isEqualTo("REJECTED");
+        assertThat(late.reason()).contains("compensation review");
+        assertThat(inventoryJdbc.queryForObject("SELECT status FROM performance_seats WHERE performance_id=?",
+                String.class, sale.id())).isEqualTo("HELD");
+        assertThat(inventoryJdbc.queryForObject("""
+                SELECT count(*) FROM tickets t JOIN order_items i ON i.id=t.order_item_id WHERE i.order_id=?
+                """, Integer.class, order.id())).isZero();
+    }
+
+    private PerformanceSale createHybrid() {
+        var now = OffsetDateTime.now().withNano(0);
+        var pool = new Group(UUID.randomUUID(), UUID.randomUUID(), "Floor", 2, Kind.GA, List.of());
+        var section = new Group(UUID.randomUUID(), UUID.randomUUID(), "Balcony", 1, Kind.ASSIGNED,
+                List.of(new Seat(UUID.randomUUID(), "B", "12", false)));
+        var sale = new PerformanceSale(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), null, 1, 1L,
+                "a".repeat(64), "Hybrid preview", "Hybrid venue", now.plusDays(2),
+                now.plusDays(2).plusHours(2), null, "Asia/Ho_Chi_Minh", now.minusDays(1), now.plusDays(1),
+                "ON_SALE", false, true, null, 2, List.of(pool, section), List.of(
+                new Offer(UUID.randomUUID(), pool.id(), "Floor", BigDecimal.valueOf(100_000), "VND",
+                        now.minusDays(1), now.plusDays(1), true),
+                new Offer(UUID.randomUUID(), section.id(), "Balcony", BigDecimal.valueOf(210_000), "VND",
+                        now.minusDays(1), now.plusDays(1), true)));
+        performanceCatalog.apply(sale);
+        return sale;
+    }
+
+    private String admitPerformance(Scope buyer) {
+        waitingRoomService.join(buyer.performanceId(), buyer.userId());
+        waitingRoomService.promoteWaitingUsers(buyer.performanceId());
+        var token = waitingRoomService.status(buyer.performanceId(), buyer.userId()).queueAccessToken();
+        assertThat(token).isNotBlank();
+        return token;
+    }
+
+    private List<Pick> hybridPicks(PerformanceSale sale) {
+        return List.of(new Pick(sale.offers().getFirst().id(), null, 1),
+                new Pick(sale.offers().getLast().id(), sale.groups().getLast().seats().getFirst().id(), null));
+    }
+
 
     @Autowired private org.ticketbox.ticketing.order.infrastructure.OrderEventStore orderEvents;
 

@@ -25,7 +25,9 @@ public class PurchasePaymentRateLimitInterceptor implements HandlerInterceptor {
     public boolean preHandle(
             HttpServletRequest request, HttpServletResponse response, Object handler) {
         boolean callback = request.getRequestURI().startsWith("/api/payments/webhooks/");
-        if (!"POST".equalsIgnoreCase(request.getMethod()) && !callback) {
+        boolean performanceHold = request.getRequestURI().startsWith("/api/v2/performances/")
+                && request.getRequestURI().endsWith("/hold") && "PUT".equals(request.getMethod());
+        if (!"POST".equalsIgnoreCase(request.getMethod()) && !performanceHold && !callback) {
             return true;
         }
 
@@ -84,7 +86,8 @@ public class PurchasePaymentRateLimitInterceptor implements HandlerInterceptor {
     }
 
     private Bucket resolveBucket(String uri) {
-        if ("/api/orders".equals(uri) || uri.startsWith("/api/reservations/")) {
+        if ("/api/orders".equals(uri) || uri.startsWith("/api/reservations/")
+                || (uri.startsWith("/api/v2/performances/") && (uri.endsWith("/hold") || uri.endsWith("/orders")))) {
             return Bucket.PURCHASE;
         }
 

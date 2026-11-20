@@ -51,6 +51,21 @@
             <basic name="expiresAt">
                 <column name="expires_at" />
             </basic>
+            <basic name="performanceEventId">
+                <column name="performance_event_id" />
+            </basic>
+            <basic name="performanceTitle">
+                <column name="performance_title" />
+            </basic>
+            <basic name="performanceVenueName">
+                <column name="performance_venue_name" />
+            </basic>
+            <basic name="performanceStartsAt">
+                <column name="performance_starts_at" />
+            </basic>
+            <basic name="performanceHoldVersion">
+                <column name="performance_hold_version" />
+            </basic>
             <one-to-many name="items" target-entity="org.ticketbox.ticketing.order.domain.OrderItem" fetch="LAZY">
                 <join-column name="order_id" insertable="false" updatable="false" />
                 <cascade>
@@ -77,6 +92,24 @@
             </basic>
             <basic name="subtotal">
                 <column name="subtotal" nullable="false" precision="12" scale="0" />
+            </basic>
+            <basic name="groupId">
+                <column name="group_id" />
+            </basic>
+            <basic name="seatId">
+                <column name="seat_id" />
+            </basic>
+            <basic name="offerName">
+                <column name="offer_name" />
+            </basic>
+            <basic name="sectionLabel">
+                <column name="section_label" />
+            </basic>
+            <basic name="rowLabel">
+                <column name="row_label" />
+            </basic>
+            <basic name="seatLabel">
+                <column name="seat_label" />
             </basic>
         </attributes>
     </entity>

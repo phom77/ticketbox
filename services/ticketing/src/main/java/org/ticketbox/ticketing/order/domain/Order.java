@@ -49,6 +49,27 @@ public class Order extends BaseEntity {
 
     private OffsetDateTime expiresAt;
 
+    private UUID performanceEventId;
+    private String performanceTitle;
+    private String performanceVenueName;
+    private OffsetDateTime performanceStartsAt;
+    private Long performanceHoldVersion;
+
+    public UUID getPerformanceId() {
+        return performanceEventId == null ? null : concertId;
+    }
+
+    public void snapshotPerformance(UUID eventId, String title, String venueName,
+                                    OffsetDateTime startsAt, long holdVersion) {
+        requireAwaitingPayment();
+        if (performanceEventId != null) throw new IllegalStateException("Order already has a performance");
+        performanceEventId = java.util.Objects.requireNonNull(eventId);
+        performanceTitle = java.util.Objects.requireNonNull(title);
+        performanceVenueName = java.util.Objects.requireNonNull(venueName);
+        performanceStartsAt = java.util.Objects.requireNonNull(startsAt);
+        performanceHoldVersion = holdVersion;
+    }
+
     public void setUserId(UUID userId) {
         this.userId = userId;
     }

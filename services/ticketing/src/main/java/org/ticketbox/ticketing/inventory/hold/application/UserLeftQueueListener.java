@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class UserLeftQueueListener {
     private final ReservationService reservationService;
+    private final org.ticketbox.ticketing.performance.application.PerformanceHolds performanceHolds;
 
     @ApplicationModuleListener(
             id =
@@ -24,5 +25,9 @@ public class UserLeftQueueListener {
                 event.concertId());
         reservationService.releaseHoldsForSession(
                 event.userId(), event.concertId(), event.sessionToken());
+        performanceHolds.releaseSession(
+                new org.ticketbox.ticketing.performance.application.port.PerformanceStock.Scope(
+                        event.concertId(), event.userId()),
+                event.sessionToken());
     }
 }

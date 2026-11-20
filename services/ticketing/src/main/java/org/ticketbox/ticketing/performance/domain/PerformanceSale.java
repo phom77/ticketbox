@@ -88,7 +88,7 @@ public record PerformanceSale(
         var sectionKinds = new HashMap<UUID, Kind>();
         for (Group group : groups) {
             if (!groupIds.add(group.id())
-                    || (group.kind() == Kind.GA && !gaSections.add(group.sectionId()))
+                    || (group.kind() == Kind.GA && group.sectionId() != null && !gaSections.add(group.sectionId()))
                     || (layoutVersion == null && (group.sectionId() != null || group.kind() != Kind.GA))
                     || group.seats().stream().anyMatch(seat -> !seatIds.add(seat.id()))) {
                 throw new IllegalArgumentException("Duplicate or invalid inventory group");

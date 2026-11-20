@@ -116,8 +116,13 @@ public class TicketingCatalogProjection
         if (ticketTypeIds.isEmpty()) return List.of();
         return named.query(
                 """
-                SELECT id,concert_id,name,price,total_quantity,max_per_account,is_active
-                FROM ticket_types WHERE id IN (:ids)
+                SELECT tt.id,tt.concert_id,tt.name,tt.price,tt.total_quantity,tt.max_per_account,tt.is_active,
+                    tt.performance_offer, CASE WHEN g.kind='GA' THEN g.available
+                        ELSE (SELECT count(*) FROM performance_seats s WHERE s.performance_id=g.performance_id
+                            AND s.group_id=g.id AND s.status='AVAILABLE') END AS performance_available
+                FROM ticket_types tt LEFT JOIN performance_offers o ON o.id=tt.id
+                LEFT JOIN performance_groups g ON g.performance_id=o.performance_id AND g.id=o.group_id
+                WHERE tt.id IN (:ids)
                 """,
                 Map.of("ids", ticketTypeIds),
                 (row, index) -> {
@@ -128,7 +133,7 @@ public class TicketingCatalogProjection
                             row.getString("name"),
                             row.getBigDecimal("price"),
                             row.getInt("total_quantity"),
-                            inventory.available(id),
+                            row.getBoolean("performance_offer") ? row.getInt("performance_available") : inventory.available(id),
                             row.getInt("max_per_account"),
                             row.getBoolean("is_active"));
                 });
