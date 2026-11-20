@@ -52,6 +52,7 @@ public class OrderService {
     private final PurchaseLock purchaseGuard;
     private final OrderEventRepository orderEvents;
     private final ConcertOrderPort concertOrderPort;
+    private final org.ticketbox.ticketing.performance.application.port.PerformanceCatalog performanceCatalog;
     private final org.ticketbox.ticketing.inventory.application.port.InventoryPort inventory;
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
@@ -106,7 +107,8 @@ public class OrderService {
 
         releaseUserLockAfterTransaction(lockKey, lockToken);
 
-        if (concertOrderPort.lockAndCheckSalesSuspended(request.concertId())) {
+        if (performanceCatalog.usesPerformanceStock(request.concertId())
+                || concertOrderPort.lockAndCheckSalesSuspended(request.concertId())) {
             throw new AppException(ErrorCode.CONCERT_NOT_ON_SALE, "error.concert-not-on-sale");
         }
         ConcertView concert =

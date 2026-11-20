@@ -58,6 +58,11 @@ ON CONFLICT(id) DO UPDATE SET %3$s
         UUID id = uuid(envelope, "id");
         long version = envelope.required("version").asLong();
         if (!newer("catalog", id, version)) return;
+        if (Boolean.TRUE.equals(jdbc.queryForObject(
+                "SELECT EXISTS(SELECT 1 FROM concerts WHERE id=? AND sales_mode='V2')",
+                Boolean.class, id))) {
+            throw new IllegalStateException("Legacy snapshot cannot overwrite an active performance");
+        }
 
         if (envelope.path("deleted").asBoolean()) {
             jdbc.update("DELETE FROM ticket_types WHERE concert_id=?", id);

@@ -50,7 +50,7 @@ class InternalSecurityConfig {
                     }
                 };
 
-        return http.securityMatcher("/internal/split/**")
+        return http.securityMatcher("/internal/split/**", "/internal/ticketing/catalog/performances/**")
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(
                         session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

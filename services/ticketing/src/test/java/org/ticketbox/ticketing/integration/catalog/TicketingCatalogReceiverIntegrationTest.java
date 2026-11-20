@@ -110,6 +110,24 @@ FROM concerts c WHERE id=?
     }
 
     @Test
+    void legacyCatalogCannotOverwriteAnActivatedPerformance() {
+        UUID id = ticketing.queryForObject("SELECT id FROM concerts ORDER BY id LIMIT 1", UUID.class);
+        String currentTitle = ticketing.queryForObject("SELECT title FROM concerts WHERE id=?", String.class, id);
+        var envelope = catalog(id, 199, "Stale legacy publisher");
+        ticketing.update("UPDATE concerts SET sales_mode='V2' WHERE id=?", id);
+        try {
+            var receiver = new TicketingCatalogReceiver(ticketing);
+            assertThatThrownBy(() -> ticketingTransaction.executeWithoutResult(tx -> receiver.catalog(envelope)))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("performance");
+            assertThat(ticketing.queryForObject("SELECT title FROM concerts WHERE id=?", String.class, id))
+                    .isEqualTo(currentTitle);
+        } finally {
+            ticketing.update("UPDATE concerts SET sales_mode='V1' WHERE id=?", id);
+        }
+    }
+
+    @Test
     void failedInventoryResizeRollsBackMetadataAndVersionTogether() {
         UUID type =
                 ticketing.queryForObject(
