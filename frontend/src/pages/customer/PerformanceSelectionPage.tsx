@@ -167,6 +167,7 @@ function PerformanceSelection({ id, eventId }: { id: string; eventId: string }) 
   const sections = new Map(
     (availability?.groups ?? []).filter((group) => group.sectionId !== null).map((group) => [group.sectionId!, group.sectionLabel]),
   );
+  const sectionChoices = [...sections].sort((a, b) => a[1].localeCompare(b[1], undefined, { numeric: true }));
   const shownLayout = availability?.layoutVersion === layout?.version ? layout : null;
   const cannotChange = busy || !availability || !admission;
 
@@ -258,6 +259,8 @@ function PerformanceSelection({ id, eventId }: { id: string; eventId: string }) 
   }
 
   const rowList = selectedMapSection?.rows.slice(0, visibleRows) ?? [];
+  const selectedBounds = selectedMapSection ? bounds(selectedMapSection.points) : null;
+  const seatRadius = selectedBounds ? Math.min(selectedBounds.width, selectedBounds.height) / 100 : 1;
   return (
     <section className="performance-page page-width">
       <Link to={eventPath(eventId)}>{context?.event.title ?? t('performances:schedule')}</Link>
@@ -273,19 +276,30 @@ function PerformanceSelection({ id, eventId }: { id: string; eventId: string }) 
               {shownLayout.shapes.map((shape, index) => (
                 <polygon key={index} className="performance-map-shape" points={points(shape.points)}><title>{shape.label}</title></polygon>
               ))}
-              {shownLayout.sections.map((section) => (
-                <polygon key={section.id} className="performance-map-area" points={points(section.points)}
-                  data-selected={section.id === selectedSection} onClick={() => selectSection(section.id)}>
+              {shownLayout.sections.map((section) => {
+                const area = bounds(section.points);
+                const size = Math.min(shownLayout.width / 55, area.height / 3, area.width / Math.max(section.code.length, 3));
+                return <g key={section.id} onClick={() => selectSection(section.id)}>
                   <title>{section.label}</title>
-                </polygon>
-              ))}
+                  <polygon className="performance-map-area" points={points(section.points)} data-selected={section.id === selectedSection} />
+                  {size >= shownLayout.width / 130 && <text className="performance-map-label" x={area.x + area.width / 2}
+                    y={area.y + area.height / 2} fontSize={size}>{section.code}</text>}
+                </g>;
+              })}
             </svg>
           )}
-          {sections.size > 0 && <div className="performance-options" aria-label={t('performances:sections')}>
-            {[...sections].map(([sectionId, name]) => (
+          {sections.size > 12 ? <label className="performance-section-picker">{t('performances:sections')}
+            <select value={selectedSection ?? ''} onChange={(event) => selectSection(event.target.value || null)}>
+              <option value="">{t('performances:selectSection')}</option>
+              {sectionChoices.map(([sectionId, name]) => <option key={sectionId} value={sectionId}>{name}</option>)}
+            </select>
+          </label> : sections.size > 0 && <div className="performance-options" aria-label={t('performances:sections')}>
+            {sectionChoices.map(([sectionId, name]) => (
               <button className="button button-secondary" key={sectionId} type="button" aria-pressed={sectionId === selectedSection} onClick={() => selectSection(sectionId)}>{name}</button>
             ))}
           </div>}
+          {selectedSection && error === t('performances:sectionFailed') &&
+            <button className="button button-secondary" type="button" onClick={() => selectSection(selectedSection)}>{t('performances:refresh')}</button>}
           {!selectedSection && !visibleGroups.length && <p>{t('performances:selectSection')}</p>}
           {visibleGroups.filter((group) => group.kind === 'GA').flatMap((group) => group.offers.filter((offer) => offer.active).map((offer) => {
             const quantity = hold.items.find((item) => !item.seatId && item.offerId === offer.id)?.quantity ?? 0;
@@ -314,11 +328,11 @@ function PerformanceSelection({ id, eventId }: { id: string; eventId: string }) 
             ))}
             {!sectionStock || !selectedMapSection ? <p role="status">{t('performances:loadingSeats')}</p> : (
               <>
-                {shownLayout && <svg className="performance-map" viewBox={sectionViewBox(selectedMapSection.points, shownLayout)} aria-hidden="true">
+                {shownLayout && selectedBounds && <svg className="performance-map" viewBox={sectionViewBox(selectedBounds)} aria-hidden="true">
                   <polygon className="performance-map-area" points={points(selectedMapSection.points)} />
                   {rowList.flatMap((row) => row.seats.filter((seat) => !accessibleOnly || seat.accessible).map((seat) => (
                     <circle key={seat.id} className="performance-map-seat" cx={seat.x} cy={seat.y}
-                      r={Math.max(shownLayout.width, shownLayout.height) / 220}
+                      r={seatRadius}
                       data-selected={heldSeats.has(seat.id)} aria-disabled={cannotChange || (!heldSeats.has(seat.id) && !stock.get(seat.id)?.available)}
                       onClick={() => { if (!cannotChange) selectSeat(seat.id); }}
                     ><title>{t('performances:seat', { row: row.label, seat: seat.label })}</title></circle>
@@ -364,12 +378,15 @@ function PerformanceSelection({ id, eventId }: { id: string; eventId: string }) 
   );
 }
 
-function sectionViewBox(vertices: Point[], layout: Layout) {
-  if (vertices.length === 0) return `0 0 ${layout.width} ${layout.height}`;
+function bounds(vertices: Point[]) {
   const x = Math.min(...vertices.map((point) => point.x));
   const y = Math.min(...vertices.map((point) => point.y));
   const width = Math.max(...vertices.map((point) => point.x)) - x;
   const height = Math.max(...vertices.map((point) => point.y)) - y;
+  return { x, y, width, height };
+}
+
+function sectionViewBox({ x, y, width, height }: ReturnType<typeof bounds>) {
   const padding = Math.max(1, Math.max(width, height) / 30);
   return `${x - padding} ${y - padding} ${width + padding * 2} ${height + padding * 2}`;
 }

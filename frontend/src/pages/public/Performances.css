@@ -64,6 +64,13 @@
 .performance-map-area[data-selected="true"] {
   fill: #bbd3f7;
 }
+.performance-map-label {
+  fill: #182133;
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+}
 .performance-map-shape {
   fill: #d9dee8;
   stroke: #667085;
@@ -117,6 +124,14 @@
 .performance-panel-inner select {
   display: block;
   max-width: 100%;
+}
+.performance-section-picker {
+  display: grid;
+  gap: .35rem;
+}
+.performance-section-picker select {
+  max-width: 100%;
+  min-height: 2.75rem;
 }
 .performance-options span {
   align-self: center;
