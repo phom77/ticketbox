@@ -78,7 +78,7 @@ function EventDetailsPage({ id }: { id: string }) {
       {event.performances.length === 0 && <p>{t('performances:noPerformances')}</p>}
       <ul className="performance-list">
         {event.performances.map((performance) => {
-          const saleClosed = performance.status !== 'ON_SALE' || Date.parse(performance.saleEndAt) <= Date.now();
+          const saleClosed = performance.status !== 'ON_SALE' || performance.salesSuspended || Date.parse(performance.saleEndAt) <= Date.now();
           const canBuy = !user || user.role === 'AUDIENCE';
           const base = performance.legacyConcertId
             ? '/concerts/' + encodeURIComponent(performance.legacyConcertId)

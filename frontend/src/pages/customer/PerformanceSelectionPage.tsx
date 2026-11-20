@@ -171,6 +171,7 @@ function PerformanceSelection({ id, eventId }: { id: string; eventId: string }) 
   const cannotChange = busy || !availability || !admission;
 
   function selectSection(sectionId: string | null) {
+    if (sectionId === selectedSection && error) setRefresh((value) => value + 1);
     setSelectedSection(sectionId);
     setVisibleRows(20);
     setError(null);

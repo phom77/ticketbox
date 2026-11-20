@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { mkdir } from 'node:fs/promises';
 import { chromium } from 'playwright';
 
 const origin = new URL(process.env.TICKETBOX_BUYER_URL ?? 'http://localhost:5187').origin;
@@ -18,6 +19,13 @@ const event = {
   performances: [night('first', 'Studio One'), night('second', 'Studio Two')],
 };
 const sectionId = 'balcony';
+const order = {
+  id: 'seat-order', concertId: 'second', concertTitle: event.title, eventId, performanceId: 'second',
+  performanceTitle: event.title, performanceStartsAt: event.performances[1].startsAt,
+  performanceVenueName: 'Studio Two', status: 'AWAITING_PAYMENT', totalAmount: 250000, expiresAt: future(15),
+  items: [{ id: 'seat-item', ticketTypeId: 'reserved', ticketTypeName: 'Reserved', quantity: 1,
+    unitPrice: 250000, seatId: 'a12', sectionLabel: 'Balcony', rowLabel: 'A', seatLabel: '12' }],
+};
 const polygon = [{ x: 8, y: 4 }, { x: 95, y: 4 }, { x: 95, y: 60 }, { x: 8, y: 60 }];
 const section = { id: sectionId, code: 'BAL', label: 'Balcony', kind: 'ASSIGNED', points: polygon };
 const groups = [
@@ -29,7 +37,8 @@ try {
   const context = await browser.newContext({ locale: 'en-US', viewport: { width: 390, height: 844 } });
   await context.addCookies([{ name: 'ticketbox_auth_token', value: token, url: origin }]);
   const page = await context.newPage();
-  page.setDefaultTimeout(5_000);
+  await context.tracing.start({ screenshots: true, snapshots: true });
+  page.setDefaultTimeout(12_000);
   let detailReads = 0;
   let hold = { version: 0, expiresAt: null, items: [], totalAmount: 0 };
   await page.route('**/*', async (route) => {
@@ -42,13 +51,8 @@ try {
     if (path === '/api/notifications/unread-count') return send({ count: 0 });
     if (path === '/api/payments/providers') return send(['MOCK']);
     if (path === '/api/payments/seat-order/status') return send({ provider: 'MOCK', attemptState: null });
-    if (path === '/api/orders/seat-order') return send({
-      id: 'seat-order', concertId: 'second', concertTitle: event.title, eventId, performanceId: 'second',
-      performanceTitle: event.title, performanceStartsAt: event.performances[1].startsAt,
-      performanceVenueName: 'Studio Two', status: 'AWAITING_PAYMENT', totalAmount: 250000, expiresAt: future(15),
-      items: [{ id: 'seat-item', ticketTypeId: 'reserved', ticketTypeName: 'Reserved', quantity: 1,
-        unitPrice: 250000, seatId: 'a12', sectionLabel: 'Balcony', rowLabel: 'A', seatLabel: '12' }],
-    });
+    if (path === '/api/orders/seat-order') return send(order);
+    if (path === '/api/v2/performances/second/orders') return send(order, 201);
     if (path === '/api/concerts') return send({ content: [], totalPages: 0 });
     if (path === '/api/v2/events') return send({ content: [event], totalPages: 1, first: true, last: true });
     if (path === '/api/v2/events/' + eventId) return send(event);
@@ -89,28 +93,37 @@ try {
     return send(null, 404);
   });
 
-  await page.goto(origin + '/events');
-  await page.getByRole('link', { name: 'River Tour' }).click();
-  await page.getByRole('heading', { name: 'River Tour', exact: true }).waitFor();
-  assert.equal(await page.getByText('Studio One', { exact: true }).count(), 1);
-  assert.equal(await page.getByText('Studio Two', { exact: true }).count(), 1);
-  await page.getByRole('link', { name: 'Buy tickets' }).nth(1).click();
-  await page.getByRole('heading', { name: 'Choose tickets', exact: true }).waitFor();
-  assert.equal(detailReads, 0, 'Initial load must avoid seat detail requests');
-  await page.getByRole('button', { name: 'Balcony' }).focus();
-  await page.keyboard.press('Enter');
-  const seat = page.getByRole('button', { name: 'Row A, seat 12' });
-  await seat.waitFor();
-  assert.ok(detailReads > 0);
-  await seat.focus();
-  await page.keyboard.press('Enter');
-  await page.getByRole('button', { name: 'Continue to checkout' }).waitFor();
-  assert.equal(await page.getByRole('button', { name: 'Continue to checkout' }).isEnabled(), true);
-  await page.goto(origin + '/checkout?orderId=seat-order');
-  await page.getByText('Balcony · Row A, seat 12', { exact: false }).waitFor();
-  await page.goto(origin + '/concerts/first');
-  await page.getByRole('heading', { name: 'Legacy River Show', exact: true }).waitFor();
-  console.log('Performance schedule, section loading, keyboard fallback and legacy route passed.');
+  try {
+    await page.goto(origin + '/events');
+    await page.getByRole('link', { name: 'River Tour' }).click();
+    await page.getByRole('heading', { name: 'River Tour', exact: true }).waitFor();
+    assert.equal(await page.getByText('Studio One', { exact: true }).count(), 1);
+    assert.equal(await page.getByText('Studio Two', { exact: true }).count(), 1);
+    await page.getByRole('link', { name: 'Buy tickets' }).nth(1).click();
+    await page.getByRole('heading', { name: 'Choose tickets', exact: true }).waitFor();
+    assert.equal(detailReads, 0, 'Initial load must avoid seat detail requests');
+    await page.getByRole('button', { name: 'Balcony' }).focus();
+    await page.keyboard.press('Enter');
+    const seat = page.getByRole('button', { name: 'Row A, seat 12' });
+    await seat.waitFor();
+    assert.ok(detailReads > 0);
+    await seat.focus();
+    await page.keyboard.press('Enter');
+    await page.getByRole('button', { name: 'Continue to checkout' }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Continue to checkout' }).isEnabled(), true);
+    await page.getByRole('button', { name: 'Continue to checkout' }).click();
+    await page.waitForURL('**/checkout?orderId=seat-order');
+    await page.getByText('Balcony · Row A, seat 12', { exact: false }).waitFor();
+    await page.goto(origin + '/concerts/first');
+    await page.getByRole('heading', { name: 'Legacy River Show', exact: true }).waitFor();
+    console.log('Performance schedule, section loading, keyboard fallback and legacy route passed.');
+  } catch (error) {
+    const output = '.artifacts/e2e/seating';
+    await mkdir(output, { recursive: true });
+    await context.tracing.stop({ path: `${output}/buyer-trace.zip` });
+    console.error(await page.locator('body').innerText({ timeout: 2000 }));
+    throw error;
+  }
 } finally {
   await browser.close();
 }

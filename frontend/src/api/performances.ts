@@ -10,6 +10,7 @@ export type Performance = {
   endsAt: string;
   timezone: string;
   status: string;
+  salesSuspended: boolean;
   saleStartAt: string;
   saleEndAt: string;
   saleVersion: number;
