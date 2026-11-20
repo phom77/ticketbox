@@ -9,7 +9,7 @@
     "organizationId": {"type": "string", "format": "uuid"},
     "grants": {
       "type": "array",
-      "items": {"enum": ["MEMBERS", "EVENTS", "FINANCE"]},
+      "items": {"enum": ["MEMBERS", "EVENTS", "FINANCE", "ADMISSION"]},
       "minItems": 1,
       "uniqueItems": true
     }

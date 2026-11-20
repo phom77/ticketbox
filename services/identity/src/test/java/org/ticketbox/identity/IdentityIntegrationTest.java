@@ -274,6 +274,34 @@ class IdentityIntegrationTest {
                         """, Integer.class, first)).isEqualTo(1);
     }
 
+    @Test
+    void admissionGrantCanBeInvitedAndRevokedIndependently() throws Exception {
+        UUID manager = accountId("organizer@ticketbox.com");
+        UUID staff = accountId("staff@ticketbox.com");
+        String managerToken = login("organizer@ticketbox.com");
+        String staffToken = login("staff@ticketbox.com");
+        UUID org = createOrganization(login("admin@ticketbox.com"), "Admission fixture", manager);
+        var invited = mvc.perform(post("/api/organizations/{id}/invitations", org)
+                        .header("Authorization", managerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(java.util.Map.of(
+                                "accountId", staff, "grants", java.util.List.of("ADMISSION")))))
+                .andExpect(status().isCreated()).andReturn().getResponse();
+        String code = json.readTree(invited.getContentAsString()).path("data").path("code").asText();
+        assertThat(acceptInvitation(staffToken,
+                json.writeValueAsString(java.util.Map.of("code", code)))).isEqualTo(200);
+        mvc.perform(get("/internal/split/v1/organization-access/{id}", org)
+                        .header("X-Service-Token", SERVICE_TOKEN).header("Authorization", staffToken))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.grants[0]").value("ADMISSION"));
+        mvc.perform(put("/api/organizations/{id}/members/{accountId}", org, staff)
+                        .header("Authorization", managerToken)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"grants\":[\"FINANCE\"]}"))
+                .andExpect(status().isOk());
+        mvc.perform(get("/internal/split/v1/organization-access/{id}", org)
+                        .header("X-Service-Token", SERVICE_TOKEN).header("Authorization", staffToken))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.grants[0]").value("FINANCE"));
+    }
+
     private void setActive(String admin, UUID account, boolean active) throws Exception {
         mvc.perform(put("/api/admin/users/{id}/status", account).header("Authorization", admin)
                         .contentType(MediaType.APPLICATION_JSON).content("{\"isActive\":" + active + "}"))

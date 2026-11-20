@@ -51,7 +51,7 @@ class CheckinProjectionReceiverIntegrationTest {
                 .migrate();
         jdbc = new JdbcTemplate(dataSource);
         transaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
-        receiver = new CheckinProjectionReceiver(jdbc);
+        receiver = new CheckinProjectionReceiver(jdbc, JSON);
     }
 
     @Test
@@ -111,6 +111,7 @@ SELECT gen_random_uuid(),id,concert_id,gen_random_uuid(),'test-device',now(),fal
     @Test
     void refundHoldPreventsAdmissionWithoutChangingTicketStatus() {
         UUID ticket = jdbc.queryForObject("SELECT id FROM tickets WHERE status='VALID' ORDER BY id DESC LIMIT 1", UUID.class);
+        UUID concert = jdbc.queryForObject("SELECT concert_id FROM tickets WHERE id=?", UUID.class, ticket);
         UUID refund = UUID.randomUUID();
         var admission = new org.ticketbox.checkin.admission.infrastructure.JdbcRefundAdmission(jdbc);
         var ids = java.util.List.of(ticket);
@@ -120,7 +121,7 @@ SELECT gen_random_uuid(),id,concert_id,gen_random_uuid(),'test-device',now(),fal
         assertThat(first).isEqualTo(held);
         assertThat(replayed).isEqualTo(held);
         var tickets = new org.ticketbox.checkin.admission.infrastructure.LocalTickets(jdbc);
-        assertThat(tickets.markAsUsedIfValid(ticket, java.time.OffsetDateTime.now())).isFalse();
+        assertThat(tickets.markAsUsedIfValid(ticket, concert, java.time.OffsetDateTime.now())).isFalse();
         assertThat(ticketStatus(ticket)).isEqualTo("VALID");
         var released = org.ticketbox.checkin.admission.application.port.RefundAdmission.Decision.RELEASED;
         var release = transaction.execute(tx -> admission.release(refund));
@@ -132,6 +133,7 @@ SELECT gen_random_uuid(),id,concert_id,gen_random_uuid(),'test-device',now(),fal
     @Test
     void admissionAndRefundHoldCannotBothWin() throws Exception {
         UUID ticket = jdbc.queryForObject("SELECT id FROM tickets WHERE status='VALID' ORDER BY id DESC LIMIT 1", UUID.class);
+        UUID concert = jdbc.queryForObject("SELECT concert_id FROM tickets WHERE id=?", UUID.class, ticket);
         UUID refund = UUID.randomUUID();
         var admission = new JdbcRefundAdmission(jdbc);
         var tickets = new LocalTickets(jdbc);
@@ -139,7 +141,7 @@ SELECT gen_random_uuid(),id,concert_id,gen_random_uuid(),'test-device',now(),fal
         try (var executor = Executors.newFixedThreadPool(2)) {
             var scan = executor.submit(() -> {
                 start.await();
-                return tickets.markAsUsedIfValid(ticket, OffsetDateTime.now());
+                return tickets.markAsUsedIfValid(ticket, concert, OffsetDateTime.now());
             });
             var hold = executor.submit(() -> {
                 start.await();
@@ -166,12 +168,12 @@ SELECT gen_random_uuid(),id,concert_id,gen_random_uuid(),'test-device',now(),fal
         OffsetDateTime now = OffsetDateTime.now();
         transaction.executeWithoutResult(tx -> {
             jdbc.update("UPDATE concerts SET sales_suspended=true WHERE id=?", concert);
-            assertThat(tickets.markAsUsedIfValid(ticket, now)).isFalse();
+            assertThat(tickets.markAsUsedIfValid(ticket, concert, now)).isFalse();
             jdbc.update("UPDATE concerts SET sales_suspended=false,resumed_admission_at=? WHERE id=?", now.plusDays(1), concert);
-            assertThat(tickets.markAsUsedIfValid(ticket, now)).isFalse();
+            assertThat(tickets.markAsUsedIfValid(ticket, concert, now)).isFalse();
             assertThat(ticketStatus(ticket)).isEqualTo("VALID");
             jdbc.update("UPDATE concerts SET resumed_admission_at=? WHERE id=?", now.minusMinutes(1), concert);
-            assertThat(tickets.markAsUsedIfValid(ticket, now)).isTrue();
+            assertThat(tickets.markAsUsedIfValid(ticket, concert, now)).isTrue();
             tx.setRollbackOnly();
         });
     }

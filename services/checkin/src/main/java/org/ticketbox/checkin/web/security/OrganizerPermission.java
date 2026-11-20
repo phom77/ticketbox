@@ -12,6 +12,7 @@ public @interface OrganizerPermission {
 
     enum Grant {
         EVENTS,
-        FINANCE
+        FINANCE,
+        ADMISSION
     }
 }

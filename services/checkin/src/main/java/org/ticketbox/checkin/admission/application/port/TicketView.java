@@ -12,4 +12,7 @@ public record TicketView(
         String qrSecret,
         String status,
         OffsetDateTime issuedAt,
-        OffsetDateTime usedAt) {}
+        OffsetDateTime usedAt,
+        String sectionLabel,
+        String rowLabel,
+        String seatLabel) {}

@@ -4,7 +4,7 @@
 
 - [x] 1.1 Review thiết kế, quyền sở hữu, quota trên toàn suất, thời hạn giữ giá, hoãn/hủy từng suất và phương án chuyển dữ liệu. Sau khi được duyệt, ghi ADR và bổ sung thuật ngữ vào glossary Catalog, Ticketing, Check-in. Đối chiếu mỗi quyết định với tình huống trong ba spec.
 - [x] 1.2 Chốt hợp đồng đọc suất, cấu hình bán có version, trạng thái tồn kho theo khu, giữ/chốt đơn và snapshot vé. Viết schema v2 và test payload v1/v2, bản tin lặp, khác version, thiếu lô và xung đột ID. Ghi API dự kiến và lỗi cho đăng nhập, quyền, stale layout và mất chỗ trong tài liệu API.
-- [ ] 1.3 Chốt phạm vi nhân viên với change scanner/Identity, gồm quyền vào từng suất, thu hồi quyền, QR v1 và chế độ offline chờ xác nhận. Xác nhận hai tổ chức, hai suất và hai thiết bị là các trường hợp bắt buộc của kịch bản nghiệm thu cổng.
+- [x] 1.3 Chốt phạm vi nhân viên với change scanner/Identity, gồm quyền vào từng suất, thu hồi quyền, QR v1 và chế độ offline chờ xác nhận. Xác nhận hai tổ chức, hai suất và hai thiết bị là các trường hợp bắt buộc của kịch bản nghiệm thu cổng.
 
 ## 2. Nền dữ liệu và chạy song song
 

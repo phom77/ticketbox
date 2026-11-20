@@ -3,7 +3,6 @@ package org.ticketbox.checkin.admission.application;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.ticketbox.checkin.admission.application.dto.SyncCheckinRequest;
 import org.ticketbox.checkin.admission.application.dto.SyncCheckinResponse.SyncResultEntry;
@@ -21,7 +20,7 @@ public class CheckinSyncHelper {
     private final CheckinLogRepository checkinLogRepository;
     private final TicketCheckinPort ticketCheckinPort;
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional
     public SyncResultEntry syncSingleEntry(
             SyncCheckinRequest.OfflineLogEntry entry,
             TicketView ticket,
@@ -30,7 +29,7 @@ public class CheckinSyncHelper {
         OffsetDateTime now = OffsetDateTime.now();
         UUID logId = UUID.randomUUID();
 
-        if (!ticketCheckinPort.markAsUsedIfValid(ticket.id(), entry.checkedAt())) {
+        if (!ticketCheckinPort.markAsUsedIfValid(ticket.id(), ticket.concertId(), entry.checkedAt())) {
             var previous = checkinLogRepository.findByTicketId(ticket.id());
             boolean same =
                     previous.filter(

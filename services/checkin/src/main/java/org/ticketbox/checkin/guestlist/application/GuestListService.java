@@ -2,6 +2,8 @@ package org.ticketbox.checkin.guestlist.application;
 
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.ticketbox.checkin.application.error.AppException;
@@ -36,6 +38,11 @@ public class GuestListService {
     @Transactional(readOnly = true)
     public java.util.List<GuestList> getGuestListByConcertId(UUID concertId) {
         return guestListRepository.findAllByConcertId(concertId);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<GuestLookupResponse> listStaffGuests(UUID concertId, Pageable pageable) {
+        return guestListRepository.findByConcertId(concertId, pageable).map(this::toResponse);
     }
 
     @Transactional

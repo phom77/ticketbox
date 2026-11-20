@@ -10,7 +10,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface TicketCheckinPort {
-    Optional<TicketView> findByQrCode(String qrCode);
+    Optional<TicketView> findByQrCode(String qrCode, UUID concertId);
 
     List<TicketView> findByConcertIdAndStatusValid(UUID concertId);
 
@@ -21,5 +21,5 @@ public interface TicketCheckinPort {
 
     TicketCheckinStats getStats(UUID concertId);
 
-    boolean markAsUsedIfValid(UUID ticketId, OffsetDateTime usedAt);
+    boolean markAsUsedIfValid(UUID ticketId, UUID concertId, OffsetDateTime usedAt);
 }
