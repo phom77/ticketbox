@@ -14,6 +14,8 @@ import org.ticketbox.ticketing.application.port.catalog.ConcertView;
 import org.ticketbox.ticketing.application.port.catalog.TicketTypeView;
 import org.ticketbox.ticketing.issuance.application.dto.TicketResponse;
 import org.ticketbox.ticketing.issuance.application.port.TicketRepository;
+import org.ticketbox.ticketing.issuance.application.port.TicketPlaces;
+import org.ticketbox.ticketing.issuance.application.port.TicketPlaces.Place;
 import org.ticketbox.ticketing.issuance.domain.Ticket;
 
 import java.util.*;
@@ -26,6 +28,7 @@ public class TicketService {
     private final FallbackTicketNames fallbackNames;
     private final TicketRepository ticketRepository;
     private final ConcertOrderPort concertOrderPort;
+    private final TicketPlaces places;
 
     public List<TicketResponse> listUserTickets(UUID userId) {
         List<Ticket> tickets = ticketRepository.findByUserIdOrderByIssuedAtDesc(userId);
@@ -45,22 +48,11 @@ public class TicketService {
                 concertOrderPort.findTicketTypesByIds(ticketTypeIds).stream()
                         .collect(Collectors.toMap(TicketTypeView::id, TicketTypeView::name));
 
-        return tickets.stream()
-                .map(
-                        t ->
-                                new TicketResponse(
-                                        t.getId(),
-                                        t.getConcertId(),
-                                        concertMap.getOrDefault(
-                                                t.getConcertId(), fallbackNames.unknownConcert()),
-                                        t.getTicketTypeId(),
-                                        ticketTypeMap.getOrDefault(
-                                                t.getTicketTypeId(),
-                                                fallbackNames.unknownTicketType()),
-                                        t.getQrCode(),
-                                        t.getStatus().name(),
-                                        t.getIssuedAt()))
-                .toList();
+        var schedule = places.forTickets(tickets.stream().map(Ticket::getId).toList());
+        return tickets.stream().map(ticket -> toResponse(ticket,
+                concertMap.getOrDefault(ticket.getConcertId(), fallbackNames.unknownConcert()),
+                ticketTypeMap.getOrDefault(ticket.getTicketTypeId(), fallbackNames.unknownTicketType()),
+                schedule.get(ticket.getId()))).toList();
     }
 
     public TicketResponse getTicketDetail(UUID ticketId, UUID userId) {
@@ -91,15 +83,7 @@ public class TicketService {
                                                 ErrorCode.RESOURCE_NOT_FOUND,
                                                 "error.ticket-type.not-found"));
 
-        return new TicketResponse(
-                t.getId(),
-                t.getConcertId(),
-                concert.title(),
-                t.getTicketTypeId(),
-                ticketType.name(),
-                t.getQrCode(),
-                t.getStatus().name(),
-                t.getIssuedAt());
+        return toResponse(t, concert.title(), ticketType.name(), places.forTickets(List.of(t.getId())).get(t.getId()));
     }
 
     // ---- Admin / Organizer ----
@@ -140,21 +124,10 @@ public class TicketService {
                                                 ErrorCode.CONCERT_NOT_FOUND,
                                                 "error.concert-not-found"));
 
-        return tickets.stream()
-                .map(
-                        t ->
-                                new TicketResponse(
-                                        t.getId(),
-                                        t.getConcertId(),
-                                        concert.title(),
-                                        t.getTicketTypeId(),
-                                        ticketTypeMap.getOrDefault(
-                                                t.getTicketTypeId(),
-                                                fallbackNames.unknownTicketType()),
-                                        t.getQrCode(),
-                                        t.getStatus().name(),
-                                        t.getIssuedAt()))
-                .toList();
+        var schedule = places.forTickets(tickets.stream().map(Ticket::getId).toList());
+        return tickets.stream().map(ticket -> toResponse(ticket, concert.title(),
+                ticketTypeMap.getOrDefault(ticket.getTicketTypeId(), fallbackNames.unknownTicketType()),
+                schedule.get(ticket.getId()))).toList();
     }
 
     @Transactional
@@ -198,15 +171,16 @@ public class TicketService {
                                                 ErrorCode.RESOURCE_NOT_FOUND,
                                                 "error.ticket-type.not-found"));
 
-        return new TicketResponse(
-                t.getId(),
-                t.getConcertId(),
-                concert.title(),
-                t.getTicketTypeId(),
-                ticketType.name(),
-                t.getQrCode(),
-                t.getStatus().name(),
-                t.getIssuedAt());
+        return toResponse(t, concert.title(), ticketType.name(), places.forTickets(List.of(t.getId())).get(t.getId()));
+    }
+
+    private static TicketResponse toResponse(Ticket ticket, String title, String typeName, Place place) {
+        return new TicketResponse(ticket.getId(), ticket.getConcertId(), place == null ? title : place.title(),
+                ticket.getTicketTypeId(), place == null ? typeName : place.offerName(), ticket.getQrCode(),
+                ticket.getStatus().name(), ticket.getIssuedAt(), place == null ? null : place.performanceId(),
+                place == null ? null : place.eventId(), place == null ? null : place.venueName(),
+                place == null ? null : place.startsAt(), place == null ? null : place.sectionLabel(),
+                place == null ? null : place.rowLabel(), place == null ? null : place.seatLabel());
     }
 
     private void requireOwnedConcert(UUID concertId, UUID organizerId) {

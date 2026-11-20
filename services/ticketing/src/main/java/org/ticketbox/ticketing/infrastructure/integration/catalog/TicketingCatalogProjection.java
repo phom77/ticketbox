@@ -179,14 +179,22 @@ public class TicketingCatalogProjection
     @Override
     public List<TicketTypeReportingView> findTicketTypes(UUID concertId) {
         return jdbc.query(
-                "SELECT id,name,price,total_quantity FROM ticket_types WHERE concert_id=?",
+                """
+                SELECT id,name,price,total_quantity FROM ticket_types WHERE concert_id=? AND NOT performance_offer
+                UNION ALL
+                SELECT g.id,g.section_label,COALESCE(min(tt.price),0) AS price,g.capacity
+                FROM performance_groups g
+                LEFT JOIN performance_offers o ON o.performance_id=g.performance_id AND o.group_id=g.id
+                LEFT JOIN ticket_types tt ON tt.id=o.id
+                WHERE g.performance_id=? GROUP BY g.id,g.section_label,g.capacity
+                """,
                 (row, index) ->
                         new TicketTypeReportingView(
                                 row.getObject("id", UUID.class),
                                 row.getString("name"),
                                 row.getBigDecimal("price"),
                                 row.getInt("total_quantity")),
-                concertId);
+                concertId, concertId);
     }
 
     @Override

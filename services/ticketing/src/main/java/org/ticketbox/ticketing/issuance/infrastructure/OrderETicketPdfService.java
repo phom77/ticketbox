@@ -23,6 +23,8 @@ import org.ticketbox.ticketing.infrastructure.document.PdfFonts;
 import org.ticketbox.ticketing.issuance.application.port.ETicketDocument;
 import org.ticketbox.ticketing.issuance.application.port.ETicketDocumentPort;
 import org.ticketbox.ticketing.issuance.application.port.TicketRepository;
+import org.ticketbox.ticketing.issuance.application.port.TicketPlaces;
+import org.ticketbox.ticketing.issuance.application.port.TicketPlaces.Place;
 import org.ticketbox.ticketing.issuance.domain.Ticket;
 import org.ticketbox.ticketing.order.application.port.OrderRepository;
 import org.ticketbox.ticketing.order.domain.Order;
@@ -46,6 +48,7 @@ public class OrderETicketPdfService implements ETicketDocumentPort {
     private final OrderRepository orderRepository;
     private final TicketRepository ticketRepository;
     private final ConcertOrderPort concertOrderPort;
+    private final TicketPlaces places;
 
     @Override
     public Optional<ETicketDocument> createForOrder(UUID orderId) {
@@ -65,10 +68,11 @@ public class OrderETicketPdfService implements ETicketDocumentPort {
                 new ETicketDocument(
                         "TicketBox-" + orderId.toString().substring(0, 8).toUpperCase() + ".pdf",
                         "application/pdf",
-                        render(concert, tickets, typeNames)));
+                        render(concert, tickets, typeNames, places.forTickets(tickets.stream().map(Ticket::getId).toList()))));
     }
 
-    private byte[] render(ConcertView concert, List<Ticket> tickets, Map<UUID, String> typeNames) {
+    private byte[] render(ConcertView concert, List<Ticket> tickets, Map<UUID, String> typeNames,
+                          Map<UUID, Place> scheduleByTicket) {
         try (ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             Document document = new Document(PageSize.A5, 34, 34, 30, 30);
             PdfWriter.getInstance(document, output);
@@ -82,15 +86,16 @@ public class OrderETicketPdfService implements ETicketDocumentPort {
             for (int index = 0; index < tickets.size(); index++) {
                 if (index > 0) document.newPage();
                 Ticket ticket = tickets.get(index);
+                Place place = scheduleByTicket.get(ticket.getId());
                 Paragraph logo = new Paragraph("TICKETBOX  |  OFFICIAL E-TICKET", brand);
                 logo.setAlignment(Element.ALIGN_CENTER);
                 document.add(logo);
                 document.add(spacer(12));
-                Paragraph concertTitle = new Paragraph(concert.title(), title);
+                Paragraph concertTitle = new Paragraph(place == null ? concert.title() : place.title(), title);
                 concertTitle.setAlignment(Element.ALIGN_CENTER);
                 document.add(concertTitle);
                 Paragraph schedule =
-                        new Paragraph("Event: " + DATE_TIME.format(concert.eventDate()), body);
+                        new Paragraph("Event: " + DATE_TIME.format(place == null ? concert.eventDate() : place.startsAt()), body);
                 schedule.setAlignment(Element.ALIGN_CENTER);
                 document.add(schedule);
                 document.add(spacer(14));
@@ -101,9 +106,20 @@ public class OrderETicketPdfService implements ETicketDocumentPort {
                 document.add(spacer(8));
                 Paragraph type =
                         new Paragraph(
-                                typeNames.getOrDefault(ticket.getTicketTypeId(), "Ticket"), strong);
+                                place == null ? typeNames.getOrDefault(ticket.getTicketTypeId(), "Ticket")
+                                        : place.offerName(), strong);
                 type.setAlignment(Element.ALIGN_CENTER);
                 document.add(type);
+                if (place != null) {
+                    Paragraph venue = new Paragraph(place.venueName(), body);
+                    venue.setAlignment(Element.ALIGN_CENTER);
+                    document.add(venue);
+                    String seat = place.seatLabel() == null ? place.sectionLabel() :
+                            place.sectionLabel() + " | " + place.rowLabel() + " / " + place.seatLabel();
+                    Paragraph location = new Paragraph(seat, body);
+                    location.setAlignment(Element.ALIGN_CENTER);
+                    document.add(location);
+                }
                 Paragraph id = new Paragraph("Ticket ID: " + ticket.getId(), body);
                 id.setAlignment(Element.ALIGN_CENTER);
                 document.add(id);
