@@ -121,3 +121,7 @@
 .performance-options span {
   align-self: center;
 }
+.checkout-seat-location {
+  display: block;
+  margin-top: .25rem;
+}

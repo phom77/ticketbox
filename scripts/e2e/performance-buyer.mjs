@@ -40,6 +40,15 @@ try {
     const send = (data, status = 200) => route.fulfill({ status, json: { code: status, data, message: 'Fixture' } });
     if (path === '/api/auth/me') return send(buyer);
     if (path === '/api/notifications/unread-count') return send({ count: 0 });
+    if (path === '/api/payments/providers') return send(['MOCK']);
+    if (path === '/api/payments/seat-order/status') return send({ provider: 'MOCK', attemptState: null });
+    if (path === '/api/orders/seat-order') return send({
+      id: 'seat-order', concertId: 'second', concertTitle: event.title, eventId, performanceId: 'second',
+      performanceTitle: event.title, performanceStartsAt: event.performances[1].startsAt,
+      performanceVenueName: 'Studio Two', status: 'AWAITING_PAYMENT', totalAmount: 250000, expiresAt: future(15),
+      items: [{ id: 'seat-item', ticketTypeId: 'reserved', ticketTypeName: 'Reserved', quantity: 1,
+        unitPrice: 250000, seatId: 'a12', sectionLabel: 'Balcony', rowLabel: 'A', seatLabel: '12' }],
+    });
     if (path === '/api/concerts') return send({ content: [], totalPages: 0 });
     if (path === '/api/v2/events') return send({ content: [event], totalPages: 1, first: true, last: true });
     if (path === '/api/v2/events/' + eventId) return send(event);
@@ -97,6 +106,8 @@ try {
   await page.keyboard.press('Enter');
   await page.getByRole('button', { name: 'Continue to checkout' }).waitFor();
   assert.equal(await page.getByRole('button', { name: 'Continue to checkout' }).isEnabled(), true);
+  await page.goto(origin + '/checkout?orderId=seat-order');
+  await page.getByText('Balcony · Row A, seat 12', { exact: false }).waitFor();
   await page.goto(origin + '/concerts/first');
   await page.getByRole('heading', { name: 'Legacy River Show', exact: true }).waitFor();
   console.log('Performance schedule, section loading, keyboard fallback and legacy route passed.');

@@ -5,7 +5,8 @@ import type { ConcertTranslations } from '../../api/concerts';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { ApiClientError } from '../../api/client';
-import { getConcert } from '../../api/concerts';
+import { eventPath, performancePath } from '../../api/performances';
+import { checkoutPresentation, seatDescription } from '../../features/performance/checkoutPresentation';
 import {
   cancelOrder,
   completeMockPayment,
@@ -32,6 +33,7 @@ export type CheckoutEvent = {
   venue: string;
   date: string;
   image: string | null;
+  eventId?: string | null;
 };
 
 export type CheckoutState = {
@@ -156,23 +158,8 @@ export function CheckoutPage() {
     async function restorePendingOrder() {
       try {
         const order = await getOrder(activeResumeOrderId, controller.signal);
-        const concert = await getConcert(order.concertId, controller.signal);
+        const { event: restoredEvent, selection: restoredSelection } = await checkoutPresentation(order, controller.signal);
         if (!active) return;
-
-        const restoredEvent: CheckoutEvent = {
-          id: concert.id,
-          title: concert.title,
-          translations: concert.translations,
-          venue: concert.venueName,
-          date: concert.eventDate,
-          image: concert.posterUrl,
-        };
-        const restoredSelection = order.items.map((item) => ({
-          id: item.ticketTypeId,
-          name: item.ticketTypeName,
-          price: item.unitPrice,
-          quantity: item.quantity,
-        }));
 
         if (order.status === 'PAID') {
           sessionStorage.removeItem(PENDING_PAYMENT_STORAGE_KEY);
@@ -421,7 +408,7 @@ export function CheckoutPage() {
       await cancelOrder(createdOrder.id);
       sessionStorage.removeItem(PENDING_PAYMENT_STORAGE_KEY);
       clearStoredQueueAdmission();
-      navigate(`/concerts/${event.id}/waiting-room`, { replace: true });
+      navigate((event.eventId ? performancePath(event.eventId, event.id) : `/concerts/${event.id}`) + '/waiting-room', { replace: true });
     } catch {
       // A late success can win the race with cancellation. Re-read before buying again.
       setError(translate("customer:checkoutPage_chuaTheHuyDonHayKiemTra"));
@@ -537,7 +524,7 @@ export function CheckoutPage() {
         // Queue session has a backend TTL fallback.
       }
       clearStoredQueueAdmission();
-      navigate(`/concerts/${event.id}`, { replace: true });
+      navigate(event.eventId ? eventPath(event.eventId) : `/concerts/${event.id}`, { replace: true });
     } catch {
       setError(translate("customer:checkoutPage_khongTheRoiTrangThanhToanAn"));
       setCancelling(false);
@@ -677,6 +664,7 @@ export function CheckoutPage() {
               <div key={item.id}>
                 <span>
                   {item.quantity} x {item.name}
+                  {seatDescription(item) && <small className="checkout-seat-location">{seatDescription(item)}</small>}
                 </span>
                 <strong>{currency.format(item.price * item.quantity)}</strong>
               </div>

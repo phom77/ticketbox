@@ -3,10 +3,9 @@ import { useTranslation } from 'react-i18next';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { isRequestCanceled } from '../../api/client';
-import { getConcert } from '../../api/concerts';
+import { checkoutPresentation } from '../../features/performance/checkoutPresentation';
 import { getOrder, getPaymentStatus, type Order } from '../../api/orders';
-import { PENDING_PAYMENT_STORAGE_KEY, type CheckoutEvent } from './CheckoutPage';
-import type { CheckoutSelection } from './SeatSelectionPage';
+import { PENDING_PAYMENT_STORAGE_KEY } from './CheckoutPage';
 
 function isOrderStillPayable(order: Order) {
   return order.status === 'AWAITING_PAYMENT' && new Date(order.expiresAt).getTime() > Date.now();
@@ -34,22 +33,8 @@ export function PaymentResultPage() {
 
     async function finish(order: Order, failed: boolean) {
       try {
-        const concert = await getConcert(order.concertId, controller.signal);
+        const { event, selection } = await checkoutPresentation(order, controller.signal);
         if (!active) return;
-        const event: CheckoutEvent = {
-          id: concert.id,
-          title: concert.title,
-          translations: concert.translations,
-          venue: concert.venueName,
-          date: concert.eventDate,
-          image: concert.posterUrl,
-        };
-        const selection: CheckoutSelection[] = order.items.map((item) => ({
-          id: item.ticketTypeId,
-          name: item.ticketTypeName,
-          price: item.unitPrice,
-          quantity: item.quantity,
-        }));
         sessionStorage.removeItem(PENDING_PAYMENT_STORAGE_KEY);
         navigate(`/booking-confirmation${failed ? '?status=failed' : ''}`, {
           replace: true,
