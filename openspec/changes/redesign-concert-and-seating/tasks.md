@@ -9,33 +9,40 @@
 ## 2. Nền dữ liệu và chạy song song
 
 - [x] 2.1 Thêm Event, Performance, Venue/Space và ánh xạ Concert cũ trong Catalog. Dùng Flyway mới và chạy backfill hai lượt trên bản sao kiểm thử. So ID, URL, ownership, giờ địa phương, trạng thái và dữ liệu cũ chưa có tổ chức. Kiểm thử phân quyền draft, hai suất cùng Event và xuất bản/ACK độc lập.
-- [ ] 2.2 Thêm projection v2 và guard mode theo suất ở Ticketing. Dựng gate đầu nhận trước khi phát bản tin. Kiểm thử bằng PostgreSQL với rollout, restart, ACK trễ, worker hỗn hợp và v1/v2 tranh ghi vào cùng suất. Fixture cũ phải còn hoạt động qua v1, kể cả đơn chờ.
-- [ ] 2.3 Nối trang Event và workspace với lịch suất, lựa chọn đúng route mua/phòng chờ, hoãn/hủy theo từng suất và logic hiển thị bản nháp. Kiểm tra Chromium trên lịch hai đêm và truy cập trực tiếp URL cũ, cùng frontend lint/build.
+- [x] 2.2 Thêm projection v2 và guard mode theo suất ở Ticketing. Dựng gate đầu nhận trước khi phát bản tin. Kiểm thử bằng PostgreSQL với rollout, restart, ACK trễ, worker hỗn hợp và v1/v2 tranh ghi vào cùng suất. Fixture cũ phải còn hoạt động qua v1, kể cả đơn chờ.
+- [x] 2.3 Nối trang Event và workspace với lịch suất, lựa chọn đúng route mua/phòng chờ, hoãn/hủy theo từng suất và logic hiển thị bản nháp. Kiểm tra Chromium trên lịch hai đêm và truy cập trực tiếp URL cũ, cùng frontend lint/build.
 
 ## 3. Vé GA, khu và các hạng giá dùng chung tồn kho
 
-- [ ] 3.1 Thêm group GA, offer, sức chứa, cửa sổ bán và quota toàn suất. Kiểm tra hai hạng bán chỗ cuối chung pool, tài khoản đổi hạng, hold hết hạn, freeze suất, và giá cố định theo hold qua thay phiên bản sale. Dùng Postgres thật để đối chiếu tổng stock.
-- [ ] 3.2 Hoàn tất luồng GA không cần sơ đồ từ phòng chờ tới hold, thanh toán MOCK, phát vé và tìm lại đơn/vé. Xác nhận mất phản hồi, callback lặp hoặc đến muộn và resume không sai suất. Chạy journey gateway và browser với một live house có một hạng và một show bán nhiều zone.
+- [x] 3.1 Thêm group GA, offer, sức chứa, cửa sổ bán và quota toàn suất. Kiểm tra hai hạng bán chỗ cuối chung pool, tài khoản đổi hạng, hold hết hạn, freeze suất, và giá cố định theo hold qua thay phiên bản sale. Dùng Postgres thật để đối chiếu tổng stock.
+- [x] 3.2 Hoàn tất luồng GA không cần sơ đồ từ phòng chờ tới hold, thanh toán MOCK, phát vé và tìm lại đơn/vé. Xác nhận mất phản hồi, callback lặp hoặc đến muộn và resume không sai suất. Chạy journey gateway và browser với một live house có một hạng và một show bán nhiều zone.
 
 ## 4. Phiên bản sơ đồ và công cụ ban tổ chức
 
 - [x] 4.1 Thêm template, layout revision, section/row/seat, liên kết group và bản chụp khi publish ở Catalog. Kiểm thử unique ghế, FK theo scope, chặn ghế ngoài khu, khóa bán, quyền dùng template và giữ nguyên snapshot đã bán khi sửa mẫu.
-- [ ] 4.2 Dựng editor tạo từ trắng hoặc sao mẫu, tải ảnh nền, vẽ khu/lối đi/sân khấu, sinh và đánh số hàng ghế, nhập CSV có kiểm tra từng dòng. Dùng fixture hybrid để tạo hai cấu hình cùng địa điểm, chạy preview và publish. Kiểm tra hai editor tranh lưu, CSV lỗi và từ chối truy cập từ tổ chức khác.
+- [x] 4.2 Dựng editor tạo từ trắng hoặc sao mẫu, tải ảnh nền, vẽ khu/lối đi/sân khấu, sinh và đánh số hàng ghế, nhập CSV có kiểm tra từng dòng. Dùng fixture hybrid để tạo hai cấu hình cùng địa điểm, chạy preview và publish. Kiểm tra hai editor tranh lưu, CSV lỗi và từ chối truy cập từ tổ chức khác.
 
 ## 5. Ghế đánh số, sơ đồ người mua và Check-in
 
-- [ ] 5.1 Bổ sung ghế với giữ chỗ nguyên tử và dòng đơn theo ghế. Kiểm tra PostgreSQL với nhiều instance, hai khách tranh một ghế, giữ GA + ghế có một phần thất bại, vượt quota, khóa cạnh tranh với job hết hạn, callback đến sau khi ghế được chia lại và replay order sau phục hồi.
+- [x] 5.1 Bổ sung ghế với giữ chỗ nguyên tử và dòng đơn theo ghế. Kiểm tra PostgreSQL với nhiều instance, hai khách tranh một ghế, giữ GA + ghế có một phần thất bại, vượt quota, khóa cạnh tranh với job hết hạn, callback đến sau khi ghế được chia lại và replay order sau phục hồi.
 - [ ] 5.2 Tích hợp tổng quan theo khu, dữ liệu ghế tải khi mở khu, trạng thái chọn được xác nhận chung giữa sơ đồ và danh sách. Đo SVG/Canvas trên fixture sân lớn để chọn cách render lớp ghế. Chạy Chromium desktop, mobile, keyboard, kiểm tra thủ công với trình đọc màn hình, và thử sơ đồ lỗi, dữ liệu cũ hoặc đổi suất khi request còn chạy.
-- [ ] 5.3 Đưa thông tin suất/khu/ghế đến checkout, ví vé, email/PDF, báo cáo và snapshot Check-in. Diễn tập QR v1/v2, lặp phát vé, soát sai suất, hai máy quét cùng vé và offline sync. Đường staff mới chỉ mở sau khi nhận quyền theo phạm vi.
+- [x] 5.3 Đưa thông tin suất/khu/ghế đến checkout, ví vé, email/PDF, báo cáo và snapshot Check-in. Diễn tập QR v1/v2, lặp phát vé, soát sai suất, hai máy quét cùng vé và offline sync. Đường staff mới chỉ mở sau khi nhận quyền theo phạm vi.
 
 ## 6. Nghiệm thu tích hợp và mở bán
 
-- [ ] 6.1 Chạy Maven verify cho Catalog, Ticketing, Check-in và root reactor, gate độc lập `scripts/ci/verify-service-boundaries.py`, `scripts/ci/verify.ps1`, frontend lint/build, scanner typecheck và OpenSpec strict. Chạy hành trình gateway cho GA và hybrid, hợp đồng v1/v2, quyền tổ chức, sự cố provider và các phiên mua đang hoạt động.
-- [ ] 6.2 Diễn tập backfill, chuyển mode, đóng bán v2, callback đang chờ và restore. So lịch sử, tồn kho, vé và log soát trước/sau. Kiểm tra worker xử lý v2 sau khi tắt cờ rollout. Giữ đối chiếu riêng cho dữ liệu seed chỉ minh họa.
+- [x] 6.1 Chạy Maven verify cho Catalog, Ticketing, Check-in và root reactor, gate độc lập `scripts/ci/verify-service-boundaries.py`, `scripts/ci/verify.ps1`, frontend lint/build, scanner typecheck và OpenSpec strict. Chạy hành trình gateway cho GA và hybrid, hợp đồng v1/v2, quyền tổ chức, sự cố provider và các phiên mua đang hoạt động.
+- [x] 6.2 Diễn tập backfill, chuyển mode, đóng bán v2, callback đang chờ và restore. So lịch sử, tồn kho, vé và log soát trước/sau. Kiểm tra worker xử lý v2 sau khi tắt cờ rollout. Giữ đối chiếu riêng cho dữ liệu seed chỉ minh họa.
 - [ ] 6.3 Nghiệm thu sơ đồ sân lớn và tải đồng thời. Ghi kích thước dataset, mô hình người vào, phần cứng, p95 map/giữ/checkout, tỷ lệ xung đột/timeout, lock wait, tốc độ cấp lượt, backlog thanh toán và tốc độ xác nhận tại cổng. Chạy bài hotspot GA và tranh ghế, yêu cầu 0 ghế bán trùng và 0 pool âm. Chỉ xác nhận năng lực ở cấu hình và profile đã đo.
 - [ ] 6.4 Diễn tập staging một show GA nhỏ rồi một show hybrid bằng merchant sandbox, phân quyền staff đã duyệt và thiết bị thật. Ghi ngưỡng go/no-go và cách ngừng nhận mua mới khi phát hiện sai lệch. Chỉ mở pilot bán thật theo cấu hình merchant đã duyệt. Chỉ mở bán lớn sau khi nghiệm thu profile tải và vận hành cổng tại địa điểm.
 
 ## Workflow follow-up
+
+- `scripts/ci/verify.ps1` đã qua 16 bước trên cùng một mã nguồn. Maven chạy 256 bài kiểm thử. Hành trình gateway xác nhận GA một hạng, GA nhiều khu, hybrid, quyền tổ chức, replay thanh toán và QR.
+- Fixture arena cục bộ chạy trên máy 16 CPU logic và khoảng 22,8 GiB RAM. Sơ đồ có 50.400 ghế đánh số, 49 khu và payload lưu khoảng 9,2 MB. Ở lượt cuối với hai worker Ticketing, sáu client tải song song. P95 của sơ đồ khu là 48,3 ms và của trạng thái ghế là 363,1 ms qua 60 mẫu mỗi API. P95 giữ chỗ là 96,0 ms qua 8 mẫu và checkout là 172,8 ms qua 3 mẫu. Kết quả là 1 đơn ghế, 2 đơn GA, 5 xung đột dự kiến, 0 ghế phân bổ trùng và 0 pool âm.
+- Chromium tải riêng khu rồi render 500 ghế ở lần mở đầu. Trong phép đo dựng lớp ghế độc lập, SVG mất 2,1 ms ở p95 với 500 ghế và 5,0 ms với 1.050 ghế. Canvas mất 0,4 ms ở hai kích cỡ. Giao diện giữ SVG cho lớp tương tác theo khu và danh sách nút gốc cho bàn phím. Kiểm tra accessibility tree đã nhận đúng nhãn ghế, hàng và trạng thái chọn. Còn phép thử thủ công với trình đọc màn hình.
+- Bản sao phục hồi đủ sáu cơ sở dữ liệu và xác minh replay đơn V1 và V2, phân bổ ghế, đối soát và log soát vé. Khi Catalog tắt rollout, thử nghiệm từ chối phát hành suất mới và vẫn xử lý một callback MOCK đang chờ của suất V2 đã mở.
+- Diễn tập hai bản Ticketing dùng cùng cơ sở dữ liệu đã migrate. Cả hai đọc được đơn V1 đang chờ. Bản mới hiển thị tên hạng GA có sẵn, nhận callback và phát đúng một vé sau khi thay worker cũ. Khi V1 và V2 cùng yêu cầu giữ tại suất đã kích hoạt, chỉ V2 đổi tồn kho. Luồng tổ chức hiện phát hành V2 từ suất mới.
+- Kết quả cục bộ chưa bao gồm tải staging theo cấu hình merchant, thông lượng queue và cổng, phân bố lock wait hoặc backlog ở tải cao. Hai lượt quét cạnh tranh dùng thiết bị mô phỏng. Danh sách bật phát hành ban đầu để trống mặc định và chỉ mở cho các tổ chức đã duyệt.
 
 - Ưu tiên change riêng cho pass nhiều suất, vé miễn phí, bàn/box hoặc chọn ghế liền nhau sau khi có dữ liệu pilot.
 - Lập kế hoạch ngừng v1 sau khi rà hết đơn, callback, liên kết cũ và vé còn hiệu lực.
