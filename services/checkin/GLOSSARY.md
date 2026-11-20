@@ -21,3 +21,7 @@ Reconciliation of scans recorded while a scanner could not reach the admission a
 **Guest**
 
 A person invited through a concert's guest list.
+
+**Performance admission**
+
+The acceptance of a ticket for entry to its scheduled performance. Confirmation uses the ticket's scope and the staff member's current permission.

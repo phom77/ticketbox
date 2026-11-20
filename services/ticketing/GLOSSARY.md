@@ -29,3 +29,19 @@ The available, held and allocated quantities of a ticket type.
 **Verified collection**
 
 Money confirmed by Payment. It can include a late payment for an order that Ticketing could no longer settle.
+
+**Performance**
+
+The scheduled occurrence a shopping session, allocation, order and issued ticket are for.
+
+**General-admission inventory**
+
+Places available in a group where attendees choose a location on arrival.
+
+**Assigned-seat inventory**
+
+The availability of individual seats for a performance. Each allocated seat belongs to one order at a time.
+
+**Quoted hold**
+
+A selection of general-admission places or assigned seats temporarily reserved for one customer, with its confirmed price and deadline.
