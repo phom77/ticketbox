@@ -12,6 +12,7 @@ const venueTemplates = (id: string) => venues + '/' + key(id) + '/templates';
 
 export type Venue = { id: string; name: string; address: string; spaces: { id: string; name: string }[] };
 export type ManagedPerformance = Performance & {
+  draftVersion: number;
   venueSpaceId: string;
   venueAddress: string;
   spaceName: string;
@@ -19,7 +20,7 @@ export type ManagedPerformance = Performance & {
   maxPerAccount: number;
   publicVisible: boolean;
 };
-export type ManagedEvent = Omit<EventDetails, 'performances'> & { category?: string | null; performances: ManagedPerformance[] };
+export type ManagedEvent = Omit<EventDetails, 'performances'> & { category?: string | null; draftVersion: number; performances: ManagedPerformance[] };
 export type DraftLayout = Omit<Layout, 'version' | 'sections'> & { sections: MapSection[] };
 export type LayoutDraft = { version: number; layout: DraftLayout | null };
 export type LayoutTemplate = { id: string; name: string; venueSpaceId: string; revision: number };
@@ -33,19 +34,24 @@ export type SaleOffer = {
 };
 export type SaleDraft = { version: number; groups: SaleGroup[]; offers: SaleOffer[] };
 export type Publication = { status: string; saleVersion: number; ticketingAcknowledged: boolean; checkinAcknowledged: boolean };
-type EventInput = { title: string; description: string; category: string | null };
+export type EventInput = { title: string; description: string; category: string | null };
 type VenueInput = { name: string; address: string; spaceName: string };
-type PerformanceInput = Pick<ManagedPerformance,
+export type PerformanceInput = Pick<ManagedPerformance,
   'venueSpaceId' | 'startsAt' | 'endsAt' | 'doorsOpenAt' | 'timezone' | 'saleStartAt' | 'saleEndAt' | 'maxPerAccount' | 'publicVisible'>;
 
 export const listManagedEvents = (page: number, signal?: AbortSignal) =>
   apiGet<Page<ManagedEvent>>(events + '?page=' + page + '&size=12', signal);
 export const getManagedEvent = (id: string, signal?: AbortSignal) => apiGet<ManagedEvent>(eventPath(id), signal);
 export const createManagedEvent = (body: EventInput) => api.post<unknown, ManagedEvent>(events, body);
+export const updateManagedEvent = (id: string, expectedDraftVersion: number, body: EventInput) =>
+  api.put<unknown, ManagedEvent>(eventPath(id), { ...body, expectedDraftVersion });
 export const listVenues = (signal?: AbortSignal) => apiGet<Venue[]>(venues, signal);
 export const createVenue = (body: VenueInput) => api.post<unknown, Venue>(venues, body);
 export const createPerformance = (eventId: string, body: PerformanceInput) =>
   api.post<unknown, ManagedPerformance>(eventPath(eventId) + '/performances', body);
+
+export const updatePerformanceSchedule = (id: string, expectedDraftVersion: number, body: PerformanceInput) =>
+  api.put<unknown, ManagedPerformance>(performance(id) + '/schedule', { ...body, expectedDraftVersion });
 
 export const readLayoutDraft = (id: string, signal?: AbortSignal) =>
   apiGet<LayoutDraft>(performance(id) + '/layout', signal);
@@ -76,8 +82,12 @@ export const saveSaleDraft = (id: string, sale: SaleDraft) =>
   });
 export const getPublication = (id: string, signal?: AbortSignal) =>
   apiGet<Publication>(performance(id) + '/publication', signal);
-export const publishPerformance = (id: string, expectedSaleVersion: number, expectedLayoutVersion: number) =>
-  api.post<unknown, Publication>(performance(id) + '/publication', { expectedSaleVersion, expectedLayoutVersion });
+export const publishPerformance = (id: string, expectedSaleVersion: number, expectedLayoutVersion: number,
+  draftVersions?: { event: number; schedule: number }) =>
+  api.post<unknown, Publication>(performance(id) + '/publication', {
+    expectedSaleVersion, expectedLayoutVersion,
+    expectedEventDraftVersion: draftVersions?.event, expectedScheduleDraftVersion: draftVersions?.schedule,
+  });
 
 export type PerformanceStaff = { staffId: string; grantedAt: string };
 const staff = (id: string) => performance(id) + '/staff';

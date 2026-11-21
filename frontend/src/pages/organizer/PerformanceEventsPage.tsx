@@ -1,20 +1,32 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useBeforeUnload, useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft, ArrowRight, Check, Plus } from 'lucide-react';
 import {
-  createManagedEvent, createPerformance, createVenue, getManagedEvent, listManagedEvents, listVenues,
-  type ManagedEvent, type ManagedPerformance, type Venue,
+  createManagedEvent, getManagedEvent, listManagedEvents, listVenues, updateManagedEvent,
+  type EventInput, type ManagedEvent, type ManagedPerformance, type Venue,
 } from '../../api/performanceManagement';
-import { eventPath } from '../../api/performances';
+import { ApiClientError } from '../../api/client';
 import { performanceTime } from '../../features/performance/format';
 import { useAuth } from '../../features/auth/AuthContext';
 import { RequireOrganizationGrant, useOrganization } from '../../features/organizations/OrganizationProvider';
+import { PerformanceScheduleForm } from './PerformanceScheduleForm';
 import { PerformanceWorkspace } from './PerformanceWorkspace';
 import './PerformanceWorkspace.css';
 
+const listPath = '/organizer/events';
+const manageEventPath = (id: string) => listPath + '/' + encodeURIComponent(id);
+const steps = ['event', 'schedule', 'tickets', 'review'] as const;
+type Step = typeof steps[number];
+const stepLabels: Record<Step, string> = {
+  event: 'performances:step_event', schedule: 'performances:step_schedule',
+  tickets: 'performances:step_tickets', review: 'performances:step_review',
+};
+
 export function PerformanceEventAccess({ children }: { children: ReactNode }) {
+  const organization = useOrganization();
   return <RequireOrganizationGrant grant="EVENTS" fallback={<PerformanceEventAccessHelp />}>
-    {children}
+    <Fragment key={organization?.selected?.id}>{children}</Fragment>
   </RequireOrganizationGrant>;
 }
 
@@ -54,11 +66,10 @@ function PerformanceEventAccessHelp() {
 }
 
 export function PerformanceEventsPage() {
-  const { t } = useTranslation();
-  const navigate = useNavigate();
+  const { t } = useTranslation('performances');
   const [page, setPage] = useState(0);
+  const [retry, setRetry] = useState(0);
   const [listing, setListing] = useState<{ content: ManagedEvent[]; last: boolean } | null>(null);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   useEffect(() => {
     const controller = new AbortController();
@@ -68,52 +79,67 @@ export function PerformanceEventsPage() {
       if (!controller.signal.aborted) setError(failure.message);
     });
     return () => controller.abort();
-  }, [page]);
+  }, [page, retry]);
 
-  async function addEvent(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const values = new FormData(event.currentTarget);
-    setBusy(true);
+  function loadPage(next: number) {
     setError('');
-    try {
-      const created = await createManagedEvent({
-        title: String(values.get('title')).trim(), description: String(values.get('description')).trim(),
-        category: String(values.get('category')).trim() || null,
-      });
-      navigate('/organizer/events/' + encodeURIComponent(created.id));
-    } catch (failure) {
-      setError(failure instanceof Error ? failure.message : t('performances:saveFailed'));
-    } finally {
-      setBusy(false);
-    }
+    setListing(null);
+    if (next === page) setRetry((current) => current + 1);
+    else setPage(next);
   }
 
-  return (
-    <div className="performance-admin">
-      <h1>{t('performances:ticketSettingsV2')}</h1>
-      {error && <p role="alert">{error}</p>}
-      <section className="performance-panel">
-        <h2>{t('performances:createEvent')}</h2>
-        <form className="performance-form" onSubmit={(event) => void addEvent(event)}>
-          <label>{t('performances:title')}<input name="title" maxLength={500} required /></label>
-          <label>{t('performances:category')}<input name="category" maxLength={100} /></label>
-          <label className="performance-wide">{t('performances:description')}<textarea name="description" rows={2} /></label>
-          <button className="button button-primary" disabled={busy}>{t('performances:createEvent')}</button>
-        </form>
-      </section>
-      <section className="performance-panel">
-        <h2>{t('performances:eventList')}</h2>
-        {!listing && !error && <p role="status">{t('performances:loading')}</p>}
-        {listing?.content.map((event) => (
-          <Link className="performance-event-link" key={event.id} to={'/organizer/events/' + encodeURIComponent(event.id)}>{event.title}</Link>
-        ))}
-        {listing && (page > 0 || !listing.last) && <div className="performance-options">
-          <button type="button" className="button button-secondary" disabled={!page} onClick={() => setPage(page - 1)}>{t('performances:previous')}</button>
-          <button type="button" className="button button-secondary" disabled={listing.last} onClick={() => setPage(page + 1)}>{t('performances:next')}</button>
-        </div>}
-      </section>
-    </div>
-  );
+  return <div className="performance-admin performance-flow">
+    <header className="performance-flow-header">
+      <h1>{t('performances:eventList')}</h1>
+      <Link className="button button-primary" to={listPath + '/new'}><Plus size={18} aria-hidden />{t('performances:createConcert')}</Link>
+    </header>
+    {error && <section className="performance-panel">
+      <p role="alert">{error}</p>
+      <button type="button" className="button button-secondary" onClick={() => loadPage(page)}>{t('performances:refresh')}</button>
+    </section>}
+    {!listing && !error && <p role="status">{t('performances:loading')}</p>}
+    {listing && !listing.content.length && <section className="performance-panel">
+      <h2>{t('performances:noManagedEvents')}</h2>
+      <p>{t('performances:noManagedEventsHelp')}</p>
+    </section>}
+    {listing && listing.content.length > 0 && <ul className="performance-managed-list">
+      {listing.content.map((event) => {
+        const draft = event.performances.every((entry) => entry.status === 'DRAFT');
+        return <li key={event.id}>
+          <Link className="performance-managed-row" to={manageEventPath(event.id)}>
+            <div><strong>{event.title}</strong><span>{t('performances:performanceCount', { count: event.performances.length })}</span></div>
+            {draft && <span className="performance-flow-status">{t('performances:draftStatus')}</span>}
+            <ArrowRight size={18} aria-hidden />
+          </Link>
+        </li>;
+      })}
+    </ul>}
+    {listing && (page > 0 || !listing.last) && <nav className="performance-options" aria-label={t('performances:eventList')}>
+      <button type="button" className="button button-secondary" disabled={!page} onClick={() => loadPage(page - 1)}>{t('performances:previous')}</button>
+      <button type="button" className="button button-secondary" disabled={listing.last} onClick={() => loadPage(page + 1)}>{t('performances:next')}</button>
+    </nav>}
+  </div>;
+}
+
+export function NewPerformanceEventPage() {
+  const { t } = useTranslation('performances');
+  const navigate = useNavigate();
+  const [dirty, setDirty] = useState(false);
+  useDraftExit(dirty);
+  const [busy, setBusy] = useState(false);
+
+  return <div className="performance-admin performance-flow">
+    <Link className="performance-flow-back" to={listPath} onClick={(click) => {
+      if (busy || (dirty && !window.confirm(t('performances:leaveUnsavedStep')))) click.preventDefault();
+    }}><ArrowLeft size={17} aria-hidden />{t('performances:eventList')}</Link>
+    <header className="performance-flow-header"><h1>{t('performances:createConcert')}</h1></header>
+    <FlowSteps step="event" canOpen={(entry) => entry === 'event'} onOpen={() => {}} />
+    <EventInformationForm onDirtyChange={setDirty} onBusyChange={setBusy} onSave={async (body) => {
+      const created = await createManagedEvent(body);
+      setDirty(false);
+      navigate(manageEventPath(created.id), { replace: true });
+    }} />
+  </div>;
 }
 
 export function PerformanceEventPage() {
@@ -122,13 +148,21 @@ export function PerformanceEventPage() {
 }
 
 function EventWorkspace({ id }: { id: string }) {
-  const { t } = useTranslation();
+  const { t } = useTranslation('performances');
   const [event, setEvent] = useState<ManagedEvent | null>(null);
-  const [venues, setVenues] = useState<Venue[]>([]);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string>();
+  const [step, setStep] = useState<Step>();
+  const [newSchedule, setNewSchedule] = useState(false);
+  const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [revision, setRevision] = useState(0);
+  const [retry, setRetry] = useState(0);
   const [error, setError] = useState('');
-  const [venueSpaceId, setVenueSpaceId] = useState('');
+  const [venues, setVenues] = useState<Venue[] | null>(null);
+  const [venueLoadError, setVenueLoadError] = useState('');
+  const [venueRetry, setVenueRetry] = useState(0);
+  const stageHeading = useRef<HTMLHeadingElement>(null);
+  useDraftExit(dirty);
   useEffect(() => {
     const controller = new AbortController();
     getManagedEvent(id, controller.signal).then((result) => {
@@ -136,122 +170,230 @@ function EventWorkspace({ id }: { id: string }) {
     }).catch((failure) => {
       if (!controller.signal.aborted) setError(failure.message);
     });
+    return () => controller.abort();
+  }, [id, retry]);
+
+  useEffect(() => {
+    const controller = new AbortController();
     listVenues(controller.signal).then((result) => {
       if (!controller.signal.aborted) setVenues(result);
     }).catch((failure) => {
-      if (!controller.signal.aborted) setError(failure.message);
+      if (!controller.signal.aborted) setVenueLoadError(failure.message);
     });
     return () => controller.abort();
-  }, [id]);
+  }, [venueRetry]);
 
-  const performance = event?.performances.find((entry) => entry.id === selected)
-    ?? (event?.performances.length === 1 ? event.performances[0] : undefined);
+  const selected = event?.performances.find((entry) => entry.id === selectedId) ?? event?.performances[0];
+  const active = newSchedule ? undefined : selected;
+  const isDraft = active?.status === 'DRAFT' && !active.legacyConcertId;
+  const editableEvent = event?.performances.every((entry) => entry.status === 'DRAFT' && !entry.legacyConcertId);
+  const requestedStep = step ?? (active ? 'tickets' : 'schedule');
+  const activeStep = active && ((requestedStep === 'schedule' && !isDraft) || (requestedStep === 'event' && !editableEvent))
+    ? 'tickets'
+    : requestedStep;
 
-  async function addVenue(submit: FormEvent<HTMLFormElement>) {
-    submit.preventDefault();
-    const form = submit.currentTarget;
-    const values = new FormData(form);
-    setBusy(true);
+  useEffect(() => {
+    if (!step) return;
+    stageHeading.current?.focus({ preventScroll: true });
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }, [step, selectedId, newSchedule]);
+
+  function confirmLeave() {
+    return !busy && (!dirty || window.confirm(t('performances:leaveUnsavedStep')));
+  }
+
+  function reloadWorkspace() {
+    if (!confirmLeave()) return;
+    setDirty(false);
     setError('');
-    try {
-      const venue = await createVenue({
-        name: String(values.get('venueName')).trim(), address: String(values.get('address')).trim(),
-        spaceName: String(values.get('spaceName')).trim(),
-      });
-      setVenues((current) => [...current, venue]);
-      setVenueSpaceId(venue.spaces[0]?.id ?? '');
-      form.reset();
-    } catch (failure) {
-      setError(failure instanceof Error ? failure.message : t('performances:saveFailed'));
-    } finally {
-      setBusy(false);
+    setEvent(null);
+    setRetry((current) => current + 1);
+  }
+
+  function switchSchedule(next: string) {
+    if (!confirmLeave()) return;
+    setDirty(false);
+    setRevision((current) => current + 1);
+    setSelectedId(next);
+    setNewSchedule(false);
+    setStep('tickets');
+  }
+
+  function goTo(next: Step) {
+    if (next === activeStep || !confirmLeave()) return;
+    if (dirty) setRevision((current) => current + 1);
+    setDirty(false);
+    setStep(next);
+  }
+
+  function openTickets(performance: ManagedPerformance) {
+    setSelectedId(performance.id);
+    setNewSchedule(false);
+    setDirty(false);
+    setStep('tickets');
+    setEvent((previous) => {
+      if (!previous) return null;
+      const entries = previous.performances;
+      return {
+        ...previous, performances: entries.some((entry) => entry.id === performance.id)
+          ? entries.map((entry) => entry.id === performance.id ? performance : entry)
+          : [...entries, performance],
+      };
+    });
+  }
+
+  function updatePerformance(performance: ManagedPerformance) {
+    setEvent((previous) => previous && ({
+      ...previous,
+      performances: previous.performances.map((entry) => entry.id === performance.id ? performance : entry),
+    }));
+  }
+
+  const completed = (entry: Step) => entry === 'event' || (entry === 'schedule' && Boolean(active))
+    || (entry === 'tickets' && (activeStep === 'review' || Boolean(active && !isDraft)));
+  function canOpen(entry: Step) {
+    switch (entry) {
+      case 'event': return Boolean(editableEvent);
+      case 'schedule': return !active || Boolean(isDraft);
+      case 'tickets': return Boolean(active);
+      case 'review': return false;
     }
   }
 
-  async function addPerformance(submit: FormEvent<HTMLFormElement>) {
-    submit.preventDefault();
-    const form = submit.currentTarget;
-    const values = new FormData(form);
+  return <div className="performance-admin performance-flow">
+    <Link className="performance-flow-back" to={listPath} onClick={(click) => {
+      if (!confirmLeave()) click.preventDefault();
+    }}><ArrowLeft size={17} aria-hidden />{t('performances:eventList')}</Link>
+    {!event && (error ? <section className="performance-panel">
+      <p role="alert">{error}</p><button type="button" className="button button-secondary"
+        onClick={reloadWorkspace}>{t('performances:refresh')}</button>
+    </section> : <p role="status">{t('performances:loading')}</p>)}
+    {event && <>
+      <header className="performance-flow-header">
+        <h1>{event.title}</h1>
+        {event.performances.every((entry) => entry.status === 'DRAFT') && <span className="performance-flow-status">{t('performances:draftStatus')}</span>}
+      </header>
+      {event.performances.length > 0 && <section className="performance-flow-context">
+        <label>{t('performances:workingPerformance')}
+          <select value={newSchedule ? '' : active?.id ?? ''} disabled={busy} onChange={(change) => switchSchedule(change.target.value)}>
+            {newSchedule && <option value="">{t('performances:newPerformance')}</option>}
+            {event.performances.map((entry) => <option key={entry.id} value={entry.id}>
+              {entry.venueName} · {performanceTime(entry)}{entry.status === 'DRAFT' ? ` · ${t('performances:draftStatus')}` : ''}
+            </option>)}
+          </select>
+        </label>
+        <button type="button" disabled={busy || newSchedule} className="button button-secondary" onClick={() => {
+          if (!confirmLeave()) return;
+          setDirty(false);
+          setRevision((current) => current + 1);
+          setNewSchedule(true);
+          setStep('schedule');
+        }}><Plus size={17} aria-hidden />{t('performances:addPerformance')}</button>
+      </section>}
+      <FlowSteps step={activeStep} canOpen={canOpen} onOpen={goTo} completed={completed} busy={busy} />
+      <h2 id={activeStep === 'review' ? 'performance-review-heading' : undefined} className="performance-step-heading" ref={stageHeading} tabIndex={-1}>{t(stepLabels[activeStep])}</h2>
+      {activeStep === 'event' && <EventInformationForm key={revision} initial={event}
+        onDirtyChange={setDirty} onBusyChange={setBusy} onReload={reloadWorkspace} onSave={async (body) => {
+          const updated = await updateManagedEvent(id, event.draftVersion, body);
+          setEvent(updated);
+          setDirty(false);
+          setStep(active && !isDraft ? 'tickets' : 'schedule');
+        }} />}
+      {activeStep === 'schedule' && <PerformanceScheduleForm key={(active?.id ?? 'new') + revision}
+        eventId={id} performance={active} venues={venues} venueLoadError={venueLoadError}
+        onRetryVenues={() => {
+          setVenueLoadError('');
+          setVenueRetry((current) => current + 1);
+        }} onVenueCreated={(venue) => setVenues((current) => [...(current ?? []), venue])}
+        onSave={openTickets} onDirtyChange={setDirty} onBusyChange={setBusy} onReload={reloadWorkspace} />}
+      {active && (activeStep === 'tickets' || activeStep === 'review') && <PerformanceWorkspace
+        key={active.id + revision} event={event} performance={active} stage={activeStep}
+        venue={venues?.find((venue) => venue.spaces.some((space) => space.id === active.venueSpaceId))}
+        onUpdate={updatePerformance} onDirtyChange={setDirty} onBusyChange={setBusy} onReload={reloadWorkspace}
+        onReview={() => { setDirty(false); setStep('review'); }}
+        onEditSchedule={isDraft ? () => goTo('schedule') : undefined}
+        onEdit={() => setStep('tickets')} />}
+    </>}
+  </div>;
+}
+
+function FlowSteps({ step, canOpen, onOpen, completed, busy }: {
+  step: Step; canOpen: (step: Step) => boolean; onOpen: (step: Step) => void;
+  completed?: (step: Step) => boolean; busy?: boolean;
+}) {
+  const { t } = useTranslation('performances');
+  return <nav aria-label={t('performances:creationProgress')}>
+    <ol className="performance-flow-steps">
+      {steps.map((entry, index) => {
+        const current = entry === step;
+        const done = completed?.(entry) && !current;
+        const label = <><span className="performance-flow-step-index" aria-hidden="true">
+          {done ? <Check size={15} /> : index + 1}
+        </span><span>{t(stepLabels[entry])}</span></>;
+        return <li key={entry}>
+          {canOpen(entry) && !current
+            ? <button type="button" className="performance-flow-step" disabled={busy} onClick={() => onOpen(entry)}>{label}</button>
+            : <span className="performance-flow-step" aria-current={current ? 'step' : undefined}>{label}</span>}
+        </li>;
+      })}
+    </ol>
+  </nav>;
+}
+
+function EventInformationForm({ initial, onSave, onDirtyChange, onBusyChange, onReload }: {
+  initial?: ManagedEvent; onSave: (body: EventInput) => Promise<void>; onReload?: () => void;
+  onDirtyChange: (dirty: boolean) => void; onBusyChange: (busy: boolean) => void;
+}) {
+  const { t } = useTranslation('performances');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [conflict, setConflict] = useState(false);
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const values = new FormData(event.currentTarget);
+    const title = String(values.get('title')).trim();
+    if (!title) {
+      setError(t('performances:eventTitleRequired'));
+      event.currentTarget.querySelector('input')?.focus();
+      return;
+    }
     setBusy(true);
+    onBusyChange(true);
     setError('');
+    setConflict(false);
     try {
-      const created = await createPerformance(id, {
-        venueSpaceId, startsAt: String(values.get('startsAt')), endsAt: String(values.get('endsAt')),
-        doorsOpenAt: String(values.get('doorsOpenAt')).trim() || null,
-        timezone: String(values.get('timezone')), saleStartAt: String(values.get('saleStartAt')),
-        saleEndAt: String(values.get('saleEndAt')), maxPerAccount: Number(values.get('maxPerAccount')),
-        publicVisible: values.get('publicVisible') === 'on',
-      });
-      setEvent((current) => current ? { ...current, performances: [...current.performances, created] } : current);
-      setSelected(created.id);
-      form.reset();
+      await onSave({ title, description: String(values.get('description')).trim(), category: String(values.get('category')).trim() || null });
     } catch (failure) {
+      setConflict(failure instanceof ApiClientError && failure.status === 409);
       setError(failure instanceof Error ? failure.message : t('performances:saveFailed'));
     } finally {
       setBusy(false);
+      onBusyChange(false);
     }
   }
 
-  function updatePerformance(updated: ManagedPerformance) {
-    setEvent((current) => current ? {
-      ...current, performances: current.performances.map((entry) => entry.id === updated.id ? updated : entry),
-    } : null);
-  }
+  return <section className="performance-panel performance-flow-panel">
+    <p className="performance-flow-help">{t(initial ? 'eventInfoHelp' : 'newEventHelp')}</p>
+    <form className="performance-form performance-event-form" onSubmit={(event) => void save(event)} onChange={() => onDirtyChange(true)}>
+      <label>{t('performances:title')}<input name="title" defaultValue={initial?.title} maxLength={500} disabled={busy} required /></label>
+      <label>{t('performances:categoryOptional')}<input name="category" defaultValue={initial?.category ?? ''} maxLength={100} disabled={busy} /></label>
+      <label className="performance-wide">{t('performances:descriptionOptional')}<textarea name="description" rows={5} maxLength={60_000} defaultValue={initial?.description ?? ''} disabled={busy} /></label>
+      {error && <p className="performance-wide performance-flow-error" role="alert">{error}</p>}
+      <div className="performance-flow-actions performance-wide">
+        {conflict && onReload && <button type="button" className="button button-secondary" onClick={onReload}>
+          {t('performances:reloadDraft')}
+        </button>}
+        <button className="button button-primary" disabled={busy}>{t(busy ? 'savingChanges' : 'saveAndContinue')}<ArrowRight size={17} aria-hidden /></button>
+      </div>
+    </form>
+  </section>;
+}
 
-  return (
-    <div className="performance-admin">
-      <Link to="/organizer/events">{t('performances:events')}</Link>
-      <h1>{event?.title ?? t('performances:schedule')}</h1>
-      {error && <p role="alert">{error}</p>}
-      {!event && !error && <p role="status">{t('performances:loading')}</p>}
-      {event && <>
-        <section className="performance-panel">
-          <h2>{t('performances:schedule')}</h2>
-          {event.performances.length === 0 && <p>{t('performances:noPerformances')}</p>}
-          {event.performances.length > 1 && !performance && <p>{t('performances:choosePerformanceToConfigure')}</p>}
-          {event.performances.map((entry) => (
-            <button key={entry.id} type="button" className="button button-secondary" aria-pressed={entry.id === performance?.id}
-              onClick={() => setSelected(entry.id)}>{entry.venueName} · {performanceTime(entry)} · {entry.status}</button>
-          ))}
-          {event.performances.some((entry) => entry.publicVisible && entry.status !== 'DRAFT') &&
-            <Link to={eventPath(id)}>{t('performances:publicView')}</Link>}
-        </section>
-        {performance && <PerformanceWorkspace key={performance.id} performance={performance}
-          venue={venues.find((venue) => venue.spaces.some((space) => space.id === performance.venueSpaceId))}
-          onUpdate={updatePerformance} />}
-        <details className="performance-panel">
-          <summary>{t('performances:addPerformance')}</summary>
-          <form className="performance-form" onSubmit={(submit) => void addPerformance(submit)}>
-            <label>{t('performances:venueSpace')}
-              <select value={venueSpaceId} onChange={(change) => setVenueSpaceId(change.target.value)} required>
-                <option value="">{t('performances:chooseVenue')}</option>
-                {venues.flatMap((venue) => venue.spaces.map((space) => (
-                  <option key={space.id} value={space.id}>{venue.name} · {space.name}</option>
-                )))}
-              </select>
-            </label>
-            <label>{t('performances:timezone')}<input name="timezone" defaultValue="Asia/Ho_Chi_Minh" required /></label>
-            <label>{t('performances:startsAt')}<input name="startsAt" placeholder="2027-06-20T19:30:00+07:00" required /></label>
-            <label>{t('performances:endsAt')}<input name="endsAt" placeholder="2027-06-20T22:00:00+07:00" required /></label>
-            <label>{t('performances:doorsOpenAt')}<input name="doorsOpenAt" placeholder="2027-06-20T18:30:00+07:00" /></label>
-            <label>{t('performances:saleStartAt')}<input name="saleStartAt" placeholder="2027-06-01T09:00:00+07:00" required /></label>
-            <label>{t('performances:saleEndAt')}<input name="saleEndAt" placeholder="2027-06-20T19:00:00+07:00" required /></label>
-            <small className="performance-wide">{t('performances:timeFormat')}</small>
-            <label>{t('performances:maxPerAccount')}<input name="maxPerAccount" type="number" defaultValue={4} min={1} max={100} required /></label>
-            <label className="performance-inline"><input type="checkbox" name="publicVisible" defaultChecked />{t('performances:publicListing')}</label>
-            <button className="button button-primary" disabled={busy}>{t('performances:addPerformance')}</button>
-          </form>
-        </details>
-        <details className="performance-panel">
-          <summary>{t('performances:addVenue')}</summary>
-          <form className="performance-form" onSubmit={(submit) => void addVenue(submit)}>
-            <label>{t('performances:venueName')}<input name="venueName" required /></label>
-            <label>{t('performances:venueAddress')}<input name="address" required /></label>
-            <label>{t('performances:spaceName')}<input name="spaceName" required /></label>
-            <button className="button button-primary" disabled={busy}>{t('performances:addVenue')}</button>
-          </form>
-        </details>
-      </>}
-    </div>
-  );
+function useDraftExit(dirty: boolean) {
+  useBeforeUnload(useCallback((event) => {
+    if (!dirty) return;
+    event.preventDefault();
+    event.returnValue = true;
+  }, [dirty]));
 }

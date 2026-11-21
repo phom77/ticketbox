@@ -246,7 +246,7 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
         actions={
           <>
             <Link className="admin-secondary-action" to="/organizer/events">
-              {translate('performances:ticketSettingsV2')}
+              {translate('performances:manageConcerts')}
             </Link>
             {safeReturnTo ? (
               <Link className="admin-secondary-action" to={safeReturnTo}>

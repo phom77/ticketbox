@@ -91,7 +91,7 @@ export function PerformanceSeatAssignments({ sections, sale, setSale, performanc
     </div>
     {!readOnly && <form className="performance-form" onSubmit={addTicketType}>
       <label>{t('performances:ticketTypeName')}<input name="name" maxLength={100} required /></label>
-      <label>{t('performances:price')}<input name="price" type="number" min={1} max={999999999999} step={1} defaultValue={100000} required /></label>
+      <label>{t('performances:price')}<input name="price" type="number" min={1} max={999999999999} step={1} required /></label>
       <button className="button button-secondary">{t('performances:addSeatedTicketType')}</button>
     </form>}
     {!readOnly && <p>{t('performances:seatAssignmentHelp')}</p>}
