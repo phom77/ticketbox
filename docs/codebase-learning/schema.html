@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Database schema · TicketBox Learning</title>
+  <link rel="stylesheet" href="learning.css">
+  <script defer src="learning.js"></script>
+  <script defer src="data/evidence.js"></script>
+  <script defer src="data/schema.js"></script>
+  <script defer src="data/schema-columns.js"></script>
+  <script defer src="data/schema-layout.js"></script>
+  <script defer src="schema.js"></script>
+</head>
+<body data-root="../../">
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="masthead">
+    <div class="frame bar">
+      <a class="brand" href="index.html">TicketBox <span>Learning</span></a>
+      <nav aria-label="Learning pages">
+        <a href="index.html">System atlas</a>
+        <a href="flows/reserve-ticket.html">Reservation lab</a>
+        <a href="schema.html" aria-current="page">Database schema</a>
+      </nav>
+    </div>
+  </header>
+  <main id="main" class="frame schema-page">
+    <header class="intro">
+      <h1>Database schema</h1>
+      <p>Explore each service’s PostgreSQL tables and follow relationships from column to column.</p>
+    </header>
+    <div class="schema-toolbar">
+      <div class="schema-controls">
+        <label>Service database <select id="schema-db"></select></label>
+        <label>Find table <select id="schema-table"></select></label>
+      </div>
+      <div class="switch schema-zoom" role="group" aria-label="Diagram zoom">
+        <button type="button" id="erd-out" aria-label="Zoom out">−</button>
+        <output id="erd-scale" aria-live="polite"></output>
+        <button type="button" id="erd-in" aria-label="Zoom in">+</button>
+        <button type="button" id="erd-fit">Fit width</button>
+      </div>
+    </div>
+    <div class="schema-meta">
+      <p id="schema-status" class="small muted" role="status"></p>
+      <p class="small muted"><span class="erd-key">PK</span> Primary key · <span class="erd-key">FK</span> Foreign key · <span class="erd-key">NN</span> Not null · Dashed line: code relationship</p>
+    </div>
+    <div id="erd-viewport" class="erd-viewport" tabindex="0" role="region" aria-label="Scrollable entity relationship diagram">
+      <div id="erd-extent"><div id="erd-stage"></div></div>
+    </div>
+    <p class="small muted erd-help">Drag the background or scroll to pan. Select a table to highlight its links and see its source below.</p>
+    <section class="inspector" id="erd-inspector" aria-label="Selected table and source evidence"></section>
+    <p class="small muted source-tip">On a local copy, click the source path to open it in VS Code. IntelliJ IDEA links use JetBrains Toolbox and the open <code>ticketbox</code> project. The File link opens the original source.</p>
+  </main>
+  <footer class="frame footer"><a href="index.html">Back to the system atlas</a></footer>
+</body>
+</html>

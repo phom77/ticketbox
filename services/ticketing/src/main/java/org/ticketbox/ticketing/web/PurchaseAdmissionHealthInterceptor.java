@@ -23,9 +23,7 @@ public class PurchaseAdmissionHealthInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
-        boolean performanceHold = request.getRequestURI().startsWith("/api/v2/performances/")
-                && request.getRequestURI().endsWith("/hold") && "PUT".equals(request.getMethod());
-        if (health.enabled() && ("POST".equals(request.getMethod()) || performanceHold)) {
+        if (health.enabled() && "POST".equals(request.getMethod())) {
             request.setAttribute(START, System.nanoTime());
         }
         return true;
@@ -36,9 +34,8 @@ public class PurchaseAdmissionHealthInterceptor implements HandlerInterceptor {
             Exception exception) {
         if (!(request.getAttribute(START) instanceof Long start)) return;
         String uri = request.getRequestURI();
-        boolean performance = uri.startsWith("/api/v2/performances/");
-        Path path = "/api/orders".equals(uri) || (performance && uri.endsWith("/orders")) ? Path.CHECKOUT
-                : uri.endsWith("/reserve") || (performance && uri.endsWith("/hold")) ? Path.RESERVE
+        Path path = "/api/orders".equals(uri) ? Path.CHECKOUT
+                : uri.endsWith("/reserve") ? Path.RESERVE
                 : uri.startsWith("/api/payments/") || uri.startsWith("/api/mock-payments/") ? Path.PAYMENT : null;
         boolean global = Boolean.TRUE.equals(request.getAttribute(GLOBAL_THROTTLE));
         if (global) {
@@ -53,7 +50,7 @@ public class PurchaseAdmissionHealthInterceptor implements HandlerInterceptor {
         UUID concert = request.getAttribute(CONCERT) instanceof UUID id ? id : null;
         if (path == Path.RESERVE
                 && request.getAttribute(HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE) instanceof Map<?, ?> variables
-                && variables.get(performance ? "performanceId" : "concertId") instanceof String id) {
+                && variables.get("concertId") instanceof String id) {
             try {
                 concert = UUID.fromString(id);
             } catch (IllegalArgumentException ignored) {

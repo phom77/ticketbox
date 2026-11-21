@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>System atlas · TicketBox Learning</title>
+  <link rel="stylesheet" href="learning.css">
+  <script defer src="learning.js"></script>
+  <script defer src="data/evidence.js"></script>
+  <script defer src="data/atlas.js"></script>
+  <script defer src="atlas.js"></script>
+</head>
+<body data-root="../../">
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="masthead">
+    <div class="frame bar">
+      <a class="brand" href="index.html">TicketBox <span>Learning</span></a>
+      <nav aria-label="Learning pages">
+        <a href="index.html" aria-current="page">System atlas</a>
+        <a href="flows/reserve-ticket.html">Reservation lab</a>
+        <a href="schema.html">Database schema</a>
+      </nav>
+    </div>
+  </header>
+  <main id="main" class="frame">
+    <header class="intro">
+      <h1>TicketBox system atlas</h1>
+      <p>Explore how a concert goes on sale, how a shopper reserves a ticket, and how that ticket gets someone through the door.</p>
+      <p class="revision" id="revision"></p>
+    </header>
+
+    <section aria-labelledby="map-title">
+      <div class="section-head">
+        <h2 id="map-title">Explore the system</h2>
+        <div class="switch" role="group" aria-label="Map view">
+          <button type="button" data-view="topology" aria-pressed="true">Deployment</button>
+          <button type="button" data-view="capabilities" aria-pressed="false">Capabilities</button>
+          <button type="button" data-view="relationships" aria-pressed="false">APIs &amp; events</button>
+        </div>
+      </div>
+      <label class="search-label" for="search">Find a service, endpoint, entity or event</label>
+      <input type="search" id="search" placeholder="Try ticket_holds or webhook">
+      <p class="small muted" id="map-status" role="status"></p>
+      <div class="workspace">
+        <div id="map" aria-label="Interactive service map"></div>
+        <section class="inspector" id="inspector" aria-label="Service details"></section>
+      </div>
+    </section>
+
+    <section class="chapter" aria-labelledby="road-title">
+      <h2 id="road-title">Learning roadmap</h2>
+      <p>Start with the stock write, then follow the prerequisites and downstream consumers. Each entry gives you source to read.</p>
+      <ol class="roadmap" id="roadmap"></ol>
+    </section>
+
+    <section class="chapter" aria-labelledby="scope-title">
+      <h2 id="scope-title">Reading the evidence</h2>
+      <div id="scope"></div>
+      <p class="small muted">On a local copy, the source path opens in VS Code. Use IntelliJ IDEA with JetBrains Toolbox and this project open, or choose File to view the original source.</p>
+    </section>
+  </main>
+  <footer class="frame footer">TicketBox Learning · Repository field guide</footer>
+</body>
+</html>

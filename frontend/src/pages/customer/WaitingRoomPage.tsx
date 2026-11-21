@@ -1,13 +1,11 @@
-import { translate } from '../../i18n';
 import { useTranslation } from 'react-i18next';
-import { concertTitle } from '../../features/concert/concertText';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Client, type IMessage } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ApiClientError, apiBaseUrl, isRequestCanceled } from '../../api/client';
 import { getConcert, type ConcertDetail } from '../../api/concerts';
-import { eventPath, getEventPerformance, performancePath } from '../../api/performances';
+import { concertTitle } from '../../features/concert/concertText';
 import { getAuthToken } from '../../features/auth/tokenCookie';
 import {
   clearStoredQueueAdmission,
@@ -17,58 +15,68 @@ import {
   storeQueueAdmission,
   type QueueStatusResponse,
 } from '../../api/queue';
-import { eventDate } from '../../data/formatters';
+import { dateFormatter, numberFormatter } from '../../data/formatters';
+import { useCountdown } from '../../hooks/useCountdown';
+import './WaitingRoomPage.css';
+
+const eventDateTime = dateFormatter({ dateStyle: 'medium', timeStyle: 'short' });
+const counts = numberFormatter({ maximumFractionDigits: 0 });
+const queueTitles = {
+  WAITING_ROOM: 'waitingRoomPage_banDaOTrongPhongChoAn',
+  WAITING: 'waitingRoomPage_banDangXepHang',
+  ADMITTED: 'waitingRoomPage_admitted',
+  EXPIRED: 'waitingRoomPage_phienHangChoCuaBanDaKet',
+  LEFT: 'waitingRoomPage_phienHangChoCuaBanDaKet',
+} as const;
+const queueProblems = {
+  preparing: 'waitingRoomPage_hangChoDangChuanBiDangThu',
+  unavailable: 'waitingRoomPage_queueUnavailable',
+  rateLimit: 'waitingRoomPage_coQuaNhieuYeuCauHangCho',
+  joinFailed: 'waitingRoomPage_khongTheTruyCapPhongChoVui',
+  pollFailed: 'waitingRoomPage_statusRetry',
+  admissionUnconfirmed: 'waitingRoomPage_admissionUnconfirmed',
+} as const;
+
+function queueUnavailable(error: unknown) {
+  return error instanceof ApiClientError && [400, 403, 404, 409, 410].includes(error.status);
+}
 
 export function WaitingRoomPage() {
-  useTranslation();
-  const { id, eventId } = useParams();
+  const { t } = useTranslation('customer');
+  const { id } = useParams();
   const navigate = useNavigate();
-  const [concert, setConcert] = useState<Pick<ConcertDetail, 'id' | 'title' | 'translations' | 'eventDate' | 'venueName' | 'saleStartAt'> | null>(null);
+  const [concert, setConcert] = useState<ConcertDetail | null>(null);
+  const [concertFailed, setConcertFailed] = useState(false);
   const [queueStatus, setQueueStatus] = useState<QueueStatusResponse | null>(null);
-  const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [now, setNow] = useState(() => Date.now());
-  const readyForQueue = !eventId || concert?.id === id;
-  const stopWaitingRef = useRef<(() => void) | null>(null);
+  const [interrupted, setInterrupted] = useState(false);
+  const [problem, setProblem] = useState<keyof typeof queueProblems | null>(null);
+  const [retry, setRetry] = useState(0);
+  const [leavingConcert, setLeavingConcert] = useState<string | null>(null);
+  const leaving = leavingConcert === id;
   const leavingRef = useRef(false);
+  const stopWaitingRef = useRef<(() => void) | null>(null);
+  const eventPath = id ? '/concerts/' + id : '/';
 
   useEffect(() => {
     if (!id) return;
     const controller = new AbortController();
-    let active = true;
-
-    setLoading(true);
-    const details = eventId
-      ? getEventPerformance(eventId, id, controller.signal).then(({ event, performance }) => ({
-        id: performance.id, title: event.title, eventDate: performance.startsAt,
-        venueName: performance.venueName, saleStartAt: performance.saleStartAt,
-      }))
-      : getConcert(id, controller.signal);
-    details
-      .then((detail) => {
-        if (active) setConcert(detail);
-      })
-      .catch((requestError) => {
-        if (active && !isRequestCanceled(requestError))
-          setError(translate("customer:waitingRoomPage_khongTheTaiThongTinBuoiBieu"));
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-
-    return () => {
-      active = false;
-      controller.abort();
-    };
-  }, [eventId, id]);
+    const { signal } = controller;
+    void getConcert(id, signal).then((detail) => {
+      if (!signal.aborted) setConcert(detail);
+    }).catch((error: unknown) => {
+      if (!signal.aborted && !isRequestCanceled(error)) setConcertFailed(true);
+    });
+    return () => controller.abort();
+  }, [id]);
 
   useEffect(() => {
-    if (!id || !readyForQueue) return;
+    if (!id) return;
     const concertId = id;
+    leavingRef.current = false;
     const controller = new AbortController();
     const { signal } = controller;
-    leavingRef.current = false;
+    let finished = false;
     let stompClient: Client | null = null;
     let refreshTimer: number | undefined;
     let requestInProgress = false;
@@ -93,21 +101,59 @@ export function WaitingRoomPage() {
 
     function scheduleRefresh() {
       window.clearTimeout(refreshTimer);
-      if (signal.aborted) return;
-      const delay = pollAfterMs == null
-        ? 12_000 + Math.random() * 3_000
-        : pollAfterMs * (0.8 + Math.random() * 0.4);
-      refreshTimer = window.setTimeout(refreshStatus, delay);
+      if (!signal.aborted && !finished && !leavingRef.current) {
+        const delay = pollAfterMs == null
+          ? 12_000 + Math.random() * 3_000
+          : pollAfterMs * (0.8 + Math.random() * 0.4);
+        refreshTimer = window.setTimeout(refreshStatus, delay);
+      }
+    }
+
+    function handleStatus(nextStatus: QueueStatusResponse) {
+      if (signal.aborted || finished || leavingRef.current) return;
+      if (nextStatus.status === 'ADMITTED') {
+        const expiry = nextStatus.sessionExpiresAt ? Date.parse(nextStatus.sessionExpiresAt) : NaN;
+        if (!Number.isFinite(expiry) || expiry <= Date.now() || !storeQueueAdmission(concertId, nextStatus)) {
+          setProblem('admissionUnconfirmed');
+          return;
+        }
+        finished = true;
+        stopWaiting();
+        setQueueStatus(nextStatus);
+        setProblem(null);
+        navigate('/concerts/' + concertId + '/seats', { replace: true });
+        return;
+      }
+
+      if (nextStatus.status === 'EXPIRED' || nextStatus.status === 'LEFT') {
+        finished = true;
+        stopWaiting();
+      } else {
+        pollAfterMs = nextStatus.pollAfterMs;
+        const nearFront = nextStatus.status === 'WAITING'
+          && nextStatus.position != null && nextStatus.position <= 1_000;
+        if (pollAfterMs == null || nearFront) connectRealtime();
+        else {
+          stopRealtime();
+          setInterrupted(false);
+        }
+      }
+      setQueueStatus(nextStatus);
+      setProblem(null);
+      setJoining(false);
     }
 
     async function refreshStatus() {
-      if (signal.aborted || requestInProgress) return;
+      if (signal.aborted || finished || requestInProgress || leavingRef.current) return;
       requestInProgress = true;
       try {
         handleStatus(await getQueueStatus(concertId, signal));
-      } catch (requestError) {
-        if (!signal.aborted && !isRequestCanceled(requestError)) {
-          setError(messageForQueueError(requestError));
+      } catch (error) {
+        if (!signal.aborted && !isRequestCanceled(error) && !leavingRef.current) {
+          finished = queueUnavailable(error);
+          if (finished) stopWaiting();
+          setProblem(finished ? 'unavailable' : 'pollFailed');
+          setJoining(false);
         }
       } finally {
         requestInProgress = false;
@@ -115,91 +161,62 @@ export function WaitingRoomPage() {
       }
     }
 
-    function handleStatus(nextStatus: QueueStatusResponse) {
-      if (signal.aborted) return;
-      if (nextStatus.status === 'ADMITTED') {
-        const expiry = nextStatus.sessionExpiresAt ? Date.parse(nextStatus.sessionExpiresAt) : NaN;
-        if (!Number.isFinite(expiry) || expiry <= Date.now() || !storeQueueAdmission(concertId, nextStatus)) {
-          return;
-        }
-        stopWaiting();
-        navigate((eventId ? performancePath(eventId, concertId) : `/concerts/${concertId}`) + '/seats', { replace: true });
-        return;
-      }
-
-      if (nextStatus.status === 'EXPIRED' || nextStatus.status === 'LEFT') {
-        stopWaiting();
-      } else {
-        pollAfterMs = nextStatus.pollAfterMs;
-        const nearFront = nextStatus.status === 'WAITING'
-          && nextStatus.position != null && nextStatus.position <= 1_000;
-        if (pollAfterMs == null || nearFront) connectRealtime();
-        else stopRealtime();
-      }
-      setQueueStatus(nextStatus);
-      setError(null);
-      setJoining(false);
-    }
-
     async function join() {
-      if (signal.aborted) return;
+      if (signal.aborted || leavingRef.current) return;
       clearStoredQueueAdmission();
       setJoining(true);
-      setError(null);
+      setProblem(null);
+      setInterrupted(false);
 
       try {
         handleStatus(await joinQueue(concertId, signal));
         scheduleRefresh();
-      } catch (requestError) {
-        if (signal.aborted || isRequestCanceled(requestError)) return;
-        if (requestError instanceof ApiClientError && [429, 503].includes(requestError.status) && joinAttempts < 6) {
+      } catch (error) {
+        if (signal.aborted || isRequestCanceled(error) || leavingRef.current) return;
+        if (error instanceof ApiClientError && [429, 503].includes(error.status) && joinAttempts < 6) {
           const delay = Math.min(5_000, 1_000 * 2 ** joinAttempts++) + Math.random() * 500;
-          setError(translate("customer:waitingRoomPage_hangChoDangChuanBiDangThu"));
+          setProblem('preparing');
           joinRetryTimer = window.setTimeout(join, delay);
           return;
         }
         setJoining(false);
-        setError(messageForQueueError(requestError));
+        setProblem(queueUnavailable(error)
+          ? 'unavailable'
+          : error instanceof ApiClientError && error.status === 429 ? 'rateLimit' : 'joinFailed');
       }
     }
 
     function connectRealtime() {
+      if (stompClient) return;
       const token = getAuthToken();
-      if (!token || signal.aborted || stompClient) return;
+      if (!token) return;
 
-      function disconnected() {
-        if (!signal.aborted && stompClient === client) {
-          setError(translate("customer:waitingRoomPage_ketNoiHangChoTrucTiepBi"));
+      function onInterrupted() {
+        if (!signal.aborted && !finished && !leavingRef.current && stompClient === client) {
+          setInterrupted(true);
         }
       }
 
       const client = new Client({
-        webSocketFactory: () => new SockJS(`${apiBaseUrl}/ws`),
-        connectHeaders: { Authorization: `Bearer ${token}` },
+        webSocketFactory: () => new SockJS(apiBaseUrl + '/ws'),
+        connectHeaders: { Authorization: 'Bearer ' + token },
         reconnectDelay: 5_000 + Math.random() * 5_000,
         heartbeatIncoming: 10_000,
         heartbeatOutgoing: 10_000,
         onConnect: () => {
-          if (signal.aborted || stompClient !== client) return;
+          if (signal.aborted || finished || leavingRef.current || stompClient !== client) return;
+          setInterrupted(false);
           if (pollAfterMs == null) {
             window.clearTimeout(refreshTimer);
             void refreshStatus();
-            client.subscribe(`/topic/queue/concerts/${concertId}`, (message: IMessage) => {
-              if (signal.aborted || stompClient !== client) return;
-              try {
-                const snapshot = JSON.parse(message.body) as Pick<QueueStatusResponse, 'waitingRoomCount' | 'queueSize' | 'activeShoppers'>;
-                setQueueStatus((previous) => previous && previous.status !== 'ADMITTED'
-                  ? { ...previous, waitingRoomCount: snapshot.waitingRoomCount, queueSize: snapshot.queueSize, activeShoppers: snapshot.activeShoppers }
-                  : previous);
-              } catch { /* A private status refresh repairs a missed snapshot. */ }
-            });
           }
-          client.subscribe(`/user/queue/concerts/${concertId}`, (message: IMessage) => {
-            if (signal.aborted || stompClient !== client) return;
+          client.subscribe('/user/queue/concerts/' + concertId, (message: IMessage) => {
+            if (signal.aborted || finished || leavingRef.current || stompClient !== client) return;
             try {
               handleStatus(JSON.parse(message.body) as QueueStatusResponse);
+              setInterrupted(false);
             } catch {
-              setError(translate("customer:waitingRoomPage_khongDocDuocCapNhatHangCho"));
+              onInterrupted();
             }
           });
           client.publish({
@@ -207,8 +224,8 @@ export function WaitingRoomPage() {
             body: JSON.stringify({ concertId }),
           });
         },
-        onStompError: disconnected,
-        onWebSocketClose: disconnected,
+        onStompError: onInterrupted,
+        onWebSocketClose: onInterrupted,
       });
       stompClient = client;
       client.activate();
@@ -219,190 +236,129 @@ export function WaitingRoomPage() {
       stopWaiting();
       if (stopWaitingRef.current === stopWaiting) stopWaitingRef.current = null;
     };
-  }, [eventId, id, navigate, readyForQueue]);
-
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 1_000);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  const waitLabel = useMemo(() => {
-    if (!queueStatus?.estimatedWaitSeconds) return translate("customer:waitingRoomPage_dangTinh");
-    const minutes = Math.max(1, Math.ceil(queueStatus.estimatedWaitSeconds / 60));
-    return minutes === 1 ? translate("customer:waitingRoomPage_khoang1Phut") : translate("customer:waitingRoomPage_khoangPhut", { arg1: minutes });
-  }, [queueStatus]);
+  }, [id, navigate, retry]);
 
   async function leave() {
     const stopWaiting = stopWaitingRef.current;
     if (!id || leavingRef.current || !stopWaiting) return;
     leavingRef.current = true;
+    setLeavingConcert(id);
     stopWaiting();
     try {
       await leaveQueue(id);
     } catch {
-      // Leaving is best-effort; route change should not be blocked by a network miss.
+      // The user can still return to the event if leaving could not be confirmed.
     }
     if (stopWaitingRef.current !== stopWaiting) return;
     clearStoredQueueAdmission();
-    navigate(eventId ? eventPath(eventId) : `/concerts/${id}`);
+    navigate(eventPath);
   }
 
-  if (loading) {
-    return (
-      <div className="selection-loading page-width">
-        <div className="event-skeleton">
-          <div />
-          <span />
-          <span />
-        </div>
-      </div>
-    );
-  }
-
-  const isWaiting = queueStatus?.status === 'WAITING';
-  const isWaitingRoom = queueStatus?.status === 'WAITING_ROOM';
-  const isClosed = queueStatus?.status === 'EXPIRED' || queueStatus?.status === 'LEFT';
-  const position = queueStatus?.position ?? '-';
-  const peopleAhead = queueStatus?.peopleAhead ?? '-';
-  const waitingRoomCount = queueStatus?.waitingRoomCount ?? 0;
-  const queueSize = queueStatus?.queueSize ?? 0;
-  const activeShoppers = queueStatus?.activeShoppers ?? 0;
+  const inRoom = queueStatus?.status === 'WAITING_ROOM';
+  const inQueue = queueStatus?.status === 'WAITING';
+  const admitted = queueStatus?.status === 'ADMITTED';
+  const expired = queueStatus?.status === 'EXPIRED' || queueStatus?.status === 'LEFT';
+  const unavailable = problem === 'unavailable';
+  const canRetry = problem === 'joinFailed' || problem === 'rateLimit';
+  const roomOpensAt = concert?.saleStartAt && Number.isFinite(Date.parse(concert.saleStartAt)) ? concert.saleStartAt : undefined;
+  const peopleAhead = queueStatus?.peopleAhead;
+  const position = peopleAhead ?? queueStatus?.position;
+  const estimate = queueStatus?.estimatedWaitSeconds;
+  const minutes = estimate != null && estimate >= 0 ? Math.ceil(estimate / 60) : null;
+  const title = unavailable ? 'waitingRoomPage_hangChoDaDong'
+    : queueStatus ? queueTitles[queueStatus.status]
+      : canRetry ? 'waitingRoomPage_joinFailed' : 'waitingRoomPage_dangChuanBiViTriCuaBan';
 
   return (
-    <div className="waiting-room-page page-width">
-      <div className="flow-topbar">
-        <button className="back-link" type="button" onClick={() => void leave()}>
-          {'<'} {translate("customer:waitingRoomPage_chiTietSuKien")}
-        </button>
-        <div className="flow-steps" aria-label={translate("customer:waitingRoomPage_tienTrinhDatVe")}>
-          <span className={`flow-step${isWaitingRoom ? ' active' : ''}`}>
-            <b>1</b><i>{translate("customer:waitingRoomPage_phongCho")}</i>
-          </span>
-          <b className="flow-step-connector" />
-          <span className={`flow-step${isWaiting ? ' active' : ''}`}>
-            <b>2</b><i>{translate("customer:waitingRoomPage_hangCho")}</i>
-          </span>
-          <b className="flow-step-connector" />
-          <span className="flow-step">
-            <b>3</b><i>{translate("customer:waitingRoomPage_ve")}</i>
-          </span>
-          <b className="flow-step-connector" />
-          <span className="flow-step">
-            <b>4</b><i>{translate("customer:waitingRoomPage_thanhToan")}</i>
-          </span>
+    <div className="buyer-page purchase-page page-width waiting-purchase-page">
+      <header className="purchase-header">
+        <div>
+          <h1>{concert ? concertTitle(concert) : t('customer:waitingRoomPage_hangChoMuaVe')}</h1>
+          {concert ? (
+            <p><time dateTime={concert.eventDate}>{eventDateTime.format(new Date(concert.eventDate))}</time> · {concert.venueName}</p>
+          ) : concertFailed ? <p>{t('customer:waitingRoomPage_khongTheTaiThongTinBuoiBieu')}</p> : null}
         </div>
-        <div className="timer" role="status">
-          {isWaitingRoom
-            ? translate("customer:waitingRoomPage_moBanSau", { arg1: countdown(concert?.saleStartAt, now) })
-            : translate("customer:waitingRoomPage_hangChoTrucTiep")}
+        {(inRoom || inQueue) && !unavailable ? (
+          <p className="purchase-step" aria-current="step">{t(inRoom ? 'waitingRoomPage_phongCho' : 'waitingRoomPage_hangCho')}</p>
+        ) : null}
+      </header>
+
+      <section className="purchase-panel waiting-purchase-panel" aria-labelledby="waiting-purchase-title">
+        <div aria-live="polite">
+          <h2 id="waiting-purchase-title">{t(title)}</h2>
         </div>
-      </div>
 
-      <section className="waiting-room-shell">
-        <div className="waiting-room-panel" aria-live="polite">
-          <div className="waiting-room-event">
-            <span>{isWaitingRoom ? translate("customer:waitingRoomPage_phongCho") : translate("customer:waitingRoomPage_hangChoMuaVe")}</span>
-            <strong>{concert ? concertTitle(concert) : translate("customer:waitingRoomPage_phongCho")}</strong>
-            <p>
-              {concert
-                ? `${eventDate.format(new Date(concert.eventDate))} / ${concert.venueName}`
-                : translate("customer:waitingRoomPage_vuiLongGiuViTriCuaBan")}
-            </p>
-          </div>
+        {expired || unavailable ? (
+          <>
+            <p>{t(expired ? 'waitingRoomPage_hayThamGiaLaiDeYeuCau' : 'waitingRoomPage_queueUnavailable')}</p>
+            <Link className="button button-primary" to={eventPath}>{t('customer:waitingRoomPage_backToEvent')}</Link>
+          </>
+        ) : null}
 
-          {isWaitingRoom ? (
-            <div
-              className="waiting-room-countdown"
-              role="timer"
-              aria-label={translate("customer:waitingRoomPage_moBanSau", { arg1: countdown(concert?.saleStartAt, now) })}
-            >
-              <span>{translate("customer:waitingRoomPage_moBanVeSau")}</span>
-              <strong>{countdown(concert?.saleStartAt, now)}</strong>
-            </div>
-          ) : (
-            <div className={`queue-orbit ${isWaiting ? 'is-waiting' : ''}`} aria-hidden="true">
-              <span />
-              <strong>{position}</strong>
-            </div>
-          )}
+        {inRoom && !unavailable ? (
+          <>
+            {roomOpensAt ? <OpeningCountdown opensAt={roomOpensAt} /> : null}
+            <p>{t('customer:waitingRoomPage_viTriCuaBanSeDuocPhan')}</p>
+          </>
+        ) : null}
 
-          <div className="queue-status-copy">
-            <span>
-              {joining
-                ? translate("customer:waitingRoomPage_dangVaoPhongCho")
-                : isWaitingRoom
-                  ? translate("customer:waitingRoomPage_banDaOTrongPhongChoAn")
-                  : isWaiting
-                    ? translate("customer:waitingRoomPage_banDangXepHang")
-                    : isClosed
-                      ? translate("customer:waitingRoomPage_hangChoDaDong")
-                      : translate("customer:waitingRoomPage_dangKiemTraQuyenTruyCap")}
-            </span>
-            <h2>
-              {isWaitingRoom
-                ? translate("customer:waitingRoomPage_viTriCuaBanSeDuocPhan")
-                : isWaiting
-                  ? translate("customer:waitingRoomPage_nguoiPhiaTruocBan", { count: peopleAhead })
-                  : isClosed
-                    ? translate("customer:waitingRoomPage_phienHangChoCuaBanDaKet")
-                    : translate("customer:waitingRoomPage_dangChuanBiViTriCuaBan")}
-            </h2>
-            <p>
-              {isWaitingRoom
-                ? translate("customer:waitingRoomPage_nguoiDangOTrongPhongChoKhi", { arg1: waitingRoomCount })
-                : isWaiting
-                  ? peopleAhead === 0
-                    ? translate("customer:waitingRoomPage_banDangDungDauHangCho", { arg1: activeShoppers > 0 ? translate("customer:waitingRoomPage_motLuotChonVeDangDuocSu") : translate("customer:waitingRoomPage_chungToiDangChuanBiLuotChon") })
-                    : translate("customer:waitingRoomPage_thoiGianChoDuKienTrangNay", { arg1: waitLabel })
-                  : isClosed
-                    ? translate("customer:waitingRoomPage_hayThamGiaLaiDeYeuCau")
-                    : translate("customer:waitingRoomPage_hayGiuTabNayMoTrongKhi")}
-            </p>
-          </div>
+        {inQueue && !unavailable ? (
+          <>
+            {position != null ? (
+              <dl className="waiting-queue-position">
+                <dt>{t(peopleAhead != null ? 'waitingRoomPage_nguoiPhiaTruoc' : 'waitingRoomPage_viTri')}</dt>
+                <dd>{counts.format(position)}</dd>
+              </dl>
+            ) : null}
+            {minutes === null ? (
+              <p>{t('customer:waitingRoomPage_noEstimate')}</p>
+            ) : (
+              <p>{t('customer:waitingRoomPage_estimate', {
+                duration: t(minutes <= 1 ? 'waitingRoomPage_khoang1Phut' : 'waitingRoomPage_khoangPhut', {
+                  arg1: counts.format(minutes),
+                }),
+              })}</p>
+            )}
+          </>
+        ) : null}
 
-          {error ? (
-            <div className="waiting-room-error" role="alert">
-              {error}
-            </div>
-          ) : null}
+        {!expired && !unavailable && (problem || interrupted) ? (
+          <p className="waiting-purchase-feedback" role={canRetry ? 'alert' : 'status'}>
+            {t(problem ? queueProblems[problem] : 'waitingRoomPage_liveFallback')}
+          </p>
+        ) : null}
 
-          <div className="queue-metrics">
-            <div>
-              <span>{isWaitingRoom ? translate("customer:waitingRoomPage_moBanSau_2") : translate("customer:waitingRoomPage_viTri")}</span>
-              <strong>{isWaitingRoom ? countdown(concert?.saleStartAt, now) : position}</strong>
-            </div>
-            <div>
-              <span>{isWaitingRoom ? translate("customer:waitingRoomPage_trongPhongCho") : translate("customer:waitingRoomPage_nguoiPhiaTruoc")}</span>
-              <strong>{isWaitingRoom ? waitingRoomCount : peopleAhead}</strong>
-            </div>
-            <div>
-              <span>{isWaitingRoom ? translate("customer:waitingRoomPage_phanViTri") : translate("customer:waitingRoomPage_dangCho")}</span>
-              <strong>{isWaitingRoom ? translate("customer:waitingRoomPage_ngauNhienKhiMoBan") : queueSize}</strong>
-            </div>
-          </div>
-        </div>
+        {canRetry ? (
+          <button className="button button-primary" type="button" onClick={() => setRetry((key) => key + 1)}>
+            {t('customer:waitingRoomPage_tryAgain')}
+          </button>
+        ) : null}
+
+        {!expired && !unavailable && (joining || inQueue || inRoom) ? (
+          <p className="waiting-purchase-help">{t('customer:waitingRoomPage_hayGiuTabNayMoTrongKhi')}</p>
+        ) : null}
       </section>
+
+      {canRetry ? (
+        <Link className="button button-secondary waiting-leave-action" to={eventPath}>{t('customer:waitingRoomPage_backToEvent')}</Link>
+      ) : !expired && !unavailable && !admitted ? (
+        <button className="button button-secondary waiting-leave-action" type="button" disabled={leaving} onClick={() => void leave()}>
+          {t(leaving ? 'waitingRoomPage_leaving' : 'waitingRoomPage_leaveQueue')}
+        </button>
+      ) : null}
     </div>
   );
 }
 
-function countdown(saleStartAt: string | undefined, now: number) {
-  if (!saleStartAt) return '--:--:--';
-  const remainingSeconds = Math.max(0, Math.ceil((new Date(saleStartAt).getTime() - now) / 1_000));
-  const hours = Math.floor(remainingSeconds / 3_600);
-  const minutes = Math.floor((remainingSeconds % 3_600) / 60);
-  const seconds = remainingSeconds % 60;
-  return [hours, minutes, seconds].map((part) => String(part).padStart(2, '0')).join(':');
-}
+function OpeningCountdown({ opensAt }: { opensAt: string }) {
+  const { t } = useTranslation('customer');
+  const countdown = useCountdown(opensAt);
+  if (countdown.isExpired) return <p>{t('customer:waitingRoomPage_waitForQueue')}</p>;
 
-function messageForQueueError(error: unknown) {
-  if (error instanceof ApiClientError && error.status === 429) {
-    return translate("customer:waitingRoomPage_coQuaNhieuYeuCauHangCho");
-  }
-
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return translate("customer:waitingRoomPage_khongTheTruyCapPhongChoVui");
+  return (
+    <p className="purchase-deadline waiting-opening-countdown">
+      <span>{t('customer:waitingRoomPage_moBanVeSau')}</span>
+      <strong role="timer" aria-label={t('customer:waitingRoomPage_moBanVeSau')}>{countdown.formatted}</strong>
+    </p>
+  );
 }

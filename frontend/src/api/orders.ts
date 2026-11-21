@@ -72,6 +72,10 @@ export function getOrder(orderId: string, signal?: AbortSignal) {
   return api.get<unknown, Order>(`/api/orders/${encodeURIComponent(orderId)}`, { signal });
 }
 
+export async function getMyOrders(signal?: AbortSignal) {
+  return (await api.get<unknown, Order[] | null>('/api/orders/my', { signal })) ?? [];
+}
+
 export function getOrderByIdempotencyKey(key: string) {
   return api.get<unknown, Order>('/api/orders/by-idempotency-key', {
     headers: { 'Idempotency-Key': key },

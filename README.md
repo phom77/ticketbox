@@ -38,6 +38,24 @@ docker compose logs -f identity catalog ticketing checkin payment notification
 docker compose down                     # Stop services; retain named data volumes
 ```
 
+### Local database access
+
+Docker Compose automatically loads `compose.override.yaml` for the local
+deployment. In DBeaver, select PostgreSQL and use host `127.0.0.1`.
+
+| Port | Database | User |
+| --- | --- | --- |
+| 15431 | `ticketbox_identity` | `identity_owner` |
+| 15432 | `ticketbox_catalog` | `catalog_owner` |
+| 15433 | `ticketbox_ticketing` | `ticketing_owner` |
+| 15434 | `ticketbox_checkin` | `checkin_owner` |
+| 15435 | `ticketbox_payments` | `payment_owner` |
+| 15436 | `ticketbox_notifications` | `notification_owner` |
+
+Use the local `POSTGRES_PASSWORD` for each database in [compose.yaml](compose.yaml).
+An existing stack picks up the port mappings the next time you run
+`docker compose up -d`.
+
 ## Architecture
 
 ~~~mermaid

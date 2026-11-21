@@ -1,0 +1,127 @@
+.inbox-page {
+  max-inline-size: 64rem;
+}
+
+.inbox-feed {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.inbox-feed > li + li {
+  border-block-start: 1px solid var(--line);
+}
+
+.inbox-entry {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 1rem 1.5rem;
+  padding: clamp(1rem, 2.5vw, 1.5rem);
+}
+
+.inbox-content {
+  min-inline-size: 0;
+  max-inline-size: 68ch;
+  overflow-wrap: anywhere;
+}
+
+.inbox-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .375rem .75rem;
+  margin-block-end: .375rem;
+  color: var(--muted);
+  font-size: var(--buyer-meta-size);
+}
+
+.inbox-read-state {
+  padding: .125rem .5rem;
+  border-radius: .375rem;
+  background: var(--surface-2);
+  font-weight: 700;
+}
+
+.inbox-read-state[data-unread="true"] {
+  background: #eaf2ff;
+  color: var(--violet);
+}
+
+.inbox-content h2 {
+  margin: 0;
+}
+
+.inbox-content p {
+  margin: .375rem 0 0;
+  white-space: pre-line;
+}
+
+.inbox-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: end;
+  gap: .375rem;
+  max-inline-size: 12rem;
+}
+
+.inbox-mark-read {
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--violet);
+}
+
+.inbox-page button[aria-disabled="true"] {
+  opacity: .65;
+}
+
+.inbox-mark-read:not([aria-disabled="true"]):hover {
+  background: var(--surface-2);
+}
+
+.inbox-read-error {
+  color: #962820;
+}
+
+.inbox-feedback {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem 1rem;
+  margin-block-end: 1rem;
+  padding: .75rem 1rem;
+  border: 1px solid #edc6c3;
+  border-radius: 12px;
+  background: #fff8f7;
+  color: #8c2c24;
+}
+
+.inbox-feedback p {
+  margin: 0;
+}
+
+.inbox-pagination {
+  margin-block-start: 1rem;
+  text-align: center;
+}
+
+.inbox-pagination p {
+  margin: 0 0 .5rem;
+}
+
+@media (max-width: 640px) {
+  .inbox-entry {
+    grid-template-columns: minmax(0, 1fr);
+    gap: .75rem;
+  }
+
+  .inbox-actions {
+    justify-content: start;
+    max-inline-size: none;
+  }
+}

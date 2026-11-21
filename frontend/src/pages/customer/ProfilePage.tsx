@@ -1,529 +1,405 @@
-import { dateFormatter, numberFormatter } from '../../data/formatters';
-import { translate } from '../../i18n';
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { ArrowUpRight, ClipboardList, Ticket, UserRound } from 'lucide-react';
+import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { api, ApiClientError } from '../../api/client';
-import { useAuth, type UserRole, type UserSummary } from '../../features/auth/AuthContext';
-import { QRCodeSVG } from 'qrcode.react';
+import { getMyOrders, type Order, type OrderStatus } from '../../api/orders';
+import { currency, dateFormatter } from '../../data/formatters';
+import { useAuth, type UserSummary } from '../../features/auth/AuthContext';
+import './ProfilePage.css';
 
-interface UserProfile {
-  id: string;
-  email: string;
-  fullName: string;
-  phone: string | null;
-  role: UserRole;
-}
+type UserProfile = UserSummary & { phone: string | null };
+type ProfileFeedback = { kind: 'success'; message: string } | { kind: 'error'; message: string; field?: 'fullName' };
 
-interface OrderItem {
-  ticketTypeId: string;
-  ticketTypeName: string;
-  quantity: number;
-  unitPrice: number;
-  subtotal: number;
-}
+const orderStatusKeys = {
+  AWAITING_PAYMENT: 'customer:profilePage_choThanhToan',
+  PAID: 'customer:profilePage_daThanhToan',
+  CANCELLED: 'customer:profilePage_daHuy',
+  EXPIRED: 'customer:profilePage_hetHan',
+  PAYMENT_FAILED: 'customer:profilePage_thanhToanLoi',
+  REFUNDED: 'customer:profilePage_refunded',
+} satisfies Record<OrderStatus, string>;
 
-interface OrderResponse {
-  id: string;
-  concertId: string;
-  concertTitle: string;
-  status: 'AWAITING_PAYMENT' | 'PAID' | 'CANCELLED' | 'EXPIRED' | 'PAYMENT_FAILED';
-  totalAmount: number;
-  expiresAt?: string | null;
-  createdAt: string;
-  items: OrderItem[];
-}
+const orderFilters = [
+  ['all', 'customer:profilePage_allOrders'],
+  ['action', 'customer:profilePage_needsAction'],
+  ['paid', orderStatusKeys.PAID],
+  ['closed', 'customer:profilePage_closedOrders'],
+] as const;
+type OrderFilter = typeof orderFilters[number][0];
 
-interface TicketResponse {
-  id: string;
-  concertId: string;
-  concertTitle: string;
-  ticketTypeName: string;
-  price: number;
-  qrCode: string;
-  status: 'VALID' | 'UNUSED' | 'USED' | 'CANCELLED' | 'EXPIRED';
-  ownerFullName: string;
-  ownerPhone: string;
-}
-
-type ProfileTab = 'profile' | 'orders' | 'tickets';
-
-const money = numberFormatter({
-  style: 'currency',
-  currency: 'VND',
-  maximumFractionDigits: 0,
-});
 const dateTime = dateFormatter({ dateStyle: 'medium', timeStyle: 'short' });
 
-const roleLabels: Record<UserRole, string> = {
-  AUDIENCE: 'Audience',
-  get ORGANIZER() { return translate("customer:profilePage_organizer"); },
-  STAFF: 'Staff',
-  get ADMIN() { return translate("customer:profilePage_admin"); },
-};
-
-const orderLabels: Record<OrderResponse['status'], string> = {
-  get AWAITING_PAYMENT() { return translate("customer:profilePage_choThanhToan"); },
-  get PAID() { return translate("customer:profilePage_daThanhToan"); },
-  get CANCELLED() { return translate("customer:profilePage_daHuy"); },
-  get EXPIRED() { return translate("customer:profilePage_hetHan"); },
-  get PAYMENT_FAILED() { return translate("customer:profilePage_thanhToanLoi"); },
-};
-
-const ticketLabels: Record<TicketResponse['status'], string> = {
-  get VALID() { return translate("customer:profilePage_chuaSuDung"); },
-  get UNUSED() { return translate("customer:profilePage_chuaSuDung"); },
-  get USED() { return translate("customer:profilePage_daSuDung"); },
-  get CANCELLED() { return translate("customer:profilePage_daHuy"); },
-  get EXPIRED() { return translate("customer:profilePage_hetHan"); },
-};
-
-function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((part) => part[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
+function getProfile(signal: AbortSignal) {
+  return api.get<unknown, UserProfile>('/api/users/me/profile', { signal });
 }
 
-function errorMessage(error: unknown, fallback: string) {
-  return error instanceof Error ? error.message : fallback;
+function useAccountData<T>(load: (signal: AbortSignal) => Promise<T>) {
+  const [state, setState] = useState<{ data: T } | { error: unknown }>();
+  const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void load(controller.signal).then((data) => {
+      if (!controller.signal.aborted) setState({ data });
+    }).catch((error) => {
+      if (!controller.signal.aborted) setState({ error });
+    });
+    return () => controller.abort();
+  }, [load, attempt]);
+
+  return {
+    state,
+    retry() {
+      setState(undefined);
+      setAttempt((value) => value + 1);
+    },
+  };
 }
 
 export function ProfilePage() {
-  useTranslation();
-  const { user, updateUserSummary } = useAuth();
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [orders, setOrders] = useState<OrderResponse[]>([]);
-  const [tickets, setTickets] = useState<TicketResponse[]>([]);
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [fullName, setFullName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [isEditing, setIsEditing] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-
-  const showAudienceHistory = user?.role === 'AUDIENCE';
+  const { t } = useTranslation();
+  const { user, token } = useAuth();
+  const [searchParams] = useSearchParams();
   const tab = searchParams.get('tab');
-  const activeTab = showAudienceHistory && (tab === 'orders' || tab === 'tickets') ? tab : 'profile';
+  if (tab === 'tickets') return <Navigate to="/my-tickets" replace />;
 
-  function selectTab(next: ProfileTab) {
-    setSearchParams(next === 'profile' ? {} : { tab: next }, { replace: true });
+  const showOrders = tab === 'orders';
+  const sessionKey = JSON.stringify([user?.id, token]);
+
+  return (
+    <div className="buyer-page page-width buyer-account">
+      <header className="buyer-page-header">
+        <h1>{t('customer:profilePage_accountTitle')}</h1>
+        <Link className="button button-secondary" to="/my-tickets">
+          <Ticket size={18} aria-hidden="true" />
+          {t('customer:myTicketsPage_myTickets')}
+        </Link>
+      </header>
+      <nav className="buyer-account-nav" aria-label={t('customer:profilePage_cacMucHoSo')}>
+        <Link to="/profile" aria-current={showOrders ? undefined : 'page'}>
+          <UserRound size={18} aria-hidden="true" />
+          {t('customer:profilePage_hoSo')}
+        </Link>
+        <Link to="/profile?tab=orders" aria-current={showOrders ? 'page' : undefined}>
+          <ClipboardList size={18} aria-hidden="true" />
+          {t('customer:profilePage_lichSuDonHang')}
+        </Link>
+      </nav>
+      {showOrders ? <OrderHistory key={sessionKey} /> : <ProfilePanel key={sessionKey} />}
+    </div>
+  );
+}
+
+function ProfilePanel() {
+  const { t } = useTranslation();
+  const { state, retry } = useAccountData(getProfile);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const headingId = useId();
+  const profile = state && 'data' in state ? state.data : undefined;
+
+  return (
+    <section className="buyer-account-panel" aria-labelledby={headingId}>
+      <h2 id={headingId} tabIndex={-1} ref={heading}>{t('customer:profilePage_personalDetails')}</h2>
+      {!state ? <p className="buyer-account-progress" role="status">{t('customer:profilePage_dangTaiHoSo')}</p> : null}
+      {state && 'error' in state ? (
+        <AccountLoadError
+          title={t('customer:profilePage_khongTheMoHoSo')}
+          fallback={t('customer:profilePage_khongTheTaiHoSo')}
+          error={state.error}
+          retry={() => { heading.current?.focus(); retry(); }}
+        />
+      ) : null}
+      {profile ? <ProfileDetails initialProfile={profile} /> : null}
+    </section>
+  );
+}
+
+function ProfileDetails({ initialProfile }: { initialProfile: UserProfile }) {
+  const { t } = useTranslation();
+  const { updateUserSummary, token } = useAuth();
+  const [profile, setProfile] = useState(initialProfile);
+  const [fullName, setFullName] = useState(initialProfile.fullName);
+  const [phone, setPhone] = useState(initialProfile.phone ?? '');
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [feedback, setFeedback] = useState<ProfileFeedback>();
+  const feedbackId = useId();
+  const invalidName = feedback?.kind === 'error' && feedback.field === 'fullName';
+  const editor = useRef<HTMLInputElement>(null);
+  const editButton = useRef<HTMLButtonElement>(null);
+  const returnToEditButton = useRef(false);
+  const saveRequest = useRef<AbortController>();
+
+  useEffect(() => () => saveRequest.current?.abort(), []);
+  useEffect(() => {
+    if (editing) {
+      editor.current?.focus();
+    } else if (returnToEditButton.current) {
+      returnToEditButton.current = false;
+      editButton.current?.focus();
+    }
+  }, [editing]);
+
+  function edit() {
+    setFeedback(undefined);
+    setEditing(true);
   }
 
-  useEffect(() => {
-    let cancelled = false;
+  function closeEditor(savedProfile: UserProfile) {
+    setFullName(savedProfile.fullName);
+    setPhone(savedProfile.phone ?? '');
+    returnToEditButton.current = true;
+    setEditing(false);
+  }
 
-    async function loadProfileData() {
-      setLoading(true);
-      setLoadError(null);
-      setMessage(null);
-
-      try {
-        if (showAudienceHistory) {
-          const [profileData, ordersData, ticketsData] = await Promise.all([
-            api.get<unknown, UserProfile>('/api/users/me/profile'),
-            api.get<unknown, OrderResponse[]>('/api/orders/my'),
-            api.get<unknown, TicketResponse[]>('/api/tickets/my'),
-          ]);
-
-          if (cancelled) return;
-          setProfile(profileData);
-          setFullName(profileData.fullName);
-          setPhone(profileData.phone ?? '');
-          setOrders(ordersData ?? []);
-          setTickets(ticketsData ?? []);
-          return;
-        }
-
-        const profileData = await api.get<unknown, UserProfile>('/api/users/me/profile');
-        if (cancelled) return;
-        setProfile(profileData);
-        setFullName(profileData.fullName);
-        setPhone(profileData.phone ?? '');
-        setOrders([]);
-        setTickets([]);
-      } catch (error) {
-        if (!cancelled) {
-          const isForbidden = error instanceof ApiClientError && error.status === 403;
-          setLoadError(
-            isForbidden
-              ? translate("customer:profilePage_taiKhoanHienTaiKhongCoQuyen")
-              : errorMessage(error, translate("customer:profilePage_khongTheTaiHoSo")),
-          );
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    loadProfileData();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [showAudienceHistory]);
-
-  const profileSummary = useMemo(() => {
-    if (!profile) return [];
-    return [
-      { label: 'Email', value: profile.email },
-      { label: translate("customer:profilePage_soDienThoai"), value: profile.phone || translate("customer:profilePage_chuaCapNhat") },
-      { label: translate("customer:profilePage_vaiTro"), value: roleLabels[profile.role] },
-    ];
-  }, [profile]);
-
-  async function handleUpdateProfile(event: FormEvent<HTMLFormElement>) {
+  async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setMessage(null);
-
-    const nextFullName = fullName.trim();
-    const nextPhone = phone.trim();
-
-    if (!nextFullName) {
-      setMessage({ type: 'error', text: translate("customer:profilePage_vuiLongNhapHoTen") });
+    if (saving) return;
+    const nextName = fullName.trim();
+    if (!nextName) {
+      setFeedback({ kind: 'error', message: t('customer:profilePage_vuiLongNhapHoTen'), field: 'fullName' });
+      editor.current?.focus();
       return;
     }
 
+    const controller = new AbortController();
+    saveRequest.current = controller;
+    setFeedback(undefined);
+    setSaving(true);
     try {
-      setSaving(true);
       const updated = await api.patch<unknown, UserProfile>('/api/users/me/profile', {
-        fullName: nextFullName,
-        phone: nextPhone || null,
-      });
+        fullName: nextName,
+        phone: phone.trim() || null,
+      }, { signal: controller.signal });
+      if (controller.signal.aborted) return;
       setProfile(updated);
-      setFullName(updated.fullName);
-      setPhone(updated.phone ?? '');
-      setIsEditing(false);
-      updateUserSummary({
-        id: updated.id,
-        email: updated.email,
-        fullName: updated.fullName,
-        role: updated.role,
-      } satisfies UserSummary);
-      setMessage({ type: 'success', text: translate("customer:profilePage_capNhatThongTinCaNhanThanh") });
+      closeEditor(updated);
+      updateUserSummary({ id: updated.id, email: updated.email, fullName: updated.fullName, role: updated.role }, token);
+      setFeedback({ kind: 'success', message: t('customer:profilePage_capNhatThongTinCaNhanThanh') });
     } catch (error) {
-      setMessage({
-        type: 'error',
-        text: errorMessage(error, translate("customer:profilePage_capNhatThatBaiVuiLongThu")),
+      if (controller.signal.aborted) return;
+      setFeedback({
+        kind: 'error',
+        message: error instanceof ApiClientError ? error.message : t('customer:profilePage_capNhatThatBaiVuiLongThu'),
       });
     } finally {
-      setSaving(false);
+      if (!controller.signal.aborted) setSaving(false);
     }
   }
 
-  function cancelEditing() {
-    if (!profile) return;
-    setFullName(profile.fullName);
-    setPhone(profile.phone ?? '');
-    setIsEditing(false);
-    setMessage(null);
-  }
-
-  if (loading) {
-    return (
-      <main className="profile-page page-width">
-        <div className="profile-loading" role="status" aria-live="polite">
-          <div className="route-spinner" aria-hidden="true" />
-          <span>{translate("customer:profilePage_dangTaiHoSo")}</span>
-        </div>
-      </main>
-    );
-  }
-
-  if (loadError || !profile) {
-    return (
-      <main className="profile-page page-width">
-        <div className="state-panel" role="alert">
-          <span className="state-icon" aria-hidden="true">
-            !
-          </span>
-          <h1>{translate("customer:profilePage_khongTheMoHoSo")}</h1>
-          <p>{loadError ?? translate("customer:profilePage_khongTimThayThongTinTaiKhoan")}</p>
-          <button
-            className="button button-secondary"
-            type="button"
-            onClick={() => window.location.reload()}
-          >
-            {translate("customer:profilePage_thuLai")}
-          </button>
-        </div>
-      </main>
-    );
-  }
-
   return (
-    <main className="profile-page page-width">
-      <section className="profile-hero">
-        <div className="profile-avatar" aria-hidden="true">
-          {initials(profile.fullName)}
-        </div>
-        <div>
-          <p className="eyebrow">
-            <span /> {translate("customer:profilePage_accountCenter")}
-          </p>
-          <h1>{profile.fullName}</h1>
-          <p>{translate("customer:profilePage_quanLyHoSoQuyenTruyCap")}</p>
-        </div>
-        <span className={`role-badge role-${profile.role.toLowerCase()}`}>
-          {roleLabels[profile.role]}
-        </span>
-      </section>
-
-      <div className="profile-tabs" role="tablist" aria-label={translate("customer:profilePage_cacMucHoSo")}>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'profile'}
-          className={activeTab === 'profile' ? 'active' : ''}
-          onClick={() => selectTab('profile')}
-        >
-          {translate("customer:profilePage_hoSo")}
-        </button>
-        {showAudienceHistory ? (
-          <>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeTab === 'orders'}
-              className={activeTab === 'orders' ? 'active' : ''}
-              onClick={() => selectTab('orders')}
-            >
-              {translate("customer:profilePage_donHang")}{orders.length})
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeTab === 'tickets'}
-              className={activeTab === 'tickets' ? 'active' : ''}
-              onClick={() => selectTab('tickets')}
-            >
-              {translate("customer:profilePage_ve")}{tickets.length})
-            </button>
-          </>
-        ) : null}
-      </div>
-
-      {message ? (
-        <div className={`inline-message ${message.type}`} role="status">
-          {message.text}
+    <>
+      {feedback ? (
+        <div id={feedbackId} className={`buyer-account-feedback is-${feedback.kind}`} role={feedback.kind === 'error' ? 'alert' : 'status'}>
+          <span>{feedback.message}</span>
         </div>
       ) : null}
-
-      {activeTab === 'profile' ? (
-        <section className="profile-grid">
-          <form className="profile-panel" onSubmit={handleUpdateProfile}>
-            <div className="panel-heading">
-              <div>
-                <span>{translate("customer:profilePage_identity")}</span>
-                <h2>{translate("customer:profilePage_personalDetails")}</h2>
-              </div>
-              {!isEditing ? (
-                <button
-                  className="button button-secondary"
-                  type="button"
-                  onClick={() => setIsEditing(true)}
-                >
-                  {translate("customer:profilePage_edit")}
-                </button>
-              ) : null}
-            </div>
-
-            <label className="field">
-              <span>{translate("customer:profilePage_diaChiEmail")}</span>
-              <input type="email" value={profile.email} disabled />
-            </label>
-            <label className="field">
-              <span>{translate("customer:profilePage_fullName")}</span>
-              <input
-                type="text"
-                value={fullName}
-                onChange={(event) => setFullName(event.target.value)}
-                disabled={!isEditing}
-                autoComplete="name"
-                required
-              />
-            </label>
-            <label className="field">
-              <span>{translate("customer:profilePage_phoneNumber")}</span>
-              <input
-                type="tel"
-                value={phone}
-                onChange={(event) => setPhone(event.target.value)}
-                disabled={!isEditing}
-                autoComplete="tel"
-                placeholder="0901234567"
-              />
-            </label>
-
-            {isEditing ? (
-              <div className="profile-actions">
-                <button className="button button-secondary" type="button" onClick={cancelEditing}>
-                  {translate("customer:profilePage_cancel")}
-                </button>
-                <button className="button button-primary" type="submit" disabled={saving}>
-                  {saving ? 'Saving...' : translate('customer:profilePage_saveChanges')}
-                </button>
-              </div>
-            ) : null}
-          </form>
-
-          <aside className="profile-panel profile-summary" aria-label={translate("customer:profilePage_tomTatTaiKhoan")}>
-            <div className="panel-heading">
-              <div>
-                <span>{translate("customer:profilePage_access")}</span>
-                <h2>{translate("customer:profilePage_roleGuard")}</h2>
-              </div>
-            </div>
-            {profileSummary.map((item) => (
-              <div className="summary-row" key={item.label}>
-                <span>{item.label}</span>
-                <strong>{item.value}</strong>
-              </div>
-            ))}
-            <p>
-              {profile.role === 'AUDIENCE'
-                ? 'Audience accounts can buy tickets, pay orders, and view e-tickets.'
-                : 'This role is kept out of the audience purchase flow in the web UI to match backend RBAC.'}
-            </p>
-          </aside>
-        </section>
-      ) : null}
-
-      {activeTab === 'orders' && showAudienceHistory ? <OrderHistory orders={orders} /> : null}
-      {activeTab === 'tickets' && showAudienceHistory ? <TicketHistory tickets={tickets} /> : null}
-    </main>
+      {editing ? (
+        <form className="buyer-account-form" onSubmit={save} aria-busy={saving}
+          aria-describedby={feedback?.kind === 'error' ? feedbackId : undefined}>
+          <label>
+            <span>{t('customer:profilePage_fullName')}</span>
+            <input autoComplete="name" ref={editor} required maxLength={255} value={fullName} readOnly={saving}
+              aria-invalid={invalidName || undefined} aria-describedby={invalidName ? feedbackId : undefined}
+              onChange={(event) => {
+                setFullName(event.target.value);
+                if (invalidName) setFeedback(undefined);
+              }} />
+          </label>
+          <label>
+            <span>{t('customer:profilePage_phoneNumber')}</span>
+            <input type="tel" autoComplete="tel" maxLength={20} value={phone}
+              readOnly={saving} onChange={(event) => setPhone(event.target.value)} />
+          </label>
+          <div className="buyer-account-actions">
+            <button className="button button-primary" type="submit" aria-disabled={saving}>
+              {t(saving ? 'customer:profilePage_saving' : 'customer:profilePage_saveChanges')}
+            </button>
+            <button className="button button-secondary" type="button" aria-disabled={saving} onClick={() => {
+              if (saving) return;
+              setFeedback(undefined);
+              closeEditor(profile);
+            }}>
+              {t('customer:profilePage_cancel')}
+            </button>
+          </div>
+        </form>
+      ) : (
+        <>
+          <dl className="buyer-account-facts">
+            <div><dt>{t('customer:profilePage_fullName')}</dt><dd>{profile.fullName}</dd></div>
+            <div><dt>{t('customer:profilePage_diaChiEmail')}</dt><dd>{profile.email}</dd></div>
+            <div><dt>{t('customer:profilePage_phoneNumber')}</dt><dd>{profile.phone || t('customer:profilePage_chuaCapNhat')}</dd></div>
+          </dl>
+          <button className="button button-secondary" ref={editButton} type="button" onClick={edit}>
+            {t('customer:profilePage_edit')}
+          </button>
+        </>
+      )}
+    </>
   );
 }
 
-function OrderHistory({ orders }: { orders: OrderResponse[] }) {
-  useTranslation();
-  if (orders.length === 0) {
-    return (
-      <div className="state-panel compact">
-        <span className="state-icon" aria-hidden="true">
-          ◇
-        </span>
-        <h2>{translate("customer:profilePage_chuaCoDonHang")}</h2>
-        <p>{translate("customer:profilePage_cacDonMuaVeSeXuatHien")}</p>
-      </div>
-    );
-  }
+function AccountLoadError({ title, fallback, error, retry }: { title: string; fallback: string; error: unknown; retry: () => void }) {
+  const { t } = useTranslation();
+  const isForbidden = error instanceof ApiClientError && error.status === 403;
+  return (
+    <div className="buyer-state buyer-account-state" role="alert">
+      <h3>{title}</h3>
+      <p>{isForbidden ? t('customer:profilePage_taiKhoanHienTaiKhongCoQuyen') : fallback}</p>
+      <button className="button button-secondary" type="button" onClick={retry}>{t('customer:profilePage_thuLai')}</button>
+    </div>
+  );
+}
+
+function orderDeadline(order: Order) {
+  return Date.parse(order.expiresAt || '');
+}
+
+function displayedOrderStatus(order: Order, now: number): OrderStatus {
+  return order.status === 'AWAITING_PAYMENT' && orderDeadline(order) <= now ? 'EXPIRED' : order.status;
+}
+
+function orderCategory(status: OrderStatus): Exclude<OrderFilter, 'all'> {
+  if (status === 'AWAITING_PAYMENT') return 'action';
+  return status === 'PAID' ? 'paid' : 'closed';
+}
+
+function useOrderTime(orders: Order[]) {
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const nextExpiry = orders.reduce((next, order) => {
+      const expiry = orderDeadline(order);
+      return order.status === 'AWAITING_PAYMENT' && expiry > now ? Math.min(next, expiry) : next;
+    }, Infinity);
+    if (!Number.isFinite(nextExpiry)) return;
+    const timeout = window.setTimeout(() => setNow(Date.now()), Math.max(0, Math.min(nextExpiry - Date.now(), 2_147_483_647)));
+    return () => window.clearTimeout(timeout);
+  }, [now, orders]);
+  return now;
+}
+
+function OrderHistory() {
+  const { t } = useTranslation();
+  const { state, retry } = useAccountData(getMyOrders);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const headingId = useId();
+  const orders = state && 'data' in state ? state.data : undefined;
 
   return (
-    <section className="history-list" aria-label={translate("customer:profilePage_lichSuDonHang")}>
-      {orders.map((order) => (
-        <OrderHistoryItem key={order.id} order={order} />
-      ))}
+    <section className="buyer-order-history" aria-labelledby={headingId}>
+      <h2 id={headingId} tabIndex={-1} ref={heading}>{t('customer:profilePage_lichSuDonHang')}</h2>
+      {!state ? <p className="buyer-account-progress" role="status">{t('customer:profilePage_loadingOrders')}</p> : null}
+      {state && 'error' in state ? (
+        <AccountLoadError
+          title={t('customer:profilePage_ordersUnavailable')}
+          fallback={t('customer:profilePage_ordersRetryDetails')}
+          error={state.error}
+          retry={() => { heading.current?.focus(); retry(); }}
+        />
+      ) : null}
+      {orders?.length === 0 ? (
+        <div className="buyer-state buyer-account-state">
+          <h3>{t('customer:profilePage_chuaCoDonHang')}</h3>
+          <p>{t('customer:profilePage_cacDonMuaVeSeXuatHien')}</p>
+          <Link className="button button-primary" to="/">{t('customer:myTicketsPage_browseEvents')}</Link>
+        </div>
+      ) : null}
+      {orders?.length ? <OrderList orders={orders} /> : null}
     </section>
   );
 }
 
-function OrderHistoryItem({ order }: { order: OrderResponse }) {
-  useTranslation();
+function OrderList({ orders }: { orders: Order[] }) {
+  const { t } = useTranslation();
+  const [filter, setFilter] = useState<OrderFilter>('all');
+  const allOrders = useRef<HTMLButtonElement>(null);
+  const now = useOrderTime(orders);
+  const rows = orders.map((order) => ({ order, status: displayedOrderStatus(order, now) }));
+  const visible = filter === 'all' ? rows : rows.filter(({ status }) => orderCategory(status) === filter);
+
   return (
-    <article className="history-item" style={{ position: 'relative' }}>
-      <div className="history-topline">
-        <span>{translate("customer:profilePage_order")} {order.id.slice(0, 8).toUpperCase()}</span>
-        <span className={`status-chip status-${order.status.toLowerCase().replace('_', '-')}`}>
-          {orderLabels[order.status]}
-        </span>
-      </div>
-      <h2>{order.concertTitle}</h2>
-      <div className="history-lines">
-        {order.items.map((item) => (
-          <div key={item.ticketTypeId}>
-            <span>
-              {item.ticketTypeName} x{item.quantity}
-            </span>
-            <strong>{money.format(item.subtotal || item.unitPrice * item.quantity)}</strong>
-          </div>
+    <>
+      <div className="buyer-filters" role="group" aria-label={t('customer:profilePage_orderStatus')}>
+        {orderFilters.map(([value, key]) => (
+          <button key={value} type="button" ref={value === 'all' ? allOrders : undefined}
+            aria-pressed={filter === value} onClick={() => setFilter(value)}>
+            {t(key)}
+          </button>
         ))}
       </div>
-
-      {order.status === 'AWAITING_PAYMENT' && (
-        <div
-          style={{
-            marginTop: 14,
-            padding: '12px 14px',
-            background: '#f8fafc',
-            border: '1px solid var(--line)',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: 12,
-          }}
-        >
-          <div>
-            <strong style={{ display: 'block', fontSize: 13, color: '#182133' }}>{translate("customer:profilePage_donDangChoThanhToan")}</strong>
-            <span style={{ fontSize: 12, color: 'var(--muted)' }}>{translate("customer:profilePage_moLaiDonDeChonVaTiep")}</span>
-          </div>
-          <Link
-            className="button button-primary"
-            style={{ minHeight: 34, padding: '0 16px', fontSize: 12 }}
-            to={`/checkout?orderId=${encodeURIComponent(order.id)}`}
-          >
-            {translate("customer:profilePage_tiepTucThanhToan")}
-          </Link>
+      {visible.length > 0 ? (
+        <div className="buyer-order-list">
+          {visible.map(({ order, status }) => <OrderCard key={order.id} order={order} status={status} />)}
+        </div>
+      ) : (
+        <div className="buyer-state buyer-account-state">
+          <h3>{t('customer:profilePage_noMatchingOrders')}</h3>
+          <button className="button button-secondary" type="button" onClick={() => {
+            setFilter('all');
+            allOrders.current?.focus();
+          }}>
+            {t('customer:myTicketsPage_clearFilter')}
+          </button>
         </div>
       )}
-
-      <div className="history-total">
-        <span>{dateTime.format(new Date(order.createdAt))}</span>
-        <strong>{money.format(order.totalAmount)}</strong>
-      </div>
-    </article>
+    </>
   );
 }
 
-function TicketHistory({ tickets }: { tickets: TicketResponse[] }) {
-  useTranslation();
-  if (tickets.length === 0) {
-    return (
-      <div className="state-panel compact">
-        <span className="state-icon" aria-hidden="true">
-          ◇
-        </span>
-        <h2>{translate("customer:profilePage_chuaCoVe")}</h2>
-        <p>{translate("customer:profilePage_veDienTuVaMaQrSe")}</p>
-      </div>
-    );
-  }
+function OrderCard({ order, status }: { order: Order; status: OrderStatus }) {
+  const { t } = useTranslation();
+  const headingId = useId();
+  const orderId = encodeURIComponent(order.id);
+  const concertId = order.concertId ? encodeURIComponent(order.concertId) : '';
+  const deadline = orderDeadline(order);
+  const canResume = status === 'AWAITING_PAYMENT' && Number.isFinite(deadline);
+  const canCheck = !canResume && (status === 'AWAITING_PAYMENT' || status === 'EXPIRED');
 
   return (
-    <section className="ticket-history-grid" aria-label={translate("customer:profilePage_lichSuVe")}>
-      {tickets.map((ticket) => (
-        <article className="profile-ticket" key={ticket.id}>
-          <div className="history-topline">
-            <span>{translate("customer:profilePage_ticket")} {ticket.id.slice(0, 8).toUpperCase()}</span>
-            <span className={`status-chip status-${ticket.status.toLowerCase()}`}>
-              {ticketLabels[ticket.status]}
-            </span>
-          </div>
-          <h2>{ticket.concertTitle}</h2>
-          <p style={{ fontWeight: 600, color: '#182133' }}>{ticket.ticketTypeName}</p>
-          {ticket.status === 'VALID' || ticket.status === 'UNUSED' ? (
-            <div
-              className="profile-qr"
-              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}
-            >
-              <QRCodeSVG
-                value={ticket.qrCode}
-                size={140}
-                level="M"
-                marginSize={2}
-                style={{ background: '#fff', padding: 6, borderRadius: 3 }}
-              />
-              <span>{translate("customer:profilePage_xuatTrinhMaQrTaiCuaSoat")}</span>
-            </div>
-          ) : null}
-        </article>
-      ))}
-    </section>
+    <article className="buyer-order-card" aria-labelledby={headingId}>
+      <header className="buyer-order-header">
+        <h3 id={headingId}>{order.concertTitle}</h3>
+        <span className={`buyer-order-status status-${status.toLowerCase()}`}>{t(orderStatusKeys[status])}</span>
+      </header>
+      <dl className="buyer-order-facts">
+        <div><dt>{t('customer:profilePage_order')}</dt><dd>{order.id}</dd></div>
+        <div><dt>{t('customer:profilePage_orderDate')}</dt><dd><time dateTime={order.createdAt}>{dateTime.format(new Date(order.createdAt))}</time></dd></div>
+        {canResume ? (
+          <div><dt>{t('customer:profilePage_reservedUntil')}</dt><dd><time dateTime={order.expiresAt}>{dateTime.format(deadline)}</time></dd></div>
+        ) : null}
+      </dl>
+      <ul className="buyer-order-items">
+        {order.items.map((item) => (
+          <li key={item.id ?? item.ticketTypeId}>
+            <span>{item.ticketTypeName} × {item.quantity}</span>
+            <span>{currency.format(item.subtotal ?? item.unitPrice * item.quantity)}</span>
+          </li>
+        ))}
+      </ul>
+      <footer className="buyer-order-footer">
+        <div className="buyer-order-total">
+          <span>{t('customer:profilePage_orderTotal')}</span>
+          <strong>{currency.format(order.totalAmount)}</strong>
+        </div>
+        {canResume ? (
+          <Link className="button button-primary" to={`/checkout?orderId=${orderId}`}>
+            {t('customer:profilePage_tiepTucThanhToan')}
+          </Link>
+        ) : null}
+        {canCheck ? (
+          <Link className="button button-secondary" to={`/payment/result?orderId=${orderId}`}>
+            {t('customer:profilePage_checkPayment')}
+          </Link>
+        ) : null}
+        {status === 'PAID' ? (
+          <Link className="button button-secondary" to={concertId ? `/my-tickets?concertId=${concertId}` : '/my-tickets'}>
+            {t(concertId ? 'customer:profilePage_viewEventTickets' : 'customer:myTicketsPage_myTickets')}
+            <ArrowUpRight size={17} aria-hidden="true" />
+          </Link>
+        ) : null}
+      </footer>
+    </article>
   );
 }

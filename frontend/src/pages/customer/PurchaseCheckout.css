@@ -1,0 +1,209 @@
+.purchase-feedback {
+  max-inline-size: 47rem;
+}
+
+.purchase-status-panel :is(h1, p),
+.purchase-confirmed-summary :is(h2, p),
+.purchase-payment-method :is(h2, p),
+.purchase-order-summary h2 {
+  margin: 0;
+}
+
+.purchase-status-panel h1 + p {
+  margin-block-start: .625rem;
+  max-inline-size: 68ch;
+  color: var(--muted);
+}
+
+.purchase-status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .5rem;
+  margin-block-start: 1rem;
+}
+
+.purchase-status-actions > * {
+  max-inline-size: 100%;
+  white-space: normal;
+}
+
+.purchase-order-reference {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: .25rem .625rem;
+  color: var(--muted);
+  font-size: var(--buyer-meta-size);
+  overflow-wrap: anywhere;
+}
+
+.purchase-order-reference b {
+  min-inline-size: 0;
+  color: var(--cream);
+}
+
+.purchase-status-panel .purchase-order-reference,
+.purchase-confirmed-summary .purchase-order-reference {
+  margin-block-start: 1rem;
+}
+
+.purchase-status-panel .purchase-error,
+.purchase-provider-error p,
+.purchase-checkout-notice p {
+  color: #942a22;
+  overflow-wrap: anywhere;
+}
+
+.purchase-status-panel .purchase-error {
+  margin-block-start: 1rem;
+}
+
+.purchase-checkout-event {
+  color: var(--cream);
+  font-size: var(--buyer-section-size);
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+
+.purchase-header .purchase-checkout-event {
+  margin-block-start: .75rem;
+}
+
+.purchase-event-time {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .125rem .625rem;
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-size: var(--buyer-meta-size);
+}
+
+.purchase-header .purchase-deadline[data-state="warning"] {
+  border-color: #d6b16c;
+  background: #fff8ec;
+  color: #744c08;
+}
+
+.purchase-header .purchase-deadline[data-state="expired"] {
+  border-color: #edc6c3;
+  background: #fff8f7;
+  color: #942a22;
+}
+
+.purchase-checkout-notice,
+.purchase-payment-options,
+.purchase-provider-error,
+.purchase-order-summary .buyer-information-links {
+  margin-block: 1rem 0;
+}
+
+.purchase-checkout-notice {
+  margin-block-end: 1rem;
+}
+
+.purchase-checkout-notice p {
+  margin: 0;
+}
+
+.purchase-checkout-notice > .button {
+  margin-block-start: .625rem;
+}
+
+.purchase-payment-method h2 + p {
+  margin-block-start: .625rem;
+}
+
+.purchase-payment-options {
+  display: grid;
+  gap: .5rem;
+}
+
+.purchase-payment-option {
+  display: flex;
+  align-items: flex-start;
+  gap: .75rem;
+  min-block-size: 44px;
+  padding: .75rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.purchase-payment-option[data-selected] {
+  border-color: var(--coral);
+  background: #eef4ff;
+}
+
+.purchase-payment-option input {
+  flex: none;
+  margin-block-start: .275rem;
+  accent-color: var(--coral);
+}
+
+.purchase-payment-option small {
+  display: block;
+  color: var(--muted);
+  font-size: var(--buyer-meta-size);
+}
+
+.purchase-provider-error .button,
+.purchase-checkout-back {
+  margin-block-start: .75rem;
+}
+
+.purchase-order-lines {
+  margin: .75rem 0 0;
+  padding: 0;
+}
+
+.purchase-order-lines > div,
+.purchase-confirmed-summary > .purchase-order-total {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: .25rem .625rem;
+  padding-block: .625rem;
+  border-block-start: 1px solid var(--line);
+}
+
+.purchase-order-lines dt {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.purchase-order-lines dt span,
+.purchase-order-total > span {
+  display: block;
+  color: var(--muted);
+  font-size: var(--buyer-meta-size);
+  font-weight: 500;
+}
+
+.purchase-order-lines dd,
+.purchase-order-total strong {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+
+.purchase-action-bar .purchase-order-total strong {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.purchase-header.purchase-confirmed-header {
+  justify-content: flex-start;
+  align-items: flex-start;
+  flex-wrap: nowrap;
+}
+
+.purchase-confirmed-header > svg {
+  flex: none;
+  margin-block-start: .125rem;
+  color: #087748;
+}
+
+.purchase-confirmed-summary > .purchase-order-total {
+  align-items: baseline;
+  padding-block-end: 0;
+}

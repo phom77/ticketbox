@@ -1,0 +1,289 @@
+.public-shell { display: flex; flex-direction: column; }
+.public-shell > main { min-width: 0; }
+
+.public-header {
+  position: sticky;
+  top: 0;
+  z-index: 180;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  font: 600 .9375rem/1.4 "Manrope", ui-sans-serif, system-ui, sans-serif;
+}
+
+.public-topbar {
+  min-height: 68px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.public-topbar .logo { min-height: 44px; flex-shrink: 0; }
+
+.public-main-nav,
+.public-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.public-main-nav { margin-inline-end: auto; }
+
+.public-main-nav a, .public-mobile-wallet {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 10px;
+  border-radius: 6px;
+  color: var(--cream);
+  white-space: nowrap;
+}
+
+.public-main-nav a:hover, .public-main-nav a.active,
+.public-mobile-wallet:hover, .public-mobile-wallet.active {
+  background: var(--surface-2);
+  color: var(--violet);
+}
+
+.public-header-actions .language-select {
+  min-height: 44px;
+  min-width: 44px;
+  font: inherit;
+  font-size: .875rem;
+}
+
+.public-header-action,
+.public-account-trigger {
+  position: relative;
+  display: inline-flex;
+  min-width: 44px;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--cream);
+  font: inherit;
+}
+
+.public-header-action:hover, .public-account-trigger:hover {
+  background: var(--surface-2);
+}
+
+.public-header-action[aria-expanded="true"], .public-account-trigger[aria-expanded="true"] {
+  border-color: var(--coral);
+  color: var(--violet);
+}
+
+.public-menu-notification {
+  position: absolute;
+  inset: 6px 6px auto auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--coral);
+}
+
+.public-header-search {
+  display: flex;
+  align-items: stretch;
+  width: clamp(11rem, 17vw, 18rem);
+  min-height: 44px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.public-header-search:focus-within { border-color: var(--coral); }
+
+.public-header-search input {
+  width: 100%;
+  min-width: 0;
+  padding: 0 0 0 11px;
+  border: 0;
+  border-start-start-radius: 6px;
+  border-end-start-radius: 6px;
+  background: transparent;
+  color: var(--cream);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 400;
+}
+
+.public-header-search input::placeholder { color: var(--muted); }
+
+.public-header-search button {
+  flex: 0 0 44px;
+  display: grid;
+  place-content: center;
+  padding: 0;
+  color: var(--violet);
+  border: 0;
+  border-radius: 0 5px 5px 0;
+  background: transparent;
+}
+
+.public-header-search button:hover { background: var(--surface-2); }
+
+.public-account { position: relative; }
+.public-account-trigger { max-width: 12rem; }
+.public-account-trigger > svg { flex-shrink: 0; }
+
+.public-account-initials {
+  display: grid;
+  place-content: center;
+  flex: 0 0 29px;
+  height: 29px;
+  border-radius: 50%;
+  color: var(--violet);
+  background: var(--surface-2);
+  font-size: .75rem;
+  font-weight: 800;
+}
+
+.public-account-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.public-account-panel {
+  position: absolute;
+  inset-inline-end: 0;
+  top: calc(100% + 9px);
+  width: 17rem;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.public-menu-links {
+  display: grid;
+  gap: 2px;
+}
+
+.public-menu-links a, .public-menu-links button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--cream);
+  background: transparent;
+  font: inherit;
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+
+.public-menu-links a:hover, .public-menu-links button:hover,
+.public-menu-links a.active, .public-menu-links a[aria-current="page"] {
+  color: var(--violet);
+  background: var(--surface-2);
+}
+
+.public-menu-links .public-account-profile {
+  min-width: 0;
+  display: grid;
+  padding: 5px 10px 10px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+
+.public-account-profile small {
+  color: var(--muted);
+  font-size: .875rem;
+  font-weight: 500;
+}
+
+.public-sign-in.button {
+  min-height: 44px;
+  padding-inline: 14px;
+  font: inherit;
+  white-space: nowrap;
+}
+
+.public-mobile-control, .public-mobile-panel { display: none; }
+
+.public-footer {
+  margin-block-start: auto;
+  padding-block: 22px;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+  font: 600 .875rem/1.4 "Manrope", ui-sans-serif, system-ui, sans-serif;
+}
+
+.public-footer-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+}
+
+.public-footer-brand {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0 16px;
+}
+
+.public-footer-brand .logo { min-height: 44px; }
+.public-footer-brand small { color: var(--muted); font-size: .8125rem; }
+
+.public-footer .footer-links a {
+  color: var(--cream);
+  font: 600 .875rem/1.4 "Manrope", ui-sans-serif, system-ui, sans-serif;
+}
+
+.public-footer .footer-links a:hover { color: var(--violet); }
+
+.public-header :focus-visible, .public-footer :focus-visible {
+  outline: 2px solid var(--coral);
+  outline-offset: 2px;
+}
+
+@media (max-width: 1060px) {
+  .public-main-nav, .public-desktop-control { display: none; }
+  .public-mobile-control { display: inline-flex; }
+
+  .public-mobile-panel {
+    display: block;
+    max-height: min(60dvh, 26rem);
+    overflow: auto;
+    border-top: 1px solid var(--line);
+    padding-block: 10px;
+  }
+
+  .public-mobile-panel .public-header-search { width: 100%; }
+  .public-mobile-wallet {
+    justify-content: center;
+    min-width: 44px;
+    padding-inline: 6px;
+    gap: 6px;
+    font-weight: 800;
+  }
+  .public-header-actions { gap: 8px; }
+  .public-topbar { min-height: 60px; gap: 8px; }
+}
+
+@media (max-width: 430px) {
+  .public-topbar .logo { gap: 5px; font-size: 1.125rem; }
+  .public-topbar .logo-mark { width: 25px; height: 25px; }
+  .public-header-actions { gap: 4px; }
+  .public-header-actions .language-select { padding-inline: 4px; }
+  .public-topbar.page-width { width: calc(100% - 24px); }
+}
+
+@media (max-width: 360px) {
+  .public-mobile-wallet svg { display: none; }
+}

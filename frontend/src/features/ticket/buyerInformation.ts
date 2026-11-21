@@ -1,12 +1,4 @@
-function configuredHttpsUrl(value: unknown) {
-  if (typeof value !== 'string' || !value.trim()) return null;
-  try {
-    const url = new URL(value);
-    return url.protocol === 'https:' && !url.username && !url.password ? url.href : null;
-  } catch {
-    return null;
-  }
-}
+import { configuredHttpsUrl } from '../../config/configuredHttpsUrl';
 
 export const buyerInformationLinks = [
   { label: 'shared:buyerInformation_hoTroTicketbox', url: configuredHttpsUrl(import.meta.env.VITE_SUPPORT_URL) },

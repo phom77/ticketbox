@@ -16,7 +16,7 @@ The [design](design.md) defines the numeric policy and compatibility rules. For 
 ## 3. Browser and rollout compatibility
 
 - [x] 3.1 Add the optional `pollAfterMs` field to `QueueStatusResponse`. In `QueueRealtimeService` and its web endpoint, enforce the authenticated top-1,000 subscription policy and handle a grant between status read and subscribe. Tests verify boundary positions 1,000/1,001 and 10,000/10,001, unranked waiting, private delivery, and the original response when adaptive mode is disabled.
-- [x] 3.2 Update `frontend/src/api/queue.ts`, `WaitingRoomPage.tsx`, and `scripts/e2e/adaptive-queue.mjs` to verify jittered status cadence, one socket near the front, HTTP recovery after a missed notification, legacy fallback, and timer/socket cleanup on leave, admission, and navigation. Preserve the staged waiting-room changes. Run `npm run lint`, `npm run build`, and the focused browser regression.
+- [x] 3.2 Update `frontend/src/api/queue.ts`, `WaitingRoomPage.tsx`, and `scripts/e2e/buyer-event-and-queue.mjs` to verify jittered status cadence, one socket near the front, HTTP recovery after a missed notification, legacy fallback, and timer/socket cleanup on leave, admission, and navigation. Preserve the staged waiting-room changes. Run `npm run lint`, `npm run build`, and the focused browser regression.
 - [x] 3.3 Wire the enablement setting, presence duration and 250/170 shared request profile through Ticketing configuration and Compose. Document the enable and rollback order in the development guide. Verify the default and adaptive Compose configurations and that existing Redis queue scores, status responses and active sessions remain compatible across the switch.
 
 ## 4. Integration verification
@@ -25,7 +25,7 @@ The [design](design.md) defines the numeric policy and compatibility rules. For 
 
 ### Local results
 
-- Ticketing's Maven wrapper verified 92 tests on Java 21, including the payment transport failure case. The independent Ticketing image and ownership check passed.
+- Ticketing's Maven wrapper verified 91 tests on Java 21. The focused payment boundary suite also passed with the added transport failure case. The independent Ticketing image and ownership check passed.
 - In real Redis, a concert with one entrant obtained a session alongside a concert with 30 waiters. Two workers serving two competing backlogs spent only the two shared grants available. Redis regressions also covered expiry, reconnect, and a reduced cap with already active sessions.
 - Frontend lint and build passed. Playwright verified the three HTTP cadences, one near-front socket, HTTP recovery after a missed notification, and cleanup after leaving, admission, or navigation. Both Compose configurations and the strict OpenSpec check passed.
 - The 75,000-buyer case was verified with policy calculations. Operational throughput under that load still needs a load test.

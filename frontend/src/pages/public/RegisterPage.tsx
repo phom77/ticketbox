@@ -1,43 +1,52 @@
 import { translate } from '../../i18n';
 import { useTranslation } from 'react-i18next';
-import { useEffect, useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { AuthError, AuthLayout } from '../../components/layout/AuthLayout';
+import { configuredHttpsUrl } from '../../config/configuredHttpsUrl';
 import { useAuth } from '../../features/auth/AuthContext';
+import { authReturnPath } from '../../features/auth/authReturn';
 import { getRoleHome } from '../../features/auth/roleRoutes';
-import { AuthLayout } from './LoginPage';
+
+const accountTermsUrl = configuredHttpsUrl(import.meta.env.VITE_ACCOUNT_TERMS_URL);
+const privacyUrl = configuredHttpsUrl(import.meta.env.VITE_PRIVACY_URL);
+
+function PolicyLink({ href, label }: { href: string | null; label: string }) {
+  return href ? <a href={href} target="_blank" rel="noreferrer">{label}</a> : label;
+}
 
 export function RegisterPage() {
   useTranslation();
   const { register, user, loading } = useAuth();
   const navigate = useNavigate();
+  const { state } = useLocation();
+  const confirmPassword = useRef<HTMLInputElement>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [passwordMismatch, setPasswordMismatch] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!loading && user) {
-      navigate(getRoleHome(user.role), { replace: true });
-    }
-  }, [loading, navigate, user]);
+    if (loading || !user) return;
+    navigate(authReturnPath(state) ?? getRoleHome(user.role), { replace: true });
+  }, [loading, navigate, state, user]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (loading || submitting) return;
     const data = new FormData(event.currentTarget);
     const password = String(data.get('password'));
-    const confirmation = String(data.get('confirmPassword'));
-    if (password !== confirmation) {
-      setError(translate("public:registerPage_matKhauXacNhanKhongKhop"));
+    setError(null);
+    if (password !== data.get('confirmPassword')) {
+      setPasswordMismatch(true);
+      confirmPassword.current?.focus();
       return;
     }
-    setError(null);
+    setPasswordMismatch(false);
     setSubmitting(true);
     try {
-      await register(
-        String(data.get('email')),
-        password,
-        String(data.get('fullName')),
-        String(data.get('phone')),
-      );
-      navigate('/login', { replace: true });
+      const email = String(data.get('email')).trim();
+      await register(email, password, String(data.get('fullName')).trim(), String(data.get('phone')).trim() || null);
+      navigate('/login', { state: { from: authReturnPath(state), registeredEmail: email }, replace: true });
     } catch (requestError) {
       setError(
         requestError instanceof Error ? requestError.message : translate("public:registerPage_khongTheTaoTaiKhoanCuaBan"),
@@ -49,89 +58,74 @@ export function RegisterPage() {
 
   return (
     <AuthLayout
-      quote={translate("public:registerPage_amThanhKhanGiaRatLonKy")}
-      credit={translate("public:registerPage_ticketboxTuyenChonHaNoi")}
+      title={translate("public:registerPage_taoTaiKhoan")}
+      description={<p>{translate("public:registerPage_taoTaiKhoanDeDatSuKien")}</p>}
     >
-      <div className="auth-card">
-        <div className="auth-heading">
-          <p className="eyebrow">
-            <span /> {translate("public:registerPage_thamGiaCungKhanGia")}
-          </p>
-          <h1>
-            {translate("public:registerPage_danhChoCho")} <em>{translate("public:registerPage_nhieuKyUcHon")}</em>
-          </h1>
-          <p>{translate("public:registerPage_taoTaiKhoanDeDatSuKien")}</p>
+      <form className="auth-form" onSubmit={submit}>
+        <AuthError message={error} />
+        <label className="field">
+          <span>{translate("public:registerPage_hoVaTen")}</span>
+          <input name="fullName" autoComplete="name" required />
+        </label>
+        <label className="field">
+          <span>{translate("public:registerPage_diaChiEmail")}</span>
+          <input type="email" name="email" autoComplete="email" spellCheck={false} required />
+        </label>
+        <label className="field">
+          <span>{translate("public:registerPage_soDienThoaiTuyChon")}</span>
+          <input type="tel" name="phone" autoComplete="tel" />
+        </label>
+        <div className="field">
+          <label htmlFor="new-account-password">{translate("public:registerPage_matKhau")}</label>
+          <input
+            id="new-account-password"
+            type="password"
+            name="password"
+            autoComplete="new-password"
+            aria-describedby="new-account-password-hint"
+            minLength={8}
+            onChange={() => setPasswordMismatch(false)}
+            required
+          />
+          <span className="field-hint" id="new-account-password-hint">{translate("public:registerPage_itNhat8KyTu")}</span>
         </div>
-        {error ? (
-          <div className="state-panel auth-error" role="alert">
-            <p>{error}</p>
-          </div>
-        ) : null}
-        <form className="auth-form" onSubmit={submit}>
-          <label className="field">
-            <span>{translate("public:registerPage_hoVaTen")}</span>
-            <input name="fullName" autoComplete="name" placeholder="Minh Quan..." required />
-          </label>
-          <div className="form-grid form-grid-two">
-            <label className="field">
-              <span>{translate("public:registerPage_diaChiEmail")}</span>
-              <input
-                type="email"
-                name="email"
-                autoComplete="email"
-                spellCheck={false}
-                placeholder="ban@example.com..."
-                required
-              />
-            </label>
-            <label className="field">
-              <span>{translate("public:registerPage_soDienThoai")}</span>
-              <input type="tel" name="phone" autoComplete="tel" placeholder="0901234567" required />
-            </label>
-          </div>
-          <div className="form-grid form-grid-two">
-            <label className="field">
-              <span>{translate("public:registerPage_matKhau")}</span>
-              <input
-                type="password"
-                name="password"
-                autoComplete="new-password"
-                minLength={8}
-                placeholder={translate("public:registerPage_itNhat8KyTu")}
-                required
-              />
-            </label>
-            <label className="field">
-              <span>{translate("public:registerPage_xacNhanMatKhau")}</span>
-              <input
-                type="password"
-                name="confirmPassword"
-                autoComplete="new-password"
-                minLength={8}
-                placeholder={translate("public:registerPage_nhapLaiMatKhau")}
-                required
-              />
-            </label>
-          </div>
-          <label className="terms-check">
-            <input type="checkbox" required />
-            <span>
-              {translate("public:registerPage_toiDongYVoi")} <a href="#terms">{translate("public:registerPage_dieuKhoan")}</a> {translate("public:registerPage_va")}{' '}
-              <a href="#privacy">{translate("public:registerPage_chinhSachQuyenRiengTu")}</a>.
+        <div className="field">
+          <label htmlFor="new-account-confirmation">{translate("public:registerPage_xacNhanMatKhau")}</label>
+          <input
+            ref={confirmPassword}
+            id="new-account-confirmation"
+            type="password"
+            name="confirmPassword"
+            autoComplete="new-password"
+            aria-invalid={passwordMismatch || undefined}
+            aria-describedby={passwordMismatch ? 'new-account-password-error' : undefined}
+            minLength={8}
+            onChange={() => setPasswordMismatch(false)}
+            required
+          />
+          {passwordMismatch ? (
+            <span className="buyer-auth-field-error" id="new-account-password-error" role="alert">
+              {translate("public:registerPage_matKhauXacNhanKhongKhop")}
             </span>
-          </label>
-          <button
-            className="button button-primary button-block"
-            type="submit"
-            disabled={submitting}
-          >
-            {submitting ? translate("public:registerPage_dangTaoTaiKhoan") : translate("public:registerPage_taoTaiKhoan")}
-          </button>
-        </form>
-        <p className="auth-switch">
-          {translate("public:registerPage_daCoTaiKhoan")} <Link to="/login">{translate("public:registerPage_dangNhap")}</Link>
-        </p>
-      </div>
+          ) : null}
+        </div>
+        <div className="buyer-auth-checkbox">
+          <input id="account-terms" type="checkbox" aria-labelledby="account-terms-label" required />
+          <div id="account-terms-label">
+            <label htmlFor="account-terms">{translate("public:registerPage_toiDongYVoi")}</label>{' '}
+            <PolicyLink href={accountTermsUrl} label={translate("public:registerPage_dieuKhoan")} />{' '}
+            {translate("public:registerPage_va")}{' '}
+            <PolicyLink href={privacyUrl} label={translate("public:registerPage_chinhSachQuyenRiengTu")} />.
+          </div>
+        </div>
+        <button className="button button-primary button-block" type="submit" disabled={loading || submitting}>
+          {submitting ? translate("public:registerPage_dangTaoTaiKhoan") : translate("public:registerPage_taoTaiKhoan")}
+        </button>
+      </form>
+      <p className="buyer-auth-alternate">
+        {translate("public:registerPage_daCoTaiKhoan")}{' '}
+        <Link to="/login" state={{ from: authReturnPath(state) }}>{translate("public:registerPage_dangNhap")}</Link>
+      </p>
     </AuthLayout>
   );
 }

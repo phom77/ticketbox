@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bài đầu tiên · Xem danh sách concert · TicketBox</title>
+  <link rel="stylesheet" href="../learning.css">
+</head>
+<body>
+  <a class="skip" href="#main">Đến nội dung</a>
+  <header class="masthead">
+    <div class="frame bar">
+      <a class="brand" href="../index.html">TicketBox <span>Learning</span></a>
+      <nav aria-label="Tài liệu học">
+        <a href="../index.html">Bản đồ hệ thống</a>
+        <a href="reserve-ticket.html">Bài giữ vé</a>
+      </nav>
+    </div>
+  </header>
+  <main id="main" class="frame">
+    <header class="intro">
+      <h1>Xem danh sách concert</h1>
+      <p>Một khách mở trang chủ TicketBox. Trình duyệt xin trang đầu tiên của danh sách sự kiện. Catalog trả dữ liệu đủ để dựng các thẻ sự kiện, còn trình duyệt lọc trên phần danh sách đã tải. Mục tiêu của buổi đầu là tự vẽ lại đường đi của lần tải này và chỉ ra nơi quyết định một concert có được công khai.</p>
+      <p class="revision">Khoảng 20 phút · Đối chiếu source đang làm việc ngày 18/11/2026, HEAD <code>351add6</code> cùng thay đổi local. Ví dụ là dữ liệu minh họa.</p>
+    </header>
+
+    <section aria-labelledby="trace-title">
+      <div class="section-head">
+        <h2 id="trace-title">Theo một lần mở trang chủ</h2>
+        <div class="switch" role="group" aria-label="Chuyển bước" id="controls" hidden>
+          <button type="button" id="previous">Bước trước</button>
+          <button type="button" id="next">Bước sau</button>
+        </div>
+      </div>
+      <p class="small muted">Giả sử đây là lần mở trang mới, với hai concert đủ điều kiện và cùng nằm trong trang đầu. Số sau tên tệp là dòng cần mở trong IDE.</p>
+      <div class="workspace trace">
+        <nav aria-label="Các bước của request" id="participants" hidden>
+          <ol class="step-list">
+            <li><button type="button" aria-controls="react"><span class="number">1</span><span>Trang chủ<small>React</small></span></button></li>
+            <li><button type="button" aria-controls="gateway"><span class="number">2</span><span>Định tuyến<small>Nginx</small></span></button></li>
+            <li><button type="button" aria-controls="controller"><span class="number">3</span><span>Nhận request<small>Catalog</small></span></button></li>
+            <li><button type="button" aria-controls="read"><span class="number">4</span><span>Đọc dữ liệu<small>Redis và PostgreSQL</small></span></button></li>
+            <li><button type="button" aria-controls="render"><span class="number">5</span><span>Hiển thị kết quả<small>React</small></span></button></li>
+          </ol>
+        </nav>
+        <div>
+          <section class="inspector" id="react" aria-labelledby="react-title">
+            <p class="transport">Gọi hàm trong React → HTTP GET</p>
+            <h3 id="react-title">Trang chủ xin trang đầu tiên</h3>
+            <p>Route <code>/</code> dựng <code>HomePage</code>. Khi mở mới, hook <code>useDiscoveryCatalog</code> bắt đầu với trang 0 và gọi <code>getConcerts</code> với kích thước 24. HTTP client công khai gửi request mà không gắn <code>Authorization</code>.</p>
+            <dl class="state"><div><dt>Đầu vào</dt><dd>Khách mở trang chủ.</dd></div><div><dt>Đầu ra</dt><dd><code>GET /api/concerts?page=0&amp;size=24</code></dd></div></dl>
+            <p class="small"><a href="../../../frontend/src/app/App.tsx#L55">App.tsx:55</a> · <a href="../../../frontend/src/pages/public/HomePage.tsx#L40">HomePage.tsx:40–56</a> · <a href="../../../frontend/src/features/discovery/useDiscoveryCatalog.ts#L11">useDiscoveryCatalog.ts:11–23</a> · <a href="../../../frontend/src/api/concerts.ts#L59">concerts.ts:59–61</a> · <a href="../../../frontend/src/api/client.ts#L111">client.ts:111–130</a></p>
+          </section>
+          <section class="inspector" id="gateway" aria-labelledby="gateway-title">
+            <p class="transport">Chuyển tiếp HTTP</p>
+            <h3 id="gateway-title">Nginx chuyển request đến Catalog</h3>
+            <p>Trong cấu hình triển khai qua gateway, nhóm đường dẫn <code>/api/concerts</code> được chuyển đến <code>catalog:8080</code>. Khi lần theo một endpoint từ trình duyệt, mở file gateway để tìm service nhận request.</p>
+            <dl class="state"><div><dt>Đầu vào</dt><dd>Đường dẫn <code>/api/concerts</code>.</dd></div><div><dt>Đầu ra</dt><dd>Request đến service Catalog.</dd></div></dl>
+            <p class="small"><a href="../../../infra/nginx/gateway.conf#L52">gateway.conf:52–55</a></p>
+          </section>
+          <section class="inspector" id="controller" aria-labelledby="controller-title">
+            <p class="transport">Spring MVC → Gọi hàm trong Catalog</p>
+            <h3 id="controller-title">Controller kiểm tra tham số phân trang</h3>
+            <p>Catalog cho phép GET công khai. <code>listConcerts</code> kiểm tra <code>page ≥ 0</code> và <code>1 ≤ size ≤ 100</code>, rồi gọi <code>ConcertService.getPublicConcerts</code> với thứ tự ngày diễn tăng dần.</p>
+            <dl class="state"><div><dt>Đầu vào</dt><dd><code>page=0</code>, <code>size=24</code>.</dd></div><div><dt>Đầu ra</dt><dd><code>Pageable</code> mang số trang, kích thước và thứ tự.</dd></div></dl>
+            <p class="small"><a href="../../../services/catalog/src/main/java/org/ticketbox/catalog/config/SecurityConfig.java#L109">SecurityConfig.java:109–111</a> · <a href="../../../services/catalog/src/main/java/org/ticketbox/catalog/concert/web/ConcertController.java#L25">ConcertController.java:25–49</a></p>
+          </section>
+          <section class="inspector" id="read" aria-labelledby="read-title">
+            <p class="transport">Đọc Redis → JPA truy vấn PostgreSQL khi cần</p>
+            <h3 id="read-title">Catalog tìm trang kết quả</h3>
+            <p>Catalog tra Redis theo phiên bản danh sách, số trang, kích thước và thứ tự. Có cache thì dùng kết quả đó. Khi phải đọc cơ sở dữ liệu, truy vấn chỉ lấy concert <code>ON_SALE</code> hoặc <code>SOLD_OUT</code>, có cờ công khai, chưa bị tạm dừng bán và không có bản công bố đang chờ Ticketing bắt kịp phiên bản kích hoạt. Catalog có thể lưu trang kết quả vào cache.</p>
+            <dl class="state"><div><dt>Đầu vào</dt><dd>Yêu cầu đọc một trang công khai.</dd></div><div><dt>Đầu ra</dt><dd>Trang tóm tắt của hai concert trong ví dụ.</dd></div></dl>
+            <p class="small"><a href="../../../services/catalog/src/main/java/org/ticketbox/catalog/concert/application/ConcertService.java#L66">ConcertService.java:66–93</a> · <a href="../../../services/catalog/src/main/java/org/ticketbox/catalog/infrastructure/cache/RedisReadCache.java#L41">RedisReadCache.java:41–73</a> · <a href="../../../services/catalog/src/main/java/org/ticketbox/catalog/concert/infrastructure/persistence/JpaConcertRepository.java#L28">JpaConcertRepository.java:28–34</a> · <a href="../../../services/catalog/src/main/resources/db/migration/V1__owned_schema.sql#L26">Schema Catalog:26–45</a></p>
+          </section>
+          <section class="inspector" id="render" aria-labelledby="render-title">
+            <p class="transport">HTTP response → State trong React</p>
+            <h3 id="render-title">React giữ dữ liệu đã tải rồi lọc để hiển thị</h3>
+            <p>Controller trả trang dữ liệu trong <code>ApiResponse</code>. Client lấy trường <code>data</code>, hook gộp các concert theo <code>id</code> và cập nhật <code>hasMore</code>. <code>HomePage</code> áp dụng bộ lọc trên danh sách đã tải để quyết định thẻ nào xuất hiện.</p>
+            <dl class="state"><div><dt>Đầu vào</dt><dd><code>content</code> có hai concert và thông tin phân trang.</dd></div><div><dt>Đầu ra</dt><dd>Hai concert trong state. Bộ lọc có thể cho hiện ít hơn.</dd></div></dl>
+            <p class="small"><a href="../../../services/catalog/src/main/java/org/ticketbox/catalog/concert/web/ConcertController.java#L44">ConcertController.java:44–48</a> · <a href="../../../frontend/src/api/client.ts#L111">client.ts:111–118</a> · <a href="../../../frontend/src/features/discovery/useDiscoveryCatalog.ts#L23">useDiscoveryCatalog.ts:23–34</a> · <a href="../../../frontend/src/pages/public/HomePage.tsx#L49">HomePage.tsx:49–63</a></p>
+          </section>
+        </div>
+      </div>
+      <h3 class="subhead">Dữ liệu ở từng bước</h3>
+      <ol class="timeline" id="timeline">
+        <li><strong>Trình duyệt</strong>Chưa tải concert.</li>
+        <li><strong>Nginx</strong>Chuyển tiếp HTTP.</li>
+        <li><strong>Catalog</strong>Tạo tham số cho truy vấn.</li>
+        <li><strong>Redis / PostgreSQL</strong>Có thể cập nhật cache. Bảng concert chỉ được đọc trong luồng này.</li>
+        <li><strong>Trình duyệt</strong>Có 2 concert minh họa trong state.</li>
+      </ol>
+      <p class="sr-only" id="step-status" role="status"></p>
+    </section>
+
+    <section class="chapter" aria-labelledby="cases-title">
+      <h2 id="cases-title">Thử đổi một điều kiện</h2>
+      <details class="quiz" name="scenarios">
+        <summary>Request gửi <code>size=101</code></summary>
+        <p>Controller ném <code>INVALID_REQUEST</code> trước khi gọi service. Lỗi này được ánh xạ thành HTTP 400.</p>
+        <p class="small"><a href="../../../services/catalog/src/main/java/org/ticketbox/catalog/concert/web/ConcertController.java#L33">ConcertController.java:33–44</a> · <a href="../../../services/catalog/src/main/java/org/ticketbox/catalog/web/ErrorHttpMapping.java#L11">ErrorHttpMapping.java:11</a></p>
+      </details>
+      <details class="quiz" name="scenarios">
+        <summary>Redis lỗi khi đọc trang cache</summary>
+        <p>Hàm đọc trả về <code>null</code> sau khi ghi metric lỗi. Nếu lần đọc lại vẫn không có dữ liệu, cache gọi hàm tải từ cơ sở dữ liệu. Nếu lần ghi cache tiếp theo lỗi, dữ liệu đã tải vẫn được trả về.</p>
+        <p class="small"><a href="../../../services/catalog/src/main/java/org/ticketbox/catalog/infrastructure/cache/RedisReadCache.java#L41">RedisReadCache.java:41–73</a></p>
+      </details>
+      <details class="quiz" name="scenarios">
+        <summary>Trang đầu tải được, trang tiếp theo báo lỗi</summary>
+        <p>Các thẻ đã tải vẫn còn trong state. Trang chủ hiện thông báo và nút thử lại. Khi bấm, hook yêu cầu lại trang đang chờ vì <code>nextPage</code> chỉ tiến sau lần tải thành công.</p>
+        <p class="small"><a href="../../../frontend/src/features/discovery/useDiscoveryCatalog.ts#L23">useDiscoveryCatalog.ts:23–48</a> · <a href="../../../frontend/src/pages/public/HomePage.tsx#L240">HomePage.tsx:240–269</a></p>
+      </details>
+    </section>
+
+    <section class="chapter" aria-labelledby="practice-title">
+      <h2 id="practice-title">Tự vẽ lại luồng</h2>
+      <p>Đóng source rồi vẽ bốn ô <strong>React → Nginx → Catalog → kho dữ liệu</strong>. Ghi tên endpoint trên đường đi và dữ liệu trả về trên đường về. Dự đoán từng câu trước khi mở đáp án.</p>
+      <details class="quiz">
+        <summary>Một concert đang <code>ON_SALE</code> nhưng đã tạm dừng bán. Khi phải truy vấn DB, concert có xuất hiện không?</summary>
+        <p>Không. Điều kiện <code>salesSuspended = false</code> loại nó ngay ở repository. Mở query và tìm ba điều kiện còn lại.</p>
+        <p class="small"><a href="../../../services/catalog/src/main/java/org/ticketbox/catalog/concert/infrastructure/persistence/JpaConcertRepository.java#L28">JpaConcertRepository.java:28–34</a></p>
+      </details>
+      <details class="quiz">
+        <summary>Từ khóa khớp một concert ở trang chưa tải. Bộ lọc trên trang chủ có tìm thấy ngay không?</summary>
+        <p>Không. Hàm lọc nhận <code>catalog.concerts</code> đã tải trong trình duyệt. Khi khách tải thêm trang, các concert mới đi vào danh sách mà hàm lọc nhận.</p>
+        <p class="small"><a href="../../../frontend/src/pages/public/HomePage.tsx#L49">HomePage.tsx:49–56</a> · <a href="../../../frontend/src/features/discovery/useDiscoveryCatalog.ts#L23">useDiscoveryCatalog.ts:23–34</a></p>
+      </details>
+      <details class="quiz">
+        <summary>Redis đã có trang cần đọc. Đoạn truy vấn qua repository có chạy không?</summary>
+        <p>Không. Hàm cache trả kết quả trước khi gọi <code>loader</code>. Trong service, truy vấn repository nằm trong hàm <code>loader</code> truyền vào cache.</p>
+        <p class="small"><a href="../../../services/catalog/src/main/java/org/ticketbox/catalog/infrastructure/cache/RedisReadCache.java#L41">RedisReadCache.java:41–50</a> · <a href="../../../services/catalog/src/main/java/org/ticketbox/catalog/concert/application/ConcertService.java#L78">ConcertService.java:78–93</a></p>
+      </details>
+      <details class="quiz">
+        <summary>Bài tập thay đổi · Tìm từ khóa trên toàn bộ danh sách công khai thì cần mở file nào?</summary>
+        <p>Hãy phác đường đi của từ khóa từ <code>HomePage</code> qua hook và API client đến controller, câu truy vấn phân trang và khóa cache trong Catalog. Giữ điều kiện công khai của query hiện tại. Thử thiết kế một ca kiểm tra mà kết quả khớp nằm ngoài trang đầu của danh sách chưa lọc. Kiểm tra schema và index khi đã biết truy vấn cần dùng.</p>
+        <p class="small"><a href="../../../frontend/src/api/concerts.ts#L59">concerts.ts:59–61</a> · <a href="../../../services/catalog/src/main/java/org/ticketbox/catalog/concert/web/ConcertController.java#L33">ConcertController.java:33–48</a> · <a href="../../../services/catalog/src/main/java/org/ticketbox/catalog/concert/application/ConcertService.java#L66">ConcertService.java:66–93</a> · <a href="../../../scripts/e2e/buyer-discovery.mjs#L37">Bộ kiểm thử UI với API mô phỏng:37–52</a></p>
+      </details>
+    </section>
+
+    <section class="chapter" aria-labelledby="next-title">
+      <h2 id="next-title">Khi đã vẽ lại được</h2>
+      <ol>
+        <li>Đọc <a href="reserve-ticket.html">bài giữ vé</a> để thấy một thao tác ghi tồn kho. Bài cũ có vài vị trí source đã dịch chuyển. Bắt đầu từ <a href="../../../frontend/src/pages/customer/SeatSelectionPage.tsx#L170">SeatSelectionPage.tsx:170</a> và <a href="../../../services/ticketing/src/main/java/org/ticketbox/ticketing/inventory/hold/application/ReservationService.java#L43">ReservationService.java:43</a> trong bản hiện tại.</li>
+        <li>Sau giữ vé, đọc <a href="../../../services/ticketing/src/main/java/org/ticketbox/ticketing/order/application/OrderService.java#L207">OrderService.java:207</a> và lần theo cách checkout dùng hold để tạo đơn.</li>
+      </ol>
+      <details>
+        <summary>Ba thuật ngữ trong bài</summary>
+        <dl id="glossary">
+          <dt>Gateway</dt><dd>Điểm nhận HTTP và chuyển request đến service sở hữu endpoint.</dd>
+          <dt>Phân trang</dt><dd>Chia kết quả thành từng lần tải. Trang đầu có chỉ số 0.</dd>
+          <dt>Cache hit</dt><dd>Tìm thấy trang trong Redis và dùng lại kết quả.</dd>
+        </dl>
+      </details>
+      <p class="small muted">Luồng và các tình huống trên được đối chiếu từ source. Trạng thái cache và việc định tuyến database trong một lần chạy cụ thể cần kiểm tra trên môi trường đang chạy.</p>
+    </section>
+  </main>
+  <footer class="frame footer"><a href="../index.html">Mở bản đồ TicketBox</a></footer>
+  <script>
+    const buttons = [...document.querySelectorAll('#participants button')];
+    const panels = buttons.map(button => document.getElementById(button.getAttribute('aria-controls')));
+    const timeline = [...document.querySelectorAll('#timeline li')];
+    const previous = document.querySelector('#previous');
+    const next = document.querySelector('#next');
+    const status = document.querySelector('#step-status');
+    let current = 0;
+
+    function selectStep(index) {
+      current = index;
+      buttons.forEach((button, position) => {
+        const active = position === current;
+        panels[position].hidden = !active;
+        for (const item of [button, timeline[position]]) {
+          if (active) item.setAttribute('aria-current', 'step');
+          else item.removeAttribute('aria-current');
+        }
+      });
+      previous.disabled = current === 0;
+      next.disabled = current === buttons.length - 1;
+      status.textContent = `Bước ${current + 1} / ${buttons.length}. ${panels[current].querySelector('h3').textContent}`;
+    }
+
+    buttons.forEach((button, index) => button.addEventListener('click', () => selectStep(index)));
+    previous.addEventListener('click', () => {
+      selectStep(current - 1);
+      if (previous.disabled) buttons[current].focus();
+    });
+    next.addEventListener('click', () => {
+      selectStep(current + 1);
+      if (next.disabled) buttons[current].focus();
+    });
+    document.querySelector('#participants').hidden = false;
+    document.querySelector('#controls').hidden = false;
+    selectStep(0);
+  </script>
+</body>
+</html>

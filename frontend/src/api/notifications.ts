@@ -1,4 +1,4 @@
-import { apiCommand, apiGet } from './client';
+import { api, apiGet, ApiClientError, type ApiCommandResult } from './client';
 import type { Page } from './concerts';
 
 export type NotificationStatus = 'PENDING' | 'SENT' | 'FAILED' | 'SKIPPED';
@@ -25,6 +25,14 @@ export function getUnreadNotificationCount(signal?: AbortSignal) {
   return apiGet<{ count: number }>('/api/notifications/unread-count', signal);
 }
 
-export function markNotificationRead(notificationId: string) {
-  return apiCommand<NotificationItem>('patch', `/api/notifications/${encodeURIComponent(notificationId)}/read`);
+export function markNotificationRead(notificationId: string, signal?: AbortSignal) {
+  return api.patch<unknown, ApiCommandResult<NotificationItem>>(
+    `/api/notifications/${encodeURIComponent(notificationId)}/read`,
+    undefined,
+    { signal, preserveEnvelope: true },
+  );
+}
+
+export function isNotificationAccessDenied(error: unknown) {
+  return error instanceof ApiClientError && (error.status === 401 || error.status === 403);
 }

@@ -1,218 +1,236 @@
-import { seatDescription } from '../../features/performance/checkoutPresentation';
-import { translate } from '../../i18n';
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { concertTitle } from '../../features/concert/concertText';
-import { useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { CalendarDays, ChevronDown, MapPin, RefreshCw, Ticket as TicketIcon, X } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
-import { Link } from 'react-router-dom';
-import { CalendarDays, ChevronDown, MapPin, RefreshCw, Ticket as TicketIcon } from 'lucide-react';
-import { isRequestCanceled } from '../../api/client';
+import { ApiClientError, isRequestCanceled } from '../../api/client';
 import { getConcert, type ConcertDetail } from '../../api/concerts';
 import { getMyTickets, type Ticket, type TicketStatus } from '../../api/tickets';
-import { RemoteImage } from '../../components/RemoteImage';
-import { eventDate, dateFormatter } from '../../data/formatters';
 import { ModalPortal } from '../../components/feedback/ModalPortal';
+import { RemoteImage } from '../../components/RemoteImage';
+import { dateFormatter } from '../../data/formatters';
+import { useAuth } from '../../features/auth/AuthContext';
+import { concertTitle } from '../../features/concert/concertText';
+import './MyTicketsPage.css';
 
 type TicketFilter = 'all' | TicketStatus;
-type TicketWithConcert = Ticket & { concert: ConcertDetail | null };
-type ConcertTicketGroup = {
-  concertId: string;
-  concertTitle: string;
-  concert: ConcertDetail | null;
-  tickets: TicketWithConcert[];
-};
+type ConcertTicketGroup = { id: string; tickets: Ticket[]; concert?: ConcertDetail };
 
-const tabs: Array<{ value: TicketFilter; label: string }> = [
-  { value: 'all', get label() { return translate("customer:myTicketsPage_tatCa"); } },
-  { value: 'VALID', get label() { return translate("customer:myTicketsPage_conHieuLuc"); } },
-  { value: 'USED', get label() { return translate("customer:myTicketsPage_daDung"); } },
-  { value: 'CANCELLED', get label() { return translate("customer:myTicketsPage_daHuy"); } },
-  { value: 'TRANSFERRED', get label() { return translate("customer:myTicketsPage_daChuyen"); } },
-];
+const statusKeys = {
+  VALID: 'customer:myTicketsPage_hopLe',
+  USED: 'customer:myTicketsPage_daDung',
+  CANCELLED: 'customer:myTicketsPage_daHuy',
+  TRANSFERRED: 'customer:myTicketsPage_daChuyen',
+} satisfies Record<TicketStatus, string>;
 
-const issuedDate = dateFormatter({
-  dateStyle: 'medium',
-  timeStyle: 'short',
-});
+const filters = [
+  ['all', 'customer:myTicketsPage_tatCa'],
+  ['VALID', 'customer:myTicketsPage_conHieuLuc'],
+  ['USED', statusKeys.USED],
+  ['CANCELLED', statusKeys.CANCELLED],
+  ['TRANSFERRED', statusKeys.TRANSFERRED],
+] as const;
+
+const eventDateTime = dateFormatter({ dateStyle: 'full', timeStyle: 'short' });
+const issuedDate = dateFormatter({ dateStyle: 'medium', timeStyle: 'short' });
 
 export function MyTicketsPage() {
-  useTranslation();
-  const [tickets, setTickets] = useState<TicketWithConcert[]>([]);
-  const [activeTab, setActiveTab] = useState<TicketFilter>('all');
-  const [openConcertId, setOpenConcertId] = useState<string | null>(null);
-  const [selectedTicket, setSelectedTicket] = useState<TicketWithConcert | null>(null);
+  const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const preferredConcertId = searchParams.get('concertId');
+  return <TicketWallet key={JSON.stringify([user?.id, preferredConcertId])} preferredConcertId={preferredConcertId} />;
+}
+
+function TicketWallet({ preferredConcertId }: { preferredConcertId: string | null }) {
+  const { t } = useTranslation();
+  const [tickets, setTickets] = useState<Ticket[] | null>(null);
+  const [concerts, setConcerts] = useState(() => new Map<string, ConcertDetail>());
+  const [filter, setFilter] = useState<TicketFilter>('all');
+  const [openConcertId, setOpenConcertId] = useState(preferredConcertId);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const page = useRef<HTMLDivElement>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const rememberedFocus = useRef<HTMLElement | null>(null);
+  const openingControl = useRef<HTMLButtonElement | null>(null);
+  const openingGroup = useRef<string | null>(null);
+
+  useLayoutEffect(() => {
+    // A reordered event can move its focused control in the DOM.
+    if (rememberedFocus.current && document.activeElement === document.body) {
+      const target = rememberedFocus.current.isConnected ? rememberedFocus.current : heading.current;
+      target?.focus({ preventScroll: true });
+    }
+    rememberedFocus.current = null;
+  });
 
   useEffect(() => {
     const controller = new AbortController();
-    let active = true;
-    setLoading(true);
-    setError(null);
+    const { signal } = controller;
 
-    getMyTickets(controller.signal)
-      .then(async (ticketList) => {
-        const concertIds = [...new Set(ticketList.filter((ticket) => !ticket.performanceId).map((ticket) => ticket.concertId))];
-        const concertResults = await Promise.allSettled(
-          concertIds.map((concertId) => getConcert(concertId, controller.signal)),
-        );
-        if (!active) return;
+    function rememberFocus() {
+      const active = document.activeElement;
+      if (active instanceof HTMLElement && page.current?.contains(active)) {
+        rememberedFocus.current = active;
+      }
+    }
 
-        const concerts = new Map<string, ConcertDetail>();
-        concertResults.forEach((result, index) => {
-          if (result.status === 'fulfilled') concerts.set(concertIds[index], result.value);
-        });
+    async function load() {
+      try {
+        const data = await getMyTickets(signal);
+        if (signal.aborted) return;
+        rememberFocus();
+        setTickets(data);
+        setSelectedId((id) => id && data.some((ticket) => ticket.id === id) ? id : null);
+        setError(false);
+        setLoading(false);
 
-        const enrichedTickets = ticketList.map((ticket) => ({
-          ...ticket,
-          concert: concerts.get(ticket.concertId) ?? null,
-        }));
-        setTickets(enrichedTickets);
-        setSelectedTicket((current) =>
-          current ? (enrichedTickets.find((ticket) => ticket.id === current.id) ?? null) : null,
-        );
-        setOpenConcertId((current) => current ?? enrichedTickets[0]?.concertId ?? null);
-      })
-      .catch((requestError: unknown) => {
-        if (active && !isRequestCanceled(requestError)) {
-          setError(translate("customer:myTicketsPage_khongTheTaiVeCuaBan"));
+        for (const id of new Set(data.map((ticket) => ticket.concertId))) {
+          void getConcert(id, signal).then((concert) => {
+            if (signal.aborted) return;
+            rememberFocus();
+            setConcerts((previous) => new Map(previous).set(id, concert));
+          }).catch(() => {
+            // Catalog adds display details. Issued tickets remain usable without it.
+          });
         }
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
+      } catch (requestError) {
+        if (signal.aborted || isRequestCanceled(requestError)) return;
+        rememberFocus();
+        if (requestError instanceof ApiClientError && [401, 403].includes(requestError.status)) {
+          setTickets(null);
+          setSelectedId(null);
+        }
+        setError(true);
+        setLoading(false);
+      }
+    }
 
-    return () => {
-      active = false;
-      controller.abort();
-    };
+    void load();
+    return () => controller.abort();
   }, [reloadKey]);
 
-  const filteredTickets = useMemo(
-    () => (activeTab === 'all' ? tickets : tickets.filter((ticket) => ticket.status === activeTab)),
-    [activeTab, tickets],
-  );
+  const groups = useMemo(() => groupTickets(tickets ?? [], concerts, preferredConcertId), [tickets, concerts, preferredConcertId]);
+  const selectedTicket = selectedId ? tickets?.find((ticket) => ticket.id === selectedId) : undefined;
 
-  const groups = useMemo(() => groupTickets(filteredTickets), [filteredTickets]);
-  const totalValid = tickets.filter((ticket) => ticket.status === 'VALID').length;
-
-  if (loading) {
-    return (
-      <div className="tickets-page page-width">
-        <div className="tickets-heading">
-          <div>
-            <p className="eyebrow">
-              <span /> {translate("customer:myTicketsPage_yourLiveArchive")}
-            </p>
-            <h1>{translate("customer:myTicketsPage_myTickets")}</h1>
-          </div>
-        </div>
-        <div className="ticket-list" aria-label={translate("customer:myTicketsPage_dangTaiVe")} aria-live="polite">
-          {[1, 2].map((item) => (
-            <div className="event-skeleton" key={item}>
-              <div />
-              <span />
-              <span />
-            </div>
-          ))}
-        </div>
-      </div>
-    );
+  function reload() {
+    if (loading) return;
+    setLoading(true);
+    setError(false);
+    setReloadKey((key) => key + 1);
   }
 
-  if (error) {
-    return (
-      <div className="tickets-page page-width">
-        <div className="state-panel">
-          <span className="state-icon">!</span>
-          <h3>{translate("customer:myTicketsPage_ticketsUnavailable")}</h3>
-          <p>{error}</p>
-          <button
-            className="button button-primary"
-            type="button"
-            onClick={() => setReloadKey((value) => value + 1)}
-          >
-            {translate("customer:myTicketsPage_thuLai")}
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const restoreTicketFocus = useCallback(() => {
+    const trigger = openingControl.current;
+    if (trigger?.isConnected) {
+      trigger.focus();
+      return;
+    }
+    const group = openingGroup.current && document.getElementById(groupControlId(openingGroup.current));
+    (group || heading.current)?.focus();
+  }, []);
 
   return (
-    <div className="tickets-page page-width">
-      <div className="tickets-heading">
-        <div>
-          <p className="eyebrow">
-            <span /> {translate("customer:myTicketsPage_yourLiveArchive")}
-          </p>
-          <h1>{translate("customer:myTicketsPage_myTickets")}</h1>
-          <p>
-            {tickets.length
-              ? translate("customer:myTicketsPage_veTrongConcertVeConHieuLuc", { arg1: tickets.length, arg2: groupTickets(tickets).length, arg3: totalValid })
-              : translate("customer:myTicketsPage_tatCaETicketCuaBanSe")}
-          </p>
-        </div>
-        <div className="tickets-heading-actions">
-          <button
-            className="button button-secondary"
-            type="button"
-            onClick={() => setReloadKey((value) => value + 1)}
-          >
-            <RefreshCw size={16} />
-            {translate("customer:myTicketsPage_lamMoi")}
+    <div className="buyer-page page-width wallet-page" ref={page}>
+      <header className="buyer-page-header">
+        <h1 ref={heading} tabIndex={-1}>{t('customer:myTicketsPage_myTickets')}</h1>
+        {tickets?.length ? (
+          <button className="button button-secondary" type="button" onClick={reload} aria-disabled={loading}>
+            <RefreshCw size={17} aria-hidden="true" />
+            {t('customer:myTicketsPage_lamMoi')}
           </button>
-          <Link className="button button-secondary" to="/">
-            {translate("customer:myTicketsPage_timConcertKhac")}
-          </Link>
-        </div>
-      </div>
+        ) : null}
+      </header>
 
-      <div className="ticket-tabs" role="tablist" aria-label={translate("customer:myTicketsPage_trangThaiVe")}>
-        {tabs.map((tab) => (
-          <button
-            key={tab.value}
-            type="button"
-            role="tab"
-            aria-selected={activeTab === tab.value}
-            className={activeTab === tab.value ? 'active' : ''}
-            onClick={() => setActiveTab(tab.value)}
-          >
-            {tab.label}
+      {loading ? (
+        <p className="wallet-progress" role="status">
+          {t(tickets ? 'customer:myTicketsPage_dangCapNhat' : 'customer:myTicketsPage_dangTaiVe')}
+        </p>
+      ) : null}
+
+      {error ? (
+        <div className="buyer-state wallet-state" role="alert">
+          <h2>{t('customer:myTicketsPage_ticketsUnavailable')}</h2>
+          <p>{t(tickets ? 'customer:myTicketsPage_refreshFailed' : 'customer:myTicketsPage_khongTheTaiVeCuaBan')}</p>
+          <button className="button button-secondary" type="button" onClick={reload}>
+            {t('customer:myTicketsPage_thuLai')}
           </button>
-        ))}
-      </div>
+        </div>
+      ) : null}
 
-      {groups.length > 0 ? (
-        <div className="ticket-concert-list">
-          {groups.map((group) => (
-            <ConcertTicketCard
-              key={group.concertId}
-              group={group}
-              open={openConcertId === group.concertId}
-              onToggle={() =>
-                setOpenConcertId((current) =>
-                  current === group.concertId ? null : group.concertId,
-                )
-              }
-              onOpenTicket={setSelectedTicket}
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="state-panel">
-          <span className="state-icon">◇</span>
-          <h3>{translate("customer:myTicketsPage_chuaCoVePhuHop")}</h3>
-          <p>{translate("customer:myTicketsPage_doiBoLocHoacKhamPhaConcert")}</p>
-          <Link className="button button-primary" to="/">
-            {translate("customer:myTicketsPage_browseEvents")}
-          </Link>
-        </div>
-      )}
+      {tickets?.length === 0 ? (
+        <section className="buyer-state wallet-state">
+          <h2>{t('customer:myTicketsPage_empty')}</h2>
+          <p>{t('customer:myTicketsPage_tatCaETicketCuaBanSe')}</p>
+          <Link className="button button-primary" to="/">{t('customer:myTicketsPage_browseEvents')}</Link>
+        </section>
+      ) : null}
+
+      {tickets?.length ? (
+        <>
+          <div className="buyer-filters" role="group" aria-label={t('customer:myTicketsPage_trangThaiVe')}>
+            {filters.map(([value, key]) => (
+              <button
+                id={value === 'all' ? 'wallet-filter-all' : undefined}
+                key={value}
+                type="button"
+                aria-pressed={filter === value}
+                onClick={() => setFilter(value)}
+              >
+                {t(key)}
+              </button>
+            ))}
+          </div>
+
+          {filter === 'all' || tickets.some((ticket) => ticket.status === filter) ? (
+            <div className="wallet-groups">
+              {groups.map((group) => {
+                const visible = filter === 'all' ? group.tickets : group.tickets.filter((ticket) => ticket.status === filter);
+                if (!visible.length) return null;
+
+                return (
+                  <ConcertTicketCard
+                    group={group}
+                    tickets={visible}
+                    key={group.id}
+                    open={openConcertId === group.id}
+                    onToggle={() => setOpenConcertId((id) => id === group.id ? null : group.id)}
+                    onOpenTicket={(ticketId, control) => {
+                      openingControl.current = control;
+                      openingGroup.current = group.id;
+                      setSelectedId(ticketId);
+                    }}
+                  />
+                );
+              })}
+            </div>
+          ) : (
+            <section className="buyer-state wallet-state">
+              <h2>{t('customer:myTicketsPage_chuaCoVePhuHop')}</h2>
+              <button
+                className="button button-secondary"
+                type="button"
+                onClick={() => {
+                  setFilter('all');
+                  document.getElementById('wallet-filter-all')?.focus();
+                }}
+              >
+                {t('customer:myTicketsPage_clearFilter')}
+              </button>
+            </section>
+          )}
+        </>
+      ) : null}
 
       {selectedTicket ? (
-        <TicketDetail ticket={selectedTicket} onClose={() => setSelectedTicket(null)} />
+        <TicketDetail
+          ticket={selectedTicket}
+          concert={concerts.get(selectedTicket.concertId)}
+          onClose={() => setSelectedId(null)}
+          restoreFocus={restoreTicketFocus}
+        />
       ) : null}
     </div>
   );
@@ -220,212 +238,279 @@ export function MyTicketsPage() {
 
 function ConcertTicketCard({
   group,
+  tickets,
   open,
   onToggle,
   onOpenTicket,
 }: {
   group: ConcertTicketGroup;
+  tickets: Ticket[];
   open: boolean;
   onToggle: () => void;
-  onOpenTicket: (ticket: TicketWithConcert) => void;
+  onOpenTicket: (ticketId: string, control: HTMLButtonElement) => void;
 }) {
-  useTranslation();
-  const valid = group.tickets.filter((ticket) => ticket.status === 'VALID').length;
-  const used = group.tickets.filter((ticket) => ticket.status === 'USED').length;
-  const eventTime = group.concert
-    ? eventDate.format(new Date(group.concert.eventDate))
-    : translate("customer:myTicketsPage_dangCapNhat");
+  const { t } = useTranslation();
+  const headingId = useId();
+  const detailsId = useId();
+  const name = group.concert ? concertTitle(group.concert) : group.tickets[0].concertTitle;
+  const timestamp = concertTimestamp(group.concert);
+  const groupAction = t(open ? 'customer:myTicketsPage_hideTickets' : 'customer:myTicketsPage_viewTickets');
 
   return (
-    <article className={`ticket-concert-card ${open ? 'is-open' : ''}`}>
-      <button
-        className="ticket-concert-summary"
-        type="button"
-        onClick={onToggle}
-        aria-expanded={open}
-      >
-        <RemoteImage
-          src={group.concert?.posterUrl ?? undefined}
-          alt=""
-          width="420"
-          height="300"
-          loading="lazy"
-        />
-        <div className="ticket-concert-copy">
-          <span className="ticket-concert-kicker">{group.tickets.length} {translate("customer:myTicketsPage_ve")}</span>
-          <h2>{group.concert ? concertTitle(group.concert) : group.concertTitle}</h2>
-          <p>
-            <CalendarDays size={15} /> {eventTime}
-          </p>
-          {group.concert ? (
-            <p>
-              <MapPin size={15} /> {group.concert.venueName}
-            </p>
+    <article className="wallet-group" aria-labelledby={headingId}>
+      <div className="wallet-group-summary">
+        <div className="wallet-event-art">
+          <TicketIcon size={28} aria-hidden="true" />
+          {group.concert?.posterUrl ? (
+            <EventPoster key={group.concert.posterUrl} src={group.concert.posterUrl} />
           ) : null}
         </div>
-        <div className="ticket-concert-stats">
-          <div>
-            <span>{translate("customer:myTicketsPage_hopLe")}</span>
-            <strong>{valid}</strong>
-          </div>
-          <div>
-            <span>{translate("customer:myTicketsPage_daDung")}</span>
-            <strong>{used}</strong>
+        <div className="wallet-event">
+          <h2 id={headingId}>{name}</h2>
+          <div className="wallet-event-meta">
+            {timestamp !== null ? (
+              <time dateTime={group.concert?.eventDate}>
+                <CalendarDays size={16} aria-hidden="true" />
+                {eventDateTime.format(timestamp)}
+              </time>
+            ) : null}
+            {group.concert?.venueName ? (
+              <span><MapPin size={16} aria-hidden="true" />{group.concert.venueName}</span>
+            ) : null}
+            <span>{t('customer:myTicketsPage_ticketCount', { count: tickets.length })}</span>
           </div>
         </div>
-        <ChevronDown className="ticket-concert-chevron" size={20} aria-hidden="true" />
-      </button>
+        <button
+          id={groupControlId(group.id)}
+          className="button button-secondary wallet-group-control"
+          type="button"
+          onClick={onToggle}
+          aria-expanded={open}
+          aria-controls={detailsId}
+          aria-label={t('customer:myTicketsPage_namedAction', { action: groupAction, name })}
+        >
+          {groupAction}
+          <ChevronDown size={17} aria-hidden="true" />
+        </button>
+      </div>
 
-      {open ? (
-        <div className="ticket-concert-details">
-          {group.tickets.map((ticket) => (
-            <TicketRow key={ticket.id} ticket={ticket} onOpen={() => onOpenTicket(ticket)} />
-          ))}
-        </div>
-      ) : null}
+      <ul className="wallet-ticket-list" id={detailsId} hidden={!open}>
+        {open ? tickets.map((ticket) => (
+          <TicketRow
+            key={ticket.id}
+            ticket={ticket}
+            reference={rowReference(ticket, group.tickets)}
+            onOpen={onOpenTicket}
+          />
+        )) : null}
+      </ul>
     </article>
   );
 }
 
-function TicketRow({ ticket, onOpen }: { ticket: TicketWithConcert; onOpen: () => void }) {
-  useTranslation();
-  const statusClass = ticket.status.toLowerCase();
+function EventPoster({ src }: { src: string }) {
+  const [ready, setReady] = useState(false);
+
   return (
-    <button className="ticket-row" type="button" onClick={onOpen}>
-      <span className={`ticket-status status-${statusClass}`}>{statusLabel(ticket.status)}</span>
-      <div>
-        <strong>{ticket.ticketTypeName}</strong>
-        {seatDescription(ticket) && <small>{seatDescription(ticket)}</small>}
-        <small>
-          {translate("customer:myTicketsPage_maVe")} {ticket.id.slice(0, 8).toUpperCase()} {translate("customer:myTicketsPage_phatHanh")}{' '}
-          {issuedDate.format(new Date(ticket.issuedAt))}
-        </small>
-      </div>
-      {ticket.status === 'VALID' ? (
-        <QRCodeSVG
-          className="ticket-qr ticket-qr-small"
-          value={ticket.qrCode}
-          size={60}
-          level="M"
-          marginSize={2}
-          title={translate("customer:myTicketsPage_qrCodeFor", { arg1: ticket.concert ? concertTitle(ticket.concert) : ticket.concertTitle })}
-        />
-      ) : (
-        <TicketIcon size={22} aria-hidden="true" />
-      )}
-    </button>
+    <RemoteImage
+      className={ready ? 'wallet-poster-ready' : undefined}
+      src={src}
+      alt=""
+      width={160}
+      height={160}
+      loading="lazy"
+      onLoad={() => setReady(true)}
+    />
   );
 }
 
-function TicketDetail({ ticket, onClose }: { ticket: TicketWithConcert; onClose: () => void }) {
-  useTranslation();
+function TicketRow({
+  ticket, reference, onOpen,
+}: {
+  ticket: Ticket;
+  reference: string;
+  onOpen: (ticketId: string, control: HTMLButtonElement) => void;
+}) {
+  const { t } = useTranslation();
+  const action = t(ticket.status === 'VALID' ? 'customer:myTicketsPage_openQr' : 'customer:myTicketsPage_viewDetails');
+  return (
+    <li className="wallet-ticket-row">
+      <div className="wallet-ticket-info">
+        <strong>{ticket.ticketTypeName}</strong>
+        <span>{t('customer:myTicketsPage_maVe')} {reference}</span>
+      </div>
+      <TicketStatusLabel status={ticket.status} />
+      <button
+        className={`button ${ticket.status === 'VALID' ? 'button-primary' : 'button-secondary'}`}
+        type="button"
+        aria-label={t('customer:myTicketsPage_namedAction', { action, name: reference })}
+        onClick={(event) => onOpen(ticket.id, event.currentTarget)}
+      >
+        {action}
+      </button>
+    </li>
+  );
+}
+
+function TicketStatusLabel({ status }: { status: TicketStatus }) {
+  const { t } = useTranslation();
+  return <span className={`wallet-ticket-status wallet-status-${status.toLowerCase()}`}>{t(statusKeys[status])}</span>;
+}
+
+function TicketDetail({
+  ticket, concert, onClose, restoreFocus,
+}: {
+  ticket: Ticket;
+  concert?: ConcertDetail;
+  onClose: () => void;
+  restoreFocus: () => void;
+}) {
+  const { t } = useTranslation();
+  const name = concert ? concertTitle(concert) : ticket.concertTitle;
+  const timestamp = concertTimestamp(concert);
+  const headingId = useId();
+  const dialog = useRef<HTMLDialogElement>(null);
+  const closeButton = useRef<HTMLButtonElement>(null);
+
+  useLayoutEffect(() => {
+    const modal = dialog.current;
+    modal?.showModal();
+    closeButton.current?.focus();
+
+    return () => {
+      modal?.close();
+      queueMicrotask(() => {
+        if (!modal?.open) restoreFocus();
+      });
+    };
+  }, [restoreFocus]);
+
   return (
     <ModalPortal>
-      <div
-        className="ticket-detail-backdrop"
-        role="presentation"
-        onMouseDown={(event) => {
-          if (event.target === event.currentTarget) onClose();
+      <dialog
+        className="buyer-ui wallet-dialog"
+        ref={dialog}
+        aria-labelledby={headingId}
+        onCancel={(event) => {
+          event.preventDefault();
+          onClose();
+        }}
+        onKeyDown={(event) => {
+          // Close is the only interactive control in the ticket viewer.
+          if (event.key === 'Tab') {
+            event.preventDefault();
+            closeButton.current?.focus();
+          }
         }}
       >
-      <section
-        className="ticket-detail-panel"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="ticket-detail-title"
-      >
-        <button
-          className="ticket-detail-close"
-          type="button"
-          onClick={onClose}
-          aria-label={translate("customer:myTicketsPage_dongChiTietVe")}
-        >
-          {translate("customer:myTicketsPage_message")}
-        </button>
-        <p className="eyebrow">
-          <span /> {translate("customer:myTicketsPage_eTicketDetails")}
-        </p>
-        <h2 id="ticket-detail-title">{ticket.concert ? concertTitle(ticket.concert) : ticket.concertTitle}</h2>
-        <dl className="ticket-detail-facts">
+        <div className="wallet-dialog-header">
           <div>
-            <dt>{translate("customer:myTicketsPage_ticketId")}</dt>
+            <h2 id={headingId}>{name}</h2>
+            <div className="wallet-dialog-ticket">
+              <strong>{ticket.ticketTypeName}</strong>
+              <span role="status"><TicketStatusLabel status={ticket.status} /></span>
+            </div>
+          </div>
+          <button
+            className="button button-secondary wallet-dialog-close"
+            ref={closeButton}
+            type="button"
+            aria-label={t('customer:myTicketsPage_dongChiTietVe')}
+            onClick={onClose}
+          >
+            <X size={21} aria-hidden="true" />
+          </button>
+        </div>
+
+        {ticket.status === 'VALID' ? (
+          <div className="wallet-qr-view">
+            <QRCodeSVG
+              className="wallet-qr"
+              value={ticket.qrCode}
+              size={240}
+              level="M"
+              marginSize={4}
+              bgColor="#fff"
+              fgColor="#101828"
+              role="img"
+              title={t('customer:myTicketsPage_ticketQrCodeFor', { arg1: name })}
+            />
+            <p><strong>{t('customer:myTicketsPage_xuatTrinhTaiCong')}</strong></p>
+            <p>{t('customer:myTicketsPage_giuQrRiengTuNeuChiaSe')}</p>
+          </div>
+        ) : (
+          <p className="wallet-qr-unavailable">{t('customer:myTicketsPage_qrUnavailable')}</p>
+        )}
+
+        <dl className="wallet-ticket-facts">
+          {timestamp !== null ? (
+            <div>
+              <dt>{t('customer:myTicketsPage_eventDate')}</dt>
+              <dd><time dateTime={concert?.eventDate}>{eventDateTime.format(timestamp)}</time></dd>
+            </div>
+          ) : null}
+          {concert?.venueName ? <div><dt>{t('customer:myTicketsPage_venue')}</dt><dd>{concert.venueName}</dd></div> : null}
+          <div>
+            <dt>{t('customer:myTicketsPage_ticketId')}</dt>
             <dd>{ticket.id}</dd>
           </div>
           <div>
-            <dt>{translate("customer:myTicketsPage_zone")}</dt>
-            <dd>{seatDescription(ticket) || ticket.ticketTypeName}</dd>
-          </div>
-          <div>
-            <dt>{translate("customer:myTicketsPage_status")}</dt>
-            <dd>{statusLabel(ticket.status)}</dd>
-          </div>
-          {ticket.concert?.eventDate || ticket.performanceStartsAt ? (
-            <div>
-              <dt>{translate("customer:myTicketsPage_eventDate")}</dt>
-              <dd>{eventDate.format(new Date(ticket.performanceStartsAt ?? ticket.concert?.eventDate ?? ''))}</dd>
-            </div>
-          ) : null}
-          {ticket.concert?.venueName || ticket.performanceVenueName ? (
-            <div>
-              <dt>{translate("customer:myTicketsPage_venue")}</dt>
-              <dd>{ticket.performanceVenueName ?? ticket.concert?.venueName}</dd>
-            </div>
-          ) : null}
-          <div>
-            <dt>{translate("customer:myTicketsPage_issued")}</dt>
-            <dd>{issuedDate.format(new Date(ticket.issuedAt))}</dd>
+            <dt>{t('customer:myTicketsPage_issued')}</dt>
+            <dd><time dateTime={ticket.issuedAt}>{issuedDate.format(new Date(ticket.issuedAt))}</time></dd>
           </div>
         </dl>
-        {ticket.status === 'VALID' ? (
-          <div className="ticket-qr-payload">
-            <QRCodeSVG
-              className="ticket-qr"
-              value={ticket.qrCode}
-              size={180}
-              level="M"
-              marginSize={3}
-              title={translate("customer:myTicketsPage_ticketQrCodeFor", { arg1: ticket.concert ? concertTitle(ticket.concert) : ticket.concertTitle })}
-            />
-            <div>
-              <span>{translate("customer:myTicketsPage_ticketQrCode")}</span>
-              <strong>{translate("customer:myTicketsPage_xuatTrinhTaiCong")}</strong>
-              <p>
-                {translate("customer:myTicketsPage_giuQrRiengTuNeuChiaSe")}
-              </p>
-            </div>
-          </div>
-        ) : null}
-      </section>
-      </div>
+      </dialog>
     </ModalPortal>
   );
 }
 
-function groupTickets(tickets: TicketWithConcert[]): ConcertTicketGroup[] {
-  const groups = new Map<string, ConcertTicketGroup>();
-  tickets.forEach((ticket) => {
-    const current = groups.get(ticket.concertId);
-    if (current) {
-      current.tickets.push(ticket);
-      return;
-    }
-    groups.set(ticket.concertId, {
-      concertId: ticket.concertId,
-      concertTitle: ticket.concertTitle,
-      concert: ticket.concert,
-      tickets: [ticket],
-    });
-  });
-  return [...groups.values()].sort((a, b) => {
-    const aTime = a.concert?.eventDate ? new Date(a.concert.eventDate).getTime() : 0;
-    const bTime = b.concert?.eventDate ? new Date(b.concert.eventDate).getTime() : 0;
-    return bTime - aTime;
-  });
+function groupControlId(concertId: string) {
+  return `wallet-event-${encodeURIComponent(concertId)}`;
 }
 
-function statusLabel(status: TicketStatus) {
-  if (status === 'VALID') return translate("customer:myTicketsPage_hopLe");
-  if (status === 'USED') return translate("customer:myTicketsPage_daDung");
-  if (status === 'CANCELLED') return translate("customer:myTicketsPage_daHuy");
-  return translate("customer:myTicketsPage_daChuyen");
+function shortTicketId(ticket: Ticket) {
+  return ticket.id.slice(0, 8).toUpperCase();
+}
+
+function rowReference(ticket: Ticket, allTickets: Ticket[]) {
+  const shortId = shortTicketId(ticket);
+  return allTickets.some((other) => other.id !== ticket.id && shortTicketId(other) === shortId)
+    ? `${shortId}–${allTickets.findIndex((item) => item.id === ticket.id) + 1}`
+    : shortId;
+}
+
+function concertTimestamp(concert?: ConcertDetail) {
+  const timestamp = Date.parse(concert?.eventDate ?? '');
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function groupTickets(tickets: Ticket[], concerts: Map<string, ConcertDetail>, preferredConcertId: string | null) {
+  const groups = new Map<string, ConcertTicketGroup>();
+  for (const ticket of tickets) {
+    const current = groups.get(ticket.concertId);
+    if (current) current.tickets.push(ticket);
+    else groups.set(ticket.concertId, {
+      id: ticket.concertId, concert: concerts.get(ticket.concertId), tickets: [ticket],
+    });
+  }
+
+  const now = Date.now();
+  function upcoming(group: ConcertTicketGroup) {
+    const timestamp = concertTimestamp(group.concert);
+    return timestamp !== null && timestamp >= now && group.tickets.some((ticket) => ticket.status === 'VALID')
+      ? timestamp
+      : Infinity;
+  }
+
+  return [...groups.values()].sort((left, right) => {
+    if (left.id === preferredConcertId) return -1;
+    if (right.id === preferredConcertId) return 1;
+    const leftUpcoming = upcoming(left);
+    const rightUpcoming = upcoming(right);
+    if (leftUpcoming !== rightUpcoming) return leftUpcoming - rightUpcoming;
+    const leftDate = concertTimestamp(left.concert);
+    const rightDate = concertTimestamp(right.concert);
+    if (leftDate === rightDate) return 0;
+    return (rightDate ?? -Infinity) - (leftDate ?? -Infinity);
+  });
 }

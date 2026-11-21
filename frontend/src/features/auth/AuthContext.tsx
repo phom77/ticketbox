@@ -17,10 +17,10 @@ interface AuthContextType {
   token: string | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<UserSummary>;
-  register: (email: string, password: string, fullName: string, phone: string) => Promise<void>;
+  register: (email: string, password: string, fullName: string, phone: string | null) => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<UserSummary | null>;
-  updateUserSummary: (nextUser: UserSummary) => void;
+  updateUserSummary: (nextUser: UserSummary, expectedToken: string | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -115,7 +115,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return data.user;
   };
 
-  const register = async (email: string, password: string, fullName: string, phone: string): Promise<void> => {
+  const register = async (email: string, password: string, fullName: string, phone: string | null): Promise<void> => {
     await api.post('/api/auth/register', { email, password, fullName, phone });
   };
 
@@ -142,8 +142,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return currentUser;
   };
 
-  const updateUserSummary = (nextUser: UserSummary) => {
-    setUser(nextUser);
+  const updateUserSummary = (nextUser: UserSummary, expectedToken: string | null) => {
+    if (!expectedToken || getAuthToken() !== expectedToken) return;
+    setUser((current) => current?.id === nextUser.id ? nextUser : current);
   };
 
   const value = useMemo(

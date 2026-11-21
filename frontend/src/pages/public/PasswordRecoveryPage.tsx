@@ -1,30 +1,18 @@
 import { translate } from '../../i18n';
 import { useTranslation } from 'react-i18next';
-import { useLayoutEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { useLayoutEffect, useRef, useState, type FormEvent } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { ApiClientError, publicApi } from '../../api/client';
-import { Logo } from '../../components/layout/PublicLayout';
-import { LanguageSelect } from '../../components/LanguageSelect';
+import { AuthError, AuthLayout } from '../../components/layout/AuthLayout';
+import { authReturnPath } from '../../features/auth/authReturn';
 import { clearAuthToken } from '../../features/auth/tokenCookie';
 
 const minimumPasswordLength = 8;
 const maximumPasswordBytes = 72;
 
-function RecoveryLayout({ children }: { children: ReactNode }) {
-  useTranslation();
-  return (
-    <main className="auth-recovery">
-      <div className="auth-card">
-        <div className="auth-language"><LanguageSelect /></div>
-        <Logo />
-        {children}
-      </div>
-    </main>
-  );
-}
-
 export function RequestPasswordResetPage() {
   useTranslation();
+  const { state } = useLocation();
   const [submitting, setSubmitting] = useState(false);
   const [accepted, setAccepted] = useState(false);
   const [error, setError] = useState('');
@@ -48,18 +36,15 @@ export function RequestPasswordResetPage() {
   }
 
   return (
-    <RecoveryLayout>
-      <div className="auth-heading">
-        <h1>{translate("public:passwordRecoveryPage_datLaiMatKhau")}</h1>
-        {accepted ? (
-          <p role="status">{translate("public:passwordRecoveryPage_neuEmailDuDieuKienTicketboxSe")}</p>
-        ) : (
-          <p>{translate("public:passwordRecoveryPage_nhapDiaChiEmailDungDeDang")}</p>
-        )}
-      </div>
-      {error ? <div className="state-panel auth-error" role="alert"><p>{error}</p></div> : null}
+    <AuthLayout
+      title={translate("public:passwordRecoveryPage_datLaiMatKhau")}
+      description={accepted
+        ? <div role="status"><p>{translate("public:passwordRecoveryPage_neuEmailDuDieuKienTicketboxSe")}</p></div>
+        : <p>{translate("public:passwordRecoveryPage_nhapDiaChiEmailDungDeDang")}</p>}
+    >
       {!accepted ? (
         <form className="auth-form" onSubmit={submit}>
+          <AuthError message={error} />
           <label className="field">
             <span>{translate("public:passwordRecoveryPage_diaChiEmail")}</span>
             <input type="email" name="email" autoComplete="email" spellCheck={false} required />
@@ -69,8 +54,10 @@ export function RequestPasswordResetPage() {
           </button>
         </form>
       ) : null}
-      <p className="auth-switch"><Link to="/login">{translate("public:passwordRecoveryPage_quayLaiDangNhap")}</Link></p>
-    </RecoveryLayout>
+      <p className="buyer-auth-alternate">
+        <Link to="/login" state={{ from: authReturnPath(state) }}>{translate("public:passwordRecoveryPage_quayLaiDangNhap")}</Link>
+      </p>
+    </AuthLayout>
   );
 }
 
@@ -80,6 +67,9 @@ export function ResetPasswordPage() {
   const [submitting, setSubmitting] = useState(false);
   const [complete, setComplete] = useState(false);
   const [error, setError] = useState('');
+  const [passwordIssue, setPasswordIssue] = useState<'length' | 'mismatch' | null>(null);
+  const passwordInput = useRef<HTMLInputElement>(null);
+  const confirmationInput = useRef<HTMLInputElement>(null);
 
   useLayoutEffect(() => {
     const meta = document.createElement('meta');
@@ -96,16 +86,19 @@ export function ResetPasswordPage() {
     if (!token || submitting) return;
     const data = new FormData(event.currentTarget);
     const password = String(data.get('password'));
+    setError('');
     if (password.length < minimumPasswordLength || !password.trim() ||
         new TextEncoder().encode(password).length > maximumPasswordBytes) {
-      setError(translate("public:passwordRecoveryPage_matKhauPhaiCoItNhat8"));
+      setPasswordIssue('length');
+      passwordInput.current?.focus();
       return;
     }
     if (password !== data.get('confirmPassword')) {
-      setError(translate("public:passwordRecoveryPage_matKhauXacNhanKhongKhop"));
+      setPasswordIssue('mismatch');
+      confirmationInput.current?.focus();
       return;
     }
-    setError('');
+    setPasswordIssue(null);
     setSubmitting(true);
     try {
       await publicApi.post('/api/auth/password-reset/confirm', { token, password });
@@ -127,52 +120,79 @@ export function ResetPasswordPage() {
 
   if (complete) {
     return (
-      <RecoveryLayout>
-        <div className="auth-heading" role="status">
-          <h1>{translate("public:passwordRecoveryPage_matKhauDaDuocCapNhat")}</h1>
-          <p>{translate("public:passwordRecoveryPage_dangNhapBangMatKhauMoiDe")}</p>
-        </div>
+      <AuthLayout
+        title={translate("public:passwordRecoveryPage_matKhauDaDuocCapNhat")}
+        description={<p role="status">{translate("public:passwordRecoveryPage_dangNhapBangMatKhauMoiDe")}</p>}
+      >
         <Link className="button button-primary button-block" to="/login" reloadDocument>{translate("public:passwordRecoveryPage_dangNhap")}</Link>
-      </RecoveryLayout>
+      </AuthLayout>
     );
   }
 
   if (!token) {
     return (
-      <RecoveryLayout>
-        <div className="auth-heading" role="status">
-          <h1>{translate("public:passwordRecoveryPage_lienKetKhongKhaDung")}</h1>
-          <p>{translate("public:passwordRecoveryPage_lienKetDatLaiMatKhauKhong")}</p>
-        </div>
+      <AuthLayout
+        title={translate("public:passwordRecoveryPage_lienKetKhongKhaDung")}
+        description={<p role="status">{translate("public:passwordRecoveryPage_lienKetDatLaiMatKhauKhong")}</p>}
+      >
         <Link className="button button-primary button-block" to="/forgot-password">{translate("public:passwordRecoveryPage_yeuCauLienKetMoi")}</Link>
-        <p className="auth-switch"><Link to="/login">{translate("public:passwordRecoveryPage_quayLaiDangNhap")}</Link></p>
-      </RecoveryLayout>
+        <p className="buyer-auth-alternate"><Link to="/login">{translate("public:passwordRecoveryPage_quayLaiDangNhap")}</Link></p>
+      </AuthLayout>
     );
   }
 
   return (
-    <RecoveryLayout>
-      <div className="auth-heading">
-        <h1>{translate("public:passwordRecoveryPage_taoMatKhauMoi")}</h1>
-        <p id="reset-password-policy">{translate("public:passwordRecoveryPage_dungItNhat8KyTuVa")}</p>
-      </div>
-      {error ? <div className="state-panel auth-error" role="alert"><p>{error}</p></div> : null}
+    <AuthLayout
+      title={translate("public:passwordRecoveryPage_taoMatKhauMoi")}
+      description={<p id="reset-password-policy">{translate("public:passwordRecoveryPage_dungItNhat8KyTuVa")}</p>}
+    >
       <form className="auth-form" onSubmit={submit}>
-        <label className="field">
-          <span>{translate("public:passwordRecoveryPage_matKhauMoi")}</span>
-          <input type="password" name="password" autoComplete="new-password"
-            aria-describedby="reset-password-policy" minLength={minimumPasswordLength} required />
-        </label>
-        <label className="field">
-          <span>{translate("public:passwordRecoveryPage_xacNhanMatKhauMoi")}</span>
-          <input type="password" name="confirmPassword" autoComplete="new-password"
-            minLength={minimumPasswordLength} required />
-        </label>
+        <AuthError message={error} />
+        <div className="field">
+          <label htmlFor="reset-password">{translate("public:passwordRecoveryPage_matKhauMoi")}</label>
+          <input
+            id="reset-password"
+            ref={passwordInput}
+            type="password"
+            name="password"
+            autoComplete="new-password"
+            aria-describedby={passwordIssue === 'length' ? 'reset-password-length-error' : 'reset-password-policy'}
+            aria-invalid={passwordIssue === 'length' || undefined}
+            minLength={minimumPasswordLength}
+            onChange={() => setPasswordIssue(null)}
+            required
+          />
+          {passwordIssue === 'length' ? (
+            <span className="buyer-auth-field-error" id="reset-password-length-error" role="alert">
+              {translate("public:passwordRecoveryPage_matKhauPhaiCoItNhat8")}
+            </span>
+          ) : null}
+        </div>
+        <div className="field">
+          <label htmlFor="reset-confirmation">{translate("public:passwordRecoveryPage_xacNhanMatKhauMoi")}</label>
+          <input
+            id="reset-confirmation"
+            ref={confirmationInput}
+            type="password"
+            name="confirmPassword"
+            autoComplete="new-password"
+            aria-describedby={passwordIssue === 'mismatch' ? 'reset-password-confirmation-error' : undefined}
+            aria-invalid={passwordIssue === 'mismatch' || undefined}
+            minLength={minimumPasswordLength}
+            onChange={() => setPasswordIssue(null)}
+            required
+          />
+          {passwordIssue === 'mismatch' ? (
+            <span className="buyer-auth-field-error" id="reset-password-confirmation-error" role="alert">
+              {translate("public:passwordRecoveryPage_matKhauXacNhanKhongKhop")}
+            </span>
+          ) : null}
+        </div>
         <button className="button button-primary button-block" disabled={submitting} type="submit">
           {submitting ? translate("public:passwordRecoveryPage_dangLuuMatKhau") : translate("public:passwordRecoveryPage_luuMatKhauMoi")}
         </button>
       </form>
-      <p className="auth-switch"><Link to="/login">{translate("public:passwordRecoveryPage_quayLaiDangNhap")}</Link></p>
-    </RecoveryLayout>
+      <p className="buyer-auth-alternate"><Link to="/login">{translate("public:passwordRecoveryPage_quayLaiDangNhap")}</Link></p>
+    </AuthLayout>
   );
 }

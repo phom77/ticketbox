@@ -1,257 +1,240 @@
-import { translate, formatLanguage } from '../../i18n';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, ArrowRight, CalendarDays, MapPin, Minus, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { concertTitle } from '../../features/concert/concertText';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { ApiClientError, isRequestCanceled } from '../../api/client';
 import { getConcert, type ConcertDetail, type TicketType } from '../../api/concerts';
 import { clearStoredQueueAdmission, getStoredQueueAdmission, leaveQueue } from '../../api/queue';
-import { releaseAllHolds, releaseTicket, reserveTicket } from '../../api/reservations';
+import { getCurrentHolds, releaseAllHolds, releaseTicket, reserveTicket } from '../../api/reservations';
 import { ConcertSeatMap } from '../../components/ConcertSeatMap';
 import { useToast } from '../../components/feedback/toast-context';
-import { currency, eventDate } from '../../data/formatters';
+import { currency, dateFormatter } from '../../data/formatters';
+import { useAuth } from '../../features/auth/AuthContext';
+import { concertTitle } from '../../features/concert/concertText';
 import { useTicketAvailability } from '../../features/concert/useTicketAvailability';
 import { useCountdown } from '../../hooks/useCountdown';
+import { translate } from '../../i18n';
+import './SeatSelectionPage.css';
 
 export type CheckoutSelection = Pick<TicketType, 'id' | 'name' | 'price'> & { quantity: number; sectionLabel?: string | null; rowLabel?: string | null; seatLabel?: string | null };
 
-type ZoneLoadingAction = 'reserve' | 'release';
+type HoldAction = 'reserve' | 'release' | 'verify';
+type HoldFeedback = { kind: 'error' | 'confirmed' | 'unverified'; message: string };
+const eventDateTime = dateFormatter({ dateStyle: 'medium', timeStyle: 'short' });
 
 export function SeatSelectionPage() {
-  useTranslation();
   const { id } = useParams();
+  const { user } = useAuth();
+  return id ? <SeatSelection key={`${user?.id ?? ''}:${id}`} id={id} /> : null;
+}
+
+function SeatSelection({ id }: { id: string }) {
+  useTranslation();
   const navigate = useNavigate();
   const toast = useToast();
+  const [admission] = useState(() => getStoredQueueAdmission(id));
   const [concert, setConcert] = useState<ConcertDetail | null>(null);
+  const [concertStatus, setConcertStatus] = useState<'loading' | 'ready' | 'failed'>('loading');
+  const [holdsStatus, setHoldsStatus] = useState<'loading' | 'ready' | 'failed'>('loading');
   const [selectedZone, setSelectedZone] = useState<string | null>(null);
   const [heldQuantities, setHeldQuantities] = useState<Record<string, number>>({});
-  const [zoneLoading, setZoneLoading] = useState<Record<string, ZoneLoadingAction>>({});
-  const [concertLoading, setConcertLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [inventoryNotice, setInventoryNotice] = useState<string | null>(null);
+  const [zoneLoading, setZoneLoading] = useState<Record<string, HoldAction>>({});
+  const [feedback, setFeedback] = useState<Record<string, HoldFeedback | null>>({});
   const [reloadKey, setReloadKey] = useState(0);
-  const selectionWarningShown = useRef(false);
-  const queueAdmission = id ? getStoredQueueAdmission(id) : null;
-  const selectionCountdown = useCountdown(queueAdmission?.sessionExpiresAt, 120);
+  const [leaving, setLeaving] = useState(false);
+  const inFlight = useRef(new Set<string>());
+  const active = useRef(false);
+  const token = admission?.queueAccessToken;
   const {
-    ticketTypes,
-    loading: availabilityLoading,
-    updatesDelayed,
-    initialLoadFailed,
-    lastUpdatedAt,
-    refresh,
-  } = useTicketAvailability(id, reloadKey);
+    ticketTypes, loading: availabilityLoading, updatesDelayed, initialLoadFailed, refresh,
+  } = useTicketAvailability(admission ? id : undefined, reloadKey);
 
-  useEffect(() => {
-    if (
-      !selectionCountdown.isWarning ||
-      selectionCountdown.isExpired ||
-      selectionWarningShown.current
-    )
-      return;
-    selectionWarningShown.current = true;
-    toast.error('Less than 2 minutes left to choose tickets.');
-  }, [selectionCountdown.isExpired, selectionCountdown.isWarning, toast]);
-
-  useEffect(() => {
-    if (!id || !selectionCountdown.isExpired) return;
-    returnToWaitingRoom('Your ticket selection time expired.');
-  }, [id, selectionCountdown.isExpired]);
-
-  useEffect(() => {
-    if (!id) return;
-    const admission = getStoredQueueAdmission(id);
-    if (!admission) {
-      navigate(`/concerts/${id}/waiting-room`, { replace: true });
-      return;
-    }
-
-    const expiresInMs = new Date(admission.sessionExpiresAt).getTime() - Date.now();
-    const timeoutId = window.setTimeout(
-      () => {
-        clearStoredQueueAdmission();
-        setHeldQuantities({});
-        navigate(`/concerts/${id}/waiting-room`, { replace: true });
-      },
-      Math.max(0, expiresInMs),
-    );
-
-    return () => window.clearTimeout(timeoutId);
-  }, [id, navigate]);
-
-  useEffect(() => {
-    if (!id) return;
-    const controller = new AbortController();
-    let active = true;
-    setConcertLoading(true);
-    setError(null);
-    getConcert(id, controller.signal)
-      .then((detail) => {
-        if (!active) return;
-        setConcert(detail);
-        setError(null);
-      })
-      .catch((requestError: unknown) => {
-        if (active && !isRequestCanceled(requestError))
-          setError(translate("customer:seatSelectionPage_khongTheTaiConcertVaSoDo"));
-      })
-      .finally(() => {
-        if (active) setConcertLoading(false);
-      });
-    return () => {
-      active = false;
-      controller.abort();
-    };
-  }, [id, reloadKey]);
-
-  useEffect(() => {
-    if (ticketTypes.length === 0) {
-      setSelectedZone(null);
-      return;
-    }
-
-    setSelectedZone((current) => {
-      const currentType = ticketTypes.find((item) => item.id === current);
-      return currentType &&
-        (currentType.availableQty > 0 || (heldQuantities[currentType.id] ?? 0) > 0)
-        ? current
-        : (ticketTypes.find((item) => item.availableQty > 0)?.id ?? null);
-    });
-  }, [heldQuantities, ticketTypes]);
-
-  useEffect(() => {
-    const adjustedTypes = ticketTypes.filter(
-      (ticketType) => (heldQuantities[ticketType.id] ?? 0) > ticketType.maxPerAccount,
-    );
-
-    if (adjustedTypes.length === 0) return;
-
-    setHeldQuantities((current) => {
-      const next = { ...current };
-      for (const ticketType of adjustedTypes) {
-        next[ticketType.id] = ticketType.maxPerAccount;
-      }
-      return next;
-    });
-    setInventoryNotice(
-      translate("customer:seatSelectionPage_gioiHanGiuVeCuaDaThay", { arg1: adjustedTypes.map((item) => item.name).join(', ') }),
-    );
-  }, [heldQuantities, ticketTypes]);
-
-  const selection = useMemo<CheckoutSelection[]>(
-    () =>
-      ticketTypes
-        .filter((item) => (heldQuantities[item.id] ?? 0) > 0)
-        .map((item) => ({ ...item, quantity: heldQuantities[item.id] })),
-    [heldQuantities, ticketTypes],
-  );
-  const soldOutTicketTypeIds = useMemo(
-    () =>
-      new Set(
-        ticketTypes
-          .filter((item) => item.availableQty === 0 && (heldQuantities[item.id] ?? 0) === 0)
-          .map((item) => item.id),
-      ),
-    [heldQuantities, ticketTypes],
-  );
-  const ticketCount = selection.reduce((total, item) => total + item.quantity, 0);
-  const subtotal = selection.reduce((total, item) => total + item.price * item.quantity, 0);
-
-  function returnToWaitingRoom(message: string) {
-    clearStoredQueueAdmission();
-    setHeldQuantities({});
+  const returnToWaitingRoom = useCallback((message: string) => {
+    if (token && getStoredQueueAdmission(id)?.queueAccessToken === token) clearStoredQueueAdmission();
     toast.error(message);
-    if (id) navigate(`/concerts/${id}/waiting-room`, { replace: true });
-  }
+    navigate(`/concerts/${id}/waiting-room`, { replace: true });
+  }, [id, navigate, toast, token]);
 
-  function showReserveFailure(requestError: unknown) {
-    if (requestError instanceof ApiClientError) {
-      if (requestError.status === 401 || requestError.status === 403) {
+  useEffect(() => {
+    active.current = true;
+    if (!admission) {
+      returnToWaitingRoom(translate("customer:seatSelectionPage_missingAdmission"));
+      return () => { active.current = false; };
+    }
+
+    const timer = window.setTimeout(
+      () => returnToWaitingRoom(translate("customer:seatSelectionPage_phienMuaVeDaHetHanVui")),
+      Math.max(0, Date.parse(admission.sessionExpiresAt) - Date.now()),
+    );
+
+    return () => {
+      active.current = false;
+      window.clearTimeout(timer);
+    };
+  }, [admission, returnToWaitingRoom]);
+
+  useEffect(() => {
+    if (!token) return;
+    const controller = new AbortController();
+    const { signal } = controller;
+    setConcertStatus('loading');
+    setHoldsStatus('loading');
+
+    void getConcert(id, signal).then((detail) => {
+      if (signal.aborted) return;
+      setConcert(detail);
+      setConcertStatus('ready');
+    }).catch((error: unknown) => {
+      if (!signal.aborted && !isRequestCanceled(error)) setConcertStatus('failed');
+    });
+
+    void getCurrentHolds(id, token, signal).then((holds) => {
+      if (signal.aborted) return;
+      setHeldQuantities(Object.fromEntries(holds.map(({ ticketTypeId, quantity }) => [ticketTypeId, quantity])));
+      setHoldsStatus('ready');
+    }).catch((error: unknown) => {
+      if (signal.aborted || isRequestCanceled(error)) return;
+      if (error instanceof ApiClientError && error.status === 403) {
         returnToWaitingRoom(translate("customer:seatSelectionPage_phienMuaVeDaHetHanVui"));
         return;
       }
+      setHoldsStatus('failed');
+    });
 
-      if (requestError.status === 409) {
-        if (requestError.message.toLowerCase().includes('limit')) {
-          const message = translate("customer:seatSelectionPage_banDaDatGioiHanMuaCho");
-          setInventoryNotice(message);
-          toast.error(message);
-          return;
-        }
-        setInventoryNotice(translate("customer:seatSelectionPage_hangVeNayVuaHetHoacKhong"));
-        toast.error(translate("customer:seatSelectionPage_hangVeNayVuaHetHoacKhong"));
-        refresh();
-        return;
-      }
+    return () => controller.abort();
+  }, [id, reloadKey, returnToWaitingRoom, token]);
 
-      if (requestError.status === 429) {
-        toast.error(translate("customer:seatSelectionPage_coQuaNhieuYeuCauVuiLong"));
-        return;
-      }
-    }
+  const pickerTypes = useMemo(() => {
+    const availableIds = new Set(ticketTypes.map((type) => type.id));
+    const previousTypes = concert?.ticketTypes.filter((type) =>
+      !availableIds.has(type.id) &&
+      ((heldQuantities[type.id] ?? 0) > 0 || zoneLoading[type.id] || feedback[type.id]?.kind === 'unverified'),
+    ) ?? [];
+    return [...ticketTypes, ...previousTypes.map((type) => ({ ...type, availableQty: 0 }))];
+  }, [concert, feedback, heldQuantities, ticketTypes, zoneLoading]);
 
-    toast.error(
-      requestError instanceof Error ? requestError.message : translate("customer:seatSelectionPage_khongTheCapNhatLuotGiuVe"),
-    );
+  const typeLabels = useMemo(
+    () => new Map(pickerTypes.map(({ id: typeId, name }) => [typeId, name])),
+    [pickerTypes],
+  );
+  const disabledZoneIds = useMemo(() => new Set(pickerTypes
+    .filter((type) => type.availableQty <= 0 && !(heldQuantities[type.id] > 0))
+    .map((type) => type.id)), [heldQuantities, pickerTypes]);
+  const currentType = pickerTypes.find((type) => type.id === selectedZone && !disabledZoneIds.has(type.id))
+    ?? pickerTypes.find((type) => !disabledZoneIds.has(type.id));
+  const selection = pickerTypes
+    .filter((type) => heldQuantities[type.id] > 0)
+    .map(({ id: typeId, name, price }) => ({ id: typeId, name, price, quantity: heldQuantities[typeId] }));
+  const ticketCount = Object.values(heldQuantities).reduce((total, quantity) => total + quantity, 0);
+  const subtotal = selection.reduce((total, item) => total + item.price * item.quantity, 0);
+  const hasUnknownHold = Object.entries(heldQuantities).some(([typeId, qty]) => qty > 0 && !typeLabels.has(typeId));
+  const verificationNeeded = Object.values(feedback).some((item) => item?.kind === 'unverified');
+  const checkoutDisabled = !ticketCount || leaving || hasUnknownHold || verificationNeeded || Object.keys(zoneLoading).length > 0;
+
+  function isCurrentSession() {
+    return active.current && getStoredQueueAdmission(id)?.queueAccessToken === token;
   }
 
-  async function updateQuantity(ticketType: TicketType, delta: 1 | -1) {
-    if (!id) return;
-    const admission = getStoredQueueAdmission(id);
-    if (!admission) {
+  function setZoneFeedback(typeId: string, notice: HoldFeedback | null) {
+    setFeedback((current) => ({ ...current, [typeId]: notice }));
+  }
+
+  function setConfirmedQuantity(typeId: string, quantity: number) {
+    setHeldQuantities((current) => ({ ...current, [typeId]: quantity }));
+  }
+
+  async function verifyQuantity(typeId: string, queueToken: string) {
+    setZoneLoading((current) => ({ ...current, [typeId]: 'verify' }));
+    try {
+      const holds = await getCurrentHolds(id, queueToken);
+      if (!isCurrentSession()) return;
+      const quantity = holds.find((hold) => hold.ticketTypeId === typeId)?.quantity ?? 0;
+      setConfirmedQuantity(typeId, quantity);
+      setZoneFeedback(typeId, {
+        kind: 'confirmed',
+        message: translate("customer:seatSelectionPage_holdVerified"),
+      });
+    } catch (error) {
+      if (!isCurrentSession()) return;
+      if (error instanceof ApiClientError && error.status === 403) {
+        returnToWaitingRoom(translate("customer:seatSelectionPage_phienMuaVeDaHetHanVui"));
+        return;
+      }
+      setZoneFeedback(typeId, {
+        kind: 'unverified',
+        message: translate("customer:seatSelectionPage_holdVerifyFailed"),
+      });
+    }
+  }
+
+  async function updateQuantity(type: TicketType, action: HoldAction) {
+    if (!token || leaving || inFlight.current.has(type.id)) return;
+    if (!isCurrentSession()) {
       returnToWaitingRoom(translate("customer:seatSelectionPage_phienMuaVeDaHetHanVui"));
       return;
     }
 
-    const currentQuantity = heldQuantities[ticketType.id] ?? 0;
-    if (delta > 0 && currentQuantity >= ticketType.maxPerAccount) {
-      const message = translate("customer:seatSelectionPage_toiDaVeChoMoiTaiKhoan", { arg1: ticketType.maxPerAccount, arg2: ticketType.name });
-      setInventoryNotice(message);
-      toast.error(message);
-      return;
-    }
-    if (delta > 0 && ticketType.availableQty <= 0) {
-      setInventoryNotice(translate("customer:seatSelectionPage_hangVeNayVuaHetHoacKhong"));
-      toast.error(translate("customer:seatSelectionPage_hangVeNayVuaHetHoacKhong"));
-      refresh();
-      return;
-    }
-    if (delta < 0 && currentQuantity <= 0) return;
+    const quantity = heldQuantities[type.id] ?? 0;
+    if (action === 'reserve' && (type.availableQty <= 0 || quantity >= type.maxPerAccount)) return;
+    if (action === 'release' && quantity === 0) return;
+    if (action !== 'verify' && feedback[type.id]?.kind === 'unverified') return;
 
-    setSelectedZone(ticketType.id);
-    setZoneLoading((current) => ({
-      ...current,
-      [ticketType.id]: delta > 0 ? 'reserve' : 'release',
-    }));
+    inFlight.current.add(type.id);
+    setSelectedZone(type.id);
+    setZoneFeedback(type.id, null);
+    setZoneLoading((current) => ({ ...current, [type.id]: action }));
 
     try {
-      if (delta > 0) {
-        await reserveTicket(id, ticketType.id, 1, admission.queueAccessToken);
-        setHeldQuantities((current) => ({
-          ...current,
-          [ticketType.id]: (current[ticketType.id] ?? 0) + 1,
-        }));
-      } else {
-        await releaseTicket(id, ticketType.id, 1, admission.queueAccessToken);
-        setHeldQuantities((current) => {
-          const nextQuantity = Math.max(0, (current[ticketType.id] ?? 0) - 1);
-          return { ...current, [ticketType.id]: nextQuantity };
-        });
+      if (action === 'verify') {
+        await verifyQuantity(type.id, token);
+        return;
       }
-      refresh();
-    } catch (requestError) {
-      showReserveFailure(requestError);
+
+      const mutate = action === 'reserve' ? reserveTicket : releaseTicket;
+      const hold = await mutate(id, type.id, 1, token);
+      if (!isCurrentSession()) return;
+      if (hold?.ticketTypeId === type.id && typeof hold.quantity === 'number' &&
+          Number.isInteger(hold.quantity) && hold.quantity >= 0) {
+        setConfirmedQuantity(type.id, hold.quantity);
+      } else {
+        await verifyQuantity(type.id, token);
+      }
+    } catch (error) {
+      if (!isCurrentSession()) return;
+      if (error instanceof ApiClientError && error.status === 403) {
+        returnToWaitingRoom(translate("customer:seatSelectionPage_phienMuaVeDaHetHanVui"));
+      } else if (error instanceof ApiClientError && error.status === 429) {
+        setZoneFeedback(type.id, {
+          kind: 'error',
+          message: translate("customer:seatSelectionPage_coQuaNhieuYeuCauVuiLong"),
+        });
+      } else if (error instanceof ApiClientError && error.status < 500 && error.status !== 408 &&
+          !(action === 'release' && error.status === 400)) {
+        setZoneFeedback(type.id, { kind: 'error', message: error.message });
+      } else {
+        // A lost response may follow a committed write. Re-read the hold before allowing a new write.
+        await verifyQuantity(type.id, token);
+      }
     } finally {
-      setZoneLoading((current) => {
-        const next = { ...current };
-        delete next[ticketType.id];
-        return next;
-      });
+      inFlight.current.delete(type.id);
+      if (isCurrentSession()) {
+        setZoneLoading((current) => {
+          const next = { ...current };
+          delete next[type.id];
+          return next;
+        });
+        refresh();
+      }
     }
   }
 
   function continueToCheckout() {
-    if (!concert || selectionCountdown.isExpired) return;
+    if (!admission || !concert || checkoutDisabled || inFlight.current.size > 0) return;
+    if (!isCurrentSession()) {
+      returnToWaitingRoom(translate("customer:seatSelectionPage_phienMuaVeDaHetHanVui"));
+      return;
+    }
+
     navigate('/checkout', {
       state: {
         event: {
@@ -263,246 +246,233 @@ export function SeatSelectionPage() {
           image: concert.posterUrl,
         },
         selection,
-        queueAccessToken: queueAdmission?.queueAccessToken,
-        sessionExpiresAt: queueAdmission?.sessionExpiresAt,
+        queueAccessToken: admission.queueAccessToken,
+        sessionExpiresAt: admission.sessionExpiresAt,
       },
     });
   }
 
   async function leaveSelection() {
-    if (!id) return;
-    const admission = getStoredQueueAdmission(id);
-    if (admission) {
-      try {
-        await releaseAllHolds(id, admission.queueAccessToken);
-      } catch {
-        // The hold cleanup job will release expired holds if the explicit release misses.
-      }
+    if (!token || leaving || inFlight.current.size > 0) return;
+    setLeaving(true);
+    try {
+      await releaseAllHolds(id, token);
+    } catch {
+      // Session expiry releases holds if the explicit request fails.
     }
+    if (!isCurrentSession()) return;
     try {
       await leaveQueue(id);
     } catch {
-      // The backend session still expires by TTL if the explicit leave request misses.
+      // The backend session still expires by TTL.
     }
+    if (!isCurrentSession()) return;
     clearStoredQueueAdmission();
-    setHeldQuantities({});
     navigate(`/concerts/${id}`, { replace: true });
   }
 
-  if (concertLoading || availabilityLoading)
+  if (!admission || concertStatus === 'loading' || availabilityLoading || holdsStatus === 'loading') {
     return (
-      <div className="selection-loading page-width">
-        <div className="event-skeleton">
-          <div />
-          <span />
-          <span />
+      <div className="buyer-page purchase-page page-width">
+        <div className="buyer-state" role="status">
+          <h1>{translate("customer:seatSelectionPage_chonVe")}</h1>
+          <p>{translate("customer:seatSelectionPage_loading")}</p>
         </div>
       </div>
     );
-  if (error || initialLoadFailed || !concert) {
+  }
+
+  if (!concert || concertStatus === 'failed' || initialLoadFailed || holdsStatus === 'failed') {
     return (
-      <div className="selection-error page-width state-panel">
-        <span className="state-icon">!</span>
-        <h1>{translate("customer:seatSelectionPage_soDoChoKhongKhaDung")}</h1>
-        <p>
-          {error ??
-            (initialLoadFailed
-              ? translate("customer:seatSelectionPage_khongTheTaiTinhTrangVe")
-              : translate("customer:seatSelectionPage_khongTimThayThongTinConcert"))}
-        </p>
-        <button
-          className="button button-primary"
-          type="button"
-          onClick={() => setReloadKey((value) => value + 1)}
-        >
-          {translate("customer:seatSelectionPage_thuLai")}
-        </button>
-        <Link className="text-link" to="/">
-          {translate("customer:seatSelectionPage_quayLaiDanhSachConcert")}
-        </Link>
+      <div className="buyer-page purchase-page page-width">
+        <div className="buyer-state purchase-seat-error" role="alert">
+          <h1>{translate("customer:seatSelectionPage_loadFailed")}</h1>
+          <p>{translate("customer:seatSelectionPage_loadFailedHelp")}</p>
+          <div>
+            <button className="button button-primary" type="button" onClick={() => setReloadKey((value) => value + 1)}>
+              {translate("customer:seatSelectionPage_thuLai")}
+            </button>
+            <button className="button button-secondary" type="button" disabled={leaving} onClick={() => void leaveSelection()}>
+              {translate("customer:seatSelectionPage_chiTietSuKien")}
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="selection-page page-width">
-      <div className="flow-topbar">
-        <button className="back-link" type="button" onClick={() => void leaveSelection()}>
-          {'<'} {translate("customer:seatSelectionPage_chiTietSuKien")}
-        </button>
-        <div className="flow-steps" aria-label={translate("customer:seatSelectionPage_tienTrinhDatVe")}>
-          <span className="flow-step active">
-            <b>1</b><i>{translate("customer:seatSelectionPage_ve")}</i>
-          </span>
-          <b className="flow-step-connector" />
-          <span className="flow-step">
-            <b>2</b><i>{translate("customer:seatSelectionPage_thanhToan")}</i>
-          </span>
-          <b className="flow-step-connector" />
-          <span className="flow-step">
-            <b>3</b><i>{translate("customer:seatSelectionPage_hoanTat")}</i>
-          </span>
-        </div>
-        <div
-          className={`timer countdown-timer ${selectionCountdown.isExpired ? 'expired' : selectionCountdown.isWarning ? 'warning' : updatesDelayed ? 'delayed' : ''}`}
-          role="status"
-          title={
-            lastUpdatedAt ? translate("customer:seatSelectionPage_soLuongVeCapNhatLuc", { arg1: lastUpdatedAt.toLocaleTimeString(formatLanguage()) }) : undefined
-          }
+    <div className="buyer-page purchase-page page-width purchase-seat-page">
+      <header className="purchase-header purchase-seat-header">
+        <button
+          className="back-link purchase-seat-back"
+          type="button"
+          disabled={leaving || Object.keys(zoneLoading).length > 0}
+          onClick={() => void leaveSelection()}
         >
-          <span>{translate("customer:seatSelectionPage_thoiGianChonVe")}</span>
-          <strong>{queueAdmission ? selectionCountdown.formatted : '--:--'}</strong>
-        </div>
-      </div>
-      <header className="selection-header">
-        <div>
-          <p className="eyebrow">
-            <span /> {translate("customer:seatSelectionPage_chonTraiNghiemCuaBan")}
-          </p>
+          <ArrowLeft size={16} aria-hidden="true" />
+          {translate("customer:seatSelectionPage_chiTietSuKien")}
+        </button>
+        <div className="purchase-seat-context">
+          <p className="purchase-step" aria-current="step">{translate("customer:seatSelectionPage_chonVe")}</p>
           <h1>{concertTitle(concert)}</h1>
-          <p>
-            {eventDate.format(new Date(concert.eventDate))} / {concert.venueName}
+          <p className="purchase-seat-event">
+            <span><CalendarDays size={16} aria-hidden="true" />{eventDateTime.format(new Date(concert.eventDate))}</span>
+            {concert.venueName ? <span><MapPin size={16} aria-hidden="true" />{concert.venueName}</span> : null}
           </p>
         </div>
+        <SelectionDeadline expiresAt={admission.sessionExpiresAt} />
       </header>
-      <div className="selection-layout">
-        <section className="zone-map-panel" aria-labelledby="zone-map-title">
-          <div className="panel-heading">
-            <div>
-              <span>{translate("customer:seatSelectionPage_soDoSvgTuongTac")}</span>
-              <h2 id="zone-map-title">{translate("customer:seatSelectionPage_chonPhanKhu")}</h2>
-            </div>
-            <div className="map-legend">
-              <i /> {translate("customer:seatSelectionPage_conVe")} <i /> {translate("customer:seatSelectionPage_dangChon")} <i /> {translate("customer:seatSelectionPage_hetVe")}
-            </div>
-          </div>
+
+      <div className="purchase-columns">
+        <section className="purchase-panel purchase-seat-map" aria-labelledby="purchase-seat-map-title">
+          <h2 id="purchase-seat-map-title">{translate("customer:seatSelectionPage_map")}</h2>
           <ConcertSeatMap
             svg={concert.seatMapSvg}
-            selectedTicketTypeId={selectedZone}
-            disabledTicketTypeIds={soldOutTicketTypeIds}
+            selectedTicketTypeId={currentType?.id ?? null}
+            disabledTicketTypeIds={disabledZoneIds}
+            ticketTypeLabels={typeLabels}
             onZoneSelect={setSelectedZone}
           />
-          <p className="map-note">{translate("customer:seatSelectionPage_chonPhanKhuTrenSoDoHoac")}</p>
+          {concert.seatMapSvg ? <p>{translate("customer:seatSelectionPage_chonPhanKhuTrenSoDoHoac")}</p> : null}
         </section>
-        <aside className="ticket-picker">
-          <div className="panel-heading">
-            <div>
-              <span>{translate("customer:seatSelectionPage_chonHangVe")}</span>
-              <h2>{translate("customer:seatSelectionPage_chonVe")}</h2>
+
+        <aside className="purchase-panel purchase-ticket-picker" aria-labelledby="purchase-ticket-picker-title">
+          <h2 id="purchase-ticket-picker-title">{translate("customer:seatSelectionPage_chonHangVe")}</h2>
+          {updatesDelayed ? <p className="purchase-seat-feedback" role="status">
+            {translate("customer:seatSelectionPage_availabilityDelayed")}
+          </p> : null}
+          {pickerTypes.length ? (
+            <div className="purchase-zone-list">
+              {pickerTypes.map((type) => (
+                <TicketTypeRow
+                  key={type.id}
+                  type={type}
+                  selected={currentType?.id === type.id}
+                  quantity={heldQuantities[type.id] ?? 0}
+                  updating={zoneLoading[type.id]}
+                  feedback={feedback[type.id]}
+                  leaving={leaving}
+                  onSelect={() => setSelectedZone(type.id)}
+                  onUpdate={(action) => void updateQuantity(type, action)}
+                />
+              ))}
             </div>
-          </div>
-          {inventoryNotice ? (
-            <div className="inventory-notice" role="status">
-              <p>{inventoryNotice}</p>
-              <button
-                type="button"
-                onClick={() => setInventoryNotice(null)}
-                aria-label={translate("customer:seatSelectionPage_dongCapNhatTinhTrangVe")}
-              >
-                x
-              </button>
+          ) : (
+            <p className="purchase-seat-feedback">{translate("customer:seatSelectionPage_noTypes")}</p>
+          )}
+          {hasUnknownHold ? <p role="alert" className="purchase-seat-feedback">
+            {translate("customer:seatSelectionPage_missingHeldType")}
+          </p> : null}
+          <div className="purchase-action-bar">
+            <div className="purchase-seat-total">
+              <span>{translate("customer:seatSelectionPage_veDangGiu", { count: ticketCount })}</span>
+              <strong>{hasUnknownHold
+                ? translate("customer:seatSelectionPage_subtotalUnavailable")
+                : <>{translate("customer:seatSelectionPage_subtotal")} {currency.format(subtotal)}</>}
+              </strong>
             </div>
-          ) : null}
-          <div className="zone-list">
-            {ticketTypes.map((ticketType) => {
-              const quantity = heldQuantities[ticketType.id] ?? 0;
-              const loadingAction = zoneLoading[ticketType.id];
-              const soldOut = ticketType.availableQty === 0;
-              const canReserveMore =
-                quantity < ticketType.maxPerAccount && ticketType.availableQty > 0;
-              return (
-                <div
-                  className={`zone-item ${selectedZone === ticketType.id ? 'focused' : ''} ${loadingAction ? 'zone-item-loading' : ''}`}
-                  key={ticketType.id}
-                >
-                  <button
-                    className="zone-focus"
-                    type="button"
-                    onClick={() => setSelectedZone(ticketType.id)}
-                    disabled={soldOut && quantity === 0}
-                  >
-                    <i style={{ background: ticketType.zoneColor }} />
-                    <span>
-                      <strong>{ticketType.name}</strong>
-                      <small>
-                        {quantity > 0
-                          ? translate("customer:seatSelectionPage_veDangGiu", { count: quantity })
-                          : translate("customer:seatSelectionPage_toiDaVeTaiKhoan", { arg1: ticketType.maxPerAccount })}
-                      </small>
-                    </span>
-                  </button>
-                  <div className="zone-price">
-                    <strong>{currency.format(ticketType.price)}</strong>
-                    <small className={soldOut ? 'is-sold-out' : 'is-available'}>
-                      {soldOut ? translate("customer:seatSelectionPage_hetVe") : translate("customer:seatSelectionPage_conVe")}
-                    </small>
-                  </div>
-                  <div className="quantity-control" aria-busy={loadingAction ? 'true' : undefined}>
-                    <button
-                      type="button"
-                      aria-label={translate("customer:seatSelectionPage_boMotVe", { arg1: ticketType.name })}
-                      disabled={quantity === 0 || Boolean(loadingAction)}
-                      onClick={() => void updateQuantity(ticketType, -1)}
-                    >
-                      -
-                    </button>
-                    <span aria-live="polite">{quantity}</span>
-                    <button
-                      type="button"
-                      aria-label={translate("customer:seatSelectionPage_themMotVe", { arg1: ticketType.name })}
-                      disabled={!canReserveMore || Boolean(loadingAction)}
-                      onClick={() => void updateQuantity(ticketType, 1)}
-                    >
-                      +
-                    </button>
-                  </div>
-                  {loadingAction ? (
-                    <span className="zone-hold-status" role="status">
-                      {loadingAction === 'reserve' ? translate("customer:seatSelectionPage_dangGiu") : translate("customer:seatSelectionPage_dangGiaiPhong")}
-                    </span>
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
-          <div className="selection-summary">
-            <div>
-              <span>
-                {ticketCount} {translate("customer:seatSelectionPage_ve_2")}
-              </span>
-              <strong>{currency.format(subtotal)}</strong>
-            </div>
-            <div
-              className={`hold-timer ${selectionCountdown.isExpired ? 'expired' : selectionCountdown.isWarning ? 'warning' : ''}`}
-              role="status"
-            >
-              <span>{translate("customer:seatSelectionPage_thoiGianChonVe")}</span>
-              <strong>{queueAdmission ? selectionCountdown.formatted : '--:--'}</strong>
-            </div>
-            {selectionCountdown.isWarning && !selectionCountdown.isExpired ? (
-              <p className="timer-warning-copy">{translate("customer:seatSelectionPage_phienMuaVe10PhutCuaBan")}</p>
-            ) : null}
-            {selection.length ? (
-              <ul className="held-ticket-list" aria-label={translate("customer:seatSelectionPage_veDangGiu_2")}>
-                {selection.map((item) => (
-                  <li key={item.id}>
-                    <span>{item.name}</span>
-                    <strong>{translate("customer:seatSelectionPage_dangGiu_2")} {item.quantity} {translate("customer:seatSelectionPage_ve_2")}</strong>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-            <button
-              className="button button-primary button-block"
-              type="button"
-              disabled={!ticketCount || !queueAdmission || selectionCountdown.isExpired}
-              onClick={continueToCheckout}
-            >
-              {translate("customer:seatSelectionPage_tiepTucThanhToan")} <span aria-hidden="true">-&gt;</span>
+            <button className="button button-primary" type="button" disabled={checkoutDisabled} onClick={continueToCheckout}>
+              {translate("customer:seatSelectionPage_tiepTucThanhToan")} <ArrowRight size={17} aria-hidden="true" />
             </button>
           </div>
         </aside>
       </div>
     </div>
+  );
+}
+
+function SelectionDeadline({ expiresAt }: { expiresAt: string }) {
+  const countdown = useCountdown(expiresAt, 120);
+  return (
+    <div className="purchase-seat-time">
+      <div className={`purchase-deadline${countdown.isWarning ? ' is-warning' : ''}`}>
+        <span id="purchase-seat-deadline">{translate("customer:seatSelectionPage_thoiGianChonVe")}</span>
+        <strong role="timer" aria-labelledby="purchase-seat-deadline">{countdown.formatted}</strong>
+      </div>
+      {countdown.isWarning && !countdown.isExpired ? <p role="status">
+        {translate("customer:seatSelectionPage_phienMuaVe10PhutCuaBan")}
+      </p> : null}
+    </div>
+  );
+}
+
+function TicketTypeRow({
+  type, selected, quantity, updating, feedback, leaving, onSelect, onUpdate,
+}: {
+  type: TicketType;
+  selected: boolean;
+  quantity: number;
+  updating?: HoldAction;
+  feedback: HoldFeedback | null;
+  leaving: boolean;
+  onSelect: () => void;
+  onUpdate: (action: HoldAction) => void;
+}) {
+  const soldOut = type.availableQty <= 0;
+  const locked = Boolean(updating) || feedback?.kind === 'unverified' || leaving;
+  const canAdd = !locked && !soldOut && quantity < type.maxPerAccount;
+  const canRemove = !locked && quantity > 0;
+  const row = useRef<HTMLElement>(null);
+  const headingId = `purchase-zone-${type.id}`;
+  const pendingLabel = {
+    reserve: 'customer:seatSelectionPage_dangGiu',
+    release: 'customer:seatSelectionPage_dangGiaiPhong',
+    verify: 'customer:seatSelectionPage_holdVerifying',
+  } as const;
+
+  return (
+    <article className="purchase-zone" data-selected={selected} aria-labelledby={headingId} ref={row} tabIndex={-1}>
+      <div className="purchase-zone-info">
+        <h3 id={headingId}>
+          <button type="button" aria-pressed={selected} disabled={soldOut && !quantity} onClick={onSelect}>
+            {type.name}
+          </button>
+        </h3>
+        <p className="purchase-zone-price"><strong>{currency.format(type.price)}</strong></p>
+        <p>{translate("customer:seatSelectionPage_toiDaVeTaiKhoan", { arg1: type.maxPerAccount })}</p>
+      </div>
+      <div className="purchase-zone-actions">
+        <p className="purchase-zone-availability" data-sold-out={soldOut}>
+          {soldOut
+            ? translate("customer:seatSelectionPage_hetVe")
+            : translate("customer:seatSelectionPage_conVe")}
+        </p>
+        <div className="purchase-zone-quantity" aria-busy={Boolean(updating)}>
+          <button
+            type="button"
+            aria-label={translate("customer:seatSelectionPage_boMotVe", { arg1: type.name })}
+            aria-disabled={!canRemove}
+            onClick={() => { if (canRemove) onUpdate('release'); }}
+          >
+            <Minus size={16} aria-hidden="true" />
+          </button>
+          <span aria-live="polite">{quantity}</span>
+          <button
+            type="button"
+            aria-label={translate("customer:seatSelectionPage_themMotVe", { arg1: type.name })}
+            aria-disabled={!canAdd}
+            onClick={() => { if (canAdd) onUpdate('reserve'); }}
+          >
+            <Plus size={16} aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+      {updating ? (
+        <p className="purchase-zone-feedback" role="status">{translate(pendingLabel[updating])}</p>
+      ) : feedback ? (
+        <div className="purchase-zone-feedback" data-error={feedback.kind !== 'confirmed'}>
+          <p role={feedback.kind === 'confirmed' ? 'status' : 'alert'}>{feedback.message}</p>
+          {feedback.kind === 'unverified' ? (
+            <button className="button button-secondary" type="button" disabled={leaving} onClick={() => {
+              row.current?.focus();
+              onUpdate('verify');
+            }}>
+              {translate("customer:seatSelectionPage_holdRetry")}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </article>
   );
 }

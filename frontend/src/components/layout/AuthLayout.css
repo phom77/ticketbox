@@ -1,0 +1,180 @@
+.buyer-auth {
+  min-height: 100dvh;
+  color: var(--cream);
+  background: var(--ink);
+  font: 400 1rem/1.5 "Manrope", ui-sans-serif, system-ui, sans-serif;
+}
+
+.buyer-auth-top {
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.buyer-auth-top > div {
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.buyer-auth-top .logo,
+.buyer-auth-top .language-select { min-height: 44px; }
+.buyer-auth-top .language-select { font: inherit; font-size: .875rem; }
+
+.buyer-auth-main {
+  width: min(calc(100% - 32px), 32rem);
+  margin-inline: auto;
+  padding-block: 48px 64px;
+}
+
+.buyer-auth-card {
+  padding: 32px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.buyer-auth-heading { margin-bottom: 24px; }
+
+.buyer-auth-heading h1 {
+  margin: 0;
+  font: 800 2rem/1.18 "Manrope", ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -.025em;
+  text-wrap: wrap;
+}
+
+.buyer-auth-heading p {
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+
+.buyer-auth .auth-form {
+  min-width: 0;
+  gap: 16px;
+}
+
+.buyer-auth .field {
+  gap: 6px;
+  min-width: 0;
+  color: var(--cream);
+  font-size: .875rem;
+  font-weight: 700;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.buyer-auth .field input {
+  min-height: 48px;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 400;
+}
+
+.buyer-auth .field input[aria-invalid="true"] { border-color: #a32631; }
+
+.buyer-auth .field-hint {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.buyer-auth .buyer-auth-field-error {
+  color: #a32631;
+  font-weight: 600;
+}
+
+.buyer-auth .password-field input { padding-inline-end: 78px; }
+
+.buyer-auth .password-field button {
+  right: 2px;
+  min-width: 64px;
+  min-height: 44px;
+  padding: 0 8px;
+  border-radius: 5px;
+  color: var(--violet);
+  font: inherit;
+}
+
+.buyer-auth .password-field button:hover { background: var(--surface-2); }
+
+.buyer-auth a:not(.logo, .button) {
+  color: var(--violet);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: .18em;
+}
+
+.buyer-auth a:not(.logo, .button):hover { color: var(--coral); }
+
+.buyer-auth-alternate {
+  margin: 24px 0 0;
+  color: var(--muted);
+  font-size: .9375rem;
+}
+
+.buyer-auth-alternate a, .buyer-auth-recovery {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+.buyer-auth-recovery {
+  justify-self: end;
+  margin-block: -8px;
+  font-size: .9375rem;
+}
+
+.buyer-auth .button {
+  min-height: 48px;
+  font: 800 1rem/1.25 "Manrope", ui-sans-serif, system-ui, sans-serif;
+  text-align: center;
+}
+
+.buyer-auth-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--cream);
+  font-size: .875rem;
+  min-height: 44px;
+}
+
+.buyer-auth-checkbox input {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--coral);
+}
+
+.buyer-auth-checkbox label, .buyer-auth-checkbox a {
+  display: inline-block;
+  padding-block: 4px;
+}
+
+.buyer-auth-feedback {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--cream);
+}
+
+.buyer-auth-feedback p { margin: 0; }
+
+.buyer-auth-feedback[role="alert"] {
+  border-color: #e8babf;
+  background: #fff3f4;
+  color: #8e1b2b;
+}
+
+.buyer-auth :focus-visible,
+.buyer-auth-feedback:focus {
+  outline: 2px solid var(--coral);
+  outline-offset: 2px;
+}
+
+@media (max-width: 560px) {
+  .buyer-auth-main { padding-block: 24px 40px; }
+  .buyer-auth-card { padding: 20px; }
+  .buyer-auth-heading h1 { font-size: 1.75rem; }
+}

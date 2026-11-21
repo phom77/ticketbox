@@ -9,7 +9,7 @@ import { ReconciliationPage } from '../pages/organizer/ReconciliationPage';
 import { OrganizationProvider, RequireOrganizationGrant } from '../features/organizations/OrganizationProvider';
 import { AdminOrganizationsPage } from '../pages/admin/AdminOrganizationsPage';
 import { OrganizationMembersPage } from '../pages/organizer/OrganizationMembersPage';
-import { useLayoutEffect } from 'react';
+import { lazy, Suspense, useLayoutEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { OperationsLayout } from '../components/layout/OperationsLayout';
 import { PublicLayout } from '../components/layout/PublicLayout';
@@ -46,6 +46,7 @@ const audiencePage = (page: React.ReactNode) => (
 );
 
 const cataloguePage = (page: React.ReactNode) => <CatalogueRoute>{page}</CatalogueRoute>;
+const DiscoveryPreviewPage = import.meta.env.DEV ? lazy(() => import('../pages/public/DiscoveryPreviewPage')) : null;
 
 export function App() {
   useTranslation();
@@ -61,6 +62,11 @@ export function App() {
               <Route path="/events/:eventId" element={cataloguePage(<EventPage />)} />
               <Route path="/events/:eventId/performances/:id/waiting-room" element={audiencePage(<WaitingRoomPage />)} />
               <Route path="/events/:eventId/performances/:id/seats" element={audiencePage(<PerformanceSelectionPage />)} />
+              {DiscoveryPreviewPage ? (
+                <Route path="/discover-preview" element={cataloguePage(
+                  <Suspense fallback={null}><DiscoveryPreviewPage /></Suspense>,
+                )} />
+              ) : null}
               <Route path="/concerts/:id" element={<ConcertDetailPage />} />
               <Route path="/concerts/:id/waiting-room" element={audiencePage(<WaitingRoomPage />)} />
               <Route path="/concerts/:id/seats" element={audiencePage(<SeatSelectionPage />)} />

@@ -1,324 +1,274 @@
+import { ArrowRight, Search, Ticket, X } from 'lucide-react';
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link, useLocation, useNavigationType, useSearchParams } from 'react-router-dom';
+import { EventCard, type EventCardItem } from '../../components/EventCard';
+import { RemoteImage } from '../../components/RemoteImage';
+import { currency, dateFormatter } from '../../data/formatters';
+import { concertSaleState, eventSaleLabels } from '../../features/concert/concertSale';
 import { concertTitle } from '../../features/concert/concertText';
-import { currentLanguage, translate } from '../../i18n';
-import { FormEvent, useEffect, useMemo, useState } from 'react';
-import type { ReactNode } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
-import { CalendarDays, Search } from 'lucide-react';
-import { isRequestCanceled } from '../../api/client';
-import { getConcerts, type ConcertSummary } from '../../api/concerts';
-import { EventCard } from '../../components/EventCard';
-import { fallbackConcertImage, RemoteImage } from '../../components/RemoteImage';
+import { DiscoveryFilterPanel, DiscoveryFilterTrigger } from '../../features/discovery/DiscoveryFilterPanel';
+import {
+  concertTimeZone, discoveryOptions, filterConcerts, readDiscoveryFilters, sortOptions, writeDiscoveryFilters,
+  type DiscoveryConcert, type DiscoveryFilters,
+} from '../../features/discovery/filters';
+import { useDiscoveryCatalog, type DiscoveryCatalog } from '../../features/discovery/useDiscoveryCatalog';
+import './HomePage.css';
 
-const statusFilters = [
-  { value: 'all', get label() { return translate("public:homePage_tatCa"); } },
-  { value: 'ON_SALE', get label() { return translate("public:homePage_dangBan"); } },
-  { value: 'DRAFT', get label() { return translate("public:homePage_sapMoBan"); } },
-  { value: 'SOLD_OUT', get label() { return translate("public:homePage_hetVe"); } },
-] as const;
-const legacyFilters: Record<string, string> = {
-  'Tất cả': 'all', 'Đang bán': 'ON_SALE', 'Sắp mở bán': 'DRAFT', 'Hết vé': 'SOLD_OUT',
+const dateLabel = dateFormatter({ dateStyle: 'medium', timeStyle: 'short', timeZone: concertTimeZone });
+const filterDateLabel = dateFormatter({ dateStyle: 'medium', timeZone: 'UTC' });
+const resetFilters = { q: '', date: '', from: '', to: '', status: '', city: '', category: '', price: '' } as const;
+const chipKeys = ['date', 'status', 'city', 'category', 'price'] as const;
+
+type BackSnapshot = {
+  key: string;
+  catalog: DiscoveryCatalog;
+  linkId: string;
+  linkTop: number;
+  scrollTop: number;
 };
 
-export function HomePage() {
-  useTranslation();
-  const language = currentLanguage();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [concerts, setConcerts] = useState<ConcertSummary[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
-  const requestedStatus = searchParams.get('status') ?? 'all';
-  const normalizedStatus = legacyFilters[requestedStatus] ?? requestedStatus;
-  const selectedStatus = statusFilters.find(({ value }) => value === normalizedStatus)?.value ?? 'all';
-  const searchQuery = searchParams.get('q') ?? '';
-  const [searchInput, setSearchInput] = useState(searchQuery);
+const recentLists = new Map<string, BackSnapshot>();
+
+function eventCard(concert: DiscoveryConcert, now: number): EventCardItem {
+  return {
+    id: concert.id, title: concertTitle(concert), venue: concert.venueName,
+    eventDate: concert.eventDate, image: concert.posterUrl, status: concertSaleState(concert, now),
+  };
+}
+
+export function HomePage({ previewConcerts }: { previewConcerts?: DiscoveryConcert[] }) {
+  const { t } = useTranslation('public');
+  const location = useLocation();
+  const navigationType = useNavigationType();
+  const [params, setParams] = useSearchParams();
+  const isPreview = Boolean(previewConcerts);
+  const [restored] = useState(() =>
+    !isPreview && navigationType === 'POP' ? recentLists.get(location.key) : undefined,
+  );
+  const { catalog, requestedPage, failedPage, loadMore } = useDiscoveryCatalog(restored?.catalog, !isPreview);
+  const [now, setNow] = useState(Date.now);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const filters = readDiscoveryFilters(params, isPreview);
+  const source = previewConcerts ?? catalog.concerts;
+  const isInitialLoading = requestedPage === 0;
+  const hasMore = !isPreview && catalog.hasMore;
+  const matches = filterConcerts(source, filters, now);
+  const hasFilters = Boolean(filters.q || chipKeys.some((key) => filters[key]));
+  const featureConcert = !hasFilters && !isPreview && matches.length > 1
+    ? matches.find((concert) => concert.posterUrl && concertSaleState(concert, now) === 'on-sale')
+      ?? matches.find((concert) => concert.posterUrl) ?? matches[0]
+    : undefined;
+  const feature = featureConcert ? eventCard(featureConcert, now) : null;
+  const grid = feature ? matches.filter((concert) => concert.id !== feature.id) : matches;
 
   useEffect(() => {
-    const controller = new AbortController();
-    let active = true;
-    setLoading(true);
-    setError(null);
-    getConcerts(0, 60, controller.signal)
-      .then((page) => {
-        if (!active) return;
-        setConcerts(page.content);
-      })
-      .catch((requestError: unknown) => {
-        if (active && !isRequestCanceled(requestError)) {
-          setError(translate("public:homePage_khongTheTaiDanhSachConcertHay"));
-        }
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-    return () => {
-      active = false;
-      controller.abort();
-    };
-  }, [reloadKey]);
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
-  const sortedConcerts = useMemo(() => [...concerts].sort(compareConcerts), [concerts]);
-  const featuredConcert =
-    sortedConcerts.find((concert) => concert.status === 'ON_SALE') ?? sortedConcerts[0];
+  useLayoutEffect(() => {
+    if (!restored) return;
+    const frame = requestAnimationFrame(() => {
+      const link = document.getElementById(restored.linkId);
+      const top = link ? window.scrollY + link.getBoundingClientRect().top - restored.linkTop : restored.scrollTop;
+      window.scrollTo({ top, behavior: 'instant' });
+      link?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [restored]);
 
-  const filteredConcerts = useMemo(
-    () =>
-      sortedConcerts
-        .filter((concert) => {
-          return selectedStatus === 'all' || concert.status === selectedStatus;
-        })
-        .filter((concert) => {
-          const query = searchQuery.trim().toLocaleLowerCase(language);
-          if (!query) return true;
-          return `${concertTitle(concert, language)} ${concert.venueName}`.toLocaleLowerCase(language).includes(query);
-        }),
-    [language, searchQuery, selectedStatus, sortedConcerts],
-  );
+  useEffect(() => {
+    if (isInitialLoading || location.hash !== '#discover-concerts' || restored?.key === location.key) return;
+    const frame = requestAnimationFrame(() => {
+      const active = document.activeElement;
+      if (navigationType === 'POP' && active !== document.body && active !== heading.current) return;
+      heading.current?.scrollIntoView({ behavior: 'instant', block: 'start' });
+      heading.current?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [isInitialLoading, location.hash, location.key, navigationType, restored]);
 
-  const onSale = filteredConcerts.filter((concert) => concert.status === 'ON_SALE').slice(0, 6);
-  const soldOut = filteredConcerts.filter((concert) => concert.status === 'SOLD_OUT').slice(0, 6);
-  const openingSoon = filteredConcerts.filter((concert) => concert.status === 'DRAFT').slice(0, 6);
-
-  function chooseStatus(status: (typeof statusFilters)[number]['value']) {
-    const next = new URLSearchParams(searchParams);
-    if (status === 'all') next.delete('status');
-    else next.set('status', status);
-    setSearchParams(next);
+  function savePosition(event: MouseEvent<HTMLAnchorElement>) {
+    if (event.button !== 0 || event.metaKey || event.altKey || event.ctrlKey || event.shiftKey || event.defaultPrevented) return;
+    recentLists.delete(location.key);
+    recentLists.set(location.key, {
+      key: location.key,
+      catalog,
+      linkId: event.currentTarget.id,
+      linkTop: event.currentTarget.getBoundingClientRect().top,
+      scrollTop: window.scrollY,
+    });
+    if (recentLists.size > 5) {
+      const oldest = recentLists.keys().next().value;
+      if (oldest !== undefined) recentLists.delete(oldest);
+    }
   }
 
-  function submitSearch(event: FormEvent) {
+  function showResults() {
+    requestAnimationFrame(() => {
+      heading.current?.scrollIntoView({ behavior: 'instant', block: 'start' });
+      heading.current?.focus({ preventScroll: true });
+    });
+  }
+
+  function applyFilters(next: Partial<DiscoveryFilters>) {
+    setParams(writeDiscoveryFilters(params, next));
+    showResults();
+  }
+
+  function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const next = new URLSearchParams(searchParams);
-    const query = searchInput.trim();
-    if (query) next.set('q', query);
-    else next.delete('q');
-    setSearchParams(next);
-    document.querySelector('#discover-concerts')?.scrollIntoView({ behavior: 'smooth' });
+    const data = new FormData(event.currentTarget);
+    applyFilters({ q: String(data.get('q') ?? '').trim() });
   }
 
+  const customDates = filters.date === 'custom' ? [
+    filters.from && filterDateLabel.format(new Date(filters.from)),
+    filters.to && filterDateLabel.format(new Date(filters.to)),
+  ] : [];
+  const dateChipLabel = customDates.length ? (
+    customDates[0] && customDates[1]
+      ? t('public:discovery_range', { from: customDates[0], to: customDates[1] })
+      : customDates[0] ? t('public:discovery_fromDate', { date: customDates[0] }) : t('public:discovery_toDate', { date: customDates[1] })
+  ) : '';
+  const chips = [
+    ...(filters.q ? [{ key: 'q', label: filters.q, clear: { q: '' } as const }] : []),
+    ...chipKeys.filter((key) => filters[key]).map((key) => ({
+      key,
+      label: key === 'date' && dateChipLabel ? dateChipLabel
+        : t((discoveryOptions[key] as Record<string, string>)[filters[key]]),
+      clear: key === 'date' ? { date: '', from: '', to: '' } as const : { [key]: '' },
+    })),
+  ];
+  const filterCount = chips.filter(({ key }) => key !== 'q').length;
+
   return (
-    <>
-      <section className="hero discover-hero">
-        <RemoteImage
-          className="hero-image"
-          src={featuredConcert?.posterUrl ?? fallbackConcertImage}
-          alt=""
-          width="1800"
-          height="1000"
-        />
-        <div className="hero-scrim" />
-        <div className="hero-content page-width">
-          <p className="eyebrow">
-            <span /> {translate("public:homePage_khamPhaTicketbox")}
-          </p>
-          <h1>
-            {translate("public:homePage_timConcertPhuHop")}
-            <br />
-            <em>{translate("public:homePage_datVeThatYenTam")}</em>
-          </h1>
-          <p className="hero-copy">
-            {translate("public:homePage_concertDuocNhomTheoNhuCauMua")}
-          </p>
-          <div className="hero-actions">
-            {featuredConcert ? (
-              <Link className="button button-primary" to={`/concerts/${featuredConcert.id}`}>
-                {translate("public:homePage_xemConcertNoiBat")} <span aria-hidden="true">↗</span>
+    <div className="buyer-page discovery-page page-width" data-discovery-restore={restored ? true : undefined}>
+      <section className="discovery-intro" aria-labelledby="discovery-title">
+        <div className="discovery-main">
+          <h1 id="discovery-title">{t('public:discovery_title')}</h1>
+          <p>{t('public:discovery_subtitle')}</p>
+          <form className="discovery-search" role="search" aria-label={t('public:discovery_search')} onSubmit={submitSearch}>
+            <div className="discovery-search-input">
+              <Search aria-hidden="true" />
+              <input
+                key={filters.q}
+                type="search"
+                name="q"
+                aria-label={t('public:discovery_search')}
+                placeholder={t('public:discovery_searchPlaceholder')}
+                defaultValue={filters.q}
+              />
+            </div>
+            <button className="button button-primary" type="submit">{t('public:discovery_searchSubmit')}</button>
+          </form>
+          {isPreview ? <p className="discovery-preview-label">{t('public:discovery_fixtureLabel')}</p> : null}
+        </div>
+
+        {feature ? (
+          <aside className="discovery-feature" aria-label={t('public:discovery_featuredEvent')}>
+            <div className="discovery-feature-media">
+              {feature.image ? <RemoteImage src={feature.image} alt="" width="640" height="400" /> : <Ticket aria-hidden="true" />}
+            </div>
+            <div className="discovery-feature-body">
+              <span className="concert-card-status" data-sale-state={feature.status}>{t(eventSaleLabels[feature.status])}</span>
+              <h2>{feature.title}</h2>
+              {Number.isFinite(Date.parse(feature.eventDate)) ? <time dateTime={feature.eventDate}>{dateLabel.format(new Date(feature.eventDate))}</time> : null}
+              {feature.venue ? <p>{feature.venue}</p> : null}
+              <Link className="discovery-feature-link" id="discovery-feature-link" onClick={savePosition} to={`/concerts/${encodeURIComponent(feature.id)}`}>
+                {t('public:discovery_viewEvent')} <ArrowRight aria-hidden="true" />
               </Link>
-            ) : null}
-            <a className="button button-secondary" href="#discover-concerts">
-              {translate("public:homePage_duyetConcert")}
-            </a>
-          </div>
-        </div>
+            </div>
+          </aside>
+        ) : null}
       </section>
 
-      <section className="market-search-wrap" aria-label={translate("public:homePage_timConcert")}>
-        <form className="market-search page-width" onSubmit={submitSearch}>
-          <label>
-            <span>{translate("public:homePage_timKiem")}</span>
-            <input
-              value={searchInput}
-              onChange={(event) => setSearchInput(event.target.value)}
-              placeholder={translate("public:homePage_ngheSiConcertHoacDiaDiem")}
+      <section className="discovery-results" id="discover-concerts" aria-labelledby="discovery-results-heading">
+        <div className="discovery-results-title">
+          <h2 id="discovery-results-heading" ref={heading} tabIndex={-1}>
+            {t(hasFilters ? 'public:discovery_results' : 'public:discovery_upcomingEvents')}
+          </h2>
+          {source.length > 0 ? (
+            <p role="status">{t(hasMore ? 'public:discovery_loadedResults' : 'public:discovery_totalResults', {
+              count: matches.length, loaded: source.length,
+            })}</p>
+          ) : null}
+        </div>
+
+        <div className="discovery-controls">
+          <details className="discovery-filter">
+            <DiscoveryFilterTrigger count={filterCount} />
+            <DiscoveryFilterPanel
+              key={JSON.stringify([filters.date, filters.from, filters.to, filters.status, filters.city, filters.category, filters.price])}
+              filters={filters} isPreview={isPreview} onApply={applyFilters}
             />
+          </details>
+          <label className="discovery-sort">
+            <span>{t('public:discovery_sort')}</span>
+            <select name="sort" value={filters.sort} onChange={(event) =>
+              setParams(writeDiscoveryFilters(params, { sort: event.target.value as DiscoveryFilters['sort'] }))}>
+              {Object.entries(sortOptions).map(([value, label]) => <option key={value} value={value}>{t(label)}</option>)}
+            </select>
           </label>
-          <label>
-            <span>{translate("public:homePage_khuVuc")}</span>
-            <input value={translate('countryVietnam')} readOnly aria-label={translate("public:homePage_khuVuc")} />
-          </label>
-          <button className="button button-primary" type="submit">
-            <Search size={16} /> {translate("public:homePage_timKiem")}
-          </button>
-        </form>
-      </section>
-
-      <section className="event-section page-width" id="discover-concerts">
-        <div className="section-heading discover-heading">
-          <div>
-            <p className="eyebrow">
-              <span /> {translate("public:homePage_danhMucChonLoc")}
-            </p>
-          </div>
         </div>
-        <div className="category-row" aria-label={translate("public:homePage_trangThaiConcert")}>
-          {statusFilters.map(({ value: status, label }) => (
-            <button
-              key={status}
-              type="button"
-              className={selectedStatus === status ? 'active' : ''}
-              aria-pressed={selectedStatus === status}
-              onClick={() => chooseStatus(status)}
-            >
-              {label}
+
+        {chips.length > 0 ? (
+          <ul className="discovery-chips" aria-label={t('public:discovery_appliedFilters')}>
+            {chips.map(({ key, label, clear }) => (
+              <li key={key}>
+                <button type="button" aria-label={t('public:discovery_removeFilter', { filter: label })} onClick={() => applyFilters(clear)}>
+                  <span>{label}</span><X aria-hidden="true" />
+                </button>
+              </li>
+            ))}
+            <li><button className="discovery-clear" type="button" onClick={() => applyFilters(resetFilters)}>{t('public:discovery_clearAll')}</button></li>
+          </ul>
+        ) : null}
+
+        {isInitialLoading ? <p className="buyer-state" role="status">{t('public:discovery_loading')}</p> : null}
+        {failedPage === 0 ? <p className="buyer-state" role="alert">{t('public:discovery_loadError')}</p> : null}
+        {!isInitialLoading && failedPage !== 0 && matches.length === 0 ? (
+          <div className="buyer-state">
+            <h3>{t(hasMore ? 'public:discovery_noLoadedMatches'
+              : hasFilters ? 'public:discovery_noMatches' : 'public:discovery_noEvents')}</h3>
+            <p>{t(hasMore ? 'public:discovery_canLoadMore'
+              : hasFilters ? 'public:discovery_adjustFilters' : 'public:discovery_returnLater')}</p>
+          </div>
+        ) : null}
+
+        {grid.length > 0 ? (
+          <div className="discovery-grid">
+            {grid.map((concert, index) => (
+              <EventCard
+                key={concert.id}
+                event={{
+                  ...eventCard(concert, now),
+                  supportingText: isPreview && concert.price !== undefined
+                    ? [concert.city && t(discoveryOptions.city[concert.city]),
+                      concert.category && t(discoveryOptions.category[concert.category]),
+                      currency.format(concert.price)].filter(Boolean).join(' · ')
+                    : undefined,
+                }}
+                priority={index < 2 && !feature}
+                preview={isPreview}
+                linkId={`discovery-event-${concert.id}`}
+                onOpen={savePosition}
+              />
+            ))}
+          </div>
+        ) : null}
+
+        {hasMore && !isInitialLoading ? (
+          <div className="discovery-load-more">
+            {failedPage !== null && failedPage > 0 ? <p role="alert">{t('public:discovery_nextPageError')}</p> : null}
+            <button type="button" className="button button-secondary" onClick={loadMore} disabled={requestedPage !== null}>
+              {t(failedPage !== null ? 'public:discovery_tryAgain'
+                : requestedPage !== null ? 'public:discovery_loading' : 'public:discovery_loadMore')}
             </button>
-          ))}
-        </div>
-
-        {loading ? <LoadingGrid /> : null}
-        {error ? (
-          <StatePanel
-            title={translate("public:homePage_sanKhauVuaMatTinHieu")}
-            copy={error}
-            action={translate("public:homePage_thuLai")}
-            onAction={() => setReloadKey((value) => value + 1)}
-          />
-        ) : null}
-        {!loading && !error ? (
-          <div className="discover-groups">
-            {selectedStatus === 'all' || selectedStatus === 'ON_SALE' ? (
-              <ConcertGroup
-                title={translate("public:homePage_dangBanVe")}
-                subtitle={translate("public:homePage_uuTienCacConcertCoTheMua")}
-                icon={<CalendarDays size={18} />}
-                concerts={onSale}
-                emptyCopy={translate("public:homePage_chuaCoConcertDangBanPhuHop")}
-              />
-            ) : null}
-            {selectedStatus === 'all' || selectedStatus === 'DRAFT' ? (
-              <ConcertGroup
-                title={translate("public:homePage_sapMoBan")}
-                subtitle={translate("public:homePage_theoDoiTruocKhiCongVeMo")}
-                icon={<CalendarDays size={18} />}
-                concerts={openingSoon}
-                emptyCopy={translate("public:homePage_chuaCoConcertSapMoBanPhu")}
-              />
-            ) : null}
-            {selectedStatus === 'all' || selectedStatus === 'SOLD_OUT' ? (
-              <ConcertGroup
-                title={translate("public:homePage_daHetVe")}
-                subtitle={translate("public:homePage_cacConcertDaBanHetVeHien")}
-                icon={<CalendarDays size={18} />}
-                concerts={soldOut}
-                emptyCopy={translate("public:homePage_chuaCoConcertHetVePhuHop")}
-              />
-            ) : null}
           </div>
         ) : null}
       </section>
-    </>
-  );
-}
-
-function ConcertGroup({
-  title,
-  subtitle,
-  icon,
-  concerts,
-  emptyCopy,
-}: {
-  title: string;
-  subtitle: string;
-  icon: ReactNode;
-  concerts: ConcertSummary[];
-  emptyCopy: string;
-}) {
-  useTranslation();
-  return (
-    <section className="discover-group">
-      <div className="discover-group-head">
-        <div className="discover-group-icon" aria-hidden="true">
-          {icon}
-        </div>
-        <div>
-          <h3>{title}</h3>
-          <p>{subtitle}</p>
-        </div>
-      </div>
-      {concerts.length ? (
-        <div className="event-grid discover-grid">
-          {concerts.map((concert, index) => (
-            <EventCard
-              key={concert.id}
-              priority={index < 2}
-              event={{
-                id: concert.id,
-                title: concertTitle(concert),
-                venue: concert.venueName,
-                eventDate: concert.eventDate,
-                status: concert.status,
-                image: concert.posterUrl,
-              }}
-            />
-          ))}
-        </div>
-      ) : emptyCopy ? (
-        <div className="discover-empty">{emptyCopy}</div>
-      ) : null}
-    </section>
-  );
-}
-
-function LoadingGrid() {
-  useTranslation();
-  return (
-    <div className="event-grid" aria-label={translate("public:homePage_dangTaiConcert")} aria-live="polite">
-      {[1, 2, 3].map((item) => (
-        <div className="event-skeleton" key={item}>
-          <div />
-          <span />
-          <span />
-        </div>
-      ))}
     </div>
   );
-}
-
-function StatePanel({
-  title,
-  copy,
-  action,
-  onAction,
-}: {
-  title: string;
-  copy: string;
-  action: string;
-  onAction: () => void;
-}) {
-  useTranslation();
-  return (
-    <div className="state-panel" role="status">
-      <span className="state-icon" aria-hidden="true">
-        !
-      </span>
-      <h3>{title}</h3>
-      <p>{copy}</p>
-      <button className="button button-secondary" type="button" onClick={onAction}>
-        {action}
-      </button>
-    </div>
-  );
-}
-
-function compareConcerts(a: ConcertSummary, b: ConcertSummary) {
-  const statusWeight = (status: ConcertSummary['status']) => {
-    if (status === 'ON_SALE') return 0;
-    if (status === 'DRAFT') return 1;
-    if (status === 'SOLD_OUT') return 2;
-    if (status === 'COMPLETED') return 3;
-    return 4;
-  };
-  const byStatus = statusWeight(a.status) - statusWeight(b.status);
-  if (byStatus !== 0) return byStatus;
-  return new Date(a.eventDate).getTime() - new Date(b.eventDate).getTime();
 }
