@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { useEffect, useRef, useState } from 'react';
-import { Client, type IMessage, type StompSubscription } from '@stomp/stompjs';
+import { Client, type IMessage } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ApiClientError, apiBaseUrl, isRequestCanceled } from '../../api/client';
@@ -52,8 +52,10 @@ export function WaitingRoomPage() {
   const [interrupted, setInterrupted] = useState(false);
   const [problem, setProblem] = useState<keyof typeof queueProblems | null>(null);
   const [retry, setRetry] = useState(0);
-  const [leaving, setLeaving] = useState(false);
+  const [leavingConcert, setLeavingConcert] = useState<string | null>(null);
+  const leaving = leavingConcert === id;
   const leavingRef = useRef(false);
+  const stopWaitingRef = useRef<(() => void) | null>(null);
   const eventPath = id ? '/concerts/' + id : '/';
 
   useEffect(() => {
@@ -71,19 +73,39 @@ export function WaitingRoomPage() {
   useEffect(() => {
     if (!id) return;
     const concertId = id;
+    leavingRef.current = false;
     const controller = new AbortController();
     const { signal } = controller;
     let finished = false;
     let stompClient: Client | null = null;
-    let subscription: StompSubscription | null = null;
     let refreshTimer: number | undefined;
     let requestInProgress = false;
     let joinRetryTimer: number | undefined;
     let joinAttempts = 0;
+    let pollAfterMs: number | undefined;
+
+    function stopRealtime() {
+      const client = stompClient;
+      stompClient = null;
+      void client?.deactivate();
+    }
+
+    function stopWaiting() {
+      controller.abort();
+      window.clearTimeout(refreshTimer);
+      window.clearTimeout(joinRetryTimer);
+      stopRealtime();
+    }
+
+    stopWaitingRef.current = stopWaiting;
 
     function scheduleRefresh() {
+      window.clearTimeout(refreshTimer);
       if (!signal.aborted && !finished && !leavingRef.current) {
-        refreshTimer = window.setTimeout(refreshStatus, 12_000 + Math.random() * 3_000);
+        const delay = pollAfterMs == null
+          ? 12_000 + Math.random() * 3_000
+          : pollAfterMs * (0.8 + Math.random() * 0.4);
+        refreshTimer = window.setTimeout(refreshStatus, delay);
       }
     }
 
@@ -96,13 +118,26 @@ export function WaitingRoomPage() {
           return;
         }
         finished = true;
+        stopWaiting();
         setQueueStatus(nextStatus);
         setProblem(null);
         navigate('/concerts/' + concertId + '/seats', { replace: true });
         return;
       }
 
-      if (nextStatus.status === 'EXPIRED' || nextStatus.status === 'LEFT') finished = true;
+      if (nextStatus.status === 'EXPIRED' || nextStatus.status === 'LEFT') {
+        finished = true;
+        stopWaiting();
+      } else {
+        pollAfterMs = nextStatus.pollAfterMs;
+        const nearFront = nextStatus.status === 'WAITING'
+          && nextStatus.position != null && nextStatus.position <= 1_000;
+        if (pollAfterMs == null || nearFront) connectRealtime();
+        else {
+          stopRealtime();
+          setInterrupted(false);
+        }
+      }
       setQueueStatus(nextStatus);
       setProblem(null);
       setJoining(false);
@@ -116,6 +151,7 @@ export function WaitingRoomPage() {
       } catch (error) {
         if (!signal.aborted && !isRequestCanceled(error) && !leavingRef.current) {
           finished = queueUnavailable(error);
+          if (finished) stopWaiting();
           setProblem(finished ? 'unavailable' : 'pollFailed');
           setJoining(false);
         }
@@ -134,10 +170,7 @@ export function WaitingRoomPage() {
 
       try {
         handleStatus(await joinQueue(concertId, signal));
-        if (!signal.aborted && !finished && !leavingRef.current) {
-          connectRealtime();
-          scheduleRefresh();
-        }
+        scheduleRefresh();
       } catch (error) {
         if (signal.aborted || isRequestCanceled(error) || leavingRef.current) return;
         if (error instanceof ApiClientError && [429, 503].includes(error.status) && joinAttempts < 6) {
@@ -154,26 +187,31 @@ export function WaitingRoomPage() {
     }
 
     function connectRealtime() {
+      if (stompClient) return;
       const token = getAuthToken();
       if (!token) return;
 
       function onInterrupted() {
-        if (!signal.aborted && !finished && !leavingRef.current) setInterrupted(true);
+        if (!signal.aborted && !finished && !leavingRef.current && stompClient === client) {
+          setInterrupted(true);
+        }
       }
 
-      stompClient = new Client({
+      const client = new Client({
         webSocketFactory: () => new SockJS(apiBaseUrl + '/ws'),
         connectHeaders: { Authorization: 'Bearer ' + token },
         reconnectDelay: 5_000 + Math.random() * 5_000,
         heartbeatIncoming: 10_000,
         heartbeatOutgoing: 10_000,
         onConnect: () => {
-          if (signal.aborted || finished || leavingRef.current || !stompClient) return;
+          if (signal.aborted || finished || leavingRef.current || stompClient !== client) return;
           setInterrupted(false);
-          window.clearTimeout(refreshTimer);
-          void refreshStatus();
-          subscription = stompClient.subscribe('/user/queue/concerts/' + concertId, (message: IMessage) => {
-            if (signal.aborted || finished || leavingRef.current) return;
+          if (pollAfterMs == null) {
+            window.clearTimeout(refreshTimer);
+            void refreshStatus();
+          }
+          client.subscribe('/user/queue/concerts/' + concertId, (message: IMessage) => {
+            if (signal.aborted || finished || leavingRef.current || stompClient !== client) return;
             try {
               handleStatus(JSON.parse(message.body) as QueueStatusResponse);
               setInterrupted(false);
@@ -181,7 +219,7 @@ export function WaitingRoomPage() {
               onInterrupted();
             }
           });
-          stompClient.publish({
+          client.publish({
             destination: '/app/queue/subscribe',
             body: JSON.stringify({ concertId }),
           });
@@ -189,28 +227,29 @@ export function WaitingRoomPage() {
         onStompError: onInterrupted,
         onWebSocketClose: onInterrupted,
       });
-      stompClient.activate();
+      stompClient = client;
+      client.activate();
     }
 
     void join();
     return () => {
-      controller.abort();
-      window.clearTimeout(refreshTimer);
-      window.clearTimeout(joinRetryTimer);
-      if (stompClient?.connected) subscription?.unsubscribe();
-      void stompClient?.deactivate();
+      stopWaiting();
+      if (stopWaitingRef.current === stopWaiting) stopWaitingRef.current = null;
     };
   }, [id, navigate, retry]);
 
   async function leave() {
-    if (!id || leavingRef.current) return;
+    const stopWaiting = stopWaitingRef.current;
+    if (!id || leavingRef.current || !stopWaiting) return;
     leavingRef.current = true;
-    setLeaving(true);
+    setLeavingConcert(id);
+    stopWaiting();
     try {
       await leaveQueue(id);
     } catch {
       // The user can still return to the event if leaving could not be confirmed.
     }
+    if (stopWaitingRef.current !== stopWaiting) return;
     clearStoredQueueAdmission();
     navigate(eventPath);
   }

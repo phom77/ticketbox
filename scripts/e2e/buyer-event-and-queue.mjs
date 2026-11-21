@@ -38,13 +38,19 @@ async function fixture(user) {
   const page = await context.newPage();
   page.setDefaultTimeout(6_000);
   await page.clock.install();
-  const state = { user, event: detail, queue: waiting, previews: 0, joins: 0, polls: 0 };
+  const state = { user, event: detail, queue: waiting, previews: 0, joins: 0, polls: 0, mockSocket: false,
+    socketOpens: 0, socketCloses: 0, socketSubscriptions: 0, leaves: 0 };
   const emptyPage = { content: [], number: 0, last: true, totalPages: 0 };
 
   await page.route('**/*', async (route) => {
     const url = new URL(route.request().url());
     if (url.origin !== origin) return route.abort();
     const path = url.pathname;
+    if (path === '/ws/info') {
+      return route.fulfill(state.mockSocket
+        ? { json: { websocket: true, cookie_needed: false, origins: ['*:*'], entropy: 1 } }
+        : { status: 503, body: 'Realtime fixture unavailable' });
+    }
     if (!path.startsWith('/api/')) return route.continue();
     const reply = (data, code = 200) => route.fulfill({ status: code, json: { code, data, message: 'Fixture' } });
     if (path === '/api/auth/me') return reply(state.user);
@@ -71,10 +77,38 @@ async function fixture(user) {
       state.polls++;
       return reply(state.queue);
     }
-    if (path === `/api/queue/concerts/${eventId}/leave`) return reply(status('LEFT'));
+    if (path === `/api/queue/concerts/${eventId}/leave`) {
+      state.leaves++;
+      return reply(status('LEFT'));
+    }
     return reply(null, 404);
   });
+  await page.routeWebSocket(/\/ws\/.*\/websocket$/, (socket) => {
+    state.socketOpens++;
+    const send = (frame) => socket.send('a' + JSON.stringify([frame]));
+    socket.send('o');
+    socket.onMessage((message) => {
+      for (const frame of JSON.parse(message)) {
+        if (/^(CONNECT|STOMP)\n/.test(frame)) send('CONNECTED\nversion:1.2\nheart-beat:0,0\n\n\0');
+        if (frame.startsWith('SEND') && frame.includes('/app/queue/subscribe')) state.socketSubscriptions++;
+        if (frame.startsWith('DISCONNECT')) {
+          const receipt = frame.match(/receipt:([^\n]+)/)?.[1];
+          if (receipt) send('RECEIPT\nreceipt-id:' + receipt + '\n\n\0');
+        }
+      }
+    });
+    socket.onClose(() => { state.socketCloses++; });
+  });
   return { context, page, state };
+}
+
+async function waitForQueueSocket({ page, state }) {
+  for (let attempt = 0; attempt < 30 && !state.socketSubscriptions; attempt++) {
+    await page.clock.runFor(25);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  assert.equal(state.socketOpens, 1);
+  assert.equal(state.socketSubscriptions, 1);
 }
 
 async function assertFits(page) {
@@ -203,6 +237,58 @@ try {
   assert.equal(admission.queueAccessToken, 'fixture-queue-token');
   await queue.context.close();
   console.log('Waiting room switches to queue, shows known and missing estimates, and advances only after a fallback status check admits the buyer.');
+
+  const adaptive = await fixture(buyer);
+  adaptive.state.mockSocket = true;
+  await adaptive.page.addInitScript(() => { Math.random = () => 0.75; });
+  adaptive.state.queue = status('WAITING', { position: 20_001, peopleAhead: 20_000, pollAfterMs: 60_000 });
+  await adaptive.page.goto(eventPath + '/waiting-room');
+  await adaptive.page.getByText('20,000', { exact: true }).waitFor();
+  adaptive.state.queue = status('WAITING', { position: 5001, peopleAhead: 5000, pollAfterMs: 20_000 });
+  await adaptive.page.clock.fastForward(62_000);
+  assert.equal(adaptive.state.polls, 0, 'First poll uses fresh jitter around 60 seconds.');
+  assert.equal(adaptive.state.socketOpens, 0);
+  await adaptive.page.clock.fastForward(6_000);
+  await adaptive.page.getByText('5,000', { exact: true }).waitFor();
+  adaptive.state.queue = status('WAITING', { position: 1000, peopleAhead: 999, pollAfterMs: 5_000 });
+  await adaptive.page.clock.fastForward(20_000);
+  assert.equal(adaptive.state.polls, 1);
+  await adaptive.page.clock.fastForward(4_000);
+  await adaptive.page.getByText('999', { exact: true }).waitFor();
+  await waitForQueueSocket(adaptive);
+  adaptive.state.queue = status('ADMITTED', { queueAccessToken: 'adaptive-token', sessionExpiresAt: timestamp(15) });
+  await adaptive.page.clock.fastForward(7_000);
+  await adaptive.page.waitForURL('**' + eventPath + '/seats');
+  await adaptive.page.clock.fastForward(20_000);
+  assert.equal(adaptive.state.polls, 3);
+  assert.equal(adaptive.state.socketCloses, 1);
+  await adaptive.context.close();
+  console.log('Adaptive waiting uses three HTTP intervals, starts one near-front socket, and recovers a missed notification.');
+
+  for (const leave of [true, false]) {
+    const departing = await fixture(buyer);
+    departing.state.mockSocket = true;
+    departing.state.queue = { ...waiting, pollAfterMs: 5_000 };
+    await departing.page.goto(eventPath);
+    await departing.page.getByRole('main').getByRole('link', { name: 'Buy now' }).click();
+    await departing.page.waitForURL(origin + eventPath + '/waiting-room');
+    await departing.page.getByRole('heading', { name: "You're in line." }).waitFor();
+    await waitForQueueSocket(departing);
+    if (leave) {
+      await departing.page.getByRole('button', { name: 'Leave the queue' }).click();
+      await departing.page.waitForURL(origin + eventPath);
+    } else {
+      await departing.page.goBack();
+      await departing.page.waitForURL(origin + eventPath);
+    }
+    const pollsBeforeDeparture = departing.state.polls;
+    await departing.page.clock.fastForward(65_000);
+    assert.equal(departing.state.polls, pollsBeforeDeparture);
+    assert.equal(departing.state.socketCloses, 1);
+    assert.equal(departing.state.leaves, leave ? 1 : 0);
+    await departing.context.close();
+  }
+  console.log('Explicit leave and page navigation close the socket and cancel future polling.');
 
   const closed = await fixture(buyer);
   closed.state.queue = status('EXPIRED');
