@@ -131,6 +131,7 @@ export function PerformanceWorkspace({ performance, venue, onUpdate }: {
   return <div className="performance-admin">
     {error && <p role="alert">{error}</p>}
     {message && <p role="status">{message}</p>}
+    {immutable && <p>{t('performances:layoutLockedAfterPublication')}</p>}
     {(!draft || !sale) ? (!error && <p role="status">{t('performances:loading')}</p>) : <>
       <PerformanceLayoutEditor performance={performance} venue={venue} saved={draft} onSave={acceptLayout}
         onDirtyChange={setLayoutDirty} onBusyChange={setLayoutBusy} readOnly={immutable || busy} />

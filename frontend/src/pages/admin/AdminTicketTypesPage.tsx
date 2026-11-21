@@ -245,6 +245,9 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
         description={translate("admin:adminTicketTypesPage_thietLapGiaHanMucMuaVa")}
         actions={
           <>
+            <Link className="admin-secondary-action" to="/organizer/events">
+              {translate('performances:ticketSettingsV2')}
+            </Link>
             {safeReturnTo ? (
               <Link className="admin-secondary-action" to={safeReturnTo}>
                 {translate("admin:adminTicketTypesPage_quayVeConcert")}

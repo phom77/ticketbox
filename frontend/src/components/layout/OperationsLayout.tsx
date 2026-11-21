@@ -39,6 +39,7 @@ const adminNavigation: NavigationItem[] = [
   { to: '/admin/performance-operations', get label() { return translate('performances:operations'); }, icon: CalendarDays },
   { to: '/admin/concerts', get label() { return translate("shared:operationsLayout_buoiDien"); }, icon: CalendarDays },
   { to: '/admin/ticket-types', get label() { return translate("shared:operationsLayout_hangVe"); }, icon: Ticket },
+  { to: '/organizer/events', get label() { return translate('performances:ticketSettingsV2'); }, icon: Ticket },
   { to: '/admin/reconciliation', get label() { return translate("shared:operationsLayout_doiSoat"); }, icon: CircleDollarSign },
   { to: '/admin/orders', get label() { return translate("shared:operationsLayout_donHangVe"); }, icon: Receipt },
   { to: '/admin/guests', get label() { return translate("shared:operationsLayout_khachMoi"); }, icon: Users },
@@ -56,7 +57,7 @@ const staffNavigation: NavigationItem[] = [
 
 const organizerNavigation: NavigationItem[] = [
   { to: '/organizer', get label() { return translate("shared:operationsLayout_tongQuan"); }, icon: BarChart3, end: true },
-  { to: '/organizer/events', grant: 'EVENTS', get label() { return translate('performances:events'); }, icon: CalendarDays },
+  { to: '/organizer/events', grant: 'EVENTS', get label() { return translate('performances:ticketSettingsV2'); }, icon: Ticket },
   { to: '/organizer/concerts', grant: 'EVENTS', get label() { return translate("shared:operationsLayout_buoiDien"); }, icon: CalendarDays },
   { to: '/organizer/ticket-types', grant: 'EVENTS', get label() { return translate("shared:operationsLayout_hangVe"); }, icon: Ticket },
   { to: '/organizer/reconciliation', grant: 'FINANCE', get label() { return translate("shared:operationsLayout_doiSoat"); }, icon: CircleDollarSign },
@@ -197,6 +198,10 @@ export function OperationsLayout({ mode }: { mode: 'admin' | 'organizer' | 'staf
             </button>
             {accountOpen ? (
               <div className="operations-account-menu">
+                {mode === 'organizer' && user?.role === 'ADMIN' && <Link
+                  className="internal-profile-link" to="/admin" onClick={() => setAccountOpen(false)}>
+                  {translate('shared:roleRoutes_quanTriHeThong')}
+                </Link>}
                 <Link
                   className="internal-profile-link"
                   to={workspaceHome}

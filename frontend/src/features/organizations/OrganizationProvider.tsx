@@ -87,11 +87,13 @@ export function useOrganization() {
 export function RequireOrganizationGrant({
   grant,
   children,
-}: { grant: OrganizationGrant; children: ReactNode }) {
+  fallback,
+}: { grant: OrganizationGrant; children: ReactNode; fallback?: ReactNode }) {
   useTranslation();
   const organization = useOrganization();
   if (organization?.loading) return <p role="status">{translate("shared:organizationProvider_dangTaiQuyenCuaToChuc")}</p>;
   if (organization?.selected?.grants.includes(grant)) return <>{children}</>;
+  if (fallback) return <>{fallback}</>;
   return (
     <div className="admin-empty-state">
       <p role="status">{translate("shared:organizationProvider_toChucDangChonChuaCapQuyen")}</p>

@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
@@ -7,8 +7,51 @@ import {
 } from '../../api/performanceManagement';
 import { eventPath } from '../../api/performances';
 import { performanceTime } from '../../features/performance/format';
+import { useAuth } from '../../features/auth/AuthContext';
+import { RequireOrganizationGrant, useOrganization } from '../../features/organizations/OrganizationProvider';
 import { PerformanceWorkspace } from './PerformanceWorkspace';
 import './PerformanceWorkspace.css';
+
+export function PerformanceEventAccess({ children }: { children: ReactNode }) {
+  return <RequireOrganizationGrant grant="EVENTS" fallback={<PerformanceEventAccessHelp />}>
+    {children}
+  </RequireOrganizationGrant>;
+}
+
+function PerformanceEventAccessHelp() {
+  const { t } = useTranslation();
+  const { user } = useAuth();
+  const organization = useOrganization();
+  const navigate = useNavigate();
+  const eligible = organization?.memberships.filter((membership) => membership.grants.includes('EVENTS')) ?? [];
+
+  return <section className="admin-empty-state" aria-labelledby="performance-event-access-title">
+    <h2 id="performance-event-access-title">{t('performances:organizationEventAccessRequired')}</h2>
+    {organization?.error ? <>
+      <p role="alert">{organization.error}</p>
+      <button type="button" className="admin-secondary-action" onClick={() => void organization.reload()}>
+        {t('performances:refresh')}
+      </button>
+    </> : eligible.length > 0 ? <>
+      <p>{t('performances:chooseEventOrganization')}</p>
+      <div className="forbidden-actions">
+        {eligible.map((membership) => <button key={membership.id} className="admin-secondary-action" type="button"
+          onClick={() => {
+            organization?.choose(membership.id);
+            navigate('/organizer/events');
+          }}>{membership.name}</button>)}
+      </div>
+    </> : <>
+      <p>{t('performances:organizationEventAccessHelp')}</p>
+      <div className="forbidden-actions">
+        <Link className="admin-secondary-action" to="/organizer">{t('performances:acceptOrganizationInvitation')}</Link>
+        {user?.role === 'ADMIN' && <Link className="admin-secondary-action" to="/admin/organizations">
+          {t('performances:manageOrganizations')}
+        </Link>}
+      </div>
+    </>}
+  </section>;
+}
 
 export function PerformanceEventsPage() {
   const { t } = useTranslation();
@@ -47,7 +90,7 @@ export function PerformanceEventsPage() {
 
   return (
     <div className="performance-admin">
-      <h1>{t('performances:events')}</h1>
+      <h1>{t('performances:ticketSettingsV2')}</h1>
       {error && <p role="alert">{error}</p>}
       <section className="performance-panel">
         <h2>{t('performances:createEvent')}</h2>
@@ -101,7 +144,8 @@ function EventWorkspace({ id }: { id: string }) {
     return () => controller.abort();
   }, [id]);
 
-  const performance = event?.performances.find((entry) => entry.id === selected);
+  const performance = event?.performances.find((entry) => entry.id === selected)
+    ?? (event?.performances.length === 1 ? event.performances[0] : undefined);
 
   async function addVenue(submit: FormEvent<HTMLFormElement>) {
     submit.preventDefault();
@@ -164,8 +208,9 @@ function EventWorkspace({ id }: { id: string }) {
         <section className="performance-panel">
           <h2>{t('performances:schedule')}</h2>
           {event.performances.length === 0 && <p>{t('performances:noPerformances')}</p>}
+          {event.performances.length > 1 && !performance && <p>{t('performances:choosePerformanceToConfigure')}</p>}
           {event.performances.map((entry) => (
-            <button key={entry.id} type="button" className="button button-secondary" aria-pressed={entry.id === selected}
+            <button key={entry.id} type="button" className="button button-secondary" aria-pressed={entry.id === performance?.id}
               onClick={() => setSelected(entry.id)}>{entry.venueName} · {performanceTime(entry)} · {entry.status}</button>
           ))}
           {event.performances.some((entry) => entry.publicVisible && entry.status !== 'DRAFT') &&

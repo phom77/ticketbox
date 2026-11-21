@@ -161,5 +161,14 @@
   "svgImportHelp": "Use a compatible SVG with marked sections and seats. You can add an image separately as a drawing guide.",
   "svgReplace": "Replace the current layout? Previous sale groups will need to be linked to the imported sections.",
   "svgImported": "Imported {{sections}} sections and {{seats}} seats. Save the layout to assign tickets.",
-  "svgImportError": "Could not import this map. Use a compatible SVG of up to 20 MB."
+  "svgImportError": "Could not import this map. Use a compatible SVG of up to 20 MB.",
+  "ticketSettingsV2": "Seating & ticket types V2",
+  "organizationEventAccessRequired": "Event access required",
+  "chooseEventOrganization": "Choose an organization where you can manage events and edit seating and ticket types.",
+  "organizationEventAccessHelp": "This editor opens for organizations that grant you event management access. Ask the event owner for an invitation with that permission.",
+  "acceptOrganizationInvitation": "Enter invitation code",
+  "manageOrganizations": "Manage organizations",
+  "useMyManagerId": "Use my account ID",
+  "choosePerformanceToConfigure": "Choose a performance to open its seating layout and ticket types.",
+  "layoutLockedAfterPublication": "Publishing locks the layout and seat assignments. Open a draft performance to edit them."
 }

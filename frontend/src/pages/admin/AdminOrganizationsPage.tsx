@@ -8,9 +8,11 @@ import {
   type ApprovedOrganization,
 } from '../../api/organizations';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
+import { useAuth } from '../../features/auth/AuthContext';
 
 export function AdminOrganizationsPage() {
   useTranslation();
+  const { user } = useAuth();
   const [organizations, setOrganizations] = useState<ApprovedOrganization[]>([]);
   const [name, setName] = useState('');
   const [account, setAccount] = useState('');
@@ -84,6 +86,9 @@ export function AdminOrganizationsPage() {
             {translate("admin:adminOrganizationsPage_maTaiKhoanQuanLy")}
             <input value={account} onChange={(event) => setAccount(event.target.value)} required minLength={36} maxLength={36} />
           </label>
+          {user && <button className="admin-secondary-action" type="button" disabled={saving} onClick={() => setAccount(user.id)}>
+            {translate('performances:useMyManagerId')}
+          </button>}
           <button className="admin-primary-action" type="submit" disabled={saving}>{translate("admin:adminOrganizationsPage_duyetToChuc")}</button>
         </form>
       </section>

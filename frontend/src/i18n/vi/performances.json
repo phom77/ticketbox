@@ -159,5 +159,14 @@
   "svgImportHelp": "Dùng SVG có đánh dấu khu và ghế. Bạn có thể tải thêm ảnh để làm nền vẽ.",
   "svgReplace": "Thay sơ đồ hiện tại? Bạn cần liên kết lại các nhóm bán vé với khu mới.",
   "svgImported": "Đã nhập {{sections}} khu và {{seats}} ghế. Lưu sơ đồ để gán hạng vé.",
-  "svgImportError": "Không thể nhập sơ đồ này. Hãy dùng SVG đúng định dạng, tối đa 20 MB."
+  "svgImportError": "Không thể nhập sơ đồ này. Hãy dùng SVG đúng định dạng, tối đa 20 MB.",
+  "ticketSettingsV2": "Sơ đồ và hạng vé V2",
+  "organizationEventAccessRequired": "Cần quyền quản lý sự kiện",
+  "chooseEventOrganization": "Chọn tổ chức đã cấp cho bạn quyền quản lý sự kiện để chỉnh sơ đồ và hạng vé.",
+  "organizationEventAccessHelp": "Để chỉnh sơ đồ và hạng vé, tài khoản cần quyền quản lý sự kiện trong tổ chức sở hữu suất diễn. Bạn có thể xin chủ tổ chức gửi lời mời kèm quyền này.",
+  "acceptOrganizationInvitation": "Nhập mã lời mời",
+  "manageOrganizations": "Quản lý tổ chức",
+  "useMyManagerId": "Dùng mã tài khoản của tôi",
+  "choosePerformanceToConfigure": "Chọn suất diễn để mở sơ đồ và cấu hình hạng vé.",
+  "layoutLockedAfterPublication": "Sơ đồ và ghế đã gán được khóa sau khi phát hành. Mở một suất nháp để chỉnh sửa."
 }
