@@ -1,0 +1,19 @@
+services:
+  identity-db:
+    ports:
+    - "127.0.0.1:15431:5432"
+  catalog-db:
+    ports:
+    - "127.0.0.1:15432:5432"
+  ticketing-db:
+    ports:
+    - "127.0.0.1:15433:5432"
+  checkin-db:
+    ports:
+    - "127.0.0.1:15434:5432"
+  payment-db:
+    ports:
+    - "127.0.0.1:15435:5432"
+  notification-db:
+    ports:
+    - "127.0.0.1:15436:5432"
