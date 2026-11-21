@@ -6,11 +6,12 @@ import { getOrderByIdempotencyKey } from '../../api/orders';
 import {
   checkoutPerformance, eventPath, getAvailability, getEventPerformance, getHold, getLayout,
   getMapSection, getSectionAvailability, performancePath, replaceHold, type Availability,
-  type Layout, type MapSection, type PerformanceHold, type Point, type SectionAvailability, type Selection,
+  type Layout, type MapSection, type Offer, type PerformanceHold, type Point, type SectionAvailability, type Selection,
 } from '../../api/performances';
 import { clearStoredQueueAdmission, getStoredQueueAdmission } from '../../api/queue';
 import { currency } from '../../data/formatters';
 import { performanceTime } from '../../features/performance/format';
+import { mapBounds, mapSeatRadius, sectionViewBox } from '../../features/performance/layoutTools';
 
 const emptyHold: PerformanceHold = { version: 0, items: [], totalAmount: 0, expiresAt: null };
 const points = (vertices: Point[]) => vertices.map(({ x, y }) => x + ',' + y).join(' ');
@@ -164,12 +165,35 @@ function PerformanceSelection({ id, eventId }: { id: string; eventId: string }) 
   const stock = new Map(sectionStock?.seats.map((seat) => [seat.id, seat]));
   const heldSeats = new Set(hold.items.flatMap((item) => item.seatId ? [item.seatId] : []));
   const visibleGroups = availability?.groups.filter((group) => group.sectionId === selectedSection) ?? [];
+  const offerByGroup = new Map<string, Offer>();
+  for (const group of visibleGroups) {
+    const offer = group.offers.find((item) => item.active && item.id === chosenOffers[group.id])
+      ?? group.offers.find((item) => item.active);
+    if (offer) offerByGroup.set(group.id, offer);
+  }
   const sections = new Map(
     (availability?.groups ?? []).filter((group) => group.sectionId !== null).map((group) => [group.sectionId!, group.sectionLabel]),
   );
   const sectionChoices = [...sections].sort((a, b) => a[1].localeCompare(b[1], undefined, { numeric: true }));
   const shownLayout = availability?.layoutVersion === layout?.version ? layout : null;
   const cannotChange = busy || !availability || !admission;
+
+  function canSelectSeat(seatId: string) {
+    if (cannotChange) return false;
+    if (heldSeats.has(seatId)) return true;
+    const current = stock.get(seatId);
+    return Boolean(current?.available && offerByGroup.has(current.groupId));
+  }
+
+  function seatOfferDescription(seatId: string) {
+    const held = hold.items.find((item) => item.seatId === seatId);
+    if (held) return `${held.offerName} · ${currency.format(held.unitPrice)}`;
+    const current = stock.get(seatId);
+    const offer = current && offerByGroup.get(current.groupId);
+    if (!offer) return t('performances:seatNotOnSale');
+    if (!current.available) return t('performances:seatUnavailable');
+    return `${offer.name} · ${currency.format(offer.price)}`;
+  }
 
   function selectSection(sectionId: string | null) {
     if (sectionId === selectedSection && error) setRefresh((value) => value + 1);
@@ -219,17 +243,15 @@ function PerformanceSelection({ id, eventId }: { id: string; eventId: string }) 
   }
 
   function selectSeat(seatId: string) {
+    if (!canSelectSeat(seatId)) return;
     const items = holdSelections();
-    const existing = items.some((item) => 'seatId' in item && item.seatId === seatId);
-    if (existing) {
+    if (heldSeats.has(seatId)) {
       void changeHold(items.filter((item) => !('seatId' in item) || item.seatId !== seatId));
       return;
     }
     const available = stock.get(seatId);
-    const group = visibleGroups.find((entry) => entry.id === available?.groupId);
-    const offer = group?.offers.find((entry) => entry.active && entry.id === chosenOffers[group.id])
-      ?? group?.offers.find((entry) => entry.active);
-    if (available?.available && offer) void changeHold([...items, { offerId: offer.id, seatId }]);
+    const offer = available && offerByGroup.get(available.groupId);
+    if (offer) void changeHold([...items, { offerId: offer.id, seatId }]);
   }
 
   async function checkout() {
@@ -259,8 +281,8 @@ function PerformanceSelection({ id, eventId }: { id: string; eventId: string }) 
   }
 
   const rowList = selectedMapSection?.rows.slice(0, visibleRows) ?? [];
-  const selectedBounds = selectedMapSection ? bounds(selectedMapSection.points) : null;
-  const seatRadius = selectedBounds ? Math.min(selectedBounds.width, selectedBounds.height) / 100 : 1;
+  const selectedBounds = selectedMapSection ? mapBounds(selectedMapSection.points) : null;
+  const seatRadius = selectedBounds && selectedMapSection ? mapSeatRadius(selectedMapSection.rows, selectedBounds) : 1;
   return (
     <section className="performance-page page-width">
       <Link to={eventPath(eventId)}>{context?.event.title ?? t('performances:schedule')}</Link>
@@ -277,7 +299,7 @@ function PerformanceSelection({ id, eventId }: { id: string; eventId: string }) 
                 <polygon key={index} className="performance-map-shape" points={points(shape.points)}><title>{shape.label}</title></polygon>
               ))}
               {shownLayout.sections.map((section) => {
-                const area = bounds(section.points);
+                const area = mapBounds(section.points);
                 const size = Math.min(shownLayout.width / 55, area.height / 3, area.width / Math.max(section.code.length, 3));
                 return <g key={section.id} onClick={() => selectSection(section.id)}>
                   <title>{section.label}</title>
@@ -316,26 +338,29 @@ function PerformanceSelection({ id, eventId }: { id: string; eventId: string }) 
           }))}
           {assigned && <div className="performance-panel-inner">
             <label><input type="checkbox" checked={accessibleOnly} onChange={(event) => setAccessibleOnly(event.target.checked)} /> {t('performances:accessibleOnly')}</label>
-            {visibleGroups.filter((group) => group.offers.some((offer) => offer.active)).map((group) => (
-              <label key={group.id}>{group.sectionLabel}
-                <select value={chosenOffers[group.id] ?? ''} onChange={(event) => {
+            {visibleGroups.map((group) => {
+              const offers = group.offers.filter((offer) => offer.active);
+              if (!offers.length) return null;
+              if (offers.length === 1) return <p key={group.id}>{offers[0].name} · {currency.format(offers[0].price)}</p>;
+              return <label key={group.id}>{group.sectionLabel}
+                <select value={offerByGroup.get(group.id)?.id ?? ''} onChange={(event) => {
                   setChosenOffers({ ...chosenOffers, [group.id]: event.target.value });
                 }}>
-                  <option value="">{t('performances:defaultOffer')}</option>
-                  {group.offers.filter((offer) => offer.active).map((offer) => <option key={offer.id} value={offer.id}>{offer.name} · {currency.format(offer.price)}</option>)}
+                  {offers.map((offer) => <option key={offer.id} value={offer.id}>{offer.name} · {currency.format(offer.price)}</option>)}
                 </select>
-              </label>
-            ))}
+              </label>;
+            })}
             {!sectionStock || !selectedMapSection ? <p role="status">{t('performances:loadingSeats')}</p> : (
               <>
                 {shownLayout && selectedBounds && <svg className="performance-map" viewBox={sectionViewBox(selectedBounds)} aria-hidden="true">
                   <polygon className="performance-map-area" points={points(selectedMapSection.points)} />
                   {rowList.flatMap((row) => row.seats.filter((seat) => !accessibleOnly || seat.accessible).map((seat) => (
-                    <circle key={seat.id} className="performance-map-seat" cx={seat.x} cy={seat.y}
+                    <circle key={seat.id} className="performance-map-seat" data-seat-id={seat.id} cx={seat.x} cy={seat.y}
                       r={seatRadius}
-                      data-selected={heldSeats.has(seat.id)} aria-disabled={cannotChange || (!heldSeats.has(seat.id) && !stock.get(seat.id)?.available)}
-                      onClick={() => { if (!cannotChange) selectSeat(seat.id); }}
-                    ><title>{t('performances:seat', { row: row.label, seat: seat.label })}</title></circle>
+                      data-selected={heldSeats.has(seat.id)} aria-disabled={!canSelectSeat(seat.id)}
+                      onClick={() => selectSeat(seat.id)}>
+                      <title>{t('performances:seat', { row: row.label, seat: seat.label })} · {seatOfferDescription(seat.id)}</title>
+                    </circle>
                   )))}
                 </svg>}
                 <div className="performance-rows">
@@ -346,7 +371,8 @@ function PerformanceSelection({ id, eventId }: { id: string; eventId: string }) 
                         <button key={seat.id} type="button" className="button button-secondary"
                           aria-pressed={heldSeats.has(seat.id)}
                           aria-label={t('performances:seat', { row: row.label, seat: seat.label }) + (seat.accessible ? ' · ' + t('performances:accessible') : '') + (seat.restrictedView ? ' · ' + t('performances:restrictedView') : '')}
-                          disabled={cannotChange || (!heldSeats.has(seat.id) && !stock.get(seat.id)?.available)}
+                          aria-description={seatOfferDescription(seat.id)}
+                          disabled={!canSelectSeat(seat.id)}
                           onClick={() => selectSeat(seat.id)}>{seat.label}</button>
                       ))}
                     </div>
@@ -376,17 +402,4 @@ function PerformanceSelection({ id, eventId }: { id: string; eventId: string }) 
       </div>}
     </section>
   );
-}
-
-function bounds(vertices: Point[]) {
-  const x = Math.min(...vertices.map((point) => point.x));
-  const y = Math.min(...vertices.map((point) => point.y));
-  const width = Math.max(...vertices.map((point) => point.x)) - x;
-  const height = Math.max(...vertices.map((point) => point.y)) - y;
-  return { x, y, width, height };
-}
-
-function sectionViewBox({ x, y, width, height }: ReturnType<typeof bounds>) {
-  const padding = Math.max(1, Math.max(width, height) / 30);
-  return `${x - padding} ${y - padding} ${width + padding * 2} ${height + padding * 2}`;
 }
