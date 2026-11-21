@@ -85,14 +85,16 @@ try {
 
   const sale = page.getByRole('region', { name: 'Sale configuration' });
   await sale.getByRole('button', { name: 'Add inventory group' }).click();
-  await sale.getByRole('button', { name: 'Add inventory group' }).click();
-  await sale.getByRole('button', { name: 'A', exact: true }).click();
   await sale.getByRole('button', { name: 'Add offer' }).click();
   await sale.getByRole('group', { name: 'Sale offer' }).getByLabel('Name', { exact: true }).fill('Standing');
-  await sale.getByRole('button', { name: 'Add offer' }).click();
-  const reserved = sale.getByRole('group', { name: 'Sale offer' });
-  await reserved.getByLabel('Inventory group').selectOption({ label: 'Balcony' });
-  await reserved.getByLabel('Name', { exact: true }).fill('Reserved');
+  const assignment = sale.getByRole('region', { name: 'Seat assignment' });
+  await assignment.getByLabel('Seating section').selectOption({ label: 'Balcony' });
+  await assignment.getByLabel('Ticket type name').fill('Reserved');
+  await assignment.getByLabel('Price in VND').fill('100000');
+  await assignment.getByRole('button', { name: 'Add seated ticket type' }).click();
+  const reserved = assignment.getByRole('option', { name: /^Reserved ·/ });
+  await assignment.getByLabel('Assign seats to').selectOption({ value: await reserved.getAttribute('value') });
+  await assignment.getByRole('button', { name: 'Assign unassigned seats in row A' }).click();
   await sale.getByRole('button', { name: 'Publish performance' }).click();
   const publication = page.getByRole('region', { name: 'Publication status' });
   await publication.getByText('Synchronized', { exact: true }).nth(1).waitFor();

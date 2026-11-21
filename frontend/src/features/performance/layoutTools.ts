@@ -1,4 +1,42 @@
+import type { SaleGroup } from '../../api/performanceManagement';
 import type { Point } from '../../api/performances';
+
+export function assignSeatsToGroup(groups: SaleGroup[], sectionId: string, seats: SaleGroup['seats'], targetId: string | null) {
+  const inSection = (group: SaleGroup) => group.kind === 'ASSIGNED' && group.sectionId === sectionId;
+  if (targetId && !groups.some((group) => inSection(group) && group.id === targetId)) return groups;
+  const assignable = new Map(seats.filter((seat) => !seat.blocked).map((seat) => [seat.id, seat]));
+
+  return groups.map((group) => {
+    if (!inSection(group)) return group;
+    const nextSeats = group.seats.filter((seat) => !assignable.has(seat.id));
+    if (group.id === targetId) nextSeats.push(...assignable.values());
+    return { ...group, seats: nextSeats, capacity: nextSeats.filter((seat) => !seat.blocked).length };
+  });
+}
+
+export function mapBounds(vertices: Point[]) {
+  const x = Math.min(...vertices.map((point) => point.x));
+  const y = Math.min(...vertices.map((point) => point.y));
+  const width = Math.max(...vertices.map((point) => point.x)) - x;
+  const height = Math.max(...vertices.map((point) => point.y)) - y;
+  return { x, y, width, height };
+}
+
+export function sectionViewBox({ x, y, width, height }: ReturnType<typeof mapBounds>) {
+  const padding = Math.max(1, Math.max(width, height) / 30);
+  return `${x - padding} ${y - padding} ${width + padding * 2} ${height + padding * 2}`;
+}
+
+export function mapSeatRadius(rows: { seats: Point[] }[], { width, height }: ReturnType<typeof mapBounds>) {
+  let radius = Math.min(Math.max(width, height) / 40, height / (rows.length + 1) * .42);
+  for (const { seats } of rows) {
+    for (let index = 1; index < seats.length; index++) {
+      const distance = Math.hypot(seats[index].x - seats[index - 1].x, seats[index].y - seats[index - 1].y);
+      if (distance > 0) radius = Math.min(radius, distance * .36);
+    }
+  }
+  return radius;
+}
 
 export function seatsAlongRow(first: Point, last: Point, count: number, curve: number): Point[] {
   if (!Number.isInteger(count) || count < 1 || count > 1000 || !Number.isFinite(curve)) {

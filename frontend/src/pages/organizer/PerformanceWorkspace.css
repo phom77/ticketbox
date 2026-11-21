@@ -64,6 +64,91 @@ fieldset.performance-form > legend {
 .editor-map.is-editing .performance-map-area {
   cursor: crosshair;
 }
+.performance-sales-fields {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-inline-size: 0;
+}
+.performance-seat-assignments {
+  scroll-margin-block-start: 1rem;
+  padding-block: .5rem 1rem;
+  border-bottom: 1px solid var(--line);
+}
+.performance-seat-assignments h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+.performance-seat-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem 1rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.performance-seat-legend li {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+}
+.performance-seat-swatch {
+  display: inline-block;
+  inline-size: .8rem;
+  block-size: .8rem;
+  border: 1px solid var(--muted);
+  border-radius: 50%;
+  background: var(--ticket-seat, var(--surface));
+  flex: none;
+}
+.performance-seat-assignments [data-ticket-color="0"] { --ticket-seat: #abc9ff; }
+.performance-seat-assignments [data-ticket-color="1"] { --ticket-seat: #a5e5d0; }
+.performance-seat-assignments [data-ticket-color="2"] { --ticket-seat: #ffd6a2; }
+.performance-seat-assignments [data-ticket-color="3"] { --ticket-seat: #e3cdf4; }
+.performance-seat-assignments [data-ticket-color="4"] { --ticket-seat: #f7cad9; }
+.performance-map.performance-assignment-map {
+  max-height: 23rem;
+}
+.performance-assignment-map .performance-map-area {
+  pointer-events: none;
+}
+.performance-assignment-seat {
+  fill: var(--ticket-seat, var(--surface));
+  stroke: var(--muted);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  cursor: pointer;
+}
+.performance-assignment-seat[data-current="true"],
+.performance-assignment-seat:not([data-disabled="true"]):hover {
+  stroke: var(--violet);
+  stroke-width: 2;
+}
+.performance-assignment-seat[data-disabled="true"] {
+  cursor: default;
+}
+.performance-assignment-seat[data-blocked="true"] {
+  fill: var(--line);
+}
+.performance-assignment-row {
+  display: grid;
+  gap: .5rem;
+}
+.performance-seat-assignments .performance-assignment-choice {
+  min-inline-size: 2.75rem;
+  min-block-size: 2.75rem;
+  background: var(--ticket-seat, var(--surface));
+}
+.performance-seat-assignments .performance-assignment-choice[aria-pressed="true"] {
+  background: var(--ticket-seat, var(--surface));
+  outline: 1px solid var(--violet);
+  outline-offset: -2px;
+}
+.performance-seat-assignments .performance-assignment-choice:focus-visible {
+  outline: 2px solid var(--coral);
+  outline-offset: 1px;
+}
 .performance-draft-line {
   fill: none;
   stroke: var(--coral);

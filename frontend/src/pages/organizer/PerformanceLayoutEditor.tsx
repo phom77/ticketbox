@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type MouseEvent } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   copyLayoutTemplate, createLayoutTemplate, listLayoutTemplates, readDraftImage, readLayoutDraft,
@@ -7,6 +7,7 @@ import {
 } from '../../api/performanceManagement';
 import type { MapSection, Point, Seat, SectionKind } from '../../api/performances';
 import { readSeatCsv, seatsAlongRow } from '../../features/performance/layoutTools';
+import { maxLayoutSvgBytes, readLayoutSvg } from '../../features/performance/layoutSvgImport';
 
 const blank: DraftLayout = { width: 760, height: 460, shapes: [], sections: [] };
 const polygon = (points: Point[]) => points.map((point) => point.x + ',' + point.y).join(' ');
@@ -14,11 +15,13 @@ const key = () => window.crypto.randomUUID();
 const drawingModes = ['GA', 'ASSIGNED', 'STAGE', 'AISLE', 'LANDMARK', 'ROW'] as const;
 type DrawingMode = (typeof drawingModes)[number];
 
-export function PerformanceLayoutEditor({ performance, venue, saved, onSave, readOnly }: {
+export function PerformanceLayoutEditor({ performance, venue, saved, onSave, onDirtyChange, onBusyChange, readOnly }: {
   performance: ManagedPerformance;
   venue?: Venue;
   saved: LayoutDraft;
   onSave: (draft: LayoutDraft) => void;
+  onDirtyChange: (dirty: boolean) => void;
+  onBusyChange: (busy: boolean) => void;
   readOnly: boolean;
 }) {
   const { t } = useTranslation();
@@ -26,6 +29,7 @@ export function PerformanceLayoutEditor({ performance, venue, saved, onSave, rea
   const [version, setVersion] = useState(saved.version);
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
+  const operationInProgress = useRef(false);
   const [changed, setChanged] = useState(false);
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
@@ -36,6 +40,7 @@ export function PerformanceLayoutEditor({ performance, venue, saved, onSave, rea
   const [templateId, setTemplateId] = useState('');
   const [image, setImage] = useState<string | null>(null);
   const [selectedSeatId, setSelectedSeatId] = useState<string | null>(null);
+  const svgHelpId = useId();
 
   const venueId = venue?.id;
   useEffect(() => {
@@ -70,11 +75,13 @@ export function PerformanceLayoutEditor({ performance, venue, saved, onSave, rea
   }, [layout.backgroundUrl]);
 
   const section = layout.sections.find((entry) => entry.id === sectionId);
-  const selectedSeat = section?.rows.flatMap((row) => row.seats).find((seat) => seat.id === selectedSeatId);
+  const selectedRow = section?.rows.find((row) => row.seats.some((seat) => seat.id === selectedSeatId));
+  const selectedSeat = selectedRow?.seats.find((seat) => seat.id === selectedSeatId);
 
   function update(next: DraftLayout) {
     setLayout(next);
     setChanged(true);
+    onDirtyChange(true);
     setError('');
     setStatus('');
   }
@@ -84,6 +91,7 @@ export function PerformanceLayoutEditor({ performance, venue, saved, onSave, rea
   }
 
   function addPoint(point: Point) {
+    if (busy) return;
     if (!Number.isFinite(point.x) || !Number.isFinite(point.y)
       || point.x < 0 || point.x > layout.width || point.y < 0 || point.y > layout.height) {
       setError(t('performances:coordinateError'));
@@ -103,6 +111,7 @@ export function PerformanceLayoutEditor({ performance, venue, saved, onSave, rea
 
   function finishDrawing(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (busy) return;
     const values = new FormData(event.currentTarget);
     const label = String(values.get('label') ?? '').trim();
     const code = String(values.get('code') ?? '').trim() || label;
@@ -138,7 +147,7 @@ export function PerformanceLayoutEditor({ performance, venue, saved, onSave, rea
   }
 
   async function importSeats(file: File) {
-    try {
+    await runOperation(async () => {
       if (file.size > 5 * 1024 * 1024) throw new Error('1');
       const entries = readSeatCsv(await file.text());
       const next = structuredClone(layout);
@@ -161,63 +170,123 @@ export function PerformanceLayoutEditor({ performance, venue, saved, onSave, rea
       }
       update(next);
       setStatus(t('performances:csvImported', { items: entries.length }));
-    } catch (failure) {
-      setError(t('performances:csvError', { line: failure instanceof Error ? failure.message : '?' }));
-    }
+    }, (failure) => t('performances:csvError', { line: failure instanceof Error ? failure.message : '?' }));
+  }
+
+  async function importSvg(file: File) {
+    await runOperation(async () => {
+      if (file.size > maxLayoutSvgBytes) throw new Error('Layout SVG is too large');
+      const next = readLayoutSvg(await file.text());
+      if ((changed || layout.sections.length || layout.shapes.length || layout.backgroundUrl || vertices.length)
+        && !window.confirm(t('performances:svgReplace'))) return;
+      update(next);
+      selectSection(next.sections[0].id);
+      setMode('GA');
+      setVertices([]);
+      setEditing(true);
+      setStatus(t('performances:svgImported', { sections: next.sections.length, seats: countSeats(next) }));
+    }, () => t('performances:svgImportError'));
   }
 
   function accept(next: LayoutDraft) {
     setLayout(next.layout ?? blank);
     setVersion(next.version);
     setChanged(false);
+    onDirtyChange(false);
     setVertices([]);
     onSave(next);
     setStatus(t('performances:saved'));
   }
 
-  async function submit(action: () => Promise<LayoutDraft>) {
-    if (busy) return;
+  async function runOperation(action: () => Promise<void>, message = (failure: unknown) =>
+    failure instanceof Error ? failure.message : t('performances:saveFailed')) {
+    if (operationInProgress.current) return;
+    operationInProgress.current = true;
     setBusy(true);
+    onBusyChange(true);
     setError('');
     setStatus('');
     try {
-      accept(await action());
+      await action();
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : t('performances:saveFailed'));
+      setError(message(failure));
     } finally {
+      operationInProgress.current = false;
       setBusy(false);
+      onBusyChange(false);
     }
+  }
+
+  async function submit(action: () => Promise<LayoutDraft>) {
+    await runOperation(async () => accept(await action()));
   }
 
   async function saveTemplate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!venueId || busy) return;
+    if (!venueId) return;
     const name = String(new FormData(event.currentTarget).get('templateName') ?? '').trim();
-    setBusy(true);
-    setError('');
-    try {
+    await runOperation(async () => {
       const template = await createLayoutTemplate(venueId, performance.venueSpaceId, name, layout);
       setTemplates((current) => [...current, template]);
       setTemplateId(template.id);
       setStatus(t('performances:saved'));
-    } catch (failure) {
-      setError(failure instanceof Error ? failure.message : t('performances:saveFailed'));
-    } finally {
-      setBusy(false);
-    }
+    });
+  }
+
+  function selectSection(id: string) {
+    setSectionId(id);
+    setSelectedSeatId(null);
   }
 
   const template = templates.find((entry) => entry.id === templateId);
   const editorOpen = editing && !readOnly;
-  const shownSeats = section?.rows.flatMap((row) => row.seats.slice(0, 120)).slice(0, 2000) ?? [];
+  const seatSections = countSeats(layout) <= 300 && (!editorOpen || mode !== 'ROW')
+    ? layout.sections : section ? [section] : [];
+  const shownSeats: Array<{ seat: Seat; sectionId: string; row: string }> = [];
+  const previewRowCounts = new Map<string, number>();
+  for (const entry of seatSections) {
+    for (const row of entry.rows) {
+      const count = Math.min(120, 2000 - shownSeats.length);
+      if (!count) break;
+      const seats = row.seats.slice(0, count);
+      for (const seat of seats) shownSeats.push({ seat, sectionId: entry.id, row: row.label });
+      if (entry.id === sectionId && seats.length) previewRowCounts.set(row.id, seats.length);
+    }
+  }
+  const pickerRows = editorOpen ? section?.rows : section?.rows.filter((row) => previewRowCounts.has(row.id));
+  const seatPicker = pickerRows?.length ? <label>{t('performances:editSeat')}
+    <select value={selectedSeatId ?? ''} onChange={(event) => setSelectedSeatId(event.target.value || null)}>
+      <option value="">{t('performances:editSeat')}</option>
+      {pickerRows.map((row) => <optgroup key={row.id} label={row.label}>
+        {(editorOpen ? row.seats : row.seats.slice(0, previewRowCounts.get(row.id)))
+          .map((seat) => <option key={seat.id} value={seat.id}>{seat.label}</option>)}
+      </optgroup>)}
+    </select>
+  </label> : null;
   return (
     <section className="performance-panel" aria-label={t('performances:layout')}>
       <div className="performance-actions">
         <h2>{t('performances:layout')}</h2>
-        {!readOnly && <button className="button button-secondary" type="button" onClick={() => setEditing(!editing)}>{t(editorOpen ? 'performances:previewLayout' : 'performances:editLayout')}</button>}
+        {!readOnly && <div className="performance-options">
+          {!changed && saved.layout?.sections.some((entry) => entry.kind === 'ASSIGNED') &&
+            <a className="button button-secondary" href="#performance-seat-assignment">{t('performances:seatAssignment')}</a>}
+          <button className="button button-secondary" type="button" disabled={busy} onClick={() => setEditing(!editing)}>
+            {t(editorOpen ? 'performances:previewLayout' : 'performances:editLayout')}
+          </button>
+        </div>}
       </div>
       {error && <p role="alert">{error}</p>}
       {status && <p role="status">{status}</p>}
+      {!readOnly && <div className="performance-form">
+        <label>{t('performances:svgImport')}
+          <input type="file" accept=".svg,image/svg+xml" aria-describedby={svgHelpId} disabled={busy} onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) void importSvg(file);
+            event.target.value = '';
+          }} />
+        </label>
+        <small id={svgHelpId}>{t('performances:svgImportHelp')}</small>
+      </div>}
       {editorOpen && <div className="performance-options">
         <button className="button button-primary" type="button" disabled={busy || !changed} onClick={() => void submit(() => saveLayout(performance.id, version, layout))}>{t('performances:saveLayout')}</button>
         <button className="button button-secondary" type="button" disabled={busy} onClick={() => {
@@ -240,19 +309,27 @@ export function PerformanceLayoutEditor({ performance, venue, saved, onSave, rea
         {image && <image href={image} width={layout.width} height={layout.height} />}
         {layout.shapes.map((shape, index) => <polygon className="performance-map-shape" key={index} points={polygon(shape.points)}><title>{shape.label}</title></polygon>)}
         {layout.sections.map((entry) => <polygon className="performance-map-area" key={entry.id}
+          onClick={() => { if (!editorOpen && !busy) selectSection(entry.id); }}
           data-selected={sectionId === entry.id} points={polygon(entry.points)}><title>{entry.label}</title></polygon>)}
-        {shownSeats.map((seat) => <circle key={seat.id} className="performance-map-seat"
+        {shownSeats.map(({ seat, sectionId: seatSectionId, row }) => <circle key={seat.id} className="performance-map-seat"
           cx={seat.x} cy={seat.y} r={Math.max(layout.width, layout.height) / 180}
           data-selected={seat.id === selectedSeatId} aria-disabled={seat.blocked}
-          onClick={(event) => { if (editorOpen && mode !== 'ROW') { event.stopPropagation(); setSelectedSeatId(seat.id); } }}>
-          <title>{seat.label}</title>
+          onClick={(event) => {
+            if (!busy && (!editorOpen || mode !== 'ROW')) {
+              event.stopPropagation();
+              setSectionId(seatSectionId);
+              setSelectedSeatId(seat.id);
+            }
+          }}>
+          <title>{t('performances:seat', { row, seat: seat.label })}</title>
         </circle>)}
         {editorOpen && <polyline className="performance-draft-line" points={polygon(vertices)} />}
       </svg>
       {layout.sections.length > 0 && <div className="performance-options">
         {layout.sections.map((entry) => <button key={entry.id} className="button button-secondary" type="button"
-          aria-pressed={entry.id === sectionId} onClick={() => { setSectionId(entry.id); setSelectedSeatId(null); }}>{entry.label}</button>)}
+          aria-pressed={entry.id === sectionId} onClick={() => selectSection(entry.id)}>{entry.label}</button>)}
       </div>}
+      {!editorOpen && seatPicker && <div className="performance-options">{seatPicker}</div>}
       {editorOpen && <>
         <form className="performance-form" onSubmit={finishDrawing}>
           <label>{t('performances:drawMode')}
@@ -304,28 +381,21 @@ export function PerformanceLayoutEditor({ performance, venue, saved, onSave, rea
             <li key={index} className="performance-show">
               <span>{shape.label}</span>
               <button type="button" className="button button-secondary" aria-label={t('performances:removeFeature', { name: shape.label })}
-                onClick={() => update({ ...layout, shapes: layout.shapes.filter((_, itemIndex) => index !== itemIndex) })}>{t('performances:remove')}</button>
+                disabled={busy} onClick={() => update({ ...layout, shapes: layout.shapes.filter((_, itemIndex) => index !== itemIndex) })}>{t('performances:remove')}</button>
             </li>
           ))}</ul>
         </details>}
         {section && <details>
           <summary>{t('performances:sectionDetails')} · {section.label}</summary>
           <div className="performance-panel-inner">
-            <label>{t('performances:editSeat')}
-              <select value={selectedSeatId ?? ''} onChange={(event) => setSelectedSeatId(event.target.value || null)}>
-                <option value="">{t('performances:editSeat')}</option>
-                {section.rows.map((row) => <optgroup key={row.id} label={row.label}>
-                  {row.seats.map((seat) => <option key={seat.id} value={seat.id}>{seat.label}</option>)}
-                </optgroup>)}
-              </select>
-            </label>
+            {seatPicker}
             {selectedSeat && <div className="performance-options">
-              <label>{t('performances:name')}<input value={selectedSeat.label} onChange={(event) => editSeat({ label: event.target.value })} /></label>
-              <label><input type="checkbox" checked={selectedSeat.accessible} onChange={(event) => editSeat({ accessible: event.target.checked })} /> {t('performances:accessible')}</label>
-              <label><input type="checkbox" checked={selectedSeat.restrictedView} onChange={(event) => editSeat({ restrictedView: event.target.checked })} /> {t('performances:restrictedView')}</label>
-              <label><input type="checkbox" checked={selectedSeat.blocked} onChange={(event) => editSeat({ blocked: event.target.checked })} /> {t('performances:blockedSeat')}</label>
+              <label>{t('performances:name')}<input disabled={busy} value={selectedSeat.label} onChange={(event) => editSeat({ label: event.target.value })} /></label>
+              <label><input type="checkbox" disabled={busy} checked={selectedSeat.accessible} onChange={(event) => editSeat({ accessible: event.target.checked })} /> {t('performances:accessible')}</label>
+              <label><input type="checkbox" disabled={busy} checked={selectedSeat.restrictedView} onChange={(event) => editSeat({ restrictedView: event.target.checked })} /> {t('performances:restrictedView')}</label>
+              <label><input type="checkbox" disabled={busy} checked={selectedSeat.blocked} onChange={(event) => editSeat({ blocked: event.target.checked })} /> {t('performances:blockedSeat')}</label>
             </div>}
-            <button type="button" className="button button-secondary" onClick={() => {
+            <button type="button" className="button button-secondary" disabled={busy} onClick={() => {
               if (window.confirm(t('performances:removeSection'))) update({ ...layout, sections: layout.sections.filter((entry) => entry.id !== section.id) });
             }}>{t('performances:removeSection')}</button>
           </div>
@@ -344,4 +414,8 @@ export function PerformanceLayoutEditor({ performance, venue, saved, onSave, rea
       ...row, seats: row.seats.map((seat) => seat.id === selectedSeat.id ? { ...seat, ...patch } : seat),
     })) });
   }
+}
+
+function countSeats(layout: DraftLayout) {
+  return layout.sections.reduce((total, entry) => total + entry.rows.reduce((sum, row) => sum + row.seats.length, 0), 0);
 }
