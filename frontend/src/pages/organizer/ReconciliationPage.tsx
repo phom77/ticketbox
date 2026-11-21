@@ -5,7 +5,10 @@ import { getAdminConcerts, type ManagementApiScope } from '../../api/admin';
 import { getApprovedOrganizations, type ApprovedOrganization } from '../../api/organizations';
 import { downloadReconciliation, getReconciliation,
   type ReconciliationFilters, type ReconciliationReport } from '../../api/reconciliation';
-import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
+import { Download } from 'lucide-react';
+import { ConcertPicker, type ConcertPickerItem } from '../../components/admin/ConcertPicker';
+import { WorkspaceSelect } from '../../components/WorkspaceSelect';
+import './WorkspaceRecords.css';
 import { currency, dateFormatter } from '../../data/formatters';
 
 const dateTime = dateFormatter({
@@ -46,8 +49,10 @@ export function ReconciliationPage({ scope }: { scope: ManagementApiScope }) {
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState('');
   const [organizations, setOrganizations] = useState<ApprovedOrganization[]>([]);
-  const [concerts, setConcerts] = useState<{ id: string; title: string }[]>([]);
+  const [concerts, setConcerts] = useState<ConcertPickerItem[]>([]);
+  const [selectedConcert, setSelectedConcert] = useState<ConcertPickerItem>();
   const [concertQuery, setConcertQuery] = useState('');
+  const [concertsLoading, setConcertsLoading] = useState(false);
   const [optionsError, setOptionsError] = useState('');
 
   useEffect(() => {
@@ -56,7 +61,12 @@ export function ReconciliationPage({ scope }: { scope: ManagementApiScope }) {
       void getAdminConcerts(0, 200, undefined, controller.signal, scope, concertQuery).then((value) => {
         if (!controller.signal.aborted) setConcerts(value.content);
       }).catch(() => {
-        if (!controller.signal.aborted) setOptionsError(translate("organizer:reconciliationPage_khongTaiDuocDanhSachBuoiDien"));
+        if (!controller.signal.aborted) {
+          setConcerts([]);
+          setOptionsError(translate("organizer:reconciliationPage_khongTaiDuocDanhSachBuoiDien"));
+        }
+      }).finally(() => {
+        if (!controller.signal.aborted) setConcertsLoading(false);
       });
     }, 250);
     return () => { controller.abort(); window.clearTimeout(timer); };
@@ -114,47 +124,73 @@ export function ReconciliationPage({ scope }: { scope: ManagementApiScope }) {
   }
 
   return (
-    <>
-      <AdminPageHeader title={translate("organizer:reconciliationPage_doiSoatThanhToan")} description={translate("organizer:reconciliationPage_traCuuKhoanThuDaXacMinh")} />
-      <section className="admin-data-panel organization-panel">
-        <form className="organization-form" onSubmit={apply}>
-          <label className="admin-field">{translate("organizer:reconciliationPage_tuNgay")}<input type="date" required value={draft.from} onChange={(e) => setDraft({ ...draft, from: e.target.value })} /></label>
-          <label className="admin-field">{translate("organizer:reconciliationPage_denTruocNgay")}<input type="date" required value={draft.to} onChange={(e) => setDraft({ ...draft, to: e.target.value })} /></label>
-          <label className="admin-field">{translate("organizer:reconciliationPage_kyTheo")}<select value={draft.basis} onChange={(e) => setDraft({ ...draft, basis: e.target.value === 'COLLECTION' ? 'COLLECTION' : 'ATTEMPT' })}>
-            <option value="ATTEMPT">{translate("organizer:reconciliationPage_batDauGiaoDich")}</option><option value="COLLECTION">{translate("organizer:reconciliationPage_xacMinhThuTien")}</option>
-          </select></label>
-          {scope === 'admin' ? (
-            <label className="admin-field">{translate("organizer:reconciliationPage_toChuc")}<select value={draft.unattributed ? 'unattributed' : draft.organizationId}
-              onChange={(e) => setDraft({ ...draft, organizationId: e.target.value, unattributed: e.target.value === 'unattributed' })}>
-              <option value="">{translate("organizer:reconciliationPage_tatCaToChuc")}</option><option value="unattributed">{translate("organizer:reconciliationPage_chuaXacDinhToChuc")}</option>
-              {organizations.map((organization) => <option key={organization.id} value={organization.id}>{organization.name}</option>)}
-            </select></label>
-          ) : null}
-          <label className="admin-field">{translate("organizer:reconciliationPage_timBuoiDien")}<input type="search" value={concertQuery}
-            onChange={(e) => { setConcertQuery(e.target.value); setDraft({ ...draft, concertId: '' }); }} /></label>
-          <label className="admin-field">{translate("organizer:reconciliationPage_buoiDien")}<select value={draft.concertId} onChange={(e) => setDraft({ ...draft, concertId: e.target.value })}>
-            <option value="">{translate("organizer:reconciliationPage_tatCaBuoiDien")}</option>
-            {concerts.map((concert) => <option key={concert.id} value={concert.id}>{concert.title}</option>)}
-          </select></label>
-          <button className="admin-primary-action" type="submit">{translate("organizer:reconciliationPage_apDung")}</button>
-          <button className="admin-secondary-action" type="button" disabled={!report || exporting} onClick={() => void exportCsv()}>
-            {exporting ? translate("organizer:reconciliationPage_dangXuat") : translate("organizer:reconciliationPage_taiCsv")}
-          </button>
+    <div className="workspace-records">
+      <header className="workspace-records-header">
+        <div>
+          <h1>{translate('organizer:reconciliationPage_doiSoatThanhToan')}</h1>
+          <p>{translate('organizer:reconciliationPage_traCuuKhoanThuDaXacMinh')}</p>
+        </div>
+        <button className="admin-secondary-action" type="button" disabled={!report || exporting} onClick={() => void exportCsv()}>
+          <Download size={18} aria-hidden />
+          {exporting ? translate('organizer:reconciliationPage_dangXuat') : translate('organizer:reconciliationPage_taiCsv')}
+        </button>
+      </header>
+      <section className="workspace-records-panel reconciliation-panel">
+        <form className="reconciliation-filters" data-scope={scope} onSubmit={apply}>
+          <label className="workspace-records-field">{translate('organizer:reconciliationPage_tuNgay')}
+            <input type="date" required value={draft.from} onChange={(event) => setDraft({ ...draft, from: event.target.value })} />
+          </label>
+          <label className="workspace-records-field">{translate('organizer:reconciliationPage_denTruocNgay')}
+            <input type="date" required value={draft.to} onChange={(event) => setDraft({ ...draft, to: event.target.value })} />
+          </label>
+          <label className="workspace-records-field">{translate('organizer:reconciliationPage_kyTheo')}
+            <WorkspaceSelect value={draft.basis} label={translate('organizer:reconciliationPage_kyTheo')}
+              onChange={(value) => setDraft({ ...draft, basis: value === 'COLLECTION' ? 'COLLECTION' : 'ATTEMPT' })}
+              options={[
+                { value: 'ATTEMPT', label: translate('organizer:reconciliationPage_batDauGiaoDich') },
+                { value: 'COLLECTION', label: translate('organizer:reconciliationPage_xacMinhThuTien') },
+              ]} />
+          </label>
+          {scope === 'admin' && <label className="workspace-records-field">{translate('organizer:reconciliationPage_toChuc')}
+            <WorkspaceSelect value={draft.unattributed ? 'unattributed' : draft.organizationId}
+              label={translate('organizer:reconciliationPage_toChuc')}
+              onChange={(value) => setDraft({ ...draft, organizationId: value === 'unattributed' ? '' : value, unattributed: value === 'unattributed' })}
+              options={[
+                { value: '', label: translate('organizer:reconciliationPage_tatCaToChuc') },
+                { value: 'unattributed', label: translate('organizer:reconciliationPage_chuaXacDinhToChuc') },
+                ...organizations.map(({ id, name }) => ({ value: id, label: name })),
+              ]} />
+          </label>}
+          <ConcertPicker concerts={concerts} value={draft.concertId} selection={selectedConcert}
+            label={translate('organizer:reconciliationPage_buoiDien')} allLabel={translate('organizer:reconciliationPage_tatCaBuoiDien')}
+            allowAll compact className="reconciliation-concert-picker"
+            searchLabel={translate('organizer:reconciliationPage_timBuoiDien')} searching={concertsLoading}
+            onSearch={(query) => {
+              if (query === concertQuery) return;
+              setOptionsError('');
+              setConcertsLoading(true);
+              setConcertQuery(query);
+            }}
+            onChange={(id) => {
+              setSelectedConcert(concerts.find((concert) => concert.id === id));
+              setDraft({ ...draft, concertId: id });
+            }} />
+          <button className="admin-primary-action" type="submit">{translate('organizer:reconciliationPage_apDung')}</button>
         </form>
-        <p>{translate("organizer:reconciliationPage_gioVietNamDoiChieuSaoKe")}</p>
-        {optionsError || exportError ? <p role="alert">{exportError || optionsError}</p> : null}
+        <p className="workspace-records-field-note">{translate('organizer:reconciliationPage_gioVietNamDoiChieuSaoKe')}</p>
+        {(optionsError || exportError) && <p className="admin-notice error" role="alert">{exportError || optionsError}</p>}
       </section>
       {loading ? <p role="status">{translate("organizer:reconciliationPage_dangTaiGiaoDich")}</p> : null}
       {error ? <p role="alert">{error}</p> : null}
       {report ? (
-        <section className="admin-data-panel organization-panel" aria-label={translate("organizer:reconciliationPage_giaoDichTrongKy")}>
-          <dl className="concert-definition-list">
+        <section className="workspace-records-panel reconciliation-results" aria-label={translate("organizer:reconciliationPage_giaoDichTrongKy")}>
+          <dl className="reconciliation-metrics">
             <div><dt>{translate("organizer:reconciliationPage_doanhSoDonDaThanhToan")}</dt><dd>{currency.format(report.totals.paidOrderSales)}</dd></div>
             <div><dt>{translate("organizer:reconciliationPage_khoanThuDaXacMinh")}</dt><dd>{currency.format(report.totals.verifiedCollections)}</dd></div>
             <div><dt>{translate("organizer:reconciliationPage_giaoDichChoDongBo")}</dt><dd>{report.totals.missingSnapshots}</dd></div>
             <div><dt>{translate("organizer:reconciliationPage_lanNhanDuLieuGanNhatTrong")}</dt><dd>{date(report.totals.latestSnapshot)}</dd></div>
           </dl>
-          <div className="admin-table-wrap">
+          <div className="admin-table-wrap" tabIndex={0} role="region" aria-label={translate('organizer:reconciliationPage_giaoDichTrongKy')}>
             <table className="admin-table">
               <thead><tr><th>{translate("organizer:reconciliationPage_donVaGiaoDich")}</th><th>{translate("organizer:reconciliationPage_thanhToan")}</th><th>{translate("organizer:reconciliationPage_khoiTao")}</th><th>{translate("organizer:reconciliationPage_xacMinhThu")}</th><th>{translate("organizer:reconciliationPage_daThu")}</th><th>{translate("organizer:reconciliationPage_hoanTienGhiNhan")}</th></tr></thead>
               <tbody>
@@ -171,13 +207,13 @@ export function ReconciliationPage({ scope }: { scope: ManagementApiScope }) {
               </tbody>
             </table>
           </div>
-          <div className="organization-form">
+          {report.totals.transactions > report.size && <div className="reconciliation-pagination">
             <button className="admin-secondary-action" type="button" disabled={page === 0} onClick={() => setPage(page - 1)}>{translate("organizer:reconciliationPage_trangTruoc")}</button>
             <span>{translate('reconciliationPageNumber', { page: page + 1, transactions: report.totals.transactions })}</span>
             <button className="admin-secondary-action" type="button" disabled={(page + 1) * report.size >= report.totals.transactions} onClick={() => setPage(page + 1)}>{translate('pageNext')}</button>
-          </div>
+          </div>}
         </section>
       ) : null}
-    </>
+    </div>
   );
 }
