@@ -101,6 +101,14 @@ Catalog xuất snapshot cấu hình v2 qua cơ chế publication hiện có. Tic
 | Khách dùng xe lăn và ghế đi kèm | Đợt đầu có loại ghế, nhãn và bộ lọc tiếp cận. Nếu địa điểm cần gắn cặp với điều kiện mua/ngồi, dùng cấu hình rõ và kiểm tra quan hệ trong cùng thao tác giữ. |
 | Chuyển nhượng, bán lại, đổi ghế hoặc đổi mặt bằng | Giữ lịch sử quyền, khóa phân bổ đang mở, tái phát hành hoặc thay vé theo chính sách cần duyệt. Vé đã phát tiếp tục tham chiếu snapshot ban đầu cho đến khi thao tác thay đổi được xác nhận. |
 
+### 6. Quy trình chuẩn bị concert
+
+Workspace của tổ chức đi theo bốn bước: thông tin, lịch và địa điểm, vé và sơ đồ, rà soát và phát hành. Lưu thông tin tạo Event nháp. Lưu lịch tạo hoặc cập nhật từng Performance nháp. Ban tổ chức có thể quay lại danh sách rồi tiếp tục trên cùng bản ghi. Lựa chọn suất luôn hiện diện khi sự kiện có nhiều lịch. Catalog chỉ cho sửa thông tin chung trước khi có suất phát hành và chỉ cho sửa lịch từng suất trước khi gửi phát hành.
+
+Ngày giờ được chọn trong múi giờ đã chọn cho suất. Trình duyệt hiển thị giá trị địa phương, API nhận thời điểm có offset. Giao diện chỉ rõ giờ không tồn tại hoặc không xác định duy nhất do đổi giờ, cùng các quan hệ sai giữa lịch diễn, giờ vào cửa và giờ bán.
+
+GA có thể bán không cần sơ đồ. Ban tổ chức mở công cụ sơ đồ khi cần khu hoặc ghế. Bước rà soát đọc lịch, bố trí, hạn mức và vé đã lưu. Phát hành trên các phiên bản đã rà soát của thông tin, lịch, sơ đồ và cấu hình bán để tránh phát hành nhầm sau khi một người khác lưu. Giữ các chức năng đồng bộ và vận hành của suất đã phát hành.
+
 ## Risks / Trade-offs
 
 - **Mở bán đông** → Đo riêng danh sách suất, bản đồ, giữ chỗ, checkout, callback và soát cổng. Sân 60.000 ghế là fixture kích thước dữ liệu. Kịch bản đề xuất lấy 75.000 người chờ từ hồ sơ thiết kế hiện có. Chốt profile đến, mục tiêu p95, tỷ lệ quá tải, tốc độ thanh toán và phần cứng trước nghiệm thu. Công bố năng lực theo kết quả đo. Có bài hotspot cho một pool GA và bài tranh cùng nhóm ghế.

@@ -47,3 +47,9 @@
 
 - Ưu tiên change riêng cho pass nhiều suất, vé miễn phí, bàn/box hoặc chọn ghế liền nhau sau khi có dữ liệu pilot.
 - Lập kế hoạch ngừng v1 sau khi rà hết đơn, callback, liên kết cũ và vé còn hiệu lực.
+
+## 7. Quy trình chuẩn bị concert trong workspace tổ chức
+
+- [x] 7.1 Lưu và sửa thông tin sự kiện, lịch suất nháp theo phiên bản. Kiểm tra quyền tổ chức, trạng thái khóa sau yêu cầu phát hành và từ chối phát hành từ màn hình rà soát cũ.
+- [x] 7.2 Dựng luồng thông tin → lịch và địa điểm → vé và sơ đồ → rà soát. Kiểm tra ngày giờ địa phương, giữ nháp khi tải lại, thay đổi lịch và lỗi tại trường liên quan. Dùng trình chọn giờ cho lịch từng hạng vé.
+- [x] 7.3 Chạy Chromium qua gateway với GA không sơ đồ và hybrid có vé ghế, chạy lại luồng phân quyền, gán ghế, mua vé và hoàn tất kiểm tra giao diện ở ba kích thước màn hình.

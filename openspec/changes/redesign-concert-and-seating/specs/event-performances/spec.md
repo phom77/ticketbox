@@ -53,3 +53,23 @@ Ticketing SHALL ràng buộc quyền vào luồng mua với suất đã chọn. 
 
 - **WHEN** hai thiết bị cùng xác nhận một vé hợp lệ cho cùng suất
 - **THEN** chỉ một lượt được xác nhận bởi hệ thống trung tâm. Lượt quét đang chờ xác nhận offline vẫn tuân theo quy trình đồng bộ và ghi xung đột.
+
+### Requirement: Chuẩn bị concert theo từng bước
+
+Workspace SHALL hướng dẫn người có quyền của tổ chức từ thông tin sự kiện qua lịch, vé và sơ đồ tới bước rà soát và phát hành. Các bước đã lưu MUST tiếp tục được sau khi tải lại. Catalog MUST bảo vệ bản nháp khỏi ghi đè và phát hành dựa trên phiên bản cũ.
+
+#### Scenario: Tiếp tục concert đang chuẩn bị
+
+- **WHEN** ban tổ chức lưu thông tin và lịch rồi quay lại ở phiên khác
+- **THEN** họ thấy dữ liệu đã lưu và có thể sửa đúng bản nháp trước khi gửi phát hành.
+
+#### Scenario: Chuẩn bị vé theo sức chứa hoặc sơ đồ
+
+- **WHEN** ban tổ chức bán theo số lượng, theo khu, theo ghế hoặc kết hợp
+- **THEN** họ cấu hình được hạng vé, và mở công cụ sơ đồ để dựng khu và ghế khi cần.
+- **AND** họ xem lại cấu hình đã lưu trước khi gửi phát hành.
+
+#### Scenario: Hai người cùng làm việc
+
+- **WHEN** một người sửa bản nháp sau khi người khác đã mở lịch hoặc rà soát
+- **THEN** yêu cầu ghi hoặc phát hành theo phiên bản đã cũ bị từ chối và người sửa có thể tải lại để kiểm tra.

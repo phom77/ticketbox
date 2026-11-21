@@ -104,14 +104,15 @@ try {
   await page.goto('/organizer/events/' + event.id);
 
   async function importMap(performance, source, filename) {
-    await page.getByRole('button', { name: new RegExp('^' + performance.venueName + ' ·') }).click();
+    await page.getByLabel('Current performance').selectOption(performance.id);
+    await page.getByRole('button', { name: 'Add seating map' }).click();
     const editor = page.getByRole('region', { name: 'Venue layout' });
     await editor.getByRole('button', { name: 'Edit layout' }).click();
     await editor.getByLabel('Import interactive SVG').setInputFiles({
       name: filename, mimeType: 'image/svg+xml', buffer: Buffer.from(source),
     });
     await editor.getByRole('status').filter({ hasText: /^Imported / }).waitFor();
-    assert.equal(await page.getByRole('button', { name: 'Publish performance' }).isDisabled(), true);
+    assert.equal(await page.getByRole('button', { name: 'Save and review' }).isDisabled(), true);
     const saved = editor.getByRole('status').filter({ hasText: 'Saved.' });
     await editor.getByRole('button', { name: 'Save layout' }).click();
     await saved.waitFor();
@@ -178,8 +179,9 @@ try {
   assert.ok(saved.groups.every(group => group.capacity === 1));
 
   await page.reload();
-  await page.getByRole('button', { name: /^Numbered hall ·/ }).click();
-  await sale.getByRole('button', { name: 'Publish performance' }).click();
+  await page.getByLabel('Current performance').selectOption(numbered.id);
+  await sale.getByRole('button', { name: 'Save and review' }).click();
+  await page.getByRole('region', { name: 'Review performance' }).getByRole('button', { name: 'Publish performance' }).click();
   await page.getByRole('region', { name: 'Publication status' }).getByText('Synchronized', { exact: true }).nth(1)
     .waitFor({ timeout: 30_000 });
   const published = await api(organizerContext, drafts(numbered.id) + '/sale', { headers: auth });

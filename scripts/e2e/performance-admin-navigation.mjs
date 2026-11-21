@@ -7,7 +7,7 @@ assert.ok(['localhost', '127.0.0.1'].includes(new URL(baseURL).hostname), 'Use a
 const browser = await chromium.launch();
 const context = await browser.newContext({ baseURL, locale: 'en-US', viewport: { width: 1440, height: 900 } });
 const run = randomUUID().slice(0, 8);
-const settings = 'Seating & ticket types V2';
+const settings = 'Concert workspace';
 
 async function api(path, data, { token, organization, method = 'POST' } = {}) {
   const response = await context.request.fetch(path, {
@@ -54,10 +54,11 @@ try {
   await page.getByRole('listitem').filter({ hasText: organizationName }).waitFor();
 
   await page.locator('.operations-nav').getByRole('link', { name: settings }).click();
-  await page.getByRole('heading', { name: settings, exact: true }).waitFor();
+  await page.getByRole('heading', { name: 'Your events', exact: true }).waitFor();
   const title = 'Seating event ' + run;
+  await page.getByRole('link', { name: 'Create concert' }).click();
   await page.getByLabel('Title', { exact: true }).fill(title);
-  await page.getByRole('button', { name: 'Create event' }).click();
+  await page.getByRole('button', { name: 'Save and continue' }).click();
   await page.getByRole('heading', { name: title, exact: true }).waitFor();
   const eventPath = new URL(page.url()).pathname;
   const eventId = eventPath.split('/').at(-1);
@@ -70,6 +71,7 @@ try {
     saleStartAt: date(-1), saleEndAt: date(24), maxPerAccount: 4, publicVisible: true,
   }, manage);
   await page.reload();
+  await page.getByRole('button', { name: 'Add seating map' }).click();
   await page.getByRole('region', { name: 'Venue layout' }).getByLabel('Import interactive SVG').waitFor();
   await page.getByRole('region', { name: 'Sale configuration' }).waitFor();
 
@@ -82,10 +84,10 @@ try {
   await page.goto('/organizer/events');
   await page.getByRole('heading', { name: 'Event access required' }).waitFor();
   await page.getByRole('button', { name: organizationName, exact: true }).click();
-  await page.getByRole('heading', { name: settings, exact: true }).waitFor();
-  await page.getByRole('link', { name: title, exact: true }).waitFor();
+  await page.getByRole('heading', { name: 'Your events', exact: true }).waitFor();
+  await page.getByRole('link', { name: new RegExp(title) }).waitFor();
 
-  console.log('Platform navigation exposes the V2 editor after explicit organization access. Cross-organization requests stay denied.');
+  console.log('Platform navigation exposes concert management after explicit organization access. Cross-organization requests stay denied.');
 } finally {
   await browser.close();
 }
