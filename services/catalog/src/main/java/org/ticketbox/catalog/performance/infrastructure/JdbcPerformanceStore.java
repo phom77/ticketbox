@@ -37,6 +37,23 @@ public class JdbcPerformanceStore implements PerformanceStore {
             EXISTS (SELECT 1 FROM catalog_performance_view p WHERE p.event_id = e.id AND p.discoverable)
             """;
 
+    private static final String OPERATIONS_SHOWS = """
+            FROM performances p JOIN events e ON e.id=p.event_id
+            JOIN venue_spaces s ON s.id=p.venue_space_id JOIN venues v ON v.id=s.venue_id
+            """;
+    private static final String OPERATIONS_ELIGIBLE = """
+            WHERE p.legacy_concert_id IS NULL AND e.legacy_concert_id IS NULL
+              AND p.status <> 'DRAFT'
+            """;
+    private static final String OPERATIONS_FIELDS = """
+            SELECT p.id,e.title,v.name AS venue_name,s.name AS space_name,p.starts_at,p.ends_at,
+                   p.doors_open_at,p.timezone,p.sale_start_at,p.sale_end_at,p.status,p.sales_suspended,
+                   COALESCE(pub.ticketing_ack,false) AS ticketing_ack,COALESCE(pub.checkin_ack,false) AS checkin_ack
+            """;
+    private static final String OPERATIONS_ACK = """
+            LEFT JOIN performance_sale_publications pub ON pub.performance_id=p.id AND pub.version=p.sale_version
+            """;
+
     private final JdbcTemplate jdbc;
     private final NamedParameterJdbcTemplate named;
     private final ObjectMapper json;
@@ -211,6 +228,35 @@ public class JdbcPerformanceStore implements PerformanceStore {
     @Override
     public Optional<Performance> publicPerformance(UUID id) {
         return first("SELECT * FROM catalog_performance_view WHERE id=? AND discoverable", this::performance, id);
+    }
+
+    @Override
+    public Page<OperationsPerformance> operationsPerformances(String query, Pageable page) {
+        String search = query.isEmpty() ? "" : """
+                AND strpos(lower(concat_ws(' ',e.title,v.name,s.name,p.id::text)),lower(:query)) > 0
+                """;
+        var params = Map.of("query", query, "limit", page.getPageSize(), "offset", page.getOffset());
+        long total = named.queryForObject(
+                "SELECT count(*) " + OPERATIONS_SHOWS + OPERATIONS_ELIGIBLE + search, params, Long.class);
+        var rows = named.query(OPERATIONS_FIELDS + OPERATIONS_SHOWS + OPERATIONS_ACK + OPERATIONS_ELIGIBLE + search + """
+                ORDER BY CASE WHEN p.ends_at >= CURRENT_TIMESTAMP THEN 0 ELSE 1 END,
+                  CASE WHEN p.ends_at >= CURRENT_TIMESTAMP THEN p.starts_at END ASC, p.starts_at DESC, p.id
+                LIMIT :limit OFFSET :offset
+                """, params, this::readOperationsPerformance);
+        return new PageImpl<>(rows, page, total);
+    }
+
+    @Override
+    public Optional<OperationsPerformance> operationsPerformance(UUID id) {
+        return first(OPERATIONS_FIELDS + OPERATIONS_SHOWS + OPERATIONS_ACK + OPERATIONS_ELIGIBLE + "AND p.id=?",
+                this::readOperationsPerformance, id);
+    }
+
+    private OperationsPerformance readOperationsPerformance(ResultSet rs, int n) throws SQLException {
+        return new OperationsPerformance(id(rs, "id"), rs.getString("title"), rs.getString("venue_name"),
+                rs.getString("space_name"), time(rs, "starts_at"), time(rs, "ends_at"), time(rs, "doors_open_at"),
+                rs.getString("timezone"), time(rs, "sale_start_at"), time(rs, "sale_end_at"), rs.getString("status"),
+                rs.getBoolean("sales_suspended"), rs.getBoolean("ticketing_ack"), rs.getBoolean("checkin_ack"));
     }
 
     private Optional<Performance> performanceView(UUID id) {

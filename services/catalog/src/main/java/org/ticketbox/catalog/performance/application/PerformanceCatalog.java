@@ -42,6 +42,16 @@ public class PerformanceCatalog {
         return store.event(id, owner).orElseThrow(PerformanceCatalog::missing);
     }
 
+    @Transactional(readOnly = true)
+    public Page<OperationsPerformance> operationsPerformances(String query, Pageable page) {
+        return store.operationsPerformances(query, page);
+    }
+
+    @Transactional(readOnly = true)
+    public OperationsPerformance operationsPerformance(UUID id) {
+        return store.operationsPerformance(id).orElseThrow(PerformanceCatalog::missing);
+    }
+
     @Transactional
     public Event createEvent(UUID owner, String title, String description, String category) {
         validateEvent(title, description, category);

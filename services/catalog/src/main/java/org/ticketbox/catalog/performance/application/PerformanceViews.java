@@ -19,6 +19,11 @@ public final class PerformanceViews {
             boolean publicVisible, int maxPerAccount, long saleVersion, Long layoutVersion, UUID legacyConcertId,
             long draftVersion) {}
 
+    public record OperationsPerformance(
+            UUID id, String title, String venueName, String spaceName, OffsetDateTime startsAt, OffsetDateTime endsAt,
+            OffsetDateTime doorsOpenAt, String timezone, OffsetDateTime saleStartAt, OffsetDateTime saleEndAt,
+            String status, boolean salesSuspended, boolean ticketingAcknowledged, boolean checkinAcknowledged) {}
+
     public record Venue(UUID id, String name, String address, List<Space> spaces) {}
 
     public record Space(UUID id, String name) {}

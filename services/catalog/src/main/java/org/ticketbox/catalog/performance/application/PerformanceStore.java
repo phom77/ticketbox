@@ -11,6 +11,7 @@ import org.ticketbox.catalog.performance.application.PerformanceViews.Event;
 import org.ticketbox.catalog.performance.application.PerformanceViews.Layout;
 import org.ticketbox.catalog.performance.application.PerformanceViews.LayoutOverview;
 import org.ticketbox.catalog.performance.application.PerformanceViews.LayoutSection;
+import org.ticketbox.catalog.performance.application.PerformanceViews.OperationsPerformance;
 import org.ticketbox.catalog.performance.application.PerformanceViews.Performance;
 import org.ticketbox.catalog.performance.application.PerformanceViews.Publication;
 import org.ticketbox.catalog.performance.application.PerformanceViews.SaleSnapshot;
@@ -53,6 +54,10 @@ public interface PerformanceStore {
     Optional<Performance> lockOwnedPerformance(UUID id, UUID organizer);
 
     Optional<Performance> publicPerformance(UUID id);
+
+    Page<OperationsPerformance> operationsPerformances(String query, Pageable page);
+
+    Optional<OperationsPerformance> operationsPerformance(UUID id);
 
     PerformanceSale sale(UUID id);
 

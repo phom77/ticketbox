@@ -54,6 +54,7 @@ import org.ticketbox.catalog.performance.domain.PerformanceSale;
 import org.ticketbox.catalog.performance.infrastructure.JdbcPerformanceStore;
 import org.ticketbox.catalog.performance.infrastructure.PerformancePublisher;
 import org.ticketbox.catalog.performance.web.OrganizerPerformanceController;
+import org.ticketbox.catalog.performance.web.PerformanceOperationsController;
 import org.ticketbox.catalog.web.GlobalExceptionHandler;
 import org.ticketbox.catalog.web.security.OrganizationAccess;
 
@@ -83,10 +84,42 @@ class PerformanceCatalogIntegrationTest {
         transaction = new TransactionTemplate(new DataSourceTransactionManager(source));
         json = new ObjectMapper().findAndRegisterModules().disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         catalog = new PerformanceCatalog(new JdbcPerformanceStore(jdbc, json), "*");
-        organizer = MockMvcBuilders.standaloneSetup(new OrganizerPerformanceController(catalog))
+        organizer = MockMvcBuilders.standaloneSetup(new OrganizerPerformanceController(catalog), new PerformanceOperationsController(catalog))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setMessageConverters(new MappingJackson2HttpMessageConverter(json))
                 .build();
+    }
+
+    @Test
+    void operationsDirectoryFindsPublishedShowsByVenueAndKeepsDraftsPrivate() throws Exception {
+        var hall = tx(() -> catalog.createVenue(owner, "Grand Theater", "District One", "Auditorium"));
+        var starts = OffsetDateTime.now(ZoneOffset.UTC).plusDays(3).withNano(0);
+        var first = tx(() -> catalog.createPerformance(owner, event, new PerformanceCatalog.Schedule(
+                hall.spaces().getFirst().id(), starts, starts.plusHours(2), null, "Asia/Ho_Chi_Minh",
+                starts.minusDays(2), starts.minusHours(1), 4, false)));
+        var draft = tx(() -> catalog.createPerformance(owner, event, new PerformanceCatalog.Schedule(
+                hall.spaces().getFirst().id(), starts.plusDays(1), starts.plusDays(1).plusHours(2),
+                null, "Asia/Ho_Chi_Minh", starts.minusDays(1), starts, 4, true)));
+        tx(() -> catalog.saveSale(owner, owner, first.id(), 0, maplessSale(first.saleStartAt(), first.saleEndAt())));
+        tx(() -> catalog.publish(owner, owner, first.id(), 1L, 0L, null, null));
+
+        String path = "/api/admin/v2/performances";
+        var search = organizer.perform(MockMvcRequestBuilders.get(path).param("query", "grand theater").param("size", "1"))
+                .andExpect(status().isOk()).andReturn().getResponse();
+        var page = json.readTree(search.getContentAsByteArray()).path("data");
+        assertThat(search.getHeader("Cache-Control")).isEqualTo("no-store");
+        assertThat(page.path("totalElements").asInt()).isEqualTo(1);
+        assertThat(page.path("content").get(0).path("id").asText()).isEqualTo(first.id().toString());
+        assertThat(page.path("content").get(0).path("title").asText()).isEqualTo("Two nights");
+
+        var detail = organizer.perform(MockMvcRequestBuilders.get(path + "/" + first.id()))
+                .andExpect(status().isOk()).andReturn().getResponse();
+        var show = json.readTree(detail.getContentAsByteArray()).path("data");
+        assertThat(show.path("spaceName").asText()).isEqualTo("Auditorium");
+        assertThat(show.path("timezone").asText()).isEqualTo("Asia/Ho_Chi_Minh");
+        assertThat(show.path("ticketingAcknowledged").asBoolean()).isFalse();
+        organizer.perform(MockMvcRequestBuilders.get(path + "/" + draft.id())).andExpect(status().isNotFound());
+        organizer.perform(MockMvcRequestBuilders.get(path).param("size", "101")).andExpect(status().isBadRequest());
     }
 
     @Test
