@@ -1,3 +1,4 @@
+import { WorkspaceSelect } from '../../components/WorkspaceSelect';
 import { dateFormatter } from '../../data/formatters';
 import { translate, formatLanguage } from '../../i18n';
 import { useTranslation } from 'react-i18next';
@@ -435,30 +436,16 @@ export function AdminArtistBioPage({ apiScope = 'admin' }: { apiScope?: Manageme
         <div className="ai-job-filters">
           <label>
             <span>{translate('event')}</span>
-            <select
-              value={concertFilter}
-              onChange={(event) => updateFilters({ concertId: event.target.value })}
-            >
-              <option value="">{translate("admin:adminArtistBioPage_tatCaConcert")}</option>
-              {concerts.map((concert) => (
-                <option key={concert.id} value={concert.id}>
-                  {concert.title}
-                </option>
-              ))}
-            </select>
+            <WorkspaceSelect label={translate('event')} value={concertFilter}
+              onChange={(concertId) => updateFilters({ concertId })} options={[
+                { value: '', label: translate('admin:adminArtistBioPage_tatCaConcert') },
+                ...concerts.map(({ id, title }) => ({ value: id, label: title })),
+              ]} />
           </label>
           <label>
             <span>{translate("admin:adminArtistBioPage_trangThai")}</span>
-            <select
-              value={statusFilter}
-              onChange={(event) => updateFilters({ status: event.target.value })}
-            >
-              {statuses.map((item) => (
-                <option key={item.value || 'all'} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
+            <WorkspaceSelect label={translate('admin:adminArtistBioPage_trangThai')} value={statusFilter}
+              options={statuses} onChange={(status) => updateFilters({ status })} />
           </label>
           <button
             type="button"

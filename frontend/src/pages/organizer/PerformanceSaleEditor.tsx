@@ -1,4 +1,5 @@
-import { useId, type FormEvent } from 'react';
+import { WorkspaceSelect } from '../../components/WorkspaceSelect';
+import { useId, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { DraftLayout, ManagedPerformance, SaleDraft, SaleGroup, SaleOffer } from '../../api/performanceManagement';
 import { PerformanceDateTimeField } from './PerformanceDateTimeField';
@@ -21,6 +22,7 @@ export function PerformanceSaleEditor({ sale, setSale, layout, performance, immu
 }) {
   const { t } = useTranslation();
   const idPrefix = useId();
+  const [admissionArea, setAdmissionArea] = useState('');
   const opensAt = toPerformanceLocalDateTime(performance.saleStartAt, performance.timezone);
   const closesAt = toPerformanceLocalDateTime(performance.saleEndAt, performance.timezone);
   const sections = layout?.sections ?? [];
@@ -88,9 +90,10 @@ export function PerformanceSaleEditor({ sale, setSale, layout, performance, immu
       <fieldset className="performance-wide performance-form" disabled={disabled}>
         <legend>{t('performances:addGeneralAdmissionTicket')}</legend>
         {layout && <label>{t('performances:sections')}
-          <select name="sectionId" required>
-            {availableGaSections.map((section) => <option key={section.id} value={section.id}>{section.label}</option>)}
-          </select>
+          <WorkspaceSelect name="sectionId" label={t('performances:sections')}
+            value={availableGaSections.some((section) => section.id === admissionArea) ? admissionArea : candidate?.id ?? ''}
+            onChange={setAdmissionArea} required
+            options={availableGaSections.map(({ id, label }) => ({ value: id, label }))} />
         </label>}
         <label>{t('performances:ticketTypeName')}<input name="name" required maxLength={200} pattern={`.*\\S.*`} /></label>
         <label>{t('performances:capacity')}<input name="capacity" type="number" min={1} max={maxCapacity} step={1} required /></label>
@@ -109,17 +112,18 @@ export function PerformanceSaleEditor({ sale, setSale, layout, performance, immu
             return <fieldset className="performance-form" key={group.id}>
               <legend>{group.sectionLabel || t('performances:inventoryGroup')}</legend>
               {layout && <label>{t('performances:sections')}
-                <select disabled={immutable} value={current ? group.sectionId ?? '' : ''} onChange={(event) => {
-                  const section = sections.find((entry) => entry.id === event.target.value);
-                  if (!section || section.id === group.sectionId) return;
-                  updateGroup({ ...group, sectionId: section.id, sectionLabel: section.label, seats: [],
-                    capacity: section.kind === 'GA' ? group.capacity : 0 });
-                }}>
-                  <option value="">{t('performances:selectSection')}</option>
-                  {sections.filter((entry) => entry.kind === group.kind && (entry.kind === 'ASSIGNED'
-                    || !sale.groups.some((other) => other.id !== group.id && other.sectionId === entry.id)))
-                    .map((entry) => <option key={entry.id} value={entry.id}>{entry.label}</option>)}
-                </select>
+                <WorkspaceSelect label={t('performances:sections')} disabled={immutable}
+                  value={current ? group.sectionId ?? '' : ''}
+                  placeholder={t('performances:selectSection')}
+                  onChange={(value) => {
+                    const section = sections.find((entry) => entry.id === value);
+                    if (!section || section.id === group.sectionId) return;
+                    updateGroup({ ...group, sectionId: section.id, sectionLabel: section.label, seats: [],
+                      capacity: section.kind === 'GA' ? group.capacity : 0 });
+                  }}
+                  options={sections.filter((entry) => entry.kind === group.kind &&
+                    (entry.kind === 'ASSIGNED' || !sale.groups.some((other) => other.sectionId === entry.id && other.id !== group.id)))
+                    .map(({ id, label }) => ({ value: id, label }))} />
               </label>}
               {layout && !current && <p className="performance-wide">{t('performances:inventoryGroupMissingSection')}</p>}
               {!layout && <label>{t('performances:name')}<input disabled={immutable} maxLength={200} value={group.sectionLabel}
@@ -148,10 +152,9 @@ export function PerformanceSaleEditor({ sale, setSale, layout, performance, immu
               <label>{t('performances:name')}<input value={offer.name} maxLength={200}
                 onChange={(event) => updateOffer(offer.id, { name: event.target.value })} /></label>
               <label>{t('performances:inventoryGroup')}
-                <select value={offer.groupId} disabled={immutable}
-                  onChange={(event) => updateOffer(offer.id, { groupId: event.target.value })}>
-                  {sale.groups.map((group, index) => <option key={group.id} value={group.id}>{groupOptionLabel(group, index)}</option>)}
-                </select>
+                <WorkspaceSelect label={t('performances:inventoryGroup')} value={offer.groupId} disabled={immutable}
+                  onChange={(groupId) => updateOffer(offer.id, { groupId })}
+                  options={sale.groups.map((group, index) => ({ value: group.id, label: groupOptionLabel(group, index) }))} />
               </label>
               <label>{t('performances:price')}<input type="number" min={1} max={maxPrice} step={1} value={offer.price || ''}
                 onChange={(event) => updateOffer(offer.id, { price: Number(event.target.value) })} /></label>

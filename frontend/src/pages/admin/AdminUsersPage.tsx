@@ -1,3 +1,4 @@
+import { WorkspaceSelect } from '../../components/WorkspaceSelect';
 import { translate } from '../../i18n';
 import { useTranslation } from 'react-i18next';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -166,23 +167,10 @@ export function AdminUsersPage() {
                         </details>
                       </td>
                       <td>
-                        <label className="sr-only" htmlFor={`role-${user.id}`}>
-                          {translate("admin:adminUsersPage_vaiTro")}
-                        </label>
-                        <select
-                          id={`role-${user.id}`}
-                          value={user.role}
-                          disabled={savingId !== null}
-                          onChange={(event) =>
-                            void changeRole(user, event.target.value as UserRole)
-                          }
-                        >
-                          {roles.map((role) => (
-                            <option key={role} value={role}>
-                              {role}
-                            </option>
-                          ))}
-                        </select>
+                        <WorkspaceSelect label={`${translate('admin:adminUsersPage_vaiTro')} · ${user.fullName}`}
+                          value={user.role} disabled={savingId !== null}
+                          onChange={(role) => void changeRole(user, role as UserRole)}
+                          options={roles.map((role) => ({ value: role, label: role }))} />
                       </td>
                       <td>
                         <span

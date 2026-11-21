@@ -1,3 +1,4 @@
+import { WorkspaceSelect } from '../../components/WorkspaceSelect';
 import { translate } from '../../i18n';
 import { useTranslation } from 'react-i18next';
 import { type FormEvent, useEffect, useState } from 'react';
@@ -114,16 +115,16 @@ export function AdminOrganizationsPage() {
           <form className="organization-form" onSubmit={(event) => void submit(event, 'recover')}>
             <label className="admin-field">
               {translate("admin:adminOrganizationsPage_toChuc")}
-              <select value={recoveryOrganization} onChange={(event) => setRecoveryOrganization(event.target.value)} required>
-                <option value="">{translate("admin:adminOrganizationsPage_chonToChuc")}</option>
-                {organizations.map((organization) => <option key={organization.id} value={organization.id}>{organization.name}</option>)}
-              </select>
+              <WorkspaceSelect value={recoveryOrganization} onChange={setRecoveryOrganization} required
+                label={translate('admin:adminOrganizationsPage_toChuc')}
+                placeholder={translate('admin:adminOrganizationsPage_chonToChuc')}
+                options={organizations.map(({ id, name }) => ({ value: id, label: name }))} />
             </label>
             <label className="admin-field">
               {translate("admin:adminOrganizationsPage_maTaiKhoanQuanLyMoi")}
               <input value={recoveryAccount} onChange={(event) => setRecoveryAccount(event.target.value)} required minLength={36} maxLength={36} />
             </label>
-            <button className="admin-primary-action" type="submit" disabled={saving}>{translate("admin:adminOrganizationsPage_capQuyenQuanLy")}</button>
+            <button className="admin-primary-action" type="submit" disabled={saving || !recoveryOrganization}>{translate("admin:adminOrganizationsPage_capQuyenQuanLy")}</button>
           </form>
         </section>
       ) : null}

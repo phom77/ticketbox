@@ -1,3 +1,4 @@
+import { WorkspaceSelect } from '../../components/WorkspaceSelect';
 import { useId } from 'react';
 import { formatLanguage } from '../../i18n';
 import { getPerformanceTimeZones } from './performanceDateTime';
@@ -53,9 +54,8 @@ export function PerformanceTimeZoneField({ label, name = 'timezone', value, onCh
 FieldProps & { name?: string }) {
   return <label>
     <span>{label}</span>
-    <select name={name} value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)} required>
-      {value && !timeZones.includes(value) && <option value={value}>{value.replace(/_/g, ' ')}</option>}
-      {timeZones.map((zone) => <option key={zone} value={zone}>{zone.replace(/_/g, ' ')}</option>)}
-    </select>
+    <WorkspaceSelect label={label} name={name} value={value} disabled={disabled} onChange={onChange} required
+      options={(value && !timeZones.includes(value) ? [value, ...timeZones] : timeZones)
+        .map((zone) => ({ value: zone, label: zone.replace(/_/g, ' ') }))} />
   </label>;
 }

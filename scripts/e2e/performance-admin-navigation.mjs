@@ -1,3 +1,4 @@
+import { selectWorkspaceOption } from './select-workspace-option.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { chromium } from 'playwright';
@@ -82,7 +83,7 @@ try {
   }, { token: platform.accessToken, organization: foreign.id });
   await api('/api/organizations/invitations/accept', { code: invitation.code }, { token: admin.accessToken });
   await page.reload();
-  await page.getByLabel('Active organization').selectOption({ value: foreign.id });
+  await selectWorkspaceOption(page.getByLabel('Active organization'), { value: foreign.id });
   await page.goto('/organizer/events');
   await page.getByRole('heading', { name: 'Event access required' }).waitFor();
   await page.getByRole('button', { name: organizationName, exact: true }).click();

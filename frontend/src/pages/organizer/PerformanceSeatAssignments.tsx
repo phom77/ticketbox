@@ -1,3 +1,4 @@
+import { WorkspaceSelect } from '../../components/WorkspaceSelect';
 import { useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ManagedPerformance, SaleDraft, SaleGroup } from '../../api/performanceManagement';
@@ -94,14 +95,12 @@ export function PerformanceSeatAssignments({ sections, sale, setSale, performanc
     <h3>{t('performances:seatAssignment')}</h3>
     <div className="performance-options">
       <label>{t('performances:seatingSection')}
-        <select value={section.id} onChange={(event) => {
-          setSectionId(event.target.value);
+        <WorkspaceSelect label={t('performances:seatingSection')} value={section.id} onChange={(value) => {
+          setSectionId(value);
           setGroupId('');
           setVisibleRows(rowBatchSize);
           setAssignmentMessage('');
-        }}>
-          {sections.map((entry) => <option key={entry.id} value={entry.id}>{entry.label}</option>)}
-        </select>
+        }} options={sections.map(({ id, label }) => ({ value: id, label }))} />
       </label>
     </div>
     {!readOnly && <form className="performance-form performance-new-seated-ticket" onSubmit={addTicketType}>
@@ -118,12 +117,10 @@ export function PerformanceSeatAssignments({ sections, sale, setSale, performanc
     {!readOnly && groups.length > 0 && <>
       <div className="performance-options">
         <label>{t('performances:assignSeatsTo')}
-          <select value={activeGroup?.id ?? ''} onChange={(event) => {
-            setGroupId(event.target.value);
+          <WorkspaceSelect label={t('performances:assignSeatsTo')} value={activeGroup?.id ?? ''} onChange={(value) => {
+            setGroupId(value);
             setAssignmentMessage('');
-          }}>
-            {groups.map((group) => <option key={group.id} value={group.id}>{groupLabels.get(group.id)}</option>)}
-          </select>
+          }} options={groups.map(({ id }) => ({ value: id, label: groupLabels.get(id) ?? id }))} />
         </label>
       </div>
       <p>{t('performances:seatAssignmentHelp')}</p>

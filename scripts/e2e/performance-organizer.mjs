@@ -1,3 +1,4 @@
+import { selectWorkspaceOption } from './select-workspace-option.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { mkdir } from 'node:fs/promises';
@@ -103,7 +104,8 @@ try {
   await page.getByLabel('Address', { exact: true }).fill('Arena Lane');
   await page.getByLabel('Space name').fill('Main hall');
   await page.getByRole('button', { name: 'Save venue' }).click();
-  await page.getByLabel('Venue / space').getByRole('option', { name: /Landmark Arena/ }).waitFor({ state: 'attached' });
+  const venuePicker = page.getByRole('combobox', { name: 'Venue / space' });
+  await venuePicker.getByText('Landmark Arena · Main hall').waitFor();
 
   const startsAt = page.locator('input[name="startsAt"]');
   assert.equal(await startsAt.getAttribute('type'), 'datetime-local');
@@ -169,7 +171,7 @@ try {
   await page.getByRole('button', { name: 'Back to ticket setup' }).click();
   await progress.waitFor();
   await page.getByRole('button', { name: 'Open seating map', exact: true }).click();
-  const originalId = await editor.getByLabel('Map objects').inputValue();
+  const originalId = await editor.getByRole('combobox', { name: 'Map objects' }).getAttribute('data-value');
   const group = canvas.locator(`[data-map-section="${originalId}"]`);
   const originalSeats = await group.locator('[data-map-seat]').evaluateAll((nodes) => nodes.map(
     (seat) => seat.getAttribute('data-map-seat'),
@@ -196,7 +198,7 @@ try {
   assert.equal(await canvas.locator('[data-map-shape]').count(), 1);
   await editor.getByRole('button', { name: 'Zoom in', exact: true }).click();
   await editor.getByRole('button', { name: 'Fit map', exact: true }).click();
-  await editor.getByLabel('Map objects').selectOption(originalId);
+  await selectWorkspaceOption(editor.getByLabel('Map objects'), { value: originalId });
   await inspectViewport('layout-editor');
 
   await editor.getByText('Import or reuse a map', { exact: true }).click();
@@ -247,12 +249,11 @@ ${code},Z,2,365,125`) });
   await offerOpens.waitFor({ state: 'visible' });
 
   const assignment = sale.getByRole('region', { name: 'Seat assignment' });
-  await assignment.getByLabel('Seating section').selectOption({ label: 'Balcony' });
+  await selectWorkspaceOption(assignment.getByLabel('Seating section'), { label: 'Balcony' });
   await assignment.getByLabel('Ticket type name').fill('Reserved');
   await assignment.getByLabel('Price in VND').fill('100000');
   await assignment.getByRole('button', { name: 'Add seated ticket type' }).click();
-  const reserved = assignment.getByRole('option', { name: /^Reserved ·/ });
-  await assignment.getByLabel('Assign seats to').selectOption({ value: await reserved.getAttribute('value') });
+  await selectWorkspaceOption(assignment.getByLabel('Assign seats to'), { label: /^Reserved ·/ });
   await assignment.getByRole('button', { name: 'Assign remaining seats in section' }).click();
   assert.equal(await page.getByRole('button', { name: 'Publish performance' }).count(), 0);
   await sale.getByRole('button', { name: 'Save and review' }).click();
@@ -274,7 +275,7 @@ ${code},Z,2,365,125`) });
   assert.equal(new Date(hybrid.startsAt).toISOString(), new Date(showStart + '+07:00').toISOString());
 
   await page.getByRole('button', { name: 'Add performance', exact: true }).click();
-  await page.getByLabel('Venue / space').selectOption({ label: 'Landmark Arena · Main hall' });
+  await selectWorkspaceOption(page.getByLabel('Venue / space'), { label: 'Landmark Arena · Main hall' });
   await fillSchedule(localTime(72), localTime(76));
   await page.getByRole('button', { name: 'Save and continue' }).click();
   await page.getByRole('button', { name: 'General admission', exact: true }).click();

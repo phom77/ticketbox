@@ -1,3 +1,4 @@
+import { selectWorkspaceOption } from './select-workspace-option.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile } from 'node:fs/promises';
@@ -106,7 +107,7 @@ try {
   async function importMap(performance, source, filename, model) {
     const backToTickets = page.getByRole('button', { name: 'Back to ticket setup' });
     if (await backToTickets.isVisible()) await backToTickets.click();
-    await page.getByLabel('Current performance').selectOption(performance.id);
+    await selectWorkspaceOption(page.getByLabel('Current performance'), { value: performance.id });
     await page.getByRole('button', { name: model, exact: true }).click();
     await page.getByRole('button', { name: 'Add seating map' }).click();
     const editor = page.getByRole('region', { name: 'Venue layout' });
@@ -148,13 +149,12 @@ try {
   await page.getByRole('button', { name: 'Continue to tickets' }).click();
   const sale = page.getByRole('region', { name: 'Sale configuration' });
   const assignment = sale.getByRole('region', { name: 'Seat assignment' });
-  await assignment.getByLabel('Seating section').selectOption({ value: assigned.layout.sections[0].id });
+  await selectWorkspaceOption(assignment.getByLabel('Seating section'), { value: assigned.layout.sections[0].id });
   async function addTicketType(name, price) {
     await assignment.getByLabel('Ticket type name').fill(name);
     await assignment.getByLabel('Price in VND').fill(String(price));
     await assignment.getByRole('button', { name: 'Add seated ticket type' }).click();
-    const option = assignment.getByRole('option', { name: new RegExp('^' + name + ' ·') });
-    await assignment.getByLabel('Assign seats to').selectOption({ value: await option.getAttribute('value') });
+    await selectWorkspaceOption(assignment.getByLabel('Assign seats to'), { label: new RegExp('^' + name + ' ·') });
   }
   await addTicketType('Standard', 125000);
   await assignment.getByRole('button', { name: 'Assign remaining seats in section' }).click();
@@ -184,7 +184,7 @@ try {
   assert.ok(saved.groups.every(group => group.capacity === 1));
 
   await page.reload();
-  await page.getByLabel('Current performance').selectOption(numbered.id);
+  await selectWorkspaceOption(page.getByLabel('Current performance'), { value: numbered.id });
   await sale.getByRole('button', { name: 'Save and review' }).click();
   await page.getByRole('region', { name: 'Review performance' }).getByRole('button', { name: 'Publish performance' }).click();
   await page.getByRole('region', { name: 'Publication status' }).getByText('Synchronized', { exact: true }).nth(1)

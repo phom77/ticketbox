@@ -1,3 +1,4 @@
+import { WorkspaceSelect } from '../../components/WorkspaceSelect';
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -518,16 +519,16 @@ export function PerformanceLayoutEditor({ performance, venue, saved, onSave, onD
     </> : <p>{t(layout.sections.length || layout.shapes.length ? 'performance-layout:selectHelp' : 'performance-layout:emptyHelp')}</p>}
     <div className="layout-editor-object-list">
       <label>{t('performance-layout:mapObjects')}
-        <select value={section ? section.id : shape ? 'shape-' + shapeIndex : ''} disabled={busy} onChange={(event) => {
-          const value = event.target.value;
-          setTool('select');
-          chooseSelection(value.startsWith('shape-') ? { kind: 'shape', index: Number(value.slice(6)) }
-            : value ? { kind: 'section', id: value } : null);
-        }}>
-          <option value="">{t('performance-layout:chooseObject')}</option>
-          {layout.sections.map((entry) => <option key={entry.id} value={entry.id}>{entry.label}</option>)}
-          {layout.shapes.map((entry, index) => <option key={index} value={'shape-' + index}>{entry.label}</option>)}
-        </select>
+        <WorkspaceSelect label={t('performance-layout:mapObjects')} value={section ? section.id : shape ? 'shape-' + shapeIndex : ''}
+          disabled={busy} onChange={(value) => {
+            setTool('select');
+            chooseSelection(value.startsWith('shape-') ? { kind: 'shape', index: Number(value.slice(6)) }
+              : value ? { kind: 'section', id: value } : null);
+          }} options={[
+            { value: '', label: t('performance-layout:chooseObject') },
+            ...layout.sections.map(({ id, label }) => ({ value: id, label })),
+            ...layout.shapes.map(({ label }, index) => ({ value: 'shape-' + index, label })),
+          ]} />
       </label>
     </div>
   </aside>;
@@ -566,10 +567,11 @@ export function PerformanceLayoutEditor({ performance, venue, saved, onSave, onD
         </label>}
         {templates.length > 0 && <div>
           <label>{t('performances:template')}
-            <select value={templateId} disabled={busy} onChange={(event) => setTemplateId(event.target.value)}>
-              <option value="">{t('performances:chooseTemplate')}</option>
-              {templates.map((entry) => <option key={entry.id} value={entry.id}>{entry.name}</option>)}
-            </select>
+            <WorkspaceSelect label={t('performances:template')} value={templateId} disabled={busy} onChange={setTemplateId}
+              options={[
+                { value: '', label: t('performances:chooseTemplate') },
+                ...templates.map(({ id, name }) => ({ value: id, label: name })),
+              ]} />
           </label>
           <button className="button button-secondary" type="button" disabled={busy || !template} onClick={() => {
             if (template && (!changed || window.confirm(t('performances:discardChanges')))) {
@@ -661,16 +663,14 @@ function SeatLookup({ section, disabled, onSelect }: {
   return <div className="layout-editor-seat-lookup">
     <p>{t('performance-layout:sectionTotals', { rows: section.rows.length, seats: countSectionSeats(section) })}</p>
     <label>{t('performance-layout:chooseRow')}
-      <select value={rowId} disabled={disabled} onChange={(event) => setRowId(event.target.value)}>
-        <option value="">{t('performance-layout:chooseRow')}</option>
-        {section.rows.map((entry) => <option key={entry.id} value={entry.id}>{entry.label}</option>)}
-      </select>
+      <WorkspaceSelect label={t('performance-layout:chooseRow')} value={rowId} disabled={disabled} onChange={setRowId}
+        options={[{ value: '', label: t('performance-layout:chooseRow') },
+          ...section.rows.map(({ id, label }) => ({ value: id, label })),
+        ]} />
     </label>
     {row && <label>{t('performances:editSeat')}
-      <select value="" disabled={disabled} onChange={(event) => { if (event.target.value) onSelect(event.target.value); }}>
-        <option value="">{t('performances:editSeat')}</option>
-        {row.seats.map((seat) => <option key={seat.id} value={seat.id}>{seat.label}</option>)}
-      </select>
+      <WorkspaceSelect label={t('performances:editSeat')} value="" disabled={disabled} onChange={onSelect}
+        placeholder={t('performances:editSeat')} options={row.seats.map(({ id, label }) => ({ value: id, label }))} />
     </label>}
   </div>;
 }

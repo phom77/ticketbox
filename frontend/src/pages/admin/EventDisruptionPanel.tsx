@@ -1,3 +1,4 @@
+import { WorkspaceSelect } from '../../components/WorkspaceSelect';
 import { dateFormatter, numberFormatter } from '../../data/formatters';
 import { translate } from '../../i18n';
 import { useTranslation } from 'react-i18next';
@@ -268,11 +269,13 @@ export function EventDisruptionPanel({ concertId, concertStatus, onChanged }: {
       {showForm && <form className="event-disruption-form" onSubmit={(event) => void submit(event)}>
         <label className="admin-field">
           <span>{translate("admin:eventDisruptionPanel_quyetDinh")}</span>
-          <select value={kind} disabled={busy || !!pendingCommand} onChange={(event) => selectKind(event.target.value as DisruptionKind | '')}>
-            <option value="">{translate("admin:eventDisruptionPanel_chonThaoTac")}</option>
-            <option value="POSTPONE">{translate("admin:eventDisruptionPanel_hoanBuoiDien")}</option>
-            <option value="CANCEL">{translate("admin:eventDisruptionPanel_huyBuoiDien")}</option>
-          </select>
+          <WorkspaceSelect label={translate('admin:eventDisruptionPanel_quyetDinh')}
+            value={kind} disabled={busy || !!pendingCommand} onChange={(value) => selectKind(value as DisruptionKind | '')}
+            options={[
+              { value: '', label: translate('admin:eventDisruptionPanel_chonThaoTac') },
+              { value: 'POSTPONE', label: translate('admin:eventDisruptionPanel_hoanBuoiDien') },
+              { value: 'CANCEL', label: translate('admin:eventDisruptionPanel_huyBuoiDien') },
+            ]} />
         </label>
         {kind && <>
           <label className="admin-field"><span>{translate("admin:eventDisruptionPanel_lyDo")}</span>

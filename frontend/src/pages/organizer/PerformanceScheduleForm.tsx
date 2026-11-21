@@ -1,3 +1,4 @@
+import { WorkspaceSelect } from '../../components/WorkspaceSelect';
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ArrowRight, Plus } from 'lucide-react';
@@ -34,11 +35,12 @@ export function PerformanceScheduleForm({ eventId, performance, reuseFrom, venue
   const [addingVenue, setAddingVenue] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [missingVenue, setMissingVenue] = useState(false);
   const [conflict, setConflict] = useState(false);
   const venueFormId = useId();
   const venueForm = useRef<HTMLFormElement>(null);
   const venueToggle = useRef<HTMLButtonElement>(null);
-  const venueSelect = useRef<HTMLSelectElement>(null);
+  const venueSelect = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (addingVenue) venueForm.current?.querySelector('input')?.focus();
   }, [addingVenue]);
@@ -64,6 +66,7 @@ export function PerformanceScheduleForm({ eventId, performance, reuseFrom, venue
       const created = await createVenue({ name, address, spaceName });
       onVenueCreated(created);
       setVenueSpaceId(created.spaces[0].id);
+      setMissingVenue(false);
       setReusedVenue(false);
       onDirtyChange(true);
       setAddingVenue(false);
@@ -78,6 +81,11 @@ export function PerformanceScheduleForm({ eventId, performance, reuseFrom, venue
   async function saveSchedule(submit: FormEvent<HTMLFormElement>) {
     submit.preventDefault();
     const form = submit.currentTarget;
+    if (!venueSpaceId) {
+      setMissingVenue(true);
+      venueSelect.current?.focus();
+      return;
+    }
     const values = new FormData(form);
     const nextErrors: FieldErrors = {};
     const instants: Partial<Record<DateField, string>> = {};
@@ -124,6 +132,7 @@ export function PerformanceScheduleForm({ eventId, performance, reuseFrom, venue
     if (!reuseFrom) return;
     setTimezone(reuseFrom.timezone);
     setVenueSpaceId(reuseFrom.venueSpaceId);
+    setMissingVenue(false);
     setMaxPerAccount(String(reuseFrom.maxPerAccount));
     setReusedVenue(true);
     onDirtyChange(true);
@@ -195,21 +204,29 @@ export function PerformanceScheduleForm({ eventId, performance, reuseFrom, venue
       <fieldset className="performance-form performance-schedule-section" disabled={busy}>
         <legend>{t('performances:venueHeading')}</legend>
         <label>{t('performances:scheduleVenueSpace')}
-          <select ref={venueSelect} value={venueSpaceId} onChange={(change) => {
-            setVenueSpaceId(change.target.value);
-            setReusedVenue(false);
-          }}
-            disabled={addingVenue} required>
-            <option value="">{t(venues ? 'chooseVenue' : 'loading')}</option>
-            {performance && !venues?.some((venue) => venue.spaces.some((space) => space.id === performance.venueSpaceId)) &&
-              <option value={performance.venueSpaceId}>{performance.venueName} · {performance.spaceName}</option>}
-            {venues?.flatMap((venue) => venue.spaces.map((space) =>
-              <option key={space.id} value={space.id}>{venue.name} · {space.name}</option>))}
-          </select>
+          <WorkspaceSelect ref={venueSelect} label={t('performances:scheduleVenueSpace')}
+            value={venueSpaceId} disabled={addingVenue} required invalid={missingVenue}
+            describedBy={missingVenue ? 'schedule-venue-error' : undefined}
+            placeholder={t(venues ? 'chooseVenue' : 'loading')}
+            onChange={(value) => {
+              setVenueSpaceId(value);
+              setMissingVenue(false);
+              setReusedVenue(false);
+              onDirtyChange(true);
+            }}
+            options={[
+              ...(performance && !venues?.some((venue) => venue.spaces.some((space) => space.id === performance.venueSpaceId))
+                ? [{ value: performance.venueSpaceId, label: `${performance.venueName} · ${performance.spaceName}` }] : []),
+              ...(venues ?? []).flatMap((venue) => venue.spaces.map((space) => ({
+                value: space.id, label: `${venue.name} · ${space.name}`,
+              }))),
+            ]} />
+          {missingVenue && <small className="performance-field-error" id="schedule-venue-error">{t('performances:chooseVenue')}</small>}
         </label>
         <PerformanceTimeZoneField label={t('performances:timezone')} value={timezone} onChange={(value) => {
           setTimezone(value);
           setFieldErrors({});
+          onDirtyChange(true);
           setReusedVenue(false);
           setShortcutError('');
         }} />

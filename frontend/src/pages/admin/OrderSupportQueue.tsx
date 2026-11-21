@@ -1,3 +1,4 @@
+import { WorkspaceSelect } from '../../components/WorkspaceSelect';
 import { dateFormatter } from '../../data/formatters';
 import { translate } from '../../i18n';
 import { useTranslation } from 'react-i18next';
@@ -125,9 +126,9 @@ export function OrderSupportQueue() {
         <h2 id="order-support-queue-title" ref={heading} tabIndex={-1}>{translate("admin:orderSupportQueue_viecCanXuLy")}</h2>
         <label>
           <span>{translate("admin:orderSupportQueue_loaiNgoaiLe")}</span>
-          <select value={kind} onChange={(event) => selectCategory(event.target.value as SupportQueueKind)}>
-            {Object.entries(categories).map(([value, name]) => <option value={value} key={value}>{name}</option>)}
-          </select>
+          <WorkspaceSelect label={translate('admin:orderSupportQueue_loaiNgoaiLe')}
+            value={kind} onChange={(value) => selectCategory(value as SupportQueueKind)}
+            options={Object.entries(categories).map(([value, label]) => ({ value, label }))} />
         </label>
       </header>
       {activeFeedback && <p className={`admin-notice ${activeFeedback.failed ? 'error' : 'success'}`}

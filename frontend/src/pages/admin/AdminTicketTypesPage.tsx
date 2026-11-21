@@ -1,3 +1,4 @@
+import { WorkspaceSelect } from '../../components/WorkspaceSelect';
 import { dateFormatter, numberFormatter } from '../../data/formatters';
 import { translate } from '../../i18n';
 import { useTranslation } from 'react-i18next';
@@ -324,15 +325,13 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
           </label>
           <label>
             <span className="sr-only">{translate("admin:adminTicketTypesPage_locTrangThaiHangVe")}</span>
-            <select
-              value={availability}
-              onChange={(event) => setAvailability(event.target.value as typeof availability)}
-            >
-              <option value="all">{translate("admin:adminTicketTypesPage_tatCaHangVe")}</option>
-              <option value="active">{translate("admin:adminTicketTypesPage_dangHoatDong")}</option>
-              <option value="paused">{translate("admin:adminTicketTypesPage_tamNgung")}</option>
-              <option value="sold">{translate("admin:adminTicketTypesPage_daPhatSinhBan")}</option>
-            </select>
+            <WorkspaceSelect label={translate('admin:adminTicketTypesPage_locTrangThaiHangVe')} value={availability}
+              onChange={(value) => setAvailability(value as typeof availability)} options={[
+                { value: 'all', label: translate('admin:adminTicketTypesPage_tatCaHangVe') },
+                { value: 'active', label: translate('admin:adminTicketTypesPage_dangHoatDong') },
+                { value: 'paused', label: translate('admin:adminTicketTypesPage_tamNgung') },
+                { value: 'sold', label: translate('admin:adminTicketTypesPage_daPhatSinhBan') },
+              ]} />
           </label>
           <span className="admin-filter-count">
             {translate("admin:adminTicketTypesPage_hienThi")} {visibleTicketTypes.length} / {ticketTypes.length}

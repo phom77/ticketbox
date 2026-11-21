@@ -1,3 +1,4 @@
+import { WorkspaceSelect } from '../../components/WorkspaceSelect';
 import { Fragment, useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useBeforeUnload, useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -316,12 +317,13 @@ function EventWorkspace({ id }: { id: string }) {
       </header>
       {event.performances.length > 0 && <section className="performance-flow-context">
         <label>{t('performances:workingPerformance')}
-          <select value={newSchedule ? '' : active?.id ?? ''} disabled={busy} onChange={(change) => switchSchedule(change.target.value)}>
-            {newSchedule && <option value="">{t('performances:newPerformance')}</option>}
-            {event.performances.map((entry) => <option key={entry.id} value={entry.id}>
-              {performanceTime(entry)} · {entry.venueName} · {t(performanceStatusKey(entry))}
-            </option>)}
-          </select>
+          <WorkspaceSelect label={t('performances:workingPerformance')} value={newSchedule ? '' : active?.id ?? ''}
+            disabled={busy} onChange={switchSchedule} options={[
+              ...(newSchedule ? [{ value: '', label: t('performances:newPerformance') }] : []),
+              ...event.performances.map((entry) => ({
+                value: entry.id, label: `${performanceTime(entry)} · ${entry.venueName} · ${t(performanceStatusKey(entry))}`,
+              })),
+            ]} />
         </label>
         <button type="button" disabled={busy || newSchedule} className="button button-secondary" onClick={() => {
           if (!confirmLeave()) return;
