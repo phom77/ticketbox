@@ -65,7 +65,7 @@
 .performance-ticket-pane small,
 .performance-ticket-tasks small {
   color: var(--muted);
-  font-size: .875rem;
+  font-size: .9375rem;
 }
 
 .performance-ticket-path-heading {
@@ -104,7 +104,7 @@
 
 .performance-ticket-tasks button[aria-current="step"] {
   border-color: var(--coral);
-  background: var(--surface-2);
+  background: var(--ops-selection-bg, var(--surface-2));
 }
 
 .performance-ticket-tasks button > svg {
@@ -157,7 +157,7 @@
   padding: .75rem 1.25rem;
   border-bottom: 1px solid var(--line);
   color: var(--muted);
-  font-size: .85rem;
+  font-size: .9375rem;
   font-weight: 700;
 }
 
@@ -173,7 +173,7 @@
 .performance-directory-state small,
 .performance-flow-step small {
   color: var(--muted);
-  font-size: .78rem;
+  font-size: .875rem;
 }
 
 .performance-show-context-help {
@@ -201,9 +201,9 @@
 }
 
 .performance-schedule-shortcuts .button {
-  min-height: 2.3rem;
+  min-height: 2.75rem;
   padding-inline: .65rem;
-  font-size: .83rem;
+  font-size: .9375rem;
 }
 
 @media (max-width: 800px) {

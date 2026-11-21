@@ -3,6 +3,15 @@
   display: grid;
   gap: .65rem;
 }
+.operations-shell[data-theme="dark"] :is(.performance-map-canvas, .performance-assignment-map) {
+  --ops-map-section-fill: #233650;
+  --ops-map-section-stroke: #84a9e5;
+  --ops-map-ga-fill: #193d35;
+  --ops-map-ga-stroke: #72b7a3;
+  --ops-map-structure-fill: #313c4d;
+  --ops-map-structure-stroke: #8a9ab1;
+  --ops-map-blocked-fill: #9caac0;
+}
 .performance-map-canvas-stage {
   overflow: hidden;
   background: var(--ink);
@@ -21,7 +30,7 @@
   touch-action: pan-y;
 }
 .performance-map-canvas-viewport:focus-visible {
-  outline: 2px solid var(--coral);
+  outline: 2px solid var(--ops-focus-ring, var(--coral));
   outline-offset: -2px;
 }
 .performance-map-canvas-viewport[data-tool="pan"] {
@@ -41,16 +50,16 @@
   vector-effect: non-scaling-stroke;
 }
 .performance-map-canvas-section {
-  fill: #edf3fc;
-  stroke: #657fa5;
+  fill: var(--ops-map-section-fill, #edf3fc);
+  stroke: var(--ops-map-section-stroke, #657fa5);
 }
 .performance-map-canvas-section[data-kind="GA"] {
-  fill: #e0f2eb;
-  stroke: #4f8373;
+  fill: var(--ops-map-ga-fill, #e0f2eb);
+  stroke: var(--ops-map-ga-stroke, #4f8373);
 }
 .performance-map-canvas-shape {
-  fill: #d9dee8;
-  stroke: #667085;
+  fill: var(--ops-map-structure-fill, #d9dee8);
+  stroke: var(--ops-map-structure-stroke, #667085);
 }
 .performance-map-canvas-shape[data-kind="AISLE"] {
   fill: var(--surface);
@@ -67,7 +76,7 @@
   fill: var(--coral);
 }
 .performance-map-canvas-seat[data-blocked="true"] {
-  fill: #7888a0;
+  fill: var(--ops-map-blocked-fill, #7888a0);
 }
 .performance-map-canvas-seat[data-seat-selected="true"] {
   fill: var(--surface);
@@ -101,7 +110,7 @@
   vector-effect: non-scaling-stroke;
 }
 .performance-map-canvas-draft polygon {
-  fill: #d5e4fb80;
+  fill: color-mix(in srgb, var(--coral) 22%, transparent);
 }
 .performance-map-canvas-draft circle {
   fill: var(--coral);
@@ -143,7 +152,7 @@
 .performance-map-canvas-footer {
   justify-content: space-between;
   color: var(--muted);
-  font-size: .8125rem;
+  font-size: .9375rem;
 }
 .performance-map-canvas-footer p {
   flex: 1 1 16rem;
@@ -167,11 +176,11 @@
 }
 .performance-map-canvas-note {
   color: var(--muted);
-  font-size: .8125rem;
+  font-size: .9375rem;
 }
 .performance-map-canvas-error {
-  color: #a72622;
-  font-size: .875rem;
+  color: var(--ops-danger-text, #a72622);
+  font-size: .9375rem;
 }
 .performance-map-canvas-sr {
   position: absolute;

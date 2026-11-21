@@ -28,7 +28,7 @@
 .layout-editor-inspector p {
   margin: .25rem 0 0;
   color: var(--muted);
-  font-size: .9rem;
+  font-size: .9375rem;
 }
 .layout-editor .button {
   gap: .45rem;
@@ -61,7 +61,7 @@
   border-radius: .45rem;
   background: transparent;
   color: var(--cream);
-  font-size: .8rem;
+  font-size: .9375rem;
   font-weight: 700;
 }
 .layout-editor-tool:hover:not(:disabled) {
@@ -69,12 +69,12 @@
 }
 .layout-editor-tool[aria-pressed="true"] {
   border-color: var(--coral);
-  background: var(--surface-2);
+  background: var(--ops-selection-bg, var(--surface-2));
   color: var(--violet);
 }
 .layout-editor-main.is-editing {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(15rem, 17.5rem);
+  grid-template-columns: minmax(0, 1fr) clamp(18rem, 23%, 22rem);
   align-items: stretch;
 }
 .layout-editor-main > * {
@@ -103,7 +103,7 @@
 }
 .layout-editor-inspector label,
 .layout-editor-source-grid label {
-  font-size: .875rem;
+  font-size: .9375rem;
   font-weight: 650;
 }
 .layout-editor-inspector input:not([type="checkbox"], [type="range"]),
@@ -114,7 +114,7 @@
   width: 100%;
   min-width: 0;
   padding: .45rem .6rem;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ops-input-line, var(--line));
   border-radius: .5rem;
   background: var(--surface);
   color: var(--cream);
@@ -155,7 +155,7 @@
   gap: .5rem;
 }
 .layout-editor-object-actions .layout-editor-remove {
-  color: #a72622;
+  color: var(--ops-danger-text, #a72622);
 }
 .layout-editor-error,
 .layout-editor-status {
@@ -163,7 +163,8 @@
   border-block-start: 1px solid var(--line);
 }
 .layout-editor-error {
-  color: #a72622;
+  background: var(--ops-danger-bg, var(--surface));
+  color: var(--ops-danger-text, #a72622);
 }
 .layout-editor-status {
   color: var(--violet);
@@ -197,6 +198,7 @@
   padding-block: .5rem 1rem;
 }
 .layout-editor-source-grid small {
+  font-size: .9375rem;
   font-weight: 500;
   color: var(--muted);
 }

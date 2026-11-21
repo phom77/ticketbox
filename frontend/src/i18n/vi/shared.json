@@ -118,5 +118,7 @@
   "organizations_xemDonHangVaDoanhThu": "Xem đơn hàng và doanh thu",
   "publicLayout_thongBaoChuaDoc_other": "{{count}} thông báo chưa đọc",
   "eventCard_viewEvent": "Xem {{title}}",
-  "operationsLayout_revenue": "Doanh thu"
+  "operationsLayout_revenue": "Doanh thu",
+  "workspaceSwitchToLight": "Chuyển sang giao diện sáng",
+  "workspaceSwitchToDark": "Chuyển sang giao diện tối"
 }

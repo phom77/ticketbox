@@ -507,7 +507,7 @@ button.back-link { border: 0; padding: 0; background: transparent; cursor: point
 .operations-topbar { position: sticky; top: 0; z-index: 40; min-height: 84px; display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 0 34px; border-bottom: 1px solid var(--line); background: rgba(11,11,13,.9); backdrop-filter: blur(16px); }
 .operations-menu-button { display: none; width: 42px; height: 42px; place-items: center; border: 1px solid var(--line); background: transparent; color: var(--cream); }
 .operations-context { display: grid; gap: 4px; }
-.operations-context span { color: #77747e; font-size: 10px; text-transform: uppercase; letter-spacing: .11em; }
+.operations-context > .operations-context-caption { color: #77747e; font-size: 10px; text-transform: uppercase; letter-spacing: .11em; }
 .operations-context strong { font: 700 13px/1.2 "Manrope",sans-serif; }
 .operations-account { position: relative; }
 .operations-account > button { display: flex; align-items: center; gap: 11px; padding: 5px 0 5px 5px; border: 0; background: transparent; color: var(--cream); text-align: left; }
@@ -3829,7 +3829,7 @@ body,
 }
 @media (max-width: 720px) {
   .operations-context.organization-context { display: grid; }
-  .organization-context > span { display: none; }
+  .organization-context > .operations-context-caption { display: none; }
   .organization-form { align-items: start; flex-direction: column; }
   .organization-form > .admin-field { flex-basis: auto; width: 100%; }
 }

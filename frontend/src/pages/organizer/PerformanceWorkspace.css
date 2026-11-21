@@ -25,7 +25,7 @@
 .performance-form textarea,
 .performance-options select,
 .performance-options input:not([type="checkbox"]) {
-  border: 1px solid var(--line);
+  border: 1px solid var(--ops-input-line, var(--line));
   border-radius: .5rem;
   background: var(--surface);
   color: var(--cream);
@@ -111,7 +111,15 @@ fieldset.performance-form > legend {
   max-height: 23rem;
 }
 .performance-assignment-map .performance-map-area {
+  fill: var(--ops-map-section-fill, #edf3fc);
+  stroke: var(--ops-map-section-stroke, #5277a7);
   pointer-events: none;
+}
+.performance-assignment-map .performance-map-label {
+  fill: var(--cream);
+}
+.performance-assignment-map g:has([data-ticket-color]) .performance-map-label {
+  fill: #182133;
 }
 .performance-assignment-seat {
   fill: var(--ticket-seat, var(--surface));
@@ -140,13 +148,20 @@ fieldset.performance-form > legend {
   min-block-size: 2.75rem;
   background: var(--ticket-seat, var(--surface));
 }
+.performance-seat-assignments .performance-assignment-choice[data-ticket-color] {
+  color: #182133;
+}
 .performance-seat-assignments .performance-assignment-choice[aria-pressed="true"] {
   background: var(--ticket-seat, var(--surface));
   outline: 1px solid var(--violet);
   outline-offset: -2px;
 }
-.performance-seat-assignments .performance-assignment-choice:focus-visible {
-  outline: 2px solid var(--coral);
+.performance-seat-assignments .performance-assignment-choice[aria-pressed="true"][data-ticket-color] {
+  outline-color: #183d78;
+}
+.performance-seat-assignments .performance-assignment-choice:focus-visible,
+.performance-seat-assignments .performance-assignment-choice[aria-pressed="true"][data-ticket-color]:focus-visible {
+  outline: 2px solid var(--ops-focus-ring, var(--coral));
   outline-offset: 1px;
 }
 .performance-draft-line {
@@ -207,7 +222,7 @@ fieldset.performance-form > legend {
   background: var(--surface-2);
   color: var(--cream);
   padding: .3rem .65rem;
-  font-size: .8rem;
+  font-size: .875rem;
   font-weight: 700;
 }
 .performance-managed-list,
@@ -269,7 +284,7 @@ fieldset.performance-form > legend {
   width: 100%;
   min-height: 2.75rem;
   padding: .45rem .65rem;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ops-input-line, var(--line));
   border-radius: .5rem;
   background: var(--surface);
   color: var(--cream);
@@ -301,7 +316,7 @@ fieldset.performance-form > legend {
   background: transparent;
   color: var(--muted);
   text-align: start;
-  font-size: .88rem;
+  font-size: .9375rem;
   font-weight: 700;
 }
 button.performance-flow-step {
@@ -330,7 +345,7 @@ button.performance-flow-step:focus-visible,
 }
 .performance-flow-step[aria-current="step"] .performance-flow-step-index {
   background: var(--coral);
-  color: #fff;
+  color: var(--ops-primary-text, #fff);
 }
 .performance-step-heading {
   font-size: 1.35rem;
@@ -390,14 +405,14 @@ fieldset.performance-schedule-section {
 }
 .performance-flow-error,
 .performance-field-error {
-  color: #a72622;
+  color: var(--ops-danger-text, #a72622);
 }
 .performance-field-error,
 .performance-field-help {
   font-weight: 500;
 }
 .performance-flow [aria-invalid="true"] {
-  border-color: #a72622;
+  border-color: var(--ops-danger-text, #a72622);
 }
 @media (max-width: 760px) {
   .performance-flow-steps {
@@ -422,7 +437,7 @@ fieldset.performance-schedule-section {
 .performance-review-summary dt {
   margin-block-end: .25rem;
   color: var(--muted);
-  font-size: .8rem;
+  font-size: .9375rem;
   font-weight: 700;
 }
 .performance-review-summary dd {
@@ -446,6 +461,7 @@ fieldset.performance-schedule-section {
 }
 .performance-review-offers small {
   color: var(--muted);
+  font-size: .9375rem;
 }
 .performance-sales-advanced > summary {
   cursor: pointer;
@@ -453,9 +469,18 @@ fieldset.performance-schedule-section {
 }
 .performance-feedback {
   padding: .7rem .9rem;
-  border-inline-start: 3px solid currentColor;
-  background: var(--surface);
-  color: #a72622;
+  border: 1px solid var(--line);
+  border-radius: .5rem;
+  background: var(--ops-danger-bg, var(--surface));
+  color: var(--ops-danger-text, #a72622);
+}
+
+.operations-shell .performance-options button[aria-pressed="true"] {
+  background: var(--ops-selection-bg, var(--surface-2));
+}
+
+.operations-shell .performance-seat-assignments .performance-assignment-choice[aria-pressed="true"] {
+  background: var(--ticket-seat, var(--ops-selection-bg, var(--surface)));
 }
 
 @media (max-width: 560px) {

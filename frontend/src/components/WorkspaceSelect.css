@@ -1,0 +1,121 @@
+.workspace-select {
+  display: block;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+
+.workspace-select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .7rem;
+  width: 100%;
+  min-block-size: 2.75rem;
+  padding: .45rem .7rem;
+  border: 1px solid var(--line);
+  border-radius: .5rem;
+  background: var(--surface);
+  color: var(--cream);
+  font: inherit;
+  font-size: .9375rem;
+  font-weight: 650;
+  text-align: start;
+  cursor: pointer;
+}
+
+.workspace-select-trigger:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+
+.workspace-select-trigger[aria-expanded='true'],
+.workspace-select-trigger:focus-visible {
+  outline: 2px solid var(--coral);
+  outline-offset: 2px;
+}
+
+.workspace-select-trigger[aria-invalid='true'] {
+  border-color: var(--workspace-danger, #b42318);
+}
+
+.workspace-select-trigger:disabled {
+  cursor: default;
+  color: var(--muted);
+}
+
+.workspace-select-trigger > svg {
+  flex: 0 0 auto;
+}
+
+.workspace-select-trigger[aria-expanded='true'] > svg {
+  transform: rotate(180deg);
+}
+
+.workspace-select-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-select-popup {
+  position: fixed;
+  inset: auto;
+  z-index: 150;
+  margin: 0;
+  padding: .25rem;
+  box-sizing: border-box;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: .65rem;
+  background: var(--surface);
+  color: var(--cream);
+  box-shadow: 0 12px 24px rgb(12 23 42 / .16);
+}
+
+.workspace-select-option {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 1.15rem;
+  align-items: center;
+  gap: .6rem;
+  min-block-size: 2.75rem;
+  padding: .4rem .6rem;
+  border-radius: .4rem;
+  color: inherit;
+  font: inherit;
+  font-size: .9375rem;
+  font-weight: 550;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.workspace-select-option[aria-selected='true'] {
+  color: var(--violet);
+  font-weight: 750;
+}
+
+.workspace-select-option[aria-disabled='true'] {
+  color: var(--muted);
+  cursor: default;
+}
+
+.workspace-select-option:not([aria-disabled='true']):hover,
+.workspace-select-option[data-active] {
+  background: var(--surface-2);
+}
+
+.workspace-select-option[data-active] {
+  outline: 1px solid var(--coral);
+  outline-offset: -1px;
+}
+
+@media (forced-colors: active) {
+  .workspace-select-trigger,
+  .workspace-select-popup {
+    border-color: ButtonText;
+  }
+
+  .workspace-select-option[data-active] {
+    outline-color: Highlight;
+  }
+}

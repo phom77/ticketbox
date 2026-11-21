@@ -119,5 +119,7 @@
   "publicLayout_thongBaoChuaDoc_one": "{{count}} unread notification",
   "publicLayout_thongBaoChuaDoc_other": "{{count}} unread notifications",
   "eventCard_viewEvent": "View {{title}}",
-  "operationsLayout_revenue": "Revenue"
+  "operationsLayout_revenue": "Revenue",
+  "workspaceSwitchToLight": "Switch to light mode",
+  "workspaceSwitchToDark": "Switch to dark mode"
 }
