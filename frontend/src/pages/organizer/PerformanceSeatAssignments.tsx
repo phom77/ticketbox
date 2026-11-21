@@ -18,6 +18,7 @@ export function PerformanceSeatAssignments({ sections, sale, setSale, performanc
   const [sectionId, setSectionId] = useState('');
   const [groupId, setGroupId] = useState('');
   const [visibleRows, setVisibleRows] = useState(rowBatchSize);
+  const [assignmentMessage, setAssignmentMessage] = useState('');
   const section = sections.find((item) => item.id === sectionId) ?? sections[0];
   if (!section) return null;
 
@@ -46,18 +47,37 @@ export function PerformanceSeatAssignments({ sections, sale, setSale, performanc
     const price = Number(values.get('price'));
     if (!name || !Number.isSafeInteger(price) || price < 1 || price > 999_999_999_999) return;
     const id = window.crypto.randomUUID();
+    const groups: SaleDraft['groups'] = [
+      ...sale.groups, { id, sectionId: section.id, sectionLabel: section.label, kind: 'ASSIGNED', capacity: 0, seats: [] },
+    ];
+    const applied = values.get('assignRemaining') === 'on';
     setSale({
       ...sale,
-      groups: [...sale.groups, { id, sectionId: section.id, sectionLabel: section.label, kind: 'ASSIGNED', capacity: 0, seats: [] }],
+      groups: applied ? assignSeatsToGroup(groups, section.id, remaining, id) : groups,
       offers: [...sale.offers, { id: window.crypto.randomUUID(), groupId: id, name, price, currency: 'VND', active: true,
         saleStartAt: performance.saleStartAt, saleEndAt: performance.saleEndAt }],
     });
     setGroupId(id);
+    if (applied) setAssignmentMessage(t('performances:setupAssignedCount', { count: remaining.length, name }));
+    else setAssignmentMessage(t('performances:setupChooseSeatsForPrice', { name }));
     form.reset();
   }
 
   function assign(seats: SaleGroup['seats'], target: string | null) {
     setSale({ ...sale, groups: assignSeatsToGroup(sale.groups, section.id, seats, target) });
+  }
+
+  function reprice(seats: SaleGroup['seats']) {
+    if (!activeGroup || readOnly) return;
+    if (!window.confirm(t('performances:setupConfirmReprice', { count: seats.length }))) return;
+    assign(seats, activeGroup.id);
+    setAssignmentMessage(t('performances:setupAssignedCount', {
+      count: seats.length, name: groupLabels.get(activeGroup.id) ?? '',
+    }));
+  }
+
+  function hasDifferentPrice(seats: Seat[]) {
+    return seats.some((seat) => !seat.blocked && groupBySeat.has(seat.id) && groupBySeat.get(seat.id) !== activeGroup?.id);
   }
 
   function toggleSeat(seat: Seat, rowLabel: string) {
@@ -78,23 +98,37 @@ export function PerformanceSeatAssignments({ sections, sale, setSale, performanc
           setSectionId(event.target.value);
           setGroupId('');
           setVisibleRows(rowBatchSize);
+          setAssignmentMessage('');
         }}>
           {sections.map((entry) => <option key={entry.id} value={entry.id}>{entry.label}</option>)}
         </select>
       </label>
-      <label>{t('performances:assignSeatsTo')}
-        <select value={activeGroup?.id ?? ''} disabled={!groups.length} onChange={(event) => setGroupId(event.target.value)}>
-          {!groups.length && <option value="">{t('performances:addSeatTypeFirst')}</option>}
-          {groups.map((group) => <option key={group.id} value={group.id}>{groupLabels.get(group.id)}</option>)}
-        </select>
-      </label>
     </div>
-    {!readOnly && <form className="performance-form" onSubmit={addTicketType}>
-      <label>{t('performances:ticketTypeName')}<input name="name" maxLength={100} required /></label>
-      <label>{t('performances:price')}<input name="price" type="number" min={1} max={999999999999} step={1} required /></label>
-      <button className="button button-secondary">{t('performances:addSeatedTicketType')}</button>
+    {!readOnly && <form className="performance-form performance-new-seated-ticket" onSubmit={addTicketType}>
+      <fieldset className="performance-wide performance-form">
+        <legend>{t('performances:setupSeatTicketPrice')}</legend>
+        <label>{t('performances:ticketTypeName')}<input name="name" maxLength={100} required /></label>
+        <label>{t('performances:price')}<input name="price" type="number" min={1} max={999999999999} step={1} required /></label>
+        {remaining.length > 0 && <label className="performance-wide performance-inline"><input type="checkbox" name="assignRemaining" />
+          {t('performances:setupApplyNewPrice', { count: remaining.length })}
+        </label>}
+        <div className="performance-options"><button className="button button-secondary">{t('performances:addSeatedTicketType')}</button></div>
+      </fieldset>
     </form>}
-    {!readOnly && <p>{t('performances:seatAssignmentHelp')}</p>}
+    {!readOnly && groups.length > 0 && <>
+      <div className="performance-options">
+        <label>{t('performances:assignSeatsTo')}
+          <select value={activeGroup?.id ?? ''} onChange={(event) => {
+            setGroupId(event.target.value);
+            setAssignmentMessage('');
+          }}>
+            {groups.map((group) => <option key={group.id} value={group.id}>{groupLabels.get(group.id)}</option>)}
+          </select>
+        </label>
+      </div>
+      <p>{t('performances:seatAssignmentHelp')}</p>
+    </>}
+    {assignmentMessage && <p role="status">{assignmentMessage}</p>}
     {(groups.length > 0 || remaining.length > 0) && <ul className="performance-seat-legend" aria-label={t('performances:seatCoverage')}>
       {groups.map((group) => <li key={group.id}>
         <span className="performance-seat-swatch" data-ticket-color={groupColors.get(group.id)} aria-hidden="true" />
@@ -121,10 +155,15 @@ export function PerformanceSeatAssignments({ sections, sale, setSale, performanc
         </g>;
       }))}
     </svg>}
-    {!readOnly && remaining.length > 0 && <div className="performance-options">
-      <button type="button" className="button button-secondary" disabled={disabled} onClick={() => activeGroup && assign(remaining, activeGroup.id)}>
+    {!readOnly && groups.length > 0 && <div className="performance-options">
+      {remaining.length > 0 && <button type="button" className="button button-secondary" disabled={disabled} onClick={() => activeGroup && assign(remaining, activeGroup.id)}>
         {t('performances:assignRemainingSection')}
-      </button>
+      </button>}
+      {section.rows.some((row) => hasDifferentPrice(row.seats)) && <button type="button" className="button button-secondary"
+        disabled={disabled} onClick={() => reprice(section.rows.flatMap((row) =>
+          row.seats.filter((seat) => !seat.blocked).map((seat) => seatRecord(seat, row.label))))}>
+        {t('performances:setupRepriceSection')}
+      </button>}
     </div>}
     <div className="performance-rows">
       {rows.map((row) => {
@@ -132,10 +171,16 @@ export function PerformanceSeatAssignments({ sections, sale, setSale, performanc
         return <div className="performance-assignment-row" key={row.id} role="group" aria-label={t('performances:row', { row: row.label })}>
           <div className="performance-actions">
             <strong>{t('performances:row', { row: row.label })}</strong>
-            {!readOnly && <button type="button" className="button button-secondary" disabled={disabled || !unassigned.length}
-              onClick={() => activeGroup && assign(unassigned.map((seat) => seatRecord(seat, row.label)), activeGroup.id)}>
-              {t('performances:assignRemainingRow', { row: row.label })}
-            </button>}
+            {!readOnly && groups.length > 0 && <div className="performance-options">
+              <button type="button" className="button button-secondary" disabled={disabled || !unassigned.length}
+                onClick={() => activeGroup && assign(unassigned.map((seat) => seatRecord(seat, row.label)), activeGroup.id)}>
+                {t('performances:assignRemainingRow', { row: row.label })}
+              </button>
+              {hasDifferentPrice(row.seats) && <button type="button" className="button button-secondary" disabled={disabled}
+                onClick={() => reprice(row.seats.filter((seat) => !seat.blocked).map((seat) => seatRecord(seat, row.label)))}>
+                {t('performances:setupRepriceRow', { row: row.label })}
+              </button>}
+            </div>}
           </div>
           <div className="performance-options">
             {row.seats.map((seat) => {

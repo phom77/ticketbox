@@ -1,17 +1,22 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
+import { ArrowLeft, ArrowRight, Check, Map as MapIcon, Ticket } from 'lucide-react';
 import {
   getPublication, getSaleDraft, publishPerformance, readLayoutDraft, saveSaleDraft,
   type LayoutDraft, type ManagedEvent, type ManagedPerformance, type Publication, type SaleDraft, type SaleOffer, type Venue,
 } from '../../api/performanceManagement';
 import { ApiClientError } from '../../api/client';
 import { eventPath } from '../../api/performances';
+import { performanceTime } from '../../features/performance/format';
 import { currency, numberFormatter } from '../../data/formatters';
 import { PerformanceStaffPanel } from './PerformanceStaffPanel';
 import { PerformanceLayoutEditor } from './PerformanceLayoutEditor';
 import { PerformanceSeatAssignments } from './PerformanceSeatAssignments';
 import { PerformanceSaleEditor } from './PerformanceSaleEditor';
+import { PerformanceTicketSetup } from './PerformanceTicketSetup';
+import { canPriceSellingModel, getSaleSetup, sellingModelLabels, type SellingModel } from './performanceSetup';
+import './PerformanceOrganizer.css';
 import { formatPerformanceDateTime, resolvePerformanceDateTime } from './performanceDateTime';
 import { inspectSaleDraft, offerDateFields, type OfferDateField, type OfferDates } from './performanceSaleReview';
 
@@ -39,7 +44,11 @@ export function PerformanceWorkspace({
   const [layoutDirty, setLayoutDirty] = useState(false);
   const [layoutBusy, setLayoutBusy] = useState(false);
   const [saleDirty, setSaleDirty] = useState(false);
-  const [mapOpen, setMapOpen] = useState<boolean | null>(null);
+  const [selectedModel, setSelectedModel] = useState<SellingModel | null>(null);
+  const [choosingModel, setChoosingModel] = useState(false);
+  const [pane, setPane] = useState<'map' | 'pricing' | null>(null);
+  const [mapOpen, setMapOpen] = useState(false);
+  const [mapFocus, setMapFocus] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [conflict, setConflict] = useState(false);
@@ -49,6 +58,7 @@ export function PerformanceWorkspace({
   const [dateErrors, setDateErrors] = useState<OfferDates>({});
   const workInProgress = useRef(false);
   const errorNotice = useRef<HTMLParagraphElement>(null);
+  const paneHeading = useRef<HTMLHeadingElement>(null);
   const id = performance.id;
   const legacy = Boolean(performance.legacyConcertId);
 
@@ -72,7 +82,16 @@ export function PerformanceWorkspace({
   const canRevise = status === 'ON_SALE';
   const pendingSync = Boolean(publication && immutable
     && (!publication.ticketingAcknowledged || !publication.checkinAcknowledged));
-  const assignedSections = draft?.layout?.sections.filter((section) => section.kind === 'ASSIGNED') ?? [];
+  const layout = draft?.layout ?? null;
+  const assignedSections = useMemo(() => layout?.sections.filter((section) => section.kind === 'ASSIGNED') ?? [], [layout]);
+  const setup = useMemo(() => sale ? getSaleSetup(layout, sale) : null, [layout, sale]);
+  const model = selectedModel ?? setup?.model ?? null;
+  const mapRequired = model !== null && model !== 'admission';
+  const hasMap = Boolean(draft?.layout);
+  const canPrice = Boolean(setup && canPriceSellingModel(model, hasMap, setup));
+  const activePane = pane ?? (mapRequired && !canPrice ? 'map' : 'pricing');
+  const mapFocused = stage === 'tickets' && activePane === 'map' && mapFocus;
+  const useSetupPicker = !immutable && (choosingModel || !model);
   const saving = busy || layoutBusy;
   const dirty = layoutDirty || saleDirty;
   const saleDisabled = saving || layoutDirty;
@@ -246,7 +265,7 @@ export function PerformanceWorkspace({
   const review = stage === 'review' && sale && draft
     ? inspectSaleDraft(draft.layout, sale, performance, Date.now())
     : null;
-  const ready = Boolean(review && !review.saveIssue && !review.publishIssues.length && !dirty);
+  const ready = Boolean(review && !review.saveIssue && !review.publishIssues.length && !dirty && canPrice);
 
   async function publish() {
     if (!sale || !draft || !ready || immutable || stage !== 'review') return;
@@ -264,61 +283,169 @@ export function PerformanceWorkspace({
     return <section className="performance-panel"><Link to={'/organizer/concerts/' + performance.legacyConcertId}>{t('performances:legacyWorkspace')}</Link></section>;
   }
 
-  const showMap = mapOpen ?? Boolean(draft?.layout);
-  return <div className="performance-admin">
+  function focusPane() {
+    window.requestAnimationFrame(() => {
+      paneHeading.current?.focus({ preventScroll: true });
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    });
+  }
+
+  function showMapEditor() {
+    setMapOpen(true);
+    setMapFocus(true);
+    setPane('map');
+    focusPane();
+  }
+
+  function openPane(next: 'map' | 'pricing') {
+    if (next === 'map' && (mapOpen || hasMap)) {
+      showMapEditor();
+      return;
+    }
+    setMapFocus(false);
+    setPane(next);
+    focusPane();
+  }
+
+  function closeMapEditor() {
+    setMapFocus(false);
+    focusPane();
+  }
+
+  function chooseModel(next: SellingModel) {
+    setSelectedModel(next);
+    setChoosingModel(false);
+    setPane(setup && canPriceSellingModel(next, hasMap, setup) ? 'pricing' : 'map');
+    focusPane();
+  }
+
+  return <div className="performance-admin" data-map-focused={mapFocused}>
     {error && <p className="performance-feedback" role="alert" tabIndex={-1} ref={errorNotice}>{error}</p>}
     {error && conflict && <div className="performance-options">
       <button type="button" className="button button-secondary" onClick={onReload}>{t('performances:reloadDraft')}</button>
     </div>}
     {message && <p role="status">{message}</p>}
-    {(!draft || !sale) ? (error
+    {(!draft || !sale || !setup) ? (error
       ? <button type="button" className="button button-secondary" onClick={() => {
         setError('');
         setReload((current) => current + 1);
       }}>{t('performances:refresh')}</button>
       : <p role="status">{t('performances:loading')}</p>) : <>
       <div hidden={stage !== 'tickets'}>
-        <div className="performance-admin">
-          {!immutable && <section className="performance-panel">
-            <div className="performance-actions">
-              <div>
-                <h3>{t('performances:mapSetup')}</h3>
-                {!draft.layout && <p>{t('performances:maplessAdmission')}</p>}
+        {useSetupPicker ? <PerformanceTicketSetup disabled={saving} hasLayout={hasMap} onChoose={chooseModel}
+          onCancel={choosingModel ? () => setChoosingModel(false) : undefined} /> :
+          <div className="performance-admin">
+            <section className="performance-panel performance-ticket-path" hidden={mapFocused}>
+              <div className="performance-ticket-path-heading">
+                <div>
+                  <h3>{model ? t(sellingModelLabels[model]) : t('performances:saleConfig')}</h3>
+                  <p>{t(model === 'admission' ? 'performances:setupAdmissionNext' : 'performances:setupMappedNext')}</p>
+                </div>
+                {!immutable && <button type="button" className="button button-secondary"
+                  disabled={saving || dirty} onClick={() => setChoosingModel(true)}>{t('performances:setupChangeModel')}</button>}
               </div>
-              <button type="button" className="button button-secondary" aria-expanded={showMap}
-                aria-controls="performance-map-editor" onClick={() => setMapOpen(!showMap)}>
-                {t(showMap ? 'hideSeatingMap' : mapOpen === null ? 'addSeatingMap' : 'showSeatingMap')}
-              </button>
-            </div>
-          </section>}
-          <div id="performance-map-editor" hidden={!showMap}>
-            {(mapOpen !== null || draft.layout) && <PerformanceLayoutEditor performance={performance} venue={venue} saved={draft} onSave={acceptLayout}
-              onDirtyChange={setLayoutDirty} onBusyChange={setLayoutBusy} readOnly={immutable || busy} />}
-          </div>
-          <section className="performance-panel" aria-label={t('performances:saleConfig')}>
-            <h3>{t('performances:saleConfig')}</h3>
-            {!immutable && !sale.groups.length && <p>{t('performances:saleSetupHelp')}</p>}
-            {immutable && <p>{t('performances:layoutLockedAfterPublication')}</p>}
-            {layoutDirty && <p role="status">{t('performances:saveLayoutBeforeSale')}</p>}
-            <PerformanceSeatAssignments sections={assignedSections} sale={sale} setSale={replaceSale} performance={performance}
-              readOnly={immutable || saleDisabled} />
-            <PerformanceSaleEditor sale={sale} setSale={replaceSale} layout={draft.layout} performance={performance}
-              immutable={immutable} disabled={saleDisabled || (immutable && !canRevise)} editedDates={editedDates}
-              dateErrors={dateErrors} onDateChange={editOfferDate} onResetDates={resetOfferDates} />
-            <div className="performance-options">
-              {!immutable ? <>
-                <button type="button" className="button button-secondary" disabled={saleDisabled || !saleDirty}
-                  onClick={() => void saveSale(false)}>{t('performances:saveSale')}</button>
-                <button type="button" className="button button-primary" disabled={saleDisabled}
-                  onClick={() => void saveSale(true)}>{t('performances:saveAndReview')}</button>
-              </> : canRevise && <button type="button" className="button button-primary" disabled={saleDisabled || !saleDirty}
-                onClick={() => void saveSale(false)}>{t('performances:publishRevision')}</button>}
-            </div>
-          </section>
-        </div>
+              {(mapRequired || hasMap) && <div className="performance-ticket-tasks">
+                <button type="button" aria-current={activePane === 'map' ? 'step' : undefined}
+                  disabled={saving} onClick={() => openPane('map')}>
+                  {hasMap && canPrice && !layoutDirty ? <Check size={20} aria-hidden /> : <MapIcon size={20} aria-hidden />}
+                  <span><strong>{t('performances:setupTaskMap')}</strong>
+                    <small>{layoutDirty ? t('performances:setupUnsaved')
+                      : hasMap && canPrice ? t('performances:setupSectionCount', { count: setup.sectionCount })
+                        : t('performances:setupMapNeeded')}</small></span>
+                </button>
+                <button type="button" aria-current={activePane === 'pricing' ? 'step' : undefined}
+                  disabled={saving || layoutDirty || (!canPrice && !immutable)} onClick={() => openPane('pricing')}>
+                  <Ticket size={20} aria-hidden />
+                  <span><strong>{t('performances:setupTaskTickets')}</strong>
+                    <small>{saleDirty ? t('performances:setupUnsaved')
+                      : setup.unassignedSeats ? t('performances:setupSeatsToPrice', { count: setup.unassignedSeats })
+                        : setup.activeOffers ? t('performances:setupOfferCount', { count: setup.activeOffers })
+                          : t('performances:setupTicketsNeeded')}</small></span>
+                </button>
+              </div>}
+            </section>
+            <section hidden={activePane !== 'map'} className="performance-admin">
+              {mapFocused && <header className="performance-map-workbench">
+                <button type="button" className="performance-flow-back" disabled={saving} onClick={closeMapEditor}>
+                  <ArrowLeft size={17} aria-hidden />{t('performances:setupBackFromMap')}
+                </button>
+                <div className="performance-ticket-path-heading">
+                  <div>
+                    <h1 ref={paneHeading} tabIndex={-1}>{t('performances:setupTaskMap')}</h1>
+                    <p>{event.title} · {performanceTime(performance)}</p>
+                  </div>
+                  <div className="performance-options">
+                    {!immutable && hasMap && !canPrice && !layoutDirty &&
+                      <button type="button" className="button button-secondary" disabled={saving || dirty} onClick={() => {
+                        setMapFocus(false);
+                        setChoosingModel(true);
+                      }}>{t('performances:setupChangeModel')}</button>}
+                    {canPrice && !layoutDirty && !immutable && <button type="button" className="button button-primary"
+                      disabled={saving} onClick={() => openPane('pricing')}>
+                      {t('performances:setupContinueTickets')}<ArrowRight size={17} aria-hidden />
+                    </button>}
+                  </div>
+                </div>
+                {hasMap && !canPrice && !layoutDirty && <p className="performance-setup-notice">{t('performances:setupMapMismatchHelp')}</p>}
+              </header>}
+              <div className="performance-panel performance-ticket-pane" hidden={mapFocused}>
+                <div className="performance-ticket-path-heading">
+                  <div>
+                    <h3 ref={activePane === 'map' && !mapFocused ? paneHeading : undefined} tabIndex={-1}>{t('performances:setupTaskMap')}</h3>
+                    <p>{t(model === 'zones' ? 'performances:setupZoneMapHelp' :
+                      model === 'reserved' ? 'performances:setupSeatMapHelp' : 'performances:setupMixedMapHelp')}</p>
+                  </div>
+                  <button type="button" className="button button-secondary" disabled={saving} onClick={showMapEditor}>
+                    {t(hasMap || mapOpen ? 'performances:setupOpenMap' : 'performances:addSeatingMap')}
+                  </button>
+                  {(canPrice || layoutDirty) && <button type="button" className="button button-primary"
+                    disabled={saving || layoutDirty || !canPrice} onClick={() => openPane('pricing')}>
+                    {t('performances:setupContinueTickets')}<ArrowRight size={17} aria-hidden />
+                  </button>}
+                </div>
+                {layoutDirty && <small>{t('performances:saveLayoutBeforeSale')}</small>}
+                {!immutable && hasMap && !layoutDirty && !canPrice && <p className="performance-setup-notice" role="status">
+                  {t('performances:setupMapMismatchHelp')}
+                </p>}
+              </div>
+              {mapOpen && <div hidden={!mapFocused}>
+                <PerformanceLayoutEditor performance={performance} venue={venue} saved={draft} onSave={acceptLayout}
+                  onDirtyChange={setLayoutDirty} onBusyChange={setLayoutBusy} readOnly={immutable || busy}
+                  preferredZone={model === 'reserved' ? 'ASSIGNED' : 'GA'} />
+              </div>}
+            </section>
+            <section hidden={activePane !== 'pricing'} className="performance-panel performance-ticket-pane" aria-label={t('performances:saleConfig')}>
+              <div className="performance-ticket-path-heading">
+                <div>
+                  <h3 ref={activePane === 'pricing' ? paneHeading : undefined} tabIndex={-1}>{t('performances:setupTaskTickets')}</h3>
+                  {!immutable && <p>{t(model === 'admission' ? 'performances:setupAdmissionPricingHelp' : 'performances:setupMappedPricingHelp')}</p>}
+                </div>
+                {hasMap && <button type="button" className="button button-secondary" disabled={saving}
+                  onClick={() => openPane('map')}>{t('performances:setupOpenMap')}</button>}
+              </div>
+              {immutable && <p>{t('performances:layoutLockedAfterPublication')}</p>}
+              {layoutDirty && <p role="status">{t('performances:saveLayoutBeforeSale')}</p>}
+              {setup.orphanedPools > 0 && <p className="performance-feedback">{t('performances:setupRepairTickets')}</p>}
+              {setup.unassignedSeats > 0 && <p className="performance-setup-notice">{t('performances:setupSeatsToPrice', { count: setup.unassignedSeats })}</p>}
+              <PerformanceSeatAssignments sections={assignedSections} sale={sale} setSale={replaceSale} performance={performance}
+                readOnly={immutable || saleDisabled} />
+              <PerformanceSaleEditor sale={sale} setSale={replaceSale} layout={draft.layout} performance={performance}
+                immutable={immutable} disabled={saleDisabled || (immutable && !canRevise)} editedDates={editedDates}
+                dateErrors={dateErrors} onDateChange={editOfferDate} onResetDates={resetOfferDates} />
+              <div className="performance-flow-actions">
+                {!immutable ? <>
+                  <button type="button" className="button button-secondary" disabled={saleDisabled || !saleDirty}
+                    onClick={() => void saveSale(false)}>{t('performances:saveSale')}</button>
+                  <button type="button" className="button button-primary" disabled={saleDisabled}
+                    onClick={() => void saveSale(true)}>{t('performances:saveAndReview')}<ArrowRight size={17} aria-hidden /></button>
+                </> : canRevise && <button type="button" className="button button-primary" disabled={saleDisabled || !saleDirty}
+                  onClick={() => void saveSale(false)}>{t('performances:publishRevision')}</button>}
+              </div>
+            </section>
+          </div>}
       </div>
       {stage === 'review' && review && <ReviewPerformance event={event} performance={performance} layout={draft.layout}
-        sale={sale} issues={review.saveIssue ? [review.saveIssue, ...review.publishIssues] : review.publishIssues}
+        sale={sale} model={setup.model} issues={review.saveIssue ? [review.saveIssue, ...review.publishIssues] : review.publishIssues}
         immutable={immutable} disabled={saving} ready={ready} dirty={dirty} onEdit={onEdit}
         onEditSchedule={onEditSchedule} onPublish={() => void publish()} />}
       {publication?.checkinAcknowledged && <PerformanceStaffPanel id={id} />}
@@ -338,12 +465,13 @@ export function PerformanceWorkspace({
 }
 
 function ReviewPerformance({
-  event, performance, layout, sale, issues, immutable, disabled, ready, dirty, onEdit, onEditSchedule, onPublish,
+  event, performance, layout, sale, model, issues, immutable, disabled, ready, dirty, onEdit, onEditSchedule, onPublish,
 }: {
   event: ManagedEvent;
   performance: ManagedPerformance;
   layout: LayoutDraft['layout'];
   sale: SaleDraft;
+  model: SellingModel | null;
   issues: string[];
   immutable: boolean;
   disabled: boolean;
@@ -362,6 +490,7 @@ function ReviewPerformance({
   return <section className="performance-panel performance-review" aria-labelledby="performance-review-heading">
     <dl className="performance-review-summary">
       <div><dt>{t('performances:title')}</dt><dd>{event.title}</dd></div>
+      {model && <div><dt>{t('performances:setupSellingModel')}</dt><dd>{t(sellingModelLabels[model])}</dd></div>}
       <div><dt>{t('performances:venueSpace')}</dt><dd>{performance.venueName} · {performance.spaceName}<br />{performance.venueAddress}</dd></div>
       <div><dt>{t('performances:startsAt')}</dt><dd>{format(performance.startsAt)}</dd></div>
       <div><dt>{t('performances:endsAt')}</dt><dd>{format(performance.endsAt)}</dd></div>

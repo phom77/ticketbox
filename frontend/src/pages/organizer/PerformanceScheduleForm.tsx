@@ -14,8 +14,8 @@ type DateField = typeof dateFields[number];
 type Dates = Record<DateField, string>;
 type FieldErrors = Partial<Record<DateField, string>>;
 
-export function PerformanceScheduleForm({ eventId, performance, venues, venueLoadError, onRetryVenues, onVenueCreated, onSave, onDirtyChange, onBusyChange, onReload }: {
-  eventId: string; performance?: ManagedPerformance; venues: Venue[] | null; venueLoadError: string;
+export function PerformanceScheduleForm({ eventId, performance, reuseFrom, venues, venueLoadError, onRetryVenues, onVenueCreated, onSave, onDirtyChange, onBusyChange, onReload }: {
+  eventId: string; performance?: ManagedPerformance; reuseFrom?: ManagedPerformance; venues: Venue[] | null; venueLoadError: string;
   onReload: () => void; onRetryVenues: () => void; onVenueCreated: (venue: Venue) => void;
   onSave: (performance: ManagedPerformance) => void;
   onDirtyChange: (dirty: boolean) => void; onBusyChange: (busy: boolean) => void;
@@ -27,6 +27,9 @@ export function PerformanceScheduleForm({ eventId, performance, venues, venueLoa
   ])) as Dates);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [venueSpaceId, setVenueSpaceId] = useState(performance?.venueSpaceId ?? '');
+  const [maxPerAccount, setMaxPerAccount] = useState(String(performance?.maxPerAccount ?? 4));
+  const [reusedVenue, setReusedVenue] = useState(false);
+  const [shortcutError, setShortcutError] = useState('');
   const [venueError, setVenueError] = useState('');
   const [addingVenue, setAddingVenue] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -61,6 +64,7 @@ export function PerformanceScheduleForm({ eventId, performance, venues, venueLoa
       const created = await createVenue({ name, address, spaceName });
       onVenueCreated(created);
       setVenueSpaceId(created.spaces[0].id);
+      setReusedVenue(false);
       onDirtyChange(true);
       setAddingVenue(false);
       requestAnimationFrame(() => venueSelect.current?.focus());
@@ -116,16 +120,54 @@ export function PerformanceScheduleForm({ eventId, performance, venues, venueLoa
     }
   }
 
+  function reuseVenue() {
+    if (!reuseFrom) return;
+    setTimezone(reuseFrom.timezone);
+    setVenueSpaceId(reuseFrom.venueSpaceId);
+    setMaxPerAccount(String(reuseFrom.maxPerAccount));
+    setReusedVenue(true);
+    onDirtyChange(true);
+  }
+
+  function setShowRelative(field: DateField, minutes: number) {
+    const start = resolvePerformanceDateTime(dates.startsAt, timezone,
+      performance?.timezone === timezone ? performance.startsAt : undefined);
+    if (!start.ok || !start.instant) {
+      setShortcutError(t('performances:setupChooseStartFirst'));
+      return;
+    }
+    setTime(field, new Date(Date.parse(start.instant) + minutes * 60_000).toISOString());
+  }
+
+  function setTime(field: DateField, instant: string) {
+    const value = toPerformanceLocalDateTime(instant, timezone);
+    const resolved = resolvePerformanceDateTime(value, timezone);
+    if (!resolved.ok) {
+      setShortcutError(t(`performances:dateTime_${resolved.reason}`));
+      return;
+    }
+    setDates((current) => ({ ...current, [field]: value }));
+    setFieldErrors((current) => ({ ...current, [field]: undefined }));
+    setShortcutError('');
+    onDirtyChange(true);
+  }
+
   function timeField(name: DateField, label: string) {
     return <PerformanceDateTimeField name={name} label={label} value={dates[name]} error={fieldErrors[name]}
       required={name !== 'doorsOpenAt'} onChange={(value) => {
         setDates((current) => ({ ...current, [name]: value }));
         setFieldErrors((current) => ({ ...current, [name]: undefined }));
+        setShortcutError('');
       }} />;
   }
 
   return <section className="performance-panel performance-flow-panel">
-    <p className="performance-flow-help">{t('performances:scheduleStepHelp')}</p>
+    <p className="performance-flow-help">{t(performance ? 'performances:scheduleStepHelp' : 'performances:setupNewShowHelp')}</p>
+    {reuseFrom && !performance && <div className="performance-reuse-venue">
+      <div><p>{t(reusedVenue ? 'performances:setupReusedVenue' : 'performances:setupReuseVenueHelp')}</p></div>
+      {!reusedVenue && <button type="button" className="button button-secondary" disabled={!venues || busy || Object.values(dates).some(Boolean)}
+        onClick={reuseVenue}>{t('performances:setupReuseVenue')}</button>}
+    </div>}
     <form className="performance-venue-editor" id={venueFormId} ref={venueForm} hidden={!addingVenue}
       onSubmit={(submit) => void saveVenue(submit)} onChange={() => onDirtyChange(true)}>
       <fieldset className="performance-form" disabled={busy || !addingVenue}>
@@ -153,7 +195,10 @@ export function PerformanceScheduleForm({ eventId, performance, venues, venueLoa
       <fieldset className="performance-form performance-schedule-section" disabled={busy}>
         <legend>{t('performances:venueHeading')}</legend>
         <label>{t('performances:scheduleVenueSpace')}
-          <select ref={venueSelect} value={venueSpaceId} onChange={(change) => setVenueSpaceId(change.target.value)}
+          <select ref={venueSelect} value={venueSpaceId} onChange={(change) => {
+            setVenueSpaceId(change.target.value);
+            setReusedVenue(false);
+          }}
             disabled={addingVenue} required>
             <option value="">{t(venues ? 'chooseVenue' : 'loading')}</option>
             {performance && !venues?.some((venue) => venue.spaces.some((space) => space.id === performance.venueSpaceId)) &&
@@ -165,6 +210,8 @@ export function PerformanceScheduleForm({ eventId, performance, venues, venueLoa
         <PerformanceTimeZoneField label={t('performances:timezone')} value={timezone} onChange={(value) => {
           setTimezone(value);
           setFieldErrors({});
+          setReusedVenue(false);
+          setShortcutError('');
         }} />
         <div className="performance-wide">
           <button type="button" className="button button-secondary" disabled={!venues || addingVenue}
@@ -179,20 +226,34 @@ export function PerformanceScheduleForm({ eventId, performance, venues, venueLoa
         {timeField('startsAt', t('performances:scheduleStart'))}
         {timeField('endsAt', t('performances:scheduleEnd'))}
         {timeField('doorsOpenAt', t('performances:doorsOptional'))}
+        <div className="performance-wide performance-schedule-shortcuts" aria-label={t('performances:setupSchedulePresets')} role="group">
+          <button type="button" disabled={!dates.startsAt} className="button button-secondary"
+            onClick={() => setShowRelative('endsAt', 120)}>{t('performances:setupDurationTwoHours')}</button>
+          <button type="button" disabled={!dates.startsAt} className="button button-secondary"
+            onClick={() => setShowRelative('doorsOpenAt', -30)}>{t('performances:setupDoorsThirtyMinutes')}</button>
+        </div>
       </fieldset>
       <fieldset className="performance-form performance-schedule-section" disabled={busy}>
         <legend>{t('performances:saleWindowAndLimits')}</legend>
         {timeField('saleStartAt', t('performances:saleStartAt'))}
         {timeField('saleEndAt', t('performances:saleEndAt'))}
-        <label>{t('performances:maxPerAccount')}<input name="maxPerAccount" type="number" defaultValue={performance?.maxPerAccount ?? 4} min={1} max={100} required /></label>
+        <label>{t('performances:maxPerAccount')}<input name="maxPerAccount" type="number" value={maxPerAccount} onChange={(change) => setMaxPerAccount(change.currentTarget.value)} min={1} max={100} required /></label>
+        <div className="performance-wide performance-schedule-shortcuts" aria-label={t('performances:setupSaleTimingHelp')} role="group">
+          {!performance && <button type="button" className="button button-secondary"
+            onClick={() => setTime('saleStartAt', new Date(Math.floor(Date.now() / 60_000) * 60_000).toISOString())}>
+            {t('performances:setupOpenNow')}
+          </button>}
+          <button type="button" disabled={!dates.startsAt} className="button button-secondary"
+            onClick={() => setShowRelative('saleEndAt', 0)}>{t('performances:setupCloseAtShow')}</button>
+        </div>
         <label className="performance-wide performance-inline">
           <input type="checkbox" name="publicVisible" defaultChecked={performance?.publicVisible ?? true} />
           {t('performances:publicListingAfterPublish')}
         </label>
         {performance && <p className="performance-wide performance-flow-help">{t('performances:scheduleChangeOffersHelp')}</p>}
       </fieldset>
-      {(error || Object.values(fieldErrors).some(Boolean)) && <p className="performance-flow-error" role="alert">
-        {error || t('performances:scheduleFixTimes')}
+      {(error || shortcutError || Object.values(fieldErrors).some(Boolean)) && <p className="performance-flow-error" role="alert">
+        {error || shortcutError || t('performances:scheduleFixTimes')}
       </p>}
       <div className="performance-flow-actions">
         {conflict && <button type="button" className="button button-secondary" onClick={onReload}>{t('performances:reloadDraft')}</button>}

@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useBeforeUnload, useNavigate, useParams } from 'react-router-dom';
+import { Link, useBeforeUnload, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, Plus } from 'lucide-react';
 import {
   createManagedEvent, getManagedEvent, listManagedEvents, listVenues, updateManagedEvent,
@@ -8,11 +8,15 @@ import {
 } from '../../api/performanceManagement';
 import { ApiClientError } from '../../api/client';
 import { performanceTime } from '../../features/performance/format';
+import { formatLanguage } from '../../i18n';
+import { formatPerformanceDateTime } from './performanceDateTime';
+import { performanceStatusKey } from './performanceSetup';
 import { useAuth } from '../../features/auth/AuthContext';
 import { RequireOrganizationGrant, useOrganization } from '../../features/organizations/OrganizationProvider';
 import { PerformanceScheduleForm } from './PerformanceScheduleForm';
 import { PerformanceWorkspace } from './PerformanceWorkspace';
 import './PerformanceWorkspace.css';
+import './PerformanceOrganizer.css';
 
 const listPath = '/organizer/events';
 const manageEventPath = (id: string) => listPath + '/' + encodeURIComponent(id);
@@ -102,18 +106,48 @@ export function PerformanceEventsPage() {
       <h2>{t('performances:noManagedEvents')}</h2>
       <p>{t('performances:noManagedEventsHelp')}</p>
     </section>}
-    {listing && listing.content.length > 0 && <ul className="performance-managed-list">
-      {listing.content.map((event) => {
-        const draft = event.performances.every((entry) => entry.status === 'DRAFT');
-        return <li key={event.id}>
-          <Link className="performance-managed-row" to={manageEventPath(event.id)}>
-            <div><strong>{event.title}</strong><span>{t('performances:performanceCount', { count: event.performances.length })}</span></div>
-            {draft && <span className="performance-flow-status">{t('performances:draftStatus')}</span>}
-            <ArrowRight size={18} aria-hidden />
-          </Link>
-        </li>;
-      })}
-    </ul>}
+    {listing && listing.content.length > 0 && <div className="performance-directory">
+      <div aria-hidden="true" className="performance-directory-grid performance-directory-head">
+        <span>{t('performances:setupEventNameColumn')}</span><span>{t('performances:setupNextShowColumn')}</span>
+        <span>{t('performances:setupStatusColumn')}</span><span></span>
+      </div>
+      <ul className="performance-managed-list">
+        {listing.content.map((event) => {
+          const upcoming = event.performances.filter((performance) =>
+            performance.status !== 'CANCELLED' && performance.status !== 'COMPLETED' && Date.parse(performance.endsAt) > Date.now())
+            .sort((first, second) => Date.parse(first.startsAt) - Date.parse(second.startsAt))[0];
+          const hasDrafts = event.performances.some((performance) => performance.status === 'DRAFT');
+          const latest = !upcoming ? event.performances.reduce<ManagedPerformance | undefined>((previous, next) =>
+            !previous || Date.parse(next.startsAt) > Date.parse(previous.startsAt) ? next : previous, undefined) : undefined;
+          const target = upcoming ?? latest;
+          const state = target ? performanceStatusKey(target) : 'performances:draftStatus';
+          const path = target ? manageEventPath(event.id) + '?show=' + encodeURIComponent(target.id) : manageEventPath(event.id);
+          return <li key={event.id}>
+            <Link className="performance-managed-row performance-directory-grid" to={path}>
+              <div>
+                <strong>{event.title}</strong>
+                <span>{event.performances.length
+                  ? t('performances:performanceCount', { count: event.performances.length })
+                  : t('performances:setupAddFirstShow')}</span>
+              </div>
+              <div className="performance-directory-next">
+                {upcoming ? <>
+                  <strong>{formatPerformanceDateTime(upcoming.startsAt, upcoming.timezone, formatLanguage())}</strong>
+                  <span>{upcoming.venueName} · {upcoming.spaceName}</span>
+                </> : <span>{t('performances:setupNoUpcoming')}</span>}
+              </div>
+              <div className="performance-directory-state">
+                <span className="performance-flow-status" data-active={state === 'performances:setupStatusSelling'}>
+                  {t(state)}
+                </span>
+                {upcoming && upcoming.status !== 'DRAFT' && hasDrafts && <small>{t('performances:setupManageDrafts')}</small>}
+              </div>
+              <ArrowRight size={18} aria-hidden />
+            </Link>
+          </li>;
+        })}
+      </ul>
+    </div>}
     {listing && (page > 0 || !listing.last) && <nav className="performance-options" aria-label={t('performances:eventList')}>
       <button type="button" className="button button-secondary" disabled={!page} onClick={() => loadPage(page - 1)}>{t('performances:previous')}</button>
       <button type="button" className="button button-secondary" disabled={listing.last} onClick={() => loadPage(page + 1)}>{t('performances:next')}</button>
@@ -150,7 +184,8 @@ export function PerformanceEventPage() {
 function EventWorkspace({ id }: { id: string }) {
   const { t } = useTranslation('performances');
   const [event, setEvent] = useState<ManagedEvent | null>(null);
-  const [selectedId, setSelectedId] = useState<string>();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedId = searchParams.get('show');
   const [step, setStep] = useState<Step>();
   const [newSchedule, setNewSchedule] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -210,11 +245,17 @@ function EventWorkspace({ id }: { id: string }) {
     setRetry((current) => current + 1);
   }
 
+  function selectShow(next: string) {
+    const query = new URLSearchParams(searchParams);
+    query.set('show', next);
+    setSearchParams(query, { replace: true, preventScrollReset: true });
+  }
+
   function switchSchedule(next: string) {
     if (!confirmLeave()) return;
     setDirty(false);
     setRevision((current) => current + 1);
-    setSelectedId(next);
+    selectShow(next);
     setNewSchedule(false);
     setStep('tickets');
   }
@@ -227,7 +268,7 @@ function EventWorkspace({ id }: { id: string }) {
   }
 
   function openTickets(performance: ManagedPerformance) {
-    setSelectedId(performance.id);
+    selectShow(performance.id);
     setNewSchedule(false);
     setDirty(false);
     setStep('tickets');
@@ -256,7 +297,7 @@ function EventWorkspace({ id }: { id: string }) {
       case 'event': return Boolean(editableEvent);
       case 'schedule': return !active || Boolean(isDraft);
       case 'tickets': return Boolean(active);
-      case 'review': return false;
+      case 'review': return Boolean(active && !isDraft && !active.legacyConcertId);
     }
   }
 
@@ -278,7 +319,7 @@ function EventWorkspace({ id }: { id: string }) {
           <select value={newSchedule ? '' : active?.id ?? ''} disabled={busy} onChange={(change) => switchSchedule(change.target.value)}>
             {newSchedule && <option value="">{t('performances:newPerformance')}</option>}
             {event.performances.map((entry) => <option key={entry.id} value={entry.id}>
-              {entry.venueName} · {performanceTime(entry)}{entry.status === 'DRAFT' ? ` · ${t('performances:draftStatus')}` : ''}
+              {performanceTime(entry)} · {entry.venueName} · {t(performanceStatusKey(entry))}
             </option>)}
           </select>
         </label>
@@ -289,6 +330,7 @@ function EventWorkspace({ id }: { id: string }) {
           setNewSchedule(true);
           setStep('schedule');
         }}><Plus size={17} aria-hidden />{t('performances:addPerformance')}</button>
+        <p className="performance-flow-help performance-show-context-help">{t('performances:setupConcertScheduleHelp')}</p>
       </section>}
       <FlowSteps step={activeStep} canOpen={canOpen} onOpen={goTo} completed={completed} busy={busy} />
       <h2 id={activeStep === 'review' ? 'performance-review-heading' : undefined} className="performance-step-heading" ref={stageHeading} tabIndex={-1}>{t(stepLabels[activeStep])}</h2>
@@ -300,7 +342,7 @@ function EventWorkspace({ id }: { id: string }) {
           setStep(active && !isDraft ? 'tickets' : 'schedule');
         }} />}
       {activeStep === 'schedule' && <PerformanceScheduleForm key={(active?.id ?? 'new') + revision}
-        eventId={id} performance={active} venues={venues} venueLoadError={venueLoadError}
+        eventId={id} performance={active} reuseFrom={newSchedule ? selected : undefined} venues={venues} venueLoadError={venueLoadError}
         onRetryVenues={() => {
           setVenueLoadError('');
           setVenueRetry((current) => current + 1);
@@ -322,17 +364,19 @@ function FlowSteps({ step, canOpen, onOpen, completed, busy }: {
   completed?: (step: Step) => boolean; busy?: boolean;
 }) {
   const { t } = useTranslation('performances');
-  return <nav aria-label={t('performances:creationProgress')}>
+  return <nav className="performance-flow-progress" aria-label={t('performances:creationProgress')}>
     <ol className="performance-flow-steps">
       {steps.map((entry, index) => {
         const current = entry === step;
         const done = completed?.(entry) && !current;
+        const state = done ? 'performances:setupProgressComplete' : current
+          ? 'performances:setupProgressCurrent' : 'performances:setupProgressPending';
         const label = <><span className="performance-flow-step-index" aria-hidden="true">
           {done ? <Check size={15} /> : index + 1}
-        </span><span>{t(stepLabels[entry])}</span></>;
+        </span><span>{t(stepLabels[entry])}<small id={`performance-task-status-${entry}`}>{t(state)}</small></span></>;
         return <li key={entry}>
           {canOpen(entry) && !current
-            ? <button type="button" className="performance-flow-step" disabled={busy} onClick={() => onOpen(entry)}>{label}</button>
+            ? <button type="button" className="performance-flow-step" aria-label={t(stepLabels[entry])} aria-describedby={`performance-task-status-${entry}`} disabled={busy} onClick={() => onOpen(entry)}>{label}</button>
             : <span className="performance-flow-step" aria-current={current ? 'step' : undefined}>{label}</span>}
         </li>;
       })}
