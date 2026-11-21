@@ -155,11 +155,14 @@ export E2E_PROJECT=ticketbox-e2e-seating E2E_PORT=18105 CHECKIN_PORT=18106
 export E2E_REPORT_DIRECTORY=.artifacts/e2e/seating
 python3 scripts/e2e/performance-sales.py
 node scripts/e2e/performance-organizer.mjs
+node scripts/e2e/performance-seat-assignment.mjs
 python3 scripts/e2e/performance-arena.py
 node scripts/e2e/performance-arena-browser.mjs
 ```
 
 Use `E2E_COMPOSE_OVERRIDE` if the isolated project uses additional Compose files. Run the basic split journey before the restore rehearsal. If the report directory contains fresh output from `performance-sales.py`, restore also verifies the V2 write mode and paid-order replay against the copied databases. Recreate Catalog with an empty publication allowlist to close publication of new shows. For a show that is already on sale, disabling its offers through a sale revision stops new holds while honoring confirmed quotes until they expire. A formal postponement or cancellation uses the performance operations workspace and dispatches notifications.
+
+The organizer supports interactive SVG maps with a `viewBox` and section groups marked with `data-code` and `data-kind` (`GA` or `ASSIGNED`). Use a polygon for the section outline. An assigned seating section contains groups marked `data-row`, each containing seat groups marked `data-seat` with circular coordinates (`cx`, `cy`). The seat assignment rehearsal contains portable examples. PNG and JPEG remain available as floor-plan backgrounds for drawing layout geometry. After saving the geometry, use Seat assignment to choose a section, add a seated ticket type and assign its seats.
 
 While the acceptance stack is running, repeat the aggregate check from a second terminal.
 

@@ -25,6 +25,18 @@ Ban tổ chức được cấp quyền SHALL có thể bắt đầu từ sơ đ�
 - **WHEN** người thứ hai lưu hoặc xuất bản dựa trên bản đã bị người thứ nhất thay đổi
 - **THEN** hệ thống báo bản nháp đã đổi, giữ lần ghi hợp lệ và cho tải lại để sửa tiếp.
 
+#### Scenario: Nhập sơ đồ SVG tương thích
+
+- **WHEN** ban tổ chức nhập SVG có dữ liệu khu, hàng và ghế theo định dạng sơ đồ
+- **THEN** editor tạo geometry có thể sửa và giữ mã khu, số ghế cùng các cờ ghế trong bản nháp.
+- **AND** chỉ dữ liệu sơ đồ được lưu qua kiểm tra layout sẵn có.
+
+#### Scenario: Hai ghế cùng hàng bán hai hạng vé
+
+- **WHEN** ban tổ chức gán một ghế cho Premium và ghế bên cạnh cho Standard trong cùng một khu
+- **THEN** mỗi ghế thuộc đúng nhóm tồn kho của hạng đã chọn và hệ thống báo đúng giá khi khách giữ ghế.
+- **AND** thao tác gán các ghế còn lại giữ nguyên những ghế đã được gán.
+
 ### Requirement: Phiên bản sơ đồ của suất
 
 Mỗi suất có sơ đồ công khai SHALL tham chiếu một phiên bản bố trí cụ thể. Trang mua SHALL dùng phiên bản tương ứng để diễn giải ID khu và ghế. Sửa mẫu hoặc nháp khác MUST giữ nguyên bố trí và nhãn chỗ của suất đã phát hành.

@@ -21,6 +21,7 @@
 
 - [x] 4.1 Thêm template, layout revision, section/row/seat, liên kết group và bản chụp khi publish ở Catalog. Kiểm thử unique ghế, FK theo scope, chặn ghế ngoài khu, khóa bán, quyền dùng template và giữ nguyên snapshot đã bán khi sửa mẫu.
 - [x] 4.2 Dựng editor tạo từ trắng hoặc sao mẫu, tải ảnh nền, vẽ khu/lối đi/sân khấu, sinh và đánh số hàng ghế, nhập CSV có kiểm tra từng dòng. Dùng fixture hybrid để tạo hai cấu hình cùng địa điểm, chạy preview và publish. Kiểm tra hai editor tranh lưu, CSV lỗi và từ chối truy cập từ tổ chức khác.
+- [x] 4.3 Nhập SVG tương thích thành sơ đồ có thể sửa. Gán từng ghế vào hạng vé từ sơ đồ hoặc danh sách, giữ nguyên liên kết khi tải lại và xác nhận giữ hai ghế cùng hàng với hai mức giá qua gateway.
 
 ## 5. Ghế đánh số, sơ đồ người mua và Check-in
 
