@@ -71,9 +71,11 @@ try {
     saleStartAt: date(-1), saleEndAt: date(24), maxPerAccount: 4, publicVisible: true,
   }, manage);
   await page.reload();
+  await page.getByRole('button', { name: 'Reserved seats', exact: true }).click();
   await page.getByRole('button', { name: 'Add seating map' }).click();
-  await page.getByRole('region', { name: 'Venue layout' }).getByLabel('Import interactive SVG').waitFor();
-  await page.getByRole('region', { name: 'Sale configuration' }).waitFor();
+  const canvas = page.getByRole('region', { name: 'Venue layout' });
+  await canvas.getByText('Import or reuse a map', { exact: true }).click();
+  await canvas.getByLabel('Import interactive SVG').waitFor();
 
   const invitation = await api('/api/organizations/' + foreign.id + '/invitations', {
     accountId: account.id, grants: ['FINANCE'],

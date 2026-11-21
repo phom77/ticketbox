@@ -44,16 +44,36 @@ async function login(role) {
   return (await response.json()).data;
 }
 
-async function draw(mode, label, code, points) {
-  await page.getByLabel('What to draw').selectOption(mode);
-  await page.locator('input[name="label"]').fill(label);
-  await page.locator('input[name="code"]').fill(code);
-  for (const [x, y] of points) {
-    await page.getByLabel('X coordinate').fill(String(x));
-    await page.getByLabel('Y coordinate').fill(String(y));
-    await page.getByRole('button', { name: 'Add point by coordinates' }).click();
-  }
-  await page.getByRole('button', { name: 'Add to layout' }).click();
+const editor = page.getByRole('region', { name: 'Venue layout' });
+const canvas = editor.locator('svg[data-layout-canvas]');
+
+async function screenPoint(x, y) {
+  return canvas.evaluate((svg, { x, y }) => {
+    const point = new DOMPoint(x, y).matrixTransform(svg.getScreenCTM());
+    return { x: point.x, y: point.y };
+  }, { x, y });
+}
+
+async function drag(x, y, nextX, nextY) {
+  await canvas.scrollIntoViewIfNeeded();
+  const from = await screenPoint(x, y);
+  const to = await screenPoint(nextX, nextY);
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(to.x, to.y, { steps: 6 });
+  await page.mouse.up();
+}
+
+async function rename(label) {
+  await editor.getByLabel('Display name').fill(label);
+  await editor.getByRole('button', { name: 'Rename', exact: true }).click();
+}
+
+async function draw(kind, label, from, to) {
+  await editor.getByRole('button', { name: kind, exact: true }).click();
+  await editor.getByRole('button', { name: 'Rectangle', exact: true }).click();
+  await drag(...from, ...to);
+  await rename(label);
 }
 
 try {
@@ -126,20 +146,87 @@ try {
   assert.equal(await page.getByLabel('Ticket limit per account').inputValue(), '5');
   await page.getByLabel('Ticket limit per account').fill('6');
   await page.getByRole('button', { name: 'Save and continue' }).click();
+  await page.getByRole('button', { name: 'Zones and reserved seats' }).click();
   await page.getByRole('button', { name: 'Add seating map' }).click();
-  await page.getByRole('button', { name: 'Edit layout' }).click();
-  await draw('GA', 'Floor', 'FL', [[25, 50], [250, 50], [250, 300], [25, 300]]);
-  await draw('ASSIGNED', 'Balcony', 'BAL', [[300, 50], [650, 50], [650, 300], [300, 300]]);
-  await draw('STAGE', 'Stage', '', [[250, 5], [550, 5], [550, 35], [250, 35]]);
-  const csv = page.getByLabel('Import seats from CSV');
-  await csv.setInputFiles({ name: 'invalid.csv', mimeType: 'text/csv', buffer: Buffer.from('section,row,seat,x,y\nBAL,A,1,,90') });
-  await page.getByRole('alert').filter({ hasText: 'line 2' }).waitFor();
-  await csv.setInputFiles({ name: 'balcony.csv', mimeType: 'text/csv', buffer: Buffer.from('section,row,seat,x,y\nBAL,A,1,350,90\nBAL,A,2,365,90') });
-  await page.getByRole('status').filter({ hasText: 'Imported 2 seats' }).waitFor();
-  await page.getByRole('button', { name: 'Save layout' }).click();
-  await page.locator('section[aria-label="Venue layout"]').getByRole('status').filter({ hasText: 'Saved.' }).waitFor();
-  await page.getByRole('button', { name: 'Preview layout' }).click();
-  assert.equal(await page.locator('.editor-map polygon').count(), 3);
+  await page.getByRole('heading', { name: 'Seating map', level: 1 }).waitFor();
+  assert.ok(await progress.isHidden());
+  assert.equal(await editor.getByLabel(/X coordinate|Y coordinate/).count(), 0);
+  await editor.getByRole('button', { name: 'Standing zone', exact: true }).click();
+  await editor.getByRole('button', { name: 'Freeform outline', exact: true }).click();
+  await canvas.scrollIntoViewIfNeeded();
+  for (const [x, y] of [[25, 65], [230, 65], [245, 285], [160, 310], [25, 285]]) {
+    const point = await screenPoint(x, y);
+    await page.mouse.click(point.x, point.y);
+  }
+  await editor.getByRole('button', { name: 'Finish outline', exact: true }).click();
+  await rename('Floor');
+  await draw('Seated section', 'Balcony', [300, 65], [490, 310]);
+  await editor.getByLabel('Number of rows').fill('2');
+  await editor.getByLabel('Seats per row').fill('4');
+  await editor.getByLabel('Leave a center aisle').check();
+  await inspectViewport('seat-generation');
+  await editor.getByRole('button', { name: 'Generate 8 seats' }).click();
+  await page.getByRole('button', { name: 'Back to ticket setup' }).click();
+  await progress.waitFor();
+  await page.getByRole('button', { name: 'Open seating map', exact: true }).click();
+  const originalId = await editor.getByLabel('Map objects').inputValue();
+  const group = canvas.locator(`[data-map-section="${originalId}"]`);
+  const originalSeats = await group.locator('[data-map-seat]').evaluateAll((nodes) => nodes.map(
+    (seat) => seat.getAttribute('data-map-seat'),
+  ));
+  assert.equal(originalSeats.length, 8);
+  await drag(310, 76, 325, 90);
+  const rightCorner = await canvas.locator('[data-map-resize] .performance-map-canvas-grip').evaluate((grip) => [
+    Number(grip.getAttribute('cx')), Number(grip.getAttribute('cy')),
+  ]);
+  await drag(...rightCorner, rightCorner[0] + 22, rightCorner[1] + 18);
+  assert.deepEqual(await group.locator('[data-map-seat]').evaluateAll((nodes) => nodes.map(
+    (seat) => seat.getAttribute('data-map-seat'),
+  )), originalSeats);
+  await editor.getByRole('button', { name: 'Duplicate', exact: true }).click();
+  assert.equal(await canvas.locator('[data-map-section]').count(), 3);
+  await editor.getByRole('button', { name: 'Undo', exact: true }).click();
+  assert.equal(await canvas.locator('[data-map-section]').count(), 2);
+  await editor.getByRole('button', { name: 'Redo', exact: true }).click();
+  assert.equal(await canvas.locator('[data-map-section]').count(), 3);
+  await editor.getByRole('button', { name: 'Undo', exact: true }).click();
+
+  await editor.getByRole('button', { name: 'Stage', exact: true }).click();
+  await editor.getByRole('button', { name: 'Add in available space' }).press('Enter');
+  assert.equal(await canvas.locator('[data-map-shape]').count(), 1);
+  await editor.getByRole('button', { name: 'Zoom in', exact: true }).click();
+  await editor.getByRole('button', { name: 'Fit map', exact: true }).click();
+  await editor.getByLabel('Map objects').selectOption(originalId);
+  await inspectViewport('layout-editor');
+
+  await editor.getByText('Import or reuse a map', { exact: true }).click();
+  const csv = editor.getByLabel('Import seats from CSV');
+  const help = await editor.getByText(/Section codes include/).innerText();
+  const code = /include (.+)\./.exec(help)?.[1];
+  assert.ok(code);
+  await csv.setInputFiles({ name: 'invalid.csv', mimeType: 'text/csv', buffer: Buffer.from(`section,row,seat,x,y
+${code},Z,1,,125`) });
+  await editor.getByRole('alert').filter({ hasText: 'line 2' }).waitFor();
+  await csv.setInputFiles({ name: 'balcony.csv', mimeType: 'text/csv', buffer: Buffer.from(`section,row,seat,x,y
+${code},Z,1,350,125
+${code},Z,2,365,125`) });
+  await editor.getByRole('status').filter({ hasText: 'Imported 2 seats' }).waitFor();
+  await editor.getByRole('button', { name: 'Save layout' }).click();
+  await editor.getByRole('status').filter({ hasText: 'Saved.' }).waitFor();
+  const layoutPath = organizerApi + '/performances/' + savedPerformance.id + '/layout';
+  const persistedResponse = await context.request.get(layoutPath, { headers: auth });
+  assert.ok(persistedResponse.ok());
+  const persisted = (await persistedResponse.json()).data.layout;
+  const balcony = persisted.sections.find(section => section.id === originalId);
+  assert.deepEqual(balcony.rows[0].seats.map(seat => seat.id), originalSeats.slice(0, 4));
+  assert.ok(Math.abs(balcony.points[0].x - 315) < 2 && Math.abs(balcony.points[0].y - 79) < 2);
+  assert.ok(Math.abs(balcony.points[2].x - 527) < 2 && Math.abs(balcony.points[2].y - 342) < 2);
+  assert.equal(balcony.rows.length, 3);
+  await editor.getByText('Import or reuse a map', { exact: true }).click();
+  await editor.getByLabel('Template name', { exact: true }).fill('Arena with standing floor');
+  await editor.getByRole('button', { name: 'Save as a venue template' }).click();
+  await editor.getByRole('status').filter({ hasText: 'Saved to venue templates.' }).waitFor();
+  await page.getByRole('button', { name: 'Continue to tickets' }).click();
 
   const sale = page.getByRole('region', { name: 'Sale configuration' });
   await sale.getByText('Inventory and pricing', { exact: true }).click();
@@ -166,7 +253,7 @@ try {
   await assignment.getByRole('button', { name: 'Add seated ticket type' }).click();
   const reserved = assignment.getByRole('option', { name: /^Reserved ·/ });
   await assignment.getByLabel('Assign seats to').selectOption({ value: await reserved.getAttribute('value') });
-  await assignment.getByRole('button', { name: 'Assign unassigned seats in row A' }).click();
+  await assignment.getByRole('button', { name: 'Assign remaining seats in section' }).click();
   assert.equal(await page.getByRole('button', { name: 'Publish performance' }).count(), 0);
   await sale.getByRole('button', { name: 'Save and review' }).click();
   const review = page.getByRole('region', { name: 'Review performance' });
@@ -190,6 +277,7 @@ try {
   await page.getByLabel('Venue / space').selectOption({ label: 'Landmark Arena · Main hall' });
   await fillSchedule(localTime(72), localTime(76));
   await page.getByRole('button', { name: 'Save and continue' }).click();
+  await page.getByRole('button', { name: 'General admission', exact: true }).click();
   const generalAdmission = sale.getByRole('form', { name: 'Add general admission ticket' });
   await generalAdmission.getByLabel('Ticket type name').fill('General Admission');
   await generalAdmission.getByLabel('Capacity', { exact: true }).fill('150');

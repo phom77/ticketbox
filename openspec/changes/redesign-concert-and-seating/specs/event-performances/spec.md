@@ -73,3 +73,17 @@ Workspace SHALL hướng dẫn người có quyền của tổ chức từ thôn
 
 - **WHEN** một người sửa bản nháp sau khi người khác đã mở lịch hoặc rà soát
 - **THEN** yêu cầu ghi hoặc phát hành theo phiên bản đã cũ bị từ chối và người sửa có thể tải lại để kiểm tra.
+
+### Requirement: Chọn kiểu bán và tìm suất vận hành
+
+Workspace SHALL giải thích bốn kiểu chọn vé theo hành vi của người mua, gồm vé tự do, chọn khu, chọn ghế và kết hợp. Suất có sơ đồ MUST đưa người dùng qua sơ đồ đã lưu trước khi gán vé.
+
+#### Scenario: Chọn việc tiếp theo khi mở suất
+
+- **WHEN** ban tổ chức tạo suất hoặc mở lại một suất nháp
+- **THEN** workspace hiển thị việc tiếp theo dựa trên sơ đồ và vé đã lưu của suất, cùng đường dẫn tới nội dung cần sửa trước khi phát hành.
+
+#### Scenario: Tìm suất có ảnh hưởng vận hành
+
+- **WHEN** admin nền tảng tìm theo tên sự kiện hoặc địa điểm
+- **THEN** danh sách hiển thị lịch và trạng thái của các suất vận hành thuộc quyền admin. Trước khi gửi hoãn hoặc hủy, admin xem được thông tin suất và các đơn bị ảnh hưởng.

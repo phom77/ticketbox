@@ -103,44 +103,49 @@ try {
   }, { user: organizer.user.id, organization: org.id });
   await page.goto('/organizer/events/' + event.id);
 
-  async function importMap(performance, source, filename) {
+  async function importMap(performance, source, filename, model) {
+    const backToTickets = page.getByRole('button', { name: 'Back to ticket setup' });
+    if (await backToTickets.isVisible()) await backToTickets.click();
     await page.getByLabel('Current performance').selectOption(performance.id);
+    await page.getByRole('button', { name: model, exact: true }).click();
     await page.getByRole('button', { name: 'Add seating map' }).click();
     const editor = page.getByRole('region', { name: 'Venue layout' });
-    await editor.getByRole('button', { name: 'Edit layout' }).click();
+    await editor.getByText('Import or reuse a map', { exact: true }).click();
     await editor.getByLabel('Import interactive SVG').setInputFiles({
       name: filename, mimeType: 'image/svg+xml', buffer: Buffer.from(source),
     });
     await editor.getByRole('status').filter({ hasText: /^Imported / }).waitFor();
-    assert.equal(await page.getByRole('button', { name: 'Save and review' }).isDisabled(), true);
+    const next = page.getByRole('button', { name: 'Continue to tickets' });
+    assert.ok(!(await next.count()) || await next.isDisabled());
     const saved = editor.getByRole('status').filter({ hasText: 'Saved.' });
     await editor.getByRole('button', { name: 'Save layout' }).click();
     await saved.waitFor();
     return api(organizerContext, drafts(performance.id) + '/layout', { headers: auth });
   }
 
-  const ga = await importMap(zoned, portableZones, 'zones.svg');
+  const ga = await importMap(zoned, portableZones, 'zones.svg', 'Admission by zone');
   assert.deepEqual(ga.layout.sections.map(({ code, kind, rows }) => [code, kind, rows.length]), [
     ['FL', 'GA', 0], ['FR', 'GA', 0],
   ]);
   if (suppliedNumbered) {
-    const original = await importMap(suppliedNumbered, suppliedSeating, 'test-map-seats.svg');
+    const original = await importMap(suppliedNumbered, suppliedSeating, 'test-map-seats.svg', 'Reserved seats');
     assert.equal(original.layout.sections.length, 3);
     assert.equal(original.layout.sections.flatMap(section => section.rows.flatMap(row => row.seats)).length, 120);
   }
   if (suppliedZoned) {
-    const original = await importMap(suppliedZoned, suppliedZones, 'test-map-zones.svg');
+    const original = await importMap(suppliedZoned, suppliedZones, 'test-map-zones.svg', 'Admission by zone');
     assert.equal(original.layout.sections.length, 5);
     assert.ok(original.layout.sections.every(section => section.kind === 'GA' && !section.rows.length));
   }
 
-  const assigned = await importMap(numbered, portableSeating, 'seats.svg');
+  const assigned = await importMap(numbered, portableSeating, 'seats.svg', 'Reserved seats');
   assert.equal(assigned.layout.sections[0].kind, 'ASSIGNED');
   const [seat1, seat2] = assigned.layout.sections[0].rows[0].seats;
   assert.equal(seat1.label, '1');
   assert.equal(seat2.label, '2');
   assert.ok(seat2.accessible);
 
+  await page.getByRole('button', { name: 'Continue to tickets' }).click();
   const sale = page.getByRole('region', { name: 'Sale configuration' });
   const assignment = sale.getByRole('region', { name: 'Seat assignment' });
   await assignment.getByLabel('Seating section').selectOption({ value: assigned.layout.sections[0].id });

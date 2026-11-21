@@ -109,6 +109,12 @@ Ngày giờ được chọn trong múi giờ đã chọn cho suất. Trình duy�
 
 GA có thể bán không cần sơ đồ. Ban tổ chức mở công cụ sơ đồ khi cần khu hoặc ghế. Bước rà soát đọc lịch, bố trí, hạn mức và vé đã lưu. Phát hành trên các phiên bản đã rà soát của thông tin, lịch, sơ đồ và cấu hình bán để tránh phát hành nhầm sau khi một người khác lưu. Giữ các chức năng đồng bộ và vận hành của suất đã phát hành.
 
+### 7. Công cụ chuẩn bị và vận hành suất
+
+Ban tổ chức chọn theo hành vi mua vé. Sơ đồ đã lưu và hạng vé hiện có xác định bước cần làm khi mở lại. Trình biên tập dùng canvas, công cụ vẽ và bảng thuộc tính theo vật thể đang chọn. Lưu sơ đồ giữ cơ chế version và phát hành hiện có. Resize và di chuyển giữ ID của khu, hàng và ghế. Nhân bản tạo ID mới vì đó là các vị trí có thể bán độc lập. Tồn kho và giá vẫn được cấu hình theo suất.
+
+Danh sách vận hành cấp nền tảng tìm được các suất native đã phát hành bằng tên sự kiện hoặc địa điểm, với ngày giờ hiển thị trong bảng kết quả. Catalog chỉ trả các trường cần để nhận diện suất và trạng thái. Chi tiết tải ảnh hưởng đơn trước khi admin xác nhận thao tác qua giao diện. Quyền thao tác và quy trình đồng bộ tiếp tục dùng hợp đồng vận hành hiện hành.
+
 ## Risks / Trade-offs
 
 - **Mở bán đông** → Đo riêng danh sách suất, bản đồ, giữ chỗ, checkout, callback và soát cổng. Sân 60.000 ghế là fixture kích thước dữ liệu. Kịch bản đề xuất lấy 75.000 người chờ từ hồ sơ thiết kế hiện có. Chốt profile đến, mục tiêu p95, tỷ lệ quá tải, tốc độ thanh toán và phần cứng trước nghiệm thu. Công bố năng lực theo kết quả đo. Có bài hotspot cho một pool GA và bài tranh cùng nhóm ghế.

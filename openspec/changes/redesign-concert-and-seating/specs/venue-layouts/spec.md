@@ -69,3 +69,23 @@ Giao diện mua SHALL cho khách chọn khu, hạng và ghế qua sơ đồ khi 
 
 - **WHEN** khách đổi suất khi phản hồi sơ đồ hoặc tồn của suất cũ chưa đến
 - **THEN** phản hồi cũ không thay thế bố trí, tồn kho hoặc lựa chọn của suất mới.
+
+### Requirement: Biên tập sơ đồ bằng thao tác trực tiếp
+
+Trình biên tập SHALL cho người dùng vẽ, chọn, di chuyển, đổi kích thước và nhân bản khu trên canvas. Tên và mã khu, nhãn hàng và số ghế ban đầu MUST có giá trị mặc định hợp lệ. Người dùng SHALL có thể tạo nhiều hàng ghế trong một lần, chừa lối đi và hoàn tác thay đổi trước khi lưu phiên bản nháp.
+
+#### Scenario: Dựng khu ghế từ sơ đồ trống
+
+- **WHEN** ban tổ chức vẽ khu ghế hoặc thêm khu bằng nút rồi nhập số hàng, số ghế mỗi hàng và chọn chừa lối đi
+- **THEN** trình biên tập tự đặt ghế trong biên khu, đánh số ghế và hiện số lượng thực trước khi lưu.
+
+#### Scenario: Sửa sơ đồ đã có ghế
+
+- **WHEN** ban tổ chức di chuyển hoặc đổi kích thước khu ghế
+- **THEN** các ghế di chuyển theo khu và giữ định danh
+- **AND** khu không chồng lên khu khác, thao tác có thể hoàn tác và không đổi bản đã phát hành.
+
+#### Scenario: Tái sử dụng và chuyển sang cấu hình vé
+
+- **WHEN** ban tổ chức bắt đầu bằng mẫu địa điểm, bản đồ SVG tương thích hoặc vẽ trên ảnh nền
+- **THEN** họ có thể chỉnh sửa trên canvas, lưu sơ đồ và tiếp tục gán vé trên sơ đồ vừa lưu.

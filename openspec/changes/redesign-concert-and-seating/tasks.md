@@ -53,3 +53,10 @@
 - [x] 7.1 Lưu và sửa thông tin sự kiện, lịch suất nháp theo phiên bản. Kiểm tra quyền tổ chức, trạng thái khóa sau yêu cầu phát hành và từ chối phát hành từ màn hình rà soát cũ.
 - [x] 7.2 Dựng luồng thông tin → lịch và địa điểm → vé và sơ đồ → rà soát. Kiểm tra ngày giờ địa phương, giữ nháp khi tải lại, thay đổi lịch và lỗi tại trường liên quan. Dùng trình chọn giờ cho lịch từng hạng vé.
 - [x] 7.3 Chạy Chromium qua gateway với GA không sơ đồ và hybrid có vé ghế, chạy lại luồng phân quyền, gán ghế, mua vé và hoàn tất kiểm tra giao diện ở ba kích thước màn hình.
+
+## 8. Thiết kế quản trị concert và biên tập sơ đồ
+
+- [x] 8.1 Đối chiếu nguồn sản phẩm và hệ thiết kế đến 21/11/2026. Áp dụng kiến trúc màn hình theo công việc: danh sách suất và trạng thái, kiểu bán, sơ đồ, giá và rà soát.
+- [x] 8.2 Dựng canvas chọn, vẽ, di chuyển, chỉnh kích thước, thu phóng, nhân bản và hoàn tác. Sinh hàng loạt ghế, nhãn và lối đi, bảo toàn ID ghế khi sửa vị trí. Kiểm tra với sáu bước: vẽ khu, sinh ghế, nhân bản, hoàn tác, lưu, mở lại.
+- [x] 8.3 Tìm suất vận hành qua tên và địa điểm. Hiện giờ địa phương, trạng thái và ảnh hưởng đơn trước thao tác. Kiểm tra quyền platform admin và từ chối organizer draft.
+- [x] 8.4 Kiểm tra trình duyệt từ tạo concert và sơ đồ đến gán vé, rà soát và mua vé. Rà desktop, tablet, mobile và bàn phím. Chạy các kiểm tra đặc thù của Catalog và web.
