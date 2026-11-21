@@ -1,0 +1,90 @@
+.concert-card {
+  min-inline-size: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--cream);
+  font: 400 .9375rem/1.45 Manrope, "Segoe UI", sans-serif;
+}
+
+.concert-card > :is(div, a) {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-inline-size: 0;
+  block-size: 100%;
+  border-radius: inherit;
+}
+
+.concert-card > a:hover { box-shadow: 0 6px 20px rgb(24 33 51 / .12); }
+.concert-card > a:hover h3 { color: var(--violet); text-decoration: underline; text-underline-offset: .16em; }
+.concert-card-media {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 11px 11px 0 0;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+.concert-card-media img { inline-size: 100%; block-size: 100%; object-fit: cover; }
+.concert-card-media svg { inline-size: 2rem; block-size: 2rem; opacity: .7; }
+
+.concert-card-body {
+  position: relative;
+  align-content: start;
+  display: grid;
+  gap: .375rem;
+  min-inline-size: 0;
+  padding: 1rem;
+}
+
+.concert-card:has(a) .concert-card-body { padding-inline-end: 2.625rem; }
+.concert-card .concert-card-body h3 {
+  margin: 0 0 .125rem;
+  color: var(--cream);
+  font-family: inherit;
+  font-size: clamp(1.0625rem, 1rem + .28vw, 1.25rem);
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: -.02em;
+  overflow-wrap: anywhere;
+}
+
+.concert-card-body p { display: flex; align-items: start; gap: .375rem; margin: 0; color: var(--muted); overflow-wrap: anywhere; }
+.concert-card-body p svg { flex: none; inline-size: .9375rem; block-size: .9375rem; margin-block-start: .175em; }
+.concert-card-body .concert-card-support { display: block; margin-block-start: .375rem; }
+.concert-card-link-icon { position: absolute; inset-block-start: 1.075rem; inset-inline-end: 1rem; inline-size: 1.125rem; color: var(--violet); }
+
+.concert-card-status {
+  justify-self: start;
+  max-inline-size: 100%;
+  padding: .1875rem .5rem;
+  border-radius: 5px;
+  background: var(--surface-2);
+  color: var(--cream);
+  font-size: .8125rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.concert-card-status[data-sale-state="on-sale"] { background: #e8f5ec; color: #145438; }
+.concert-card-status:is([data-sale-state="upcoming"], [data-sale-state="waiting-room"]) { background: #eef4ff; color: var(--violet); }
+
+@media (width < 42rem) {
+  .concert-card > :is(div, a) {
+    grid-template-columns: minmax(0, .31fr) minmax(0, .69fr);
+    grid-template-rows: auto;
+  }
+
+  .concert-card-media {
+    position: relative;
+    aspect-ratio: auto;
+    border-radius: 11px 0 0 11px;
+  }
+
+  .concert-card-media img { position: absolute; inset: 0; }
+  .concert-card-body { padding: .875rem; }
+  .concert-card:has(a) .concert-card-body { padding-inline-end: 2rem; }
+  .concert-card-link-icon { inset-block-start: .95rem; inset-inline-end: .625rem; }
+}

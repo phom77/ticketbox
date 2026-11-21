@@ -1,0 +1,53 @@
+# Khám phá sự kiện công khai
+
+## Purpose
+
+Giúp khách tìm sự kiện phù hợp, biết tình trạng bán và quay lại danh sách đã lọc sau khi xem chi tiết.
+
+## ADDED Requirements
+
+### Requirement: Trang chủ dẫn tới sự kiện và danh sách
+
+Trang chủ SHALL cho khách tìm sự kiện ở vùng đầu trang, dùng sự kiện công khai phù hợp cho điểm nổi bật và đưa các show sắp tới vào danh sách. Thẻ SHALL có tên, ngày giờ, địa điểm và tình trạng bán đã xác định.
+
+#### Scenario: Sự kiện công khai có giờ bán trong tương lai
+
+- **WHEN** Catalog công khai một sự kiện có giờ mở bán chưa đến
+- **THEN** danh sách hiển thị sắp mở bán theo quy tắc của trang chi tiết và thẻ mở đúng sự kiện.
+
+### Requirement: Tìm kiếm và bộ lọc có thể quay lại
+
+Danh sách SHALL cho khách tìm tên sự kiện, tên bản dịch và địa điểm bằng từ khóa có dấu hoặc không dấu, lọc theo ngày diễn bằng mốc có sẵn hoặc khoảng ngày tùy chọn, lọc theo tình trạng bán và sắp xếp theo ngày diễn hoặc mốc mở bán. URL SHALL biểu diễn các lựa chọn đã áp dụng.
+
+#### Scenario: Áp dụng và gỡ lọc trên điện thoại
+
+- **WHEN** khách chọn ngày hoặc tình trạng trong khung lọc và bấm áp dụng
+- **THEN** danh sách hiện các mục khớp, thể hiện bộ lọc đã chọn và có cách gỡ từng điều kiện hoặc xóa tất cả.
+
+#### Scenario: Mở chi tiết rồi quay lại
+
+- **WHEN** khách mở một thẻ rồi bấm Back, tải lại hoặc chia sẻ URL kết quả
+- **THEN** danh sách khôi phục từ khóa và lựa chọn đã áp dụng. Back trở lại vùng kết quả khách đã xem.
+
+### Requirement: Phân trang trung thực và có thể thử lại
+
+Danh sách SHALL cho tải thêm các trang từ Catalog. Nó SHALL phân biệt kết quả trong phần đã tải, danh sách trống sau khi hết trang và lỗi yêu cầu.
+
+#### Scenario: Chưa có mục khớp từ các trang đã tải
+
+- **WHEN** điều kiện lọc chưa khớp mục nào và Catalog còn trang sau
+- **THEN** giao diện nêu phạm vi đã tải và cho tiếp tục tải thêm.
+
+#### Scenario: Tải thêm thất bại
+
+- **WHEN** một trang tiếp theo lỗi
+- **THEN** các mục đã tải vẫn dùng được và khách có thao tác thử lại trang đó.
+
+### Requirement: Preview bộ lọc cần dữ liệu mới
+
+Bản preview phát triển SHALL cho thử tỉnh/thành, thể loại và giá với fixture có nhãn dữ liệu minh họa. Trang công khai SHALL dùng dữ liệu thật và chỉ cung cấp các bộ lọc có thể phản ánh dữ liệu đó.
+
+#### Scenario: Nhà phát triển thử bộ lọc tương lai
+
+- **WHEN** mở bản preview phát triển và kết hợp tỉnh/thành, thể loại hoặc khoảng giá
+- **THEN** kết quả fixture, các chip đã chọn và thao tác xóa lọc phản ánh đúng lựa chọn.

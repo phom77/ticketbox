@@ -142,7 +142,7 @@ try {
   const preview = organizer.page.getByRole('link', { name: 'Xem trước' });
   await preview.focus();
   await organizer.page.keyboard.press('Enter');
-  await organizer.page.getByText('Chế độ xem trước', { exact: true }).first().waitFor();
+  await organizer.page.getByText('Xem trước dành cho ban tổ chức', { exact: true }).waitFor();
   await organizer.page.getByRole('combobox', { name: 'Ngôn ngữ' }).selectOption('en');
   await organizer.page.getByRole('heading', { name: englishTitle, exact: true }).waitFor();
   await organizer.page.getByRole('combobox', { name: 'Language' }).selectOption('vi');
@@ -177,7 +177,9 @@ try {
   await organizer.page.goto(`/concerts/${concert.id}`);
   await organizer.page.getByRole('heading', { name: title }).waitFor();
   assert.equal(await organizer.page.getByRole('link', { name: /Mua ngay|Vào phòng chờ/ }).count(), 0);
-  await audience.page.goto(`/concerts/${concert.id}`);
+  await audience.page.goto(`/?q=${encodeURIComponent(title)}`);
+  await audience.page.getByRole('main').getByRole('link', { name: title, exact: true }).click();
+  await audience.page.waitForURL(`**/concerts/${concert.id}`);
   await audience.page.getByRole('link', { name: /Mua ngay|Vào phòng chờ/ }).waitFor();
 
   await organizer.page.goto('/organizer/reconciliation');
@@ -210,8 +212,13 @@ try {
   await viewTickets.click();
   await audience.page.waitForURL('**/my-tickets');
   await audience.page.goto('/profile?tab=orders');
-  await audience.page.getByRole('region', { name: 'Lịch sử đơn hàng' })
-    .getByRole('heading', { name: title }).waitFor();
+  const purchasedOrder = audience.page.getByRole('region', { name: 'Lịch sử đơn hàng' })
+    .getByRole('article', { name: title, exact: true });
+  const eventTickets = purchasedOrder.locator(`a[href="/my-tickets?concertId=${concert.id}"]`);
+  await eventTickets.click();
+  await audience.page.waitForURL(`**/my-tickets?concertId=${concert.id}`);
+  await audience.page.getByRole('article', { name: title, exact: true })
+    .getByRole('button', { name: /^Mở mã QR · / }).waitFor();
   await audience.page.goto('/my-tickets');
   await audience.page.reload();
   const ticketGroup = audience.page.getByRole('article', { name: title, exact: true });
@@ -228,7 +235,7 @@ try {
     .getByRole('button', { name: `Show QR code · ${ticketReference}`, exact: true }).click();
   const englishTicket = audience.page.getByRole('dialog', { name: englishTitle });
   await englishTicket.getByRole('img', { name: `Ticket QR code for ${englishTitle}`, exact: true }).waitFor();
-  console.log('Mobile buyer selected a ticket, paid with MOCK, recovered the order and opened the issued QR after reload.');
+  console.log('Mobile buyer found the event, paid with MOCK, opened the event tickets from the paid order and recovered the QR after reload.');
 
   console.log('Organization approval, invitation, grant guards and switching passed at 1440, 834 and 390 px.');
 } finally {

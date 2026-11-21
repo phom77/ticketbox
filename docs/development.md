@@ -17,7 +17,7 @@ The SMTP sink accepts email locally without forwarding it. Its private HTTP endp
 
 For a separate staging deployment, set `TICKETBOX_PAYMENT_PROFILE=staging` for the shared Payment and Ticketing profiles. Use the staging secret store for `VNPAY_TMN_CODE` and `VNPAY_HASH_SECRET`. Set `VNPAY_PAY_URL` and `VNPAY_QUERY_URL` to the merchant's sandbox endpoints. Set `VNPAY_RETURN_URL` and `VNPAY_IPN_URL` to the staging HTTPS origin at `/payment/result` and `/api/payments/webhooks/vnpay`, and register the IPN with the merchant. Confirm `GET /api/payments/providers` returns only `VNPAY` as a buyer before running the checkout. The provider list is empty until the VNPAY settings pass readiness checks.
 
-Set a separate `PASSWORD_RESET_KEY` of at least 32 bytes in Identity's secret store to enable buyer account recovery. Configure Notification with the HTTPS `APP_PUBLIC_URL` as the origin for reset emails and use the staging SMTP relay. Keep the reset key stable while encrypted deliveries are pending. Set the approved HTTPS destinations `VITE_SUPPORT_URL` and `VITE_TERMS_URL` before building the web image. An absent or invalid destination hides its link.
+Set a separate `PASSWORD_RESET_KEY` of at least 32 bytes in Identity's secret store to enable buyer account recovery. Configure Notification with the HTTPS `APP_PUBLIC_URL` as the origin for reset emails and use the staging SMTP relay. Keep the reset key stable while encrypted deliveries are pending. Set the approved HTTPS destinations before building the web image. `VITE_SUPPORT_URL` is for buyer support, `VITE_TERMS_URL` is for ticket purchases and refunds, and `VITE_ACCOUNT_TERMS_URL` and `VITE_PRIVACY_URL` are for account registration. An absent or invalid destination hides its link.
 
 ```sh
 docker compose up -d --scale payment=2
@@ -153,18 +153,25 @@ node scripts/e2e/web-language.mjs
 
 Add web translations in `frontend/src/i18n/<language>/`. The supported language list lives in `frontend/src/i18n/index.ts`. Use stable message keys, translate complete phrases, and run `npm --prefix frontend run lint` to check catalog coverage, interpolation variables and plural forms.
 
-Run the buyer ticket wallet and notification inbox fixtures against the Vite server.
+Run the buyer browser fixtures against the Vite server.
 
 ```sh
 VITE_API_BASE_URL=http://localhost:5185 npm --prefix frontend run dev -- --host 127.0.0.1 --port 5185 --strictPort
 ```
 
 ```sh
+node scripts/e2e/buyer-event-and-queue.mjs
+node scripts/e2e/purchase-seat-selection.mjs
 node scripts/e2e/buyer-ticket-wallet.mjs
 node scripts/e2e/buyer-notification-inbox.mjs
+node scripts/e2e/buyer-discovery.mjs
+node scripts/e2e/buyer-navigation-auth.mjs
+node scripts/e2e/buyer-account-orders.mjs
 ```
 
 The fixtures cover responsive behavior, keyboard interaction and recovery using mocked API responses. Use `organization-workspace.mjs` with the isolated gateway to verify that a MOCK purchase results in a ticket the buyer can reopen after reload.
+
+Open `/discover-preview` on the Vite server to try city, genre and price filters with sample data. The route is available in development. At `/`, the browser filters the Catalog pages it has already loaded by title, venue, event date and sale status.
 
 ## Database changes
 

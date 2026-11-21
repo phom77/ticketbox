@@ -1,83 +1,66 @@
-import { formatLanguage, translate } from '../i18n';
+import { ArrowUpRight, CalendarDays, MapPin, Ticket } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import type { MouseEventHandler } from 'react';
 import { Link } from 'react-router-dom';
-import type { ConcertStatus } from '../api/concerts';
-import { eventDate, dateFormatter } from '../data/formatters';
 import { RemoteImage } from './RemoteImage';
+import { dateFormatter } from '../data/formatters';
+import { eventSaleLabels, type ConcertSaleState } from '../features/concert/concertSale';
+import { concertTimeZone } from '../features/discovery/filters';
+import './EventCard.css';
 
 export type EventCardItem = {
-  id: string | number;
+  id: string;
   title: string;
   venue: string;
   eventDate: string;
-  status: ConcertStatus | 'available' | 'selling-fast' | 'sold-out';
+  status: ConcertSaleState;
   image: string | null;
   supportingText?: string;
 };
 
+const dateTime = dateFormatter({
+  weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: concertTimeZone,
+});
+
 export function EventCard({
-  event,
-  priority = false,
+  event, priority = false, preview = false, linkId, onOpen,
 }: {
   event: EventCardItem;
   priority?: boolean;
+  preview?: boolean;
+  linkId?: string;
+  onOpen?: MouseEventHandler<HTMLAnchorElement>;
 }) {
-  useTranslation();
-  const isSoldOut = event.status === 'SOLD_OUT' || event.status === 'sold-out';
-  const isSellingFast = event.status === 'selling-fast';
-  const isUpcoming = event.status === 'DRAFT';
-  const date = new Date(event.eventDate);
-  const time = dateFormatter({ hour: '2-digit', minute: '2-digit' }).format(
-    date,
+  const { t } = useTranslation('public');
+  const date = Date.parse(event.eventDate);
+  const details = (
+    <>
+      <div className="concert-card-media">
+        {event.image ? (
+          <RemoteImage src={event.image} alt="" width="720" height="405" loading={priority ? 'eager' : 'lazy'} />
+        ) : <Ticket aria-hidden="true" />}
+      </div>
+      <div className="concert-card-body">
+        <span className="concert-card-status" data-sale-state={event.status}>{t(eventSaleLabels[event.status])}</span>
+        <h3>{event.title}</h3>
+        <p>
+          <CalendarDays aria-hidden="true" />
+          {Number.isFinite(date) ? <time dateTime={event.eventDate}>{dateTime.format(date)}</time> : t('public:discovery_dateToBeAnnounced')}
+        </p>
+        <p><MapPin aria-hidden="true" />{event.venue || t('public:discovery_venueToBeAnnounced')}</p>
+        {event.supportingText ? <p className="concert-card-support">{event.supportingText}</p> : null}
+        {!preview ? <ArrowUpRight className="concert-card-link-icon" aria-hidden="true" /> : null}
+      </div>
+    </>
   );
-  const month = dateFormatter({ month: 'short' })
-    .format(date)
-    .toLocaleUpperCase(formatLanguage());
-  const day = dateFormatter({ day: '2-digit' }).format(date);
 
   return (
-    <article className="event-card">
-      <Link to={`/concerts/${event.id}`} aria-label={translate('shared:eventCard_viewEvent', { title: event.title })}>
-        <div className="event-image-wrap">
-          <RemoteImage
-            src={event.image ?? undefined}
-            alt=""
-            width="720"
-            height="405"
-            loading={priority ? 'eager' : 'lazy'}
-          />
-          <span
-            className={`status-pill ${isSoldOut ? 'status-sold-out' : isSellingFast ? 'status-selling-fast' : isUpcoming ? 'status-upcoming' : 'status-on-sale'}`}
-          >
-            {isSoldOut
-              ? translate("shared:eventCard_hetVe")
-              : isSellingFast
-                ? translate("shared:eventCard_sapHetVe")
-                : isUpcoming
-                  ? translate("shared:eventCard_sapMoBan")
-                  : translate("shared:eventCard_dangBan")}
-          </span>
-          <span className="card-arrow" aria-hidden="true">
-            →
-          </span>
-        </div>
-        <div className="event-card-copy">
-          <div className="event-date-tile" aria-hidden="true">
-            <span>{month}</span>
-            <strong>{day}</strong>
-          </div>
-          <div className="event-card-details">
-            <p className="event-date">
-              {eventDate.format(date)} · {time}
-            </p>
-            <h3>{event.title}</h3>
-            <p>{event.venue}</p>
-            <div className="event-price">
-              <strong>{event.supportingText ?? translate("shared:eventCard_timVe")}</strong>
-            </div>
-          </div>
-        </div>
-      </Link>
+    <article className="concert-card">
+      {preview ? <div>{details}</div> : (
+        <Link aria-label={event.title} id={linkId} onClick={onOpen} to={`/concerts/${encodeURIComponent(event.id)}`}>
+          {details}
+        </Link>
+      )}
     </article>
   );
 }

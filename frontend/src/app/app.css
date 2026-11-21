@@ -3461,3 +3461,103 @@ body,
 
   .site-shell:has(.buyer-page) .account-menu { max-inline-size: 15rem; }
 }
+
+.purchase-page {
+  --purchase-space: clamp(.875rem, 2.5vw, 1.5rem);
+  --purchase-radius: 12px;
+  min-inline-size: 0;
+}
+
+.route-transition:has(.purchase-page) { animation: none; }
+
+.purchase-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: start;
+  gap: .75rem var(--purchase-space);
+  margin-block-end: var(--purchase-space);
+}
+
+.purchase-header > * { min-inline-size: 0; }
+.purchase-header :is(h1, p) { margin: 0; }
+.purchase-header h1 + p {
+  margin-block-start: .375rem;
+  color: var(--muted);
+}
+
+.purchase-step {
+  color: var(--violet);
+  font-size: var(--buyer-meta-size);
+  font-weight: 750;
+}
+
+.purchase-deadline {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .25rem .625rem;
+  max-inline-size: 100%;
+  padding: .5rem .75rem;
+  border-radius: .5rem;
+  background: var(--surface-2);
+  font-size: var(--buyer-meta-size);
+  font-variant-numeric: tabular-nums;
+}
+
+.purchase-panel {
+  min-inline-size: 0;
+  padding: var(--purchase-space);
+  border: 1px solid var(--line);
+  border-radius: var(--purchase-radius);
+  background: var(--surface);
+}
+
+.purchase-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(18rem, 1fr);
+  align-items: start;
+  gap: var(--purchase-space);
+}
+
+.purchase-columns > * { min-inline-size: 0; }
+
+.purchase-action-bar {
+  display: grid;
+  gap: .625rem;
+  min-inline-size: 0;
+  padding-block-start: .75rem;
+  border-block-start: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+
+.purchase-action-bar .button { white-space: normal; }
+
+@media (max-width: 767px) {
+  .purchase-columns { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 767px) and (min-height: 580px) {
+  html:has(.purchase-page .purchase-action-bar) {
+    --purchase-action-clearance: calc(9rem + env(safe-area-inset-bottom));
+    scroll-padding-block-end: var(--purchase-action-clearance);
+  }
+
+  .purchase-page:has(.purchase-action-bar) { padding-block-end: var(--purchase-action-clearance); }
+
+  .purchase-page .purchase-action-bar {
+    position: fixed;
+    z-index: 25;
+    inset-inline: 0;
+    inset-block-end: 0;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+    align-items: center;
+    padding: .75rem max(1rem, env(safe-area-inset-right)) calc(.75rem + env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+    background: var(--surface);
+  }
+
+  .purchase-page .purchase-action-bar .button {
+    inline-size: 100%;
+    padding-inline: .625rem;
+  }
+}

@@ -1,7 +1,6 @@
 import { translate } from '../../i18n';
 import { useTranslation } from 'react-i18next';
 import { concertTitle } from '../../features/concert/concertText';
-import type { ConcertTranslations } from '../../api/concerts';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { ApiClientError } from '../../api/client';
@@ -18,72 +17,48 @@ import {
 } from '../../api/orders';
 import { clearStoredQueueAdmission, getStoredQueueAdmission, leaveQueue } from '../../api/queue';
 import { BuyerInformationLinks } from '../../components/BuyerInformationLinks';
-import { RemoteImage } from '../../components/RemoteImage';
-import { useToast } from '../../components/feedback/toast-context';
+import {
+  clearPendingPayment,
+  orderWindowExpired,
+  paymentStillVerifying,
+  readPendingPayment,
+  rememberPendingPayment,
+  type CheckoutEvent,
+} from '../../features/ticket/checkoutPayment';
 import { checkoutRequestKey, clearCheckoutRequest, createOrRecoverOrder } from '../../features/ticket/checkoutRecovery';
 import { currency } from '../../data/formatters';
 import { useCountdown } from '../../hooks/useCountdown';
+import { CheckoutEventTime, CheckoutOrderLines, CheckoutStatusPanel } from './CheckoutDetails';
 import type { CheckoutSelection } from './SeatSelectionPage';
 
-export type CheckoutEvent = {
-  id: string;
-  title: string;
-  translations?: ConcertTranslations;
-  venue: string;
-  date: string;
-  image: string | null;
-};
-
-export type CheckoutState = {
+type CheckoutState = {
   event: CheckoutEvent;
   selection: CheckoutSelection[];
   queueAccessToken?: string;
   sessionExpiresAt?: string;
 };
 
-export const PENDING_PAYMENT_STORAGE_KEY = 'ticketbox.pending-payment';
-
-type PendingPayment = {
-  orderId: string;
-  provider?: PaymentProvider;
-};
-
-function readPendingPayment(): PendingPayment | null {
-  try {
-    const value = sessionStorage.getItem(PENDING_PAYMENT_STORAGE_KEY);
-    return value ? (JSON.parse(value) as PendingPayment) : null;
-  } catch {
-    return null;
-  }
-}
-
-export function rememberPendingPayment(orderId: string, provider: PaymentProvider) {
-  sessionStorage.setItem(PENDING_PAYMENT_STORAGE_KEY, JSON.stringify({ orderId, provider }));
-}
+type ResumeProblem = 'pending' | 'expiredPending' | 'closed' | 'missing' | 'unavailable';
 
 const paymentOptions: Array<{
   value: PaymentProvider;
   title: string;
   copy: string;
-  badge: string;
 }> = [
   {
     value: 'MOCK',
     get title() { return translate("customer:checkoutPage_thanhToanDemo"); },
     get copy() { return translate("customer:checkoutPage_hoanTatThanhToanNgayTrongMoi"); },
-    badge: 'DEMO',
   },
   {
     value: 'VNPAY',
     title: 'VNPAY',
     get copy() { return translate("customer:checkoutPage_tiepTucSangTrangThanhToanVnpay"); },
-    badge: 'VNPAY',
   },
   {
     value: 'MOMO',
     title: 'MoMo',
     get copy() { return translate("customer:checkoutPage_tiepTucSangTrangThanhToanMomo"); },
-    badge: 'MoMo',
   },
 ];
 
@@ -92,19 +67,18 @@ export function CheckoutPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const toast = useToast();
   const state = location.state as CheckoutState | null;
   const resumeOrderId = searchParams.get('orderId');
   const [event, setEvent] = useState<CheckoutEvent | null>(state?.event ?? null);
   const [selection, setSelection] = useState<CheckoutSelection[]>(state?.selection ?? []);
   const [restoringOrder, setRestoringOrder] = useState(Boolean(resumeOrderId));
-  const [resumeUnavailable, setResumeUnavailable] = useState<string | null>(null);
+  const [resumeUnavailable, setResumeUnavailable] = useState<ResumeProblem | null>(null);
   const [resumeRefreshKey, setResumeRefreshKey] = useState(0);
   const storedAdmission = event ? getStoredQueueAdmission(event.id) : null;
   const queueAccessToken = state?.queueAccessToken ?? storedAdmission?.queueAccessToken;
   const [requestedProvider, setProvider] = useState<PaymentProvider>('MOCK');
   const [providers, setProviders] = useState<PaymentProvider[] | null>(null);
-  const [providerError, setProviderError] = useState('');
+  const [providerError, setProviderError] = useState(false);
   const [providerReload, setProviderReload] = useState(0);
   const [lockedProvider, setLockedProvider] = useState<PaymentProvider | null>(null);
   const allowed = providers ?? [];
@@ -120,8 +94,6 @@ export function CheckoutPage() {
   const [creationNeedsRecovery, setCreationNeedsRecovery] = useState(false);
   const idempotencyKey = useRef<string | null>(null);
   const creationStarted = useRef(false);
-  const paymentWarningShown = useRef(false);
-  const paymentExpiredShown = useRef(false);
   const paymentCountdown = useCountdown(createdOrder?.expiresAt, 180);
   const displayedTotal =
     createdOrder?.totalAmount ??
@@ -130,11 +102,11 @@ export function CheckoutPage() {
   useEffect(() => {
     const controller = new AbortController();
     setProviders(null);
-    setProviderError('');
+    setProviderError(false);
     void getPaymentProviders(controller.signal).then((result) => {
       if (!controller.signal.aborted) setProviders(result);
     }).catch(() => {
-      if (!controller.signal.aborted) setProviderError(translate("customer:checkoutPage_khongTheTaiCongThanhToan"));
+      if (!controller.signal.aborted) setProviderError(true);
     });
     return () => controller.abort();
   }, [providerReload]);
@@ -152,20 +124,31 @@ export function CheckoutPage() {
     setResumeUnavailable(null);
     setPaymentFailed(false);
     setError(null);
+    setCreatedOrder((current) => current?.id === activeResumeOrderId ? current : null);
 
     async function restorePendingOrder() {
       try {
         const order = await getOrder(activeResumeOrderId, controller.signal);
-        const concert = await getConcert(order.concertId, controller.signal);
+        if (!active) return;
+        if (order.status === 'PAID') {
+          clearPendingPayment(order.id);
+          navigate('/booking-confirmation', { replace: true, state: { orderId: order.id } });
+          return;
+        }
+
+        const [concert, paymentStatus] = await Promise.all([
+          getConcert(order.concertId, controller.signal).catch(() => null),
+          getPaymentStatus(order.id, controller.signal).catch(() => null),
+        ]);
         if (!active) return;
 
         const restoredEvent: CheckoutEvent = {
-          id: concert.id,
-          title: concert.title,
-          translations: concert.translations,
-          venue: concert.venueName,
-          date: concert.eventDate,
-          image: concert.posterUrl,
+          id: order.concertId,
+          title: concert?.title ?? order.concertTitle,
+          translations: concert?.translations,
+          venue: concert?.venueName ?? '',
+          date: concert?.eventDate ?? '',
+          image: concert?.posterUrl ?? null,
         };
         const restoredSelection = order.items.map((item) => ({
           id: item.ticketTypeId,
@@ -174,28 +157,23 @@ export function CheckoutPage() {
           quantity: item.quantity,
         }));
 
-        if (order.status === 'PAID') {
-          sessionStorage.removeItem(PENDING_PAYMENT_STORAGE_KEY);
-          navigate('/booking-confirmation', {
-            replace: true,
-            state: { event: restoredEvent, selection: restoredSelection, order },
-          });
+        setEvent(restoredEvent);
+        setCreatedOrder(order);
+        if (!paymentStatus) {
+          setResumeUnavailable(orderWindowExpired(order) ? 'expiredPending' : 'unavailable');
           return;
         }
-
-        if (
-          order.status !== 'AWAITING_PAYMENT' ||
-          new Date(order.expiresAt).getTime() <= Date.now()
-        ) {
-          sessionStorage.removeItem(PENDING_PAYMENT_STORAGE_KEY);
-          setEvent(restoredEvent);
-          setResumeUnavailable(translate("customer:checkoutPage_donHangNayDaHetHanHoac"));
+        if (paymentStillVerifying(paymentStatus.attemptState)) {
+          setResumeUnavailable(orderWindowExpired(order) ? 'expiredPending' : 'pending');
           return;
         }
-
-        const paymentStatus = await getPaymentStatus(order.id, controller.signal);
-        if (!active) return;
+        if (order.status !== 'AWAITING_PAYMENT' || orderWindowExpired(order)) {
+          clearPendingPayment(order.id);
+          setResumeUnavailable('closed');
+          return;
+        }
         setPaymentFailed(paymentStatus.attemptState === 'FAILED');
+        setLockedProvider(null);
         const pendingPayment = readPendingPayment();
         if (paymentStatus.provider) {
           setProvider(paymentStatus.provider);
@@ -203,15 +181,13 @@ export function CheckoutPage() {
         } else if (pendingPayment?.orderId === order.id && pendingPayment.provider) {
           setProvider(pendingPayment.provider);
         }
-        setEvent(restoredEvent);
         setSelection(restoredSelection);
-        setCreatedOrder(order);
       } catch (requestError) {
         if (!active || (requestError instanceof DOMException && requestError.name === 'AbortError')) return;
         setResumeUnavailable(
-          requestError instanceof ApiClientError && requestError.status === 404
-            ? translate("customer:checkoutPage_khongTimThayDonThanhToanNay")
-            : translate("customer:checkoutPage_khongTheKhoiPhucDonChoThanh"),
+          requestError instanceof ApiClientError && (requestError.status === 404 || requestError.status === 403)
+            ? 'missing'
+            : 'unavailable',
         );
       } finally {
         if (active) setRestoringOrder(false);
@@ -237,12 +213,6 @@ export function CheckoutPage() {
     window.addEventListener('pageshow', restoreAfterBrowserBack);
     return () => window.removeEventListener('pageshow', restoreAfterBrowserBack);
   }, [resumeOrderId]);
-
-  useEffect(() => {
-    if (searchParams.get('payment') === 'failed') {
-      setError(translate("customer:checkoutPage_thanhToanChuaHoanTatDonCua"));
-    }
-  }, [searchParams]);
 
   useEffect(() => {
     if (resumeOrderId || !event || !selection.length || creationStarted.current) return;
@@ -330,86 +300,87 @@ export function CheckoutPage() {
     };
   }, [creationRetry, event, navigate, queueAccessToken, resumeOrderId, selection]);
 
-  useEffect(() => {
-    if (!paymentCountdown.isWarning || paymentCountdown.isExpired || paymentWarningShown.current)
-      return;
-    paymentWarningShown.current = true;
-    toast.error(translate("customer:checkoutPage_conDuoi3PhutDeHoanTat"));
-  }, [paymentCountdown.isExpired, paymentCountdown.isWarning, toast]);
-
-  useEffect(() => {
-    if (!paymentCountdown.isExpired || paymentExpiredShown.current) return;
-    paymentExpiredShown.current = true;
-    setProcessing(false);
-    setError(translate("customer:checkoutPage_thoiGianThanhToanDaHetVui"));
-    toast.error(translate("customer:checkoutPage_daHetThoiGianThanhToan"));
-  }, [paymentCountdown.isExpired, toast]);
-
   if (restoringOrder) {
     return (
-      <section className="checkout-missing page-width state-panel" aria-live="polite">
-        <span className="state-icon" aria-hidden="true">…</span>
-        <h1>{translate("customer:checkoutPage_dangKhoiPhucDonThanhToan")}</h1>
-        <p>{translate("customer:checkoutPage_ticketboxDangKiemTraTrangThaiMoi")}</p>
-      </section>
+      <CheckoutStatusPanel
+        announce
+        title={translate("customer:checkoutPage_dangKhoiPhucDonThanhToan")}
+        body={translate("customer:checkoutPage_ticketboxDangKiemTraTrangThaiMoi")}
+      />
     );
   }
 
   if (resumeUnavailable) {
+    const pending = resumeUnavailable === 'pending' || resumeUnavailable === 'expiredPending';
+    const expired = resumeUnavailable === 'expiredPending' ||
+      (resumeUnavailable === 'closed' && createdOrder && orderWindowExpired(createdOrder));
+    const title = expired ? translate("customer:paymentResultPage_deadlinePassed")
+      : pending ? translate("customer:paymentResultPage_confirming")
+        : translate("customer:checkoutPage_khongTheTiepTucThanhToan");
+    const body = {
+      pending: translate("customer:checkoutPage_paymentPending"),
+      expiredPending: translate("customer:paymentResultPage_expiredPending"),
+      closed: translate("customer:checkoutPage_donHangNayDaHetHanHoac"),
+      missing: translate("customer:checkoutPage_khongTimThayDonThanhToanNay"),
+      unavailable: translate("customer:checkoutPage_khongTheKhoiPhucDonChoThanh"),
+    }[resumeUnavailable];
+
     return (
-      <section className="checkout-missing page-width state-panel">
-        <span className="state-icon" aria-hidden="true">!</span>
-        <h1>{translate("customer:checkoutPage_khongTheTiepTucThanhToan")}</h1>
-        <p>{resumeUnavailable}</p>
-        <div className="confirmation-actions">
-          {event ? (
-            <Link className="button button-primary" to={`/concerts/${event.id}`}>
-              {translate("customer:checkoutPage_xemLaiConcert")}
+      <CheckoutStatusPanel title={title} body={body} orderId={createdOrder?.id}>
+        <div className="purchase-status-actions">
+          {resumeUnavailable === 'pending' && (
+            <Link className="button button-primary" to={`/payment/result?orderId=${encodeURIComponent(resumeOrderId ?? '')}`}>
+              {translate("customer:checkoutPage_kiemTraTrangThaiDon")}
             </Link>
-          ) : null}
-          <Link className="button button-secondary" to="/profile?tab=orders">
-            {translate("customer:checkoutPage_xemDonHang")}
+          )}
+          {resumeUnavailable === 'unavailable' && (
+            <button className="button button-secondary" type="button" onClick={() => setResumeRefreshKey((value) => value + 1)}>
+              {translate("customer:checkoutPage_kiemTraTrangThaiDon")}
+            </button>
+          )}
+          <Link className={`button ${pending && !expired ? 'button-secondary' : 'button-primary'}`} to="/profile?tab=orders">
+            {translate("customer:checkoutPage_xemLichSuDonHang")}
           </Link>
         </div>
-      </section>
+      </CheckoutStatusPanel>
     );
   }
 
   if (!event || !selection.length) {
     return (
-      <section className="checkout-missing page-width state-panel">
-        <span className="state-icon" aria-hidden="true">
-          !
-        </span>
-        <h1>{translate("customer:checkoutPage_chuaChonVe")}</h1>
-        <p>{translate("customer:checkoutPage_chonKhuVeVaSoLuongTruoc")}</p>
-        <Link className="button button-primary" to="/">
-          {translate("customer:checkoutPage_duyetConcert")}
-        </Link>
-      </section>
+      <CheckoutStatusPanel
+        title={translate("customer:checkoutPage_chuaChonVe")}
+        body={translate("customer:checkoutPage_chonKhuVeVaSoLuongTruoc")}
+      >
+        <div className="purchase-status-actions">
+          <Link className="button button-primary" to="/">{translate("customer:checkoutPage_duyetConcert")}</Link>
+        </div>
+      </CheckoutStatusPanel>
     );
   }
 
   if (paymentFailed && createdOrder) {
     return (
-      <section className="checkout-missing page-width state-panel" aria-live="polite">
-        <span className="state-icon" aria-hidden="true">!</span>
-        <h1>{translate("customer:checkoutPage_phienThanhToanDaThatBai")}</h1>
-        <p>{translate("customer:checkoutPage_congThanhToanDaBaoGiaoDich")}</p>
-        <p>{translate("customer:checkoutPage_maDon")} {createdOrder.id}</p>
-        {error ? <p role="alert">{error}</p> : null}
-        <div className="confirmation-actions">
+      <CheckoutStatusPanel
+        title={translate("customer:checkoutPage_phienThanhToanDaThatBai")}
+        body={translate("customer:checkoutPage_congThanhToanDaBaoGiaoDich")}
+        orderId={createdOrder.id}
+      >
+        {error && <p className="purchase-error" role="alert">{error}</p>}
+        <div className="purchase-status-actions">
           <button className="button button-primary" type="button" disabled={cancelling}
             onClick={() => void restartAfterFailedPayment()}>
             {cancelling ? translate("customer:checkoutPage_dangHuyDon") : translate("customer:checkoutPage_huyDonVaChonVeLai")}
           </button>
           <button className="button button-secondary" type="button" disabled={cancelling}
-            onClick={() => setResumeRefreshKey(value => value + 1)}>
+            onClick={() => setResumeRefreshKey((value) => value + 1)}>
             {translate("customer:checkoutPage_kiemTraTrangThaiDon")}
           </button>
-          <Link className="text-link" to="/profile?tab=orders">{translate("customer:checkoutPage_xemLichSuDonHang")}</Link>
+          <Link className="button button-secondary" to="/profile?tab=orders">
+            {translate("customer:checkoutPage_xemLichSuDonHang")}
+          </Link>
         </div>
-      </section>
+      </CheckoutStatusPanel>
     );
   }
 
@@ -418,8 +389,18 @@ export function CheckoutPage() {
     setCancelling(true);
     setError(null);
     try {
-      await cancelOrder(createdOrder.id);
-      sessionStorage.removeItem(PENDING_PAYMENT_STORAGE_KEY);
+      const order = await cancelOrder(createdOrder.id);
+      if (order.status === 'PAID') {
+        clearPendingPayment(order.id);
+        navigate('/booking-confirmation', { replace: true, state: { event, orderId: order.id } });
+        return;
+      }
+      if (order.status !== 'CANCELLED') {
+        setResumeRefreshKey((value) => value + 1);
+        setCancelling(false);
+        return;
+      }
+      clearPendingPayment(order.id);
       clearStoredQueueAdmission();
       navigate(`/concerts/${event.id}/waiting-room`, { replace: true });
     } catch {
@@ -441,6 +422,7 @@ export function CheckoutPage() {
 
   async function submitPayment(formEvent: React.FormEvent<HTMLFormElement>) {
     formEvent.preventDefault();
+    if (processing || cancelling || creatingOrder) return;
     setError(null);
 
     if (!createdOrder) {
@@ -486,17 +468,14 @@ export function CheckoutPage() {
 
       await completeMockPayment(payment.paymentUrl);
       const paidOrder = await waitForPaidOrder(createdOrder.id);
-      sessionStorage.removeItem(PENDING_PAYMENT_STORAGE_KEY);
-
       if (paidOrder.status !== 'PAID') {
-        navigate('/booking-confirmation?status=failed', {
-          state: { event, selection, order: paidOrder },
-        });
+        navigate(`/payment/result?orderId=${encodeURIComponent(createdOrder.id)}`);
         return;
       }
 
+      clearPendingPayment(paidOrder.id);
       navigate('/booking-confirmation', {
-        state: { event, selection, order: paidOrder },
+        state: { event, orderId: paidOrder.id },
       });
     } catch (requestError) {
       // A client timeout does not prove that the provider failed to create its session.
@@ -530,7 +509,20 @@ export function CheckoutPage() {
     setCancelling(true);
     setError(null);
     try {
-      if (createdOrder) await cancelOrder(createdOrder.id);
+      if (createdOrder) {
+        const order = await cancelOrder(createdOrder.id);
+        if (order.status === 'PAID') {
+          clearPendingPayment(order.id);
+          navigate('/booking-confirmation', { replace: true, state: { event, orderId: order.id } });
+          return;
+        }
+        if (order.status !== 'CANCELLED') {
+          setResumeRefreshKey((value) => value + 1);
+          setCancelling(false);
+          return;
+        }
+        clearPendingPayment(order.id);
+      }
       try {
         await leaveQueue(event.id);
       } catch {
@@ -544,104 +536,86 @@ export function CheckoutPage() {
     }
   }
 
+  const providerIssue = providerError ? translate("customer:checkoutPage_khongTheTaiCongThanhToan")
+    : providers !== null && !provider ? translate("customer:checkoutPage_congThanhToanChuaSanSang") : '';
+  const actionLabel = paymentCountdown.isExpired
+    ? translate("customer:checkoutPage_daHetThoiGianThanhToan_2")
+    : !createdOrder
+      ? translate(creatingOrder ? "customer:checkoutPage_dangTaoDon" : "customer:checkoutPage_orderNotReady")
+      : processing
+        ? provider === 'MOCK'
+          ? translate("customer:checkoutPage_dangHoanTatThanhToan")
+          : translate("customer:checkoutPage_dangMo", { arg1: provider })
+        : provider
+          ? translate("customer:checkoutPage_tiepTucVoi", {
+            arg1: provider === 'MOCK' ? translate("customer:checkoutPage_thanhToanDemo_2") : provider === 'MOMO' ? 'MoMo' : provider,
+          })
+          : translate(providers === null && !providerError
+            ? "customer:checkoutPage_dangTaiCongThanhToan"
+            : "customer:checkoutPage_chuaCoCongThanhToan");
+
   return (
-    <div className="checkout-page page-width">
-      <div className="flow-topbar">
-        <button
-          className="back-link"
-          type="button"
-          disabled={processing || cancelling || creatingOrder}
-          onClick={() => void leaveCheckout()}
-        >
-          {'<'} {translate("customer:checkoutPage_chiTietSuKien")}
-        </button>
-        <div className="flow-steps" aria-label={translate("customer:checkoutPage_tienTrinhDatVe")}>
-          <span className="flow-step">
-            <b>1</b><i>{translate("customer:checkoutPage_ve")}</i>
-          </span>
-          <b className="flow-step-connector" />
-          <span className="flow-step active">
-            <b>2</b><i>{translate("customer:checkoutPage_thanhToan")}</i>
-          </span>
-          <b className="flow-step-connector" />
-          <span className="flow-step">
-            <b>3</b><i>{translate("customer:checkoutPage_hoanTat")}</i>
-          </span>
+    <section className="buyer-page purchase-page page-width purchase-checkout" aria-labelledby="checkout-title">
+      <header className="purchase-header">
+        <div>
+          <h1 id="checkout-title">{translate("customer:checkoutPage_thanhToan")}</h1>
+          <p className="purchase-step" aria-current="step">{translate("customer:checkoutPage_paymentStep")}</p>
+          <p className="purchase-checkout-event">{concertTitle(event)}</p>
+          <CheckoutEventTime date={event.date} venue={event.venue} />
         </div>
-        <div
-          className={`secure-label countdown-timer ${paymentCountdown.isExpired ? 'expired' : paymentCountdown.isWarning ? 'warning' : ''}`}
-          role="status"
-        >
-          <span>{translate("customer:checkoutPage_thoiGianThanhToan")}</span>
-          <strong>{createdOrder ? paymentCountdown.formatted : '--:--'}</strong>
+        {createdOrder && (
+          <div className="purchase-deadline" data-state={paymentCountdown.isExpired ? 'expired' : paymentCountdown.isWarning ? 'warning' : undefined}>
+            <span>{translate("customer:checkoutPage_thoiGianThanhToan")}</span>
+            {paymentCountdown.isExpired
+              ? <strong>{translate("customer:checkoutPage_deadlinePassed")}</strong>
+              : <strong role="timer" aria-live="off">{paymentCountdown.formatted}</strong>}
+          </div>
+        )}
+      </header>
+
+      {paymentCountdown.isExpired && (
+        <div className="purchase-panel purchase-checkout-notice">
+          <p role="alert">{translate("customer:checkoutPage_thoiGianThanhToanDaHetVui")}</p>
+          <Link className="button button-secondary" to="/profile?tab=orders">
+            {translate("customer:checkoutPage_xemLichSuDonHang")}
+          </Link>
         </div>
-      </div>
-
-      <div className="checkout-heading">
-        <p className="eyebrow">
-          <span /> {translate("customer:checkoutPage_sapHoanTat")}
-        </p>
-        <h1>{translate("customer:checkoutPage_hoanTatDonHang")}</h1>
-        <p>
-          {translate("customer:checkoutPage_donHangDuocTaoTruocSauDo")}
-        </p>
-      </div>
-
-      {error ? (
-        <div className="checkout-error" role="alert">
-          <p>{error}</p>
-          {creationNeedsRecovery ? (
-            <div className="confirmation-actions">
+      )}
+      {error && (
+        <div className="purchase-panel purchase-checkout-notice">
+          <p role="alert">{error}</p>
+          {creationNeedsRecovery && (
+            <div className="purchase-status-actions">
               <button className="button button-secondary" type="button" disabled={creatingOrder}
-                onClick={() => setCreationRetry(value => value + 1)}>
+                onClick={() => setCreationRetry((value) => value + 1)}>
                 {translate("customer:checkoutPage_kiemTraLaiDon")}
               </button>
-              <Link className="text-link" to="/profile?tab=orders">{translate("customer:checkoutPage_xemLichSuDonHang")}</Link>
+              <Link className="button button-secondary" to="/profile?tab=orders">
+                {translate("customer:checkoutPage_xemLichSuDonHang")}
+              </Link>
             </div>
-          ) : null}
+          )}
         </div>
-      ) : null}
+      )}
 
-      <form className="checkout-layout" onSubmit={submitPayment}>
-        <div className="checkout-form">
-          <section className="form-section">
-            <div className="form-section-title">
-              <span>01</span>
-              <h2>{translate("customer:checkoutPage_phuongThucThanhToan")}</h2>
+      <form className="purchase-columns" onSubmit={submitPayment}>
+        <section className="purchase-panel purchase-payment-method" aria-labelledby="checkout-method-title">
+          <h2 id="checkout-method-title">{translate("customer:checkoutPage_phuongThucThanhToan")}</h2>
+          {creatingOrder && <p role="status">{translate("customer:checkoutPage_donHangCuaBanVanDangDuoc")}</p>}
+          {providers === null && !providerError && <p role="status">{translate("customer:checkoutPage_dangTaiCongThanhToan")}</p>}
+          {providerIssue && (
+            <div className="purchase-provider-error">
+              <p role="alert">{providerIssue}</p>
+              <button className="button button-secondary" type="button" disabled={paymentCountdown.isExpired}
+                onClick={() => setProviderReload((value) => value + 1)}>
+                {translate("customer:checkoutPage_thuLai")}
+              </button>
             </div>
-            <div
-              className={`payment-timer-card ${paymentCountdown.isExpired ? 'expired' : paymentCountdown.isWarning ? 'warning' : ''}`}
-              role="status"
-            >
-              <span>{translate("customer:checkoutPage_thoiGianThanhToan")}</span>
-              <strong>
-                {createdOrder
-                  ? paymentCountdown.formatted
-                  : creatingOrder
-                    ? translate("customer:checkoutPage_dangTaoDon")
-                    : '--:--'}
-              </strong>
-              <p>
-                {paymentCountdown.isExpired
-                  ? translate("customer:checkoutPage_donHangNayKhongConThanhToan")
-                  : paymentCountdown.isWarning
-                    ? translate("customer:checkoutPage_hayHoanTatThanhToanSomTruoc")
-                    : translate("customer:checkoutPage_banCo15PhutKeTuKhi")}
-              </p>
-            </div>
-            {providers === null && !providerError ? <p role="status">{translate("customer:checkoutPage_dangTaiCongThanhToan")}</p> : null}
-            {providerError || (providers !== null && !provider) ? (
-              <p role="alert">{providerError || translate("customer:checkoutPage_congThanhToanChuaSanSang")}{' '}
-                <button type="button" className="button button-secondary"
-                  onClick={() => setProviderReload((value) => value + 1)}>{translate("customer:checkoutPage_thuLai")}</button>
-              </p>
-            ) : null}
-            <div className="payment-options">
+          )}
+          {allowed.length > 0 && (
+            <div className="purchase-payment-options" role="radiogroup" aria-labelledby="checkout-method-title">
               {paymentOptions.filter((option) => allowed.includes(option.value)).map((option) => (
-                <label
-                  className={`payment-option ${provider === option.value ? 'selected' : ''}`}
-                  key={option.value}
-                >
+                <label className="purchase-payment-option" data-selected={provider === option.value || undefined} key={option.value}>
                   <input
                     type="radio"
                     name="payment"
@@ -650,68 +624,35 @@ export function CheckoutPage() {
                     onChange={() => setProvider(option.value)}
                     disabled={paymentDisabled || (lockedProvider !== null && option.value !== lockedProvider)}
                   />
-                  <span className={`payment-logo payment-${option.value.toLowerCase()}`}>
-                    {option.badge}
-                  </span>
-                  <span>
-                    <strong>{option.title}</strong>
-                    <small>{option.copy}</small>
-                  </span>
+                  <span><strong>{option.title}</strong><small>{option.copy}</small></span>
                 </label>
               ))}
             </div>
-          </section>
-        </div>
+          )}
+          {!paymentCountdown.isExpired && (
+            <button className="button button-secondary purchase-checkout-back" type="button"
+              disabled={processing || cancelling || creatingOrder || creationNeedsRecovery}
+              onClick={() => void leaveCheckout()}>
+              {translate(createdOrder ? "customer:checkoutPage_cancelAndReturn" : "customer:checkoutPage_chiTietSuKien")}
+            </button>
+          )}
+        </section>
 
-        <aside className="order-summary">
-          <div className="order-event">
-            <RemoteImage src={event.image ?? undefined} alt="" width="240" height="180" />
-            <div>
-              <span>{translate("customer:checkoutPage_suKienCuaBan")}</span>
-              <h2>{concertTitle(event)}</h2>
-              <p>{event.venue}</p>
+        <aside className="purchase-panel purchase-order-summary" aria-labelledby="checkout-summary-title">
+          <h2 id="checkout-summary-title">{translate("customer:checkoutPage_orderSummary")}</h2>
+          <CheckoutOrderLines order={createdOrder} selection={selection} />
+          <div className="purchase-action-bar">
+            <div className="purchase-order-total">
+              <span>{translate(createdOrder ? "customer:checkoutPage_orderTotal" : "customer:checkoutPage_tongTamTinh")}</span>
+              <strong>{currency.format(displayedTotal)}</strong>
             </div>
+            <button className="button button-primary" type="submit" disabled={paymentDisabled}>
+              {actionLabel}
+            </button>
           </div>
-          <div className="summary-lines">
-            {selection.map((item) => (
-              <div key={item.id}>
-                <span>
-                  {item.quantity} x {item.name}
-                </span>
-                <strong>{currency.format(item.price * item.quantity)}</strong>
-              </div>
-            ))}
-          </div>
-          <div
-            className={`hold-timer ${paymentCountdown.isExpired ? 'expired' : paymentCountdown.isWarning ? 'warning' : ''}`}
-            role="status"
-          >
-            <span>{translate("customer:checkoutPage_thoiGianThanhToan")}</span>
-            <strong>{createdOrder ? paymentCountdown.formatted : '--:--'}</strong>
-          </div>
-          <div className="summary-total">
-            <span>{translate("customer:checkoutPage_tongTamTinh")}</span>
-            <strong>{currency.format(displayedTotal)}</strong>
-          </div>
-          <button
-            className="button button-primary button-block"
-            type="submit"
-            disabled={paymentDisabled}
-          >
-            {creatingOrder
-              ? translate("customer:checkoutPage_dangTaoDon")
-              : processing
-                ? provider === 'MOCK'
-                  ? translate("customer:checkoutPage_dangHoanTatThanhToan")
-                  : translate("customer:checkoutPage_dangMo", { arg1: provider })
-                : paymentCountdown.isExpired
-                  ? translate("customer:checkoutPage_daHetThoiGianThanhToan_2")
-                  : provider ? translate("customer:checkoutPage_tiepTucVoi", { arg1: provider === 'MOCK' ? translate("customer:checkoutPage_thanhToanDemo_2") : provider }) : translate("customer:checkoutPage_chuaCoCongThanhToan")}
-          </button>
-          <p className="secure-note">{translate("customer:checkoutPage_kiemTraTongTienVaHoanTat")}</p>
           <BuyerInformationLinks />
         </aside>
       </form>
-    </div>
+    </section>
   );
 }

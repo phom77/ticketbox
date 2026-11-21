@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { CalendarDays, ChevronDown, MapPin, RefreshCw, Ticket as TicketIcon, X } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { ApiClientError, isRequestCanceled } from '../../api/client';
@@ -36,15 +36,17 @@ const issuedDate = dateFormatter({ dateStyle: 'medium', timeStyle: 'short' });
 
 export function MyTicketsPage() {
   const { user } = useAuth();
-  return <TicketWallet key={user?.id} />;
+  const [searchParams] = useSearchParams();
+  const preferredConcertId = searchParams.get('concertId');
+  return <TicketWallet key={JSON.stringify([user?.id, preferredConcertId])} preferredConcertId={preferredConcertId} />;
 }
 
-function TicketWallet() {
+function TicketWallet({ preferredConcertId }: { preferredConcertId: string | null }) {
   const { t } = useTranslation();
   const [tickets, setTickets] = useState<Ticket[] | null>(null);
   const [concerts, setConcerts] = useState(() => new Map<string, ConcertDetail>());
   const [filter, setFilter] = useState<TicketFilter>('all');
-  const [openConcertId, setOpenConcertId] = useState<string | null>(null);
+  const [openConcertId, setOpenConcertId] = useState(preferredConcertId);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -110,7 +112,7 @@ function TicketWallet() {
     return () => controller.abort();
   }, [reloadKey]);
 
-  const groups = useMemo(() => groupTickets(tickets ?? [], concerts), [tickets, concerts]);
+  const groups = useMemo(() => groupTickets(tickets ?? [], concerts, preferredConcertId), [tickets, concerts, preferredConcertId]);
   const selectedTicket = selectedId ? tickets?.find((ticket) => ticket.id === selectedId) : undefined;
 
   function reload() {
@@ -482,7 +484,7 @@ function concertTimestamp(concert?: ConcertDetail) {
   return Number.isFinite(timestamp) ? timestamp : null;
 }
 
-function groupTickets(tickets: Ticket[], concerts: Map<string, ConcertDetail>) {
+function groupTickets(tickets: Ticket[], concerts: Map<string, ConcertDetail>, preferredConcertId: string | null) {
   const groups = new Map<string, ConcertTicketGroup>();
   for (const ticket of tickets) {
     const current = groups.get(ticket.concertId);
@@ -501,6 +503,8 @@ function groupTickets(tickets: Ticket[], concerts: Map<string, ConcertDetail>) {
   }
 
   return [...groups.values()].sort((left, right) => {
+    if (left.id === preferredConcertId) return -1;
+    if (right.id === preferredConcertId) return 1;
     const leftUpcoming = upcoming(left);
     const rightUpcoming = upcoming(right);
     if (leftUpcoming !== rightUpcoming) return leftUpcoming - rightUpcoming;

@@ -1,154 +1,154 @@
-import { translate } from '../../i18n';
-import { useTranslation } from 'react-i18next';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { isRequestCanceled } from '../../api/client';
-import { getConcert } from '../../api/concerts';
-import { getOrder, getPaymentStatus, type Order } from '../../api/orders';
-import { PENDING_PAYMENT_STORAGE_KEY, type CheckoutEvent } from './CheckoutPage';
-import type { CheckoutSelection } from './SeatSelectionPage';
+import { getOrder, getPaymentStatus } from '../../api/orders';
+import { clearPendingPayment, orderWindowExpired, paymentNeedsReview, paymentStillVerifying } from '../../features/ticket/checkoutPayment';
+import { CheckoutStatusPanel } from './CheckoutDetails';
 
-function isOrderStillPayable(order: Order) {
-  return order.status === 'AWAITING_PAYMENT' && new Date(order.expiresAt).getTime() > Date.now();
-}
+const resultCopy = {
+  checking: {
+    title: 'customer:paymentResultPage_confirming',
+    body: 'customer:paymentResultPage_dangXacNhanThanhToanCuaBan',
+    canCheckOrder: true,
+  },
+  waiting: {
+    title: 'customer:paymentResultPage_confirming',
+    body: 'customer:paymentResultPage_daNhanKetQuaTuCongThanh',
+    canCheckOrder: true,
+  },
+  verifying: {
+    title: 'customer:paymentResultPage_confirming',
+    body: 'customer:paymentResultPage_congThanhToanChuaTraKetQua',
+    canCheckOrder: true,
+  },
+  expired: {
+    title: 'customer:bookingConfirmationPage_donHangDaHetHan',
+    body: 'customer:bookingConfirmationPage_kiemTraTrangThaiMoiNhatTrong',
+    canCheckOrder: false,
+  },
+  expiredPending: {
+    title: 'customer:paymentResultPage_deadlinePassed',
+    body: 'customer:paymentResultPage_expiredPending',
+    canCheckOrder: false,
+  },
+  closed: {
+    title: 'customer:paymentResultPage_orderClosed',
+    body: 'customer:bookingConfirmationPage_kiemTraTrangThaiMoiNhatTrong',
+    canCheckOrder: false,
+  },
+  review: {
+    title: 'customer:paymentResultPage_reviewHeading',
+    body: 'customer:paymentResultPage_reviewBody',
+    canCheckOrder: false,
+  },
+  unavailable: {
+    title: 'customer:paymentResultPage_unavailable',
+    body: 'customer:paymentResultPage_chuaTheXacNhanTrangThaiThanh',
+    canCheckOrder: true,
+  },
+  missing: {
+    title: 'customer:paymentResultPage_khongTheKhopThanhToanNayVoi',
+    body: 'customer:paymentResultPage_moLichSuDonHangDeKiem',
+    canCheckOrder: false,
+  },
+} as const;
+
+type Result = keyof typeof resultCopy;
 
 export function PaymentResultPage() {
-  useTranslation();
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
-  const [messageKey, setMessageKey] = useState('customer:paymentResultPage_dangXacNhanThanhToanCuaBan');
   const orderId = searchParams.get('orderId') ?? searchParams.get('vnp_TxnRef');
-  const awaitingSession = searchParams.get('pending') === 'true';
+  return <PaymentResult key={orderId} orderId={orderId} awaitingSession={searchParams.get('pending') === 'true'} />;
+}
+
+function PaymentResult({ orderId, awaitingSession }: { orderId: string | null; awaitingSession: boolean }) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const [result, setResult] = useState<Result>(orderId ? 'checking' : 'missing');
+  const [verifiedOrderId, setVerifiedOrderId] = useState<string>();
 
   useEffect(() => {
-    const activeOrderId = orderId ?? '';
-    if (!activeOrderId) return;
+    if (!orderId) return;
 
     const controller = new AbortController();
-    let active = true;
+    const { signal } = controller;
+    const checkout = `/checkout?orderId=${encodeURIComponent(orderId)}`;
 
-    function resumePayment(showFailure: boolean) {
-      const failureQuery = showFailure ? '&payment=failed' : '';
-      navigate(`/checkout?orderId=${encodeURIComponent(activeOrderId)}${failureQuery}`, { replace: true });
-    }
-
-    async function finish(order: Order, failed: boolean) {
-      try {
-        const concert = await getConcert(order.concertId, controller.signal);
-        if (!active) return;
-        const event: CheckoutEvent = {
-          id: concert.id,
-          title: concert.title,
-          translations: concert.translations,
-          venue: concert.venueName,
-          date: concert.eventDate,
-          image: concert.posterUrl,
-        };
-        const selection: CheckoutSelection[] = order.items.map((item) => ({
-          id: item.ticketTypeId,
-          name: item.ticketTypeName,
-          price: item.unitPrice,
-          quantity: item.quantity,
-        }));
-        sessionStorage.removeItem(PENDING_PAYMENT_STORAGE_KEY);
-        navigate(`/booking-confirmation${failed ? '?status=failed' : ''}`, {
-          replace: true,
-          state: { event, selection, order },
-        });
-      } catch (requestError) {
-        if (active && !isRequestCanceled(requestError)) {
-          navigate('/profile?tab=orders', { replace: true });
-        }
-      }
-    }
-
-    async function confirmPayment() {
-      for (let attempt = 0; attempt < 15 && active; attempt += 1) {
+    async function confirmPayment(id: string) {
+      for (let attempt = 0; attempt < 15 && !signal.aborted; attempt += 1) {
         try {
-          const [order, payment] = await Promise.all([
-            getOrder(activeOrderId, controller.signal), getPaymentStatus(activeOrderId, controller.signal),
-          ]);
-          if (!active) return;
+          const paymentRequest = getPaymentStatus(id, signal).catch(() => null);
+          const order = await getOrder(id, signal);
+          if (signal.aborted) return;
+          setVerifiedOrderId(order.id);
 
-          // The browser return locates the order. Settlement uses the server's verified state.
+          // The provider's browser return identifies the order. Only the order API confirms it was paid.
           if (order.status === 'PAID') {
-            await finish(order, false);
+            clearPendingPayment(order.id);
+            navigate('/booking-confirmation', { replace: true, state: { orderId: order.id } });
             return;
           }
 
-          if (payment.attemptState === 'RECONCILIATION_REQUIRED' || payment.attemptState === 'REVIEW_REQUIRED') {
-            setMessageKey('customer:paymentResultPage_reconciliationRequired');
+          const expired = orderWindowExpired(order);
+          const payment = await paymentRequest;
+          if (signal.aborted) return;
+          if (!payment) {
+            setResult(expired ? 'expiredPending' : 'unavailable');
+            return;
+          }
+          const verifying = paymentStillVerifying(payment.attemptState);
+          if (expired) {
+            if (!verifying) clearPendingPayment(order.id);
+            setResult(verifying ? 'expiredPending' : 'expired');
+            return;
+          }
+          if (paymentNeedsReview(payment.attemptState)) {
+            setResult('review');
+            return;
+          }
+          if (order.status !== 'AWAITING_PAYMENT') {
+            if (!verifying) clearPendingPayment(order.id);
+            setResult(verifying ? 'review' : 'closed');
+            return;
+          }
+          if (payment.attemptState === 'FAILED') {
+            navigate(`${checkout}&payment=failed`, { replace: true });
             return;
           }
           if (awaitingSession && (payment.attemptState === 'CREATED' || (payment.attemptState === 'READY' && payment.paymentUrl))) {
-            resumePayment(false);
-            return;
-          }
-          if (!isOrderStillPayable(order) &&
-              (payment.attemptState === 'UNKNOWN' || payment.attemptState === 'PROCESSING')) {
-            setMessageKey("customer:paymentResultPage_donDaHetThoiGianGiuVe");
-            return;
-          }
-          if (!isOrderStillPayable(order)) {
-            await finish(order, true);
+            navigate(checkout, { replace: true });
             return;
           }
 
-          if (payment.attemptState === 'FAILED') {
-            resumePayment(true);
-            return;
-          }
-
-          setMessageKey(payment.attemptState === 'UNKNOWN' || payment.attemptState === 'PROCESSING'
-            ? 'customer:paymentResultPage_congThanhToanChuaTraKetQua'
-            : 'customer:paymentResultPage_daNhanKetQuaTuCongThanh');
+          setResult(verifying ? 'verifying' : 'waiting');
           await new Promise((resolve) => window.setTimeout(resolve, 2_000));
-        } catch (requestError) {
-          if (active && !isRequestCanceled(requestError)) {
-            setMessageKey("customer:paymentResultPage_chuaTheXacNhanTrangThaiThanh");
-          }
+        } catch (error) {
+          if (!signal.aborted && !isRequestCanceled(error)) setResult('unavailable');
           return;
         }
       }
 
-      if (active) {
-        // The provider may still deliver its webhook later. Keep the order resumable
-        // instead of treating a slow callback as a failed purchase.
-        resumePayment(false);
-      }
+      if (!signal.aborted) setResult('unavailable');
     }
 
-    void confirmPayment();
-    return () => {
-      active = false;
-      controller.abort();
-    };
+    void confirmPayment(orderId);
+    return () => controller.abort();
   }, [navigate, orderId, awaitingSession]);
 
-  if (!orderId) {
-    return (
-      <section className="confirmation-page page-width">
-        <div className="confirmation-mark failed">!</div>
-        <p className="eyebrow"><span /> {translate("customer:paymentResultPage_khongCoKetQuaThanhToan")}</p>
-        <h1>{translate("customer:paymentResultPage_khongTheKhopThanhToanNayVoi")}</h1>
-        <p>{translate("customer:paymentResultPage_moLichSuDonHangDeKiem")}</p>
-        <Link className="button button-primary" to="/profile?tab=orders">{translate("customer:paymentResultPage_xemDonHang")}</Link>
-      </section>
-    );
-  }
-
+  const copy = resultCopy[result];
+  const checkOrderPath = orderId ? '/checkout?orderId=' + encodeURIComponent(orderId) : null;
+  const canCheckOrder = copy.canCheckOrder && checkOrderPath && verifiedOrderId;
   return (
-    <section className="confirmation-page page-width" aria-live="polite">
-      <div className="payment-result-spinner" aria-hidden="true" />
-      <p className="eyebrow"><span /> {translate("customer:paymentResultPage_dangXuLyThanhToan")}</p>
-      <h1>{translate("customer:paymentResultPage_vuiLongChoChungToiDangXac")}</h1>
-      <p>{translate(messageKey, { orderId })}</p>
-      <div className="confirmation-actions">
-        <Link className="text-link" to={`/checkout?orderId=${encodeURIComponent(orderId)}`}>
-          {translate("customer:paymentResultPage_quayLaiDonThanhToan")}
+    <CheckoutStatusPanel announce title={t(copy.title)} body={t(copy.body)} orderId={verifiedOrderId}>
+      <div className="purchase-status-actions">
+        {canCheckOrder && (
+          <Link className="button button-primary" to={checkOrderPath}>{t('customer:paymentResultPage_quayLaiDonThanhToan')}</Link>
+        )}
+        <Link className={canCheckOrder ? 'button button-secondary' : 'button button-primary'} to="/profile?tab=orders">
+          {t('customer:paymentResultPage_xemLichSuDonHang')}
         </Link>
-        <Link className="text-link" to="/profile?tab=orders">{translate("customer:paymentResultPage_xemLichSuDonHang")}</Link>
       </div>
-    </section>
+    </CheckoutStatusPanel>
   );
 }

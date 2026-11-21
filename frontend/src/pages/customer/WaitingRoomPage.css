@@ -1,0 +1,34 @@
+.waiting-purchase-page { max-inline-size: 48rem; }
+
+.waiting-purchase-panel {
+  display: grid;
+  justify-items: start;
+  gap: .75rem;
+}
+
+.waiting-purchase-panel :is(h2, p, dl, dd) { margin: 0; }
+
+.waiting-opening-countdown strong {
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.waiting-queue-position {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: .375rem .75rem;
+}
+
+.waiting-queue-position dt { color: var(--muted); }
+.waiting-queue-position dd { font-size: 1.375rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+.waiting-purchase-feedback {
+  inline-size: 100%;
+  padding: .625rem .75rem;
+  border-radius: .5rem;
+  background: var(--surface-2);
+}
+
+.waiting-purchase-help { color: var(--muted); }
+.waiting-leave-action { margin-block-start: .875rem; }

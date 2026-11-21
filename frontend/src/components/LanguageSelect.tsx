@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { currentLanguage, languages, selectLanguage, type Language } from '../i18n';
 
-export function LanguageSelect() {
+export function LanguageSelect({ compact = false }: { compact?: boolean } = {}) {
   const { t } = useTranslation();
   return (
     <select
@@ -12,7 +12,9 @@ export function LanguageSelect() {
       onChange={(event) => void selectLanguage(event.currentTarget.value as Language)}
     >
       {languages.map(({ code, name }) => (
-        <option key={code} value={code} lang={code}>{name}</option>
+        <option key={code} value={code} lang={code} aria-label={compact ? name : undefined}>
+          {compact ? code.toUpperCase() : name}
+        </option>
       ))}
     </select>
   );
