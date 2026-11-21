@@ -37,6 +37,12 @@ import org.ticketbox.ticketing.order.domain.Order;
 import org.ticketbox.ticketing.order.domain.OrderItem;
 import org.ticketbox.ticketing.queue.application.port.QueueAccessPort;
 
+import org.ticketbox.ticketing.order.domain.Money;
+import org.ticketbox.ticketing.performance.application.PerformanceHolds;
+import org.ticketbox.ticketing.performance.application.port.PerformanceStock;
+import org.ticketbox.ticketing.performance.application.port.PerformanceStock.Allocation;
+import org.ticketbox.ticketing.performance.application.port.PerformanceStock.Scope;
+
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.*;
@@ -52,7 +58,10 @@ public class OrderService {
     private final PurchaseLock purchaseGuard;
     private final OrderEventRepository orderEvents;
     private final ConcertOrderPort concertOrderPort;
+    private final org.ticketbox.ticketing.performance.application.port.PerformanceCatalog performanceCatalog;
     private final org.ticketbox.ticketing.inventory.application.port.InventoryPort inventory;
+    private final PerformanceHolds performanceHolds;
+    private final PerformanceStock performanceStock;
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final OrderMapper orderMapper;
@@ -92,6 +101,79 @@ public class OrderService {
         }
     }
 
+    @Transactional
+    public OrderResponse createPerformanceOrder(UUID performanceId, UUID userId, long holdVersion,
+                                                String idempotencyKey, String queueAccessToken) {
+        if (idempotencyKey == null || idempotencyKey.isBlank() || idempotencyKey.trim().length() > 128) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "error.idempotency-key.invalid");
+        }
+        String key = idempotencyKey.trim();
+        var existing = orderRepository.findByUserIdAndIdempotencyKey(userId, key);
+        if (existing.isPresent()) return recoverPerformanceOrder(existing.get(), performanceId, holdVersion, key);
+
+        OrderIdempotency.IdempotencyClaim claim;
+        try {
+            claim = idempotencyService.claimOrder(userId, key);
+        } catch (DuplicateIdempotencyKeyException duplicate) {
+            return orderRepository.findByUserIdAndIdempotencyKey(userId, key)
+                    .map(order -> recoverPerformanceOrder(order, performanceId, holdVersion, key))
+                    .orElseThrow(() -> duplicate);
+        }
+        try {
+            existing = orderRepository.findByUserIdAndIdempotencyKey(userId, key);
+            if (existing.isPresent()) {
+                idempotencyService.completeAfterCommit(claim, existing.get().getId());
+                return recoverPerformanceOrder(existing.get(), performanceId, holdVersion, key);
+            }
+            return createPerformanceOrderInsideClaim(
+                    new Scope(performanceId, userId), holdVersion, queueAccessToken, claim);
+        } catch (RuntimeException failure) {
+            idempotencyService.release(claim);
+            throw failure;
+        }
+    }
+
+    private OrderResponse recoverPerformanceOrder(Order order, UUID performanceId, long holdVersion, String key) {
+        if (!performanceId.equals(order.getPerformanceId()) || !Objects.equals(order.getPerformanceHoldVersion(), holdVersion)) {
+            throw new DuplicateIdempotencyKeyException(key);
+        }
+        return toOrderResponse(order);
+    }
+
+    private OrderResponse createPerformanceOrderInsideClaim(
+            Scope scope, long holdVersion, String token, OrderIdempotency.IdempotencyClaim claim) {
+        var checkout = performanceHolds.lockForCheckout(scope, token, holdVersion);
+        var sale = checkout.sale();
+        var lines = checkout.hold().items().stream()
+                .map(line -> OrderItem.pricedPerformance(line.offerId(), line.groupId(), line.seatId(),
+                        line.quantity(), line.unitPrice(), line.offerName(), line.sectionLabel(),
+                        line.rowLabel(), line.seatLabel())).toList();
+        var total = lines.stream().map(OrderItem::getSubtotal).reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (total.compareTo(BigDecimal.valueOf(999_999_999_999L)) > 0) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "error.performance.total-too-large");
+        }
+        var order = Order.awaitingPayment(scope.userId(), scope.performanceId(), new Money(total),
+                claim.clientKey(), checkout.now().plusMinutes(15));
+        order.snapshotPerformance(sale.eventId(), sale.title(), sale.venueName(), sale.startsAt(), holdVersion);
+        var saved = orderRepository.save(order);
+        saved.addItems(lines);
+        orderRepository.save(saved);
+        orderEvents.created(saved.getId());
+
+        var persistedLines = orderItemRepository.findByOrderId(saved.getId());
+        var itemIdsBySeat = persistedLines.stream().filter(item -> item.getSeatId() != null)
+                .collect(Collectors.toMap(OrderItem::getSeatId, OrderItem::getId));
+        var allocations = checkout.hold().items().stream()
+                .map(line -> new Allocation(line, line.seatId() == null ? null
+                        : java.util.Objects.requireNonNull(itemIdsBySeat.get(line.seatId()))))
+                .toList();
+        performanceHolds.allocate(scope, checkout.hold(), allocations);
+        idempotencyService.completeAfterCommit(claim, saved.getId());
+        releaseQueueSlotAfterCommit(scope.performanceId(), scope.userId(), token);
+        return orderMapper.toResponse(saved, persistedLines.stream()
+                .map(line -> orderMapper.toItemResponse(line, line.getOfferName())).toList(), sale.title());
+    }
+
     private OrderResponse createOrderInsideClaim(
             CreateOrderRequest request,
             UUID userId,
@@ -106,7 +188,8 @@ public class OrderService {
 
         releaseUserLockAfterTransaction(lockKey, lockToken);
 
-        if (concertOrderPort.lockAndCheckSalesSuspended(request.concertId())) {
+        if (performanceCatalog.usesPerformanceStock(request.concertId())
+                || concertOrderPort.lockAndCheckSalesSuspended(request.concertId())) {
             throw new AppException(ErrorCode.CONCERT_NOT_ON_SALE, "error.concert-not-on-sale");
         }
         ConcertView concert =
@@ -384,36 +467,7 @@ public class OrderService {
                                                 ErrorCode.ORDER_NOT_FOUND,
                                                 "error.order-not-found"));
 
-        List<OrderItem> items = orderItemRepository.findByOrderId(order.getId());
-
-        ConcertView concert =
-                concertOrderPort
-                        .findConcertById(order.getConcertId())
-                        .orElseThrow(
-                                () ->
-                                        new AppException(
-                                                ErrorCode.CONCERT_NOT_FOUND,
-                                                "error.concert-not-found"));
-
-        List<UUID> ticketTypeIds = items.stream().map(OrderItem::getTicketTypeId).toList();
-        List<TicketTypeView> ticketTypes = concertOrderPort.findTicketTypesByIds(ticketTypeIds);
-        Map<UUID, String> ticketTypeNames =
-                ticketTypes.stream()
-                        .collect(Collectors.toMap(TicketTypeView::id, TicketTypeView::name));
-
-        List<OrderItemResponse> itemResponses =
-                items.stream()
-                        .map(
-                                item -> {
-                                    String typeName =
-                                            ticketTypeNames.getOrDefault(
-                                                    item.getTicketTypeId(),
-                                                    fallbackNames.unknownTicketType());
-                                    return orderMapper.toItemResponse(item, typeName);
-                                })
-                        .toList();
-
-        return orderMapper.toResponse(order, itemResponses, concert.title());
+        return toOrderResponse(order);
     }
 
     // ---- Admin / Organizer ----
@@ -521,34 +575,7 @@ public class OrderService {
                                                 ErrorCode.ORDER_NOT_FOUND,
                                                 "error.order-not-found"));
 
-        List<OrderItem> items = orderItemRepository.findByOrderId(order.getId());
-
-        ConcertView concert =
-                concertOrderPort
-                        .findConcertById(order.getConcertId())
-                        .orElseThrow(
-                                () ->
-                                        new AppException(
-                                                ErrorCode.CONCERT_NOT_FOUND,
-                                                "error.concert-not-found"));
-
-        List<UUID> ticketTypeIds = items.stream().map(OrderItem::getTicketTypeId).toList();
-        Map<UUID, String> ticketTypeNames =
-                concertOrderPort.findTicketTypesByIds(ticketTypeIds).stream()
-                        .collect(Collectors.toMap(TicketTypeView::id, TicketTypeView::name));
-
-        List<OrderItemResponse> itemResponses =
-                items.stream()
-                        .map(
-                                item ->
-                                        orderMapper.toItemResponse(
-                                                item,
-                                                ticketTypeNames.getOrDefault(
-                                                        item.getTicketTypeId(),
-                                                        fallbackNames.unknownTicketType())))
-                        .toList();
-
-        return orderMapper.toResponse(order, itemResponses, concert.title());
+        return toOrderResponse(order);
     }
 
     public OrderResponse getManagedOrderDetail(UUID orderId, UUID requesterId, boolean admin) {
@@ -568,6 +595,11 @@ public class OrderService {
 
     private OrderResponse toOrderResponse(Order order) {
         List<OrderItem> items = orderItemRepository.findByOrderId(order.getId());
+        if (order.getPerformanceId() != null) {
+            return orderMapper.toResponse(order, items.stream()
+                    .map(item -> orderMapper.toItemResponse(item, item.getOfferName())).toList(),
+                    order.getPerformanceTitle());
+        }
 
         ConcertView concert =
                 concertOrderPort
@@ -656,9 +688,7 @@ public class OrderService {
                 orderItemRepository.findByOrderId(orderId).stream()
                         .sorted(Comparator.comparing(OrderItem::getTicketTypeId))
                         .toList();
-        for (OrderItem item : items) {
-            inventory.release(item.getTicketTypeId(), item.getQuantity());
-        }
+        releasePendingAllocations(order, items);
 
         order.cancel();
         orderEvents.record(order, version, OrderCancelled);
@@ -700,6 +730,23 @@ public class OrderService {
         return orderMapper.toResponse(order, itemResponses, concert.title());
     }
 
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+    public void releasePendingAllocations(Order order, List<OrderItem> items) {
+        if (order.getPerformanceId() == null) {
+            for (OrderItem item : items.stream().sorted(Comparator.comparing(OrderItem::getTicketTypeId)).toList()) {
+                inventory.release(item.getTicketTypeId(), item.getQuantity());
+            }
+            return;
+        }
+        // Holds and allocation always write GA pools first, then seats, in UUID order.
+        var byResource = Comparator.comparing((OrderItem item) -> item.getSeatId() != null)
+                .thenComparing(item -> item.getSeatId() == null ? item.getGroupId() : item.getSeatId());
+        for (OrderItem item : items.stream().sorted(byResource).toList()) {
+            performanceStock.releaseAllocation(order.getPerformanceId(), item.getGroupId(), item.getSeatId(),
+                    item.getQuantity(), item.getId());
+        }
+    }
+
     @Transactional
     public boolean expireOrderIfDue(UUID orderId) {
         Order order = orderRepository.findByIdForUpdate(orderId).orElse(null);
@@ -708,12 +755,7 @@ public class OrderService {
         if (order.getStatus() != Order.Status.AWAITING_PAYMENT
                 || order.getExpiresAt().isAfter(OffsetDateTime.now())) return false;
         purchaseGuard.lock(order.getUserId(), order.getConcertId());
-        for (OrderItem item :
-                orderItemRepository.findByOrderId(orderId).stream()
-                        .sorted(Comparator.comparing(OrderItem::getTicketTypeId))
-                        .toList()) {
-            inventory.release(item.getTicketTypeId(), item.getQuantity());
-        }
+        releasePendingAllocations(order, orderItemRepository.findByOrderId(orderId));
         order.expire(OffsetDateTime.now());
         orderEvents.record(order, version, OrderExpired);
         orderRepository.save(order);
@@ -743,12 +785,7 @@ public class OrderService {
         OffsetDateTime decisionTime = OffsetDateTime.now();
         if (!order.getExpiresAt().isAfter(decisionTime)) {
             purchaseGuard.lock(order.getUserId(), order.getConcertId());
-            for (OrderItem item :
-                    orderItemRepository.findByOrderId(orderId).stream()
-                            .sorted(Comparator.comparing(OrderItem::getTicketTypeId))
-                            .toList()) {
-                inventory.release(item.getTicketTypeId(), item.getQuantity());
-            }
+            releasePendingAllocations(order, orderItemRepository.findByOrderId(orderId));
             order.expire(OffsetDateTime.now());
             orderEvents.record(order, version, OrderExpired);
             orderRepository.save(order);

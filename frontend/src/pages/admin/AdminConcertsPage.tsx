@@ -1,3 +1,4 @@
+import { WorkspaceSelect } from '../../components/WorkspaceSelect';
 import { dateFormatter } from '../../data/formatters';
 import { translate } from '../../i18n';
 import { useTranslation } from 'react-i18next';
@@ -364,19 +365,11 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
         </label>
         <label>
           <span className="sr-only">{translate("admin:adminConcertsPage_locTheoTrangThai")}</span>
-          <select
-            value={status}
-            onChange={(event) => {
-              setStatus(event.target.value as '' | ConcertStatus);
+          <WorkspaceSelect label={translate('admin:adminConcertsPage_locTheoTrangThai')} value={status}
+            options={statuses} onChange={(value) => {
+              setStatus(value as '' | ConcertStatus);
               setPage(0);
-            }}
-          >
-            {statuses.map((item) => (
-              <option key={item.value || 'all'} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </select>
+            }} />
         </label>
         <button type="button" onClick={() => void loadConcerts()} disabled={loading}>
           <RefreshCw aria-hidden="true" size={16} />

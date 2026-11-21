@@ -26,11 +26,13 @@ CHECKIN_BASE = "http://localhost:" + CHECKIN_PORT
 PROOF = {"passed": False, "checks": []}
 LOCAL_ACCEPTANCE = os.environ.get("TICKETBOX_LOCAL_ACCEPTANCE") == "1"
 REPORT_DIRECTORY = ROOT / os.environ.get("E2E_REPORT_DIRECTORY", ".artifacts/e2e")
+COMPOSE_OVERRIDE = os.environ.get("E2E_COMPOSE_OVERRIDE")
+COMPOSE_FILES = ["-f", str(ROOT / "compose.yaml")] + (["-f", COMPOSE_OVERRIDE] if COMPOSE_OVERRIDE else [])
 
 
 def compose(*args):
     return subprocess.check_output(
-        ["docker", "compose", "-p", PROJECT, "-f", str(ROOT / "compose.yaml"), *args],
+        ["docker", "compose", "-p", PROJECT, *COMPOSE_FILES, *args],
         cwd=ROOT, text=True, env={**os.environ, "APP_PORT": PORT,
             "APP_PUBLIC_URL": BASE, "APP_ALLOWED_ORIGINS": BASE,
             "CHECKIN_PORT": CHECKIN_PORT},

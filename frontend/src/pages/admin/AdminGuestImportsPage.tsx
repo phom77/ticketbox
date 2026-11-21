@@ -1,3 +1,4 @@
+import { WorkspaceSelect } from '../../components/WorkspaceSelect';
 import { dateFormatter } from '../../data/formatters';
 import { translate } from '../../i18n';
 import { useTranslation } from 'react-i18next';
@@ -489,43 +490,21 @@ export function AdminGuestImportsPage({
         <div className="guest-log-filters">
           <label>
             <span>{translate('event')}</span>
-            <select
-              value={concertFilter}
-              onChange={(event) => updateFilters({ concertId: event.target.value })}
-            >
-              <option value="">{translate("admin:adminGuestImportsPage_tatCaConcert")}</option>
-              {concerts.map((concert) => (
-                <option key={concert.id} value={concert.id}>
-                  {concert.title}
-                </option>
-              ))}
-            </select>
+            <WorkspaceSelect label={translate('event')} value={concertFilter}
+              onChange={(concertId) => updateFilters({ concertId })} options={[
+                { value: '', label: translate('admin:adminGuestImportsPage_tatCaConcert') },
+                ...concerts.map(({ id, title }) => ({ value: id, label: title })),
+              ]} />
           </label>
           <label>
             <span>{translate("admin:adminGuestImportsPage_trangThai")}</span>
-            <select
-              value={statusFilter}
-              onChange={(event) => updateFilters({ status: event.target.value })}
-            >
-              {statuses.map((item) => (
-                <option key={item.value || 'all'} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
+            <WorkspaceSelect label={translate('admin:adminGuestImportsPage_trangThai')} value={statusFilter}
+              options={statuses} onChange={(status) => updateFilters({ status })} />
           </label>
           <label>
             <span>{translate("admin:adminGuestImportsPage_nguon")}</span>
-            <select
-              value={sourceFilter}
-              onChange={(event) => updateFilters({ source: event.target.value })}
-            >
-              {sources.map((item) => (
-                <option key={item.value || 'all'} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
+            <WorkspaceSelect label={translate('admin:adminGuestImportsPage_nguon')} value={sourceFilter}
+              options={sources} onChange={(source) => updateFilters({ source })} />
           </label>
           <button
             type="button"

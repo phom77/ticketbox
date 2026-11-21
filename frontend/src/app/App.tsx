@@ -1,3 +1,8 @@
+import { PerformanceOperationsPage } from '../pages/admin/PerformanceOperationsPage';
+import { NewPerformanceEventPage, PerformanceEventAccess, PerformanceEventPage, PerformanceEventsPage } from '../pages/organizer/PerformanceEventsPage';
+import { EventPage, EventsPage } from '../pages/public/EventsPage';
+import { PerformanceSelectionPage } from '../pages/customer/PerformanceSelectionPage';
+import '../pages/public/Performances.css';
 import { translate } from '../i18n';
 import { useTranslation } from 'react-i18next';
 import { ReconciliationPage } from '../pages/organizer/ReconciliationPage';
@@ -52,6 +57,10 @@ export function App() {
           <Routes>
             <Route element={<PublicLayout />}>
               <Route path="/" element={cataloguePage(<HomePage />)} />
+              <Route path="/events" element={cataloguePage(<EventsPage />)} />
+              <Route path="/events/:eventId" element={cataloguePage(<EventPage />)} />
+              <Route path="/events/:eventId/performances/:id/waiting-room" element={audiencePage(<WaitingRoomPage />)} />
+              <Route path="/events/:eventId/performances/:id/seats" element={audiencePage(<PerformanceSelectionPage />)} />
               <Route path="/concerts/:id" element={<ConcertDetailPage />} />
               <Route path="/concerts/:id/waiting-room" element={audiencePage(<WaitingRoomPage />)} />
               <Route path="/concerts/:id/seats" element={audiencePage(<SeatSelectionPage />)} />
@@ -75,6 +84,7 @@ export function App() {
               }
             >
               <Route index element={<AdminOverviewPage />} />
+              <Route path="performance-operations" element={<PerformanceOperationsPage />} />
               <Route path="concerts" element={<AdminConcertsPage />} />
               <Route path="concerts/:id" element={<ConcertWorkspacePage />} />
               <Route path="artist-bio" element={<AdminArtistBioPage />} />
@@ -98,6 +108,9 @@ export function App() {
               }
             >
               <Route index element={<OrganizerOverviewPage />} />
+              <Route path="events" element={<PerformanceEventAccess><PerformanceEventsPage /></PerformanceEventAccess>} />
+              <Route path="events/new" element={<PerformanceEventAccess><NewPerformanceEventPage /></PerformanceEventAccess>} />
+              <Route path="events/:eventId" element={<PerformanceEventAccess><PerformanceEventPage /></PerformanceEventAccess>} />
               <Route path="concerts" element={<RequireOrganizationGrant grant="EVENTS"><AdminConcertsPage apiScope="organizer" /></RequireOrganizationGrant>} />
               <Route path="concerts/:id/preview" element={<RequireOrganizationGrant grant="EVENTS"><ConcertDetailPage preview /></RequireOrganizationGrant>} />
               <Route path="concerts/:id" element={<RequireOrganizationGrant grant="EVENTS"><ConcertWorkspacePage apiScope="organizer" /></RequireOrganizationGrant>} />

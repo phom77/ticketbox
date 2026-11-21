@@ -13,7 +13,7 @@ import { currency, eventDate } from '../../data/formatters';
 import { useTicketAvailability } from '../../features/concert/useTicketAvailability';
 import { useCountdown } from '../../hooks/useCountdown';
 
-export type CheckoutSelection = Pick<TicketType, 'id' | 'name' | 'price'> & { quantity: number };
+export type CheckoutSelection = Pick<TicketType, 'id' | 'name' | 'price'> & { quantity: number; sectionLabel?: string | null; rowLabel?: string | null; seatLabel?: string | null };
 
 type ZoneLoadingAction = 'reserve' | 'release';
 

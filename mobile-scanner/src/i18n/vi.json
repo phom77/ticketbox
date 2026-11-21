@@ -151,6 +151,7 @@
   "deviceIdMissing": "Thiết bị chưa có mã định danh để check-in online.",
   "admitStorageWarning": "Check-in đã xác nhận. Thiết bị chưa lưu được lượt này vào lịch sử.",
   "hiddenQr": "QR đã ẩn",
+  "draft": "Bản nháp",
   "onSale": "Đang mở bán",
   "soldOut": "Hết vé",
   "completed": "Đã kết thúc",

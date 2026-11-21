@@ -15,12 +15,21 @@ export type OrderItem = {
   quantity: number;
   unitPrice: number;
   subtotal: number;
+  seatId?: string | null;
+  sectionLabel?: string | null;
+  rowLabel?: string | null;
+  seatLabel?: string | null;
 };
 
 export type Order = {
   id: string;
   concertId: string;
   concertTitle: string;
+  performanceId?: string | null;
+  eventId?: string | null;
+  performanceTitle?: string | null;
+  performanceVenueName?: string | null;
+  performanceStartsAt?: string | null;
   status: OrderStatus;
   totalAmount: number;
   paymentUrl: string | null;

@@ -29,10 +29,12 @@ import org.ticketbox.checkin.application.error.ErrorCode;
 import org.ticketbox.checkin.application.port.catalog.CheckinConcertView;
 
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.IntStream;
 
 @Service
 @RequiredArgsConstructor
@@ -102,14 +104,14 @@ public class CheckinService {
                                         ticket.qrCode(),
                                         ticket.status(),
                                         ticket.issuedAt(),
-                                        ticket.usedAt()));
+                                        ticket.usedAt(), ticket.sectionLabel(), ticket.rowLabel(), ticket.seatLabel()));
     }
 
     @Transactional
     public ScanTicketResponse scan(ScanTicketRequest request, UUID staffId) {
         OffsetDateTime now = OffsetDateTime.now();
 
-        TicketView ticket = ticketCheckinPort.findByQrCode(request.qrCode()).orElse(null);
+        TicketView ticket = ticketCheckinPort.findByQrCode(request.qrCode(), request.concertId()).orElse(null);
         if (ticket == null) {
             return new ScanTicketResponse(
                     null, request.concertId(), "FAILED", "checkin.qr-invalid", now);
@@ -125,7 +127,7 @@ public class CheckinService {
 
         // Atomic UPDATE: sets status = USED only if current status = VALID.
         // Handles concurrent scans correctly — only one will get rowsAffected = 1.
-        boolean marked = ticketCheckinPort.markAsUsedIfValid(ticket.id(), now);
+        boolean marked = ticketCheckinPort.markAsUsedIfValid(ticket.id(), request.concertId(), now);
         if (!marked) {
             return new ScanTicketResponse(
                     ticket.id(), ticket.concertId(), "FAILED", "checkin.ticket-invalid", now);
@@ -189,24 +191,27 @@ public class CheckinService {
 
     @Transactional
     public SyncCheckinResponse syncOfflineLogs(SyncCheckinRequest request, UUID staffId) {
-        List<SyncResultEntry> results = new ArrayList<>();
+        var logs = request.logs();
+        var results = new SyncResultEntry[logs.size()];
+        // Lock tickets in the same order even when scanners upload different sequences.
+        var ordered = IntStream.range(0, logs.size()).boxed()
+                .sorted(Comparator.comparing(index -> logs.get(index).qrCode())).toList();
         int accepted = 0;
         int skipped = 0;
         int invalid = 0;
 
-        for (SyncCheckinRequest.OfflineLogEntry entry : request.logs()) {
+        for (int index : ordered) {
+            var entry = logs.get(index);
 
-            TicketView ticket = ticketCheckinPort.findByQrCode(entry.qrCode()).orElse(null);
+            TicketView ticket = ticketCheckinPort.findByQrCode(entry.qrCode(), request.concertId()).orElse(null);
             if (ticket == null) {
-                results.add(new SyncResultEntry(entry.qrCode(), "INVALID", "checkin.qr-not-found"));
+                results[index] = new SyncResultEntry(entry.qrCode(), "INVALID", "checkin.qr-not-found");
                 invalid++;
                 continue;
             }
 
             if (!qrJwtService.verify(entry.qrCode(), ticket.qrSecret())) {
-                results.add(
-                        new SyncResultEntry(
-                                entry.qrCode(), "INVALID", "checkin.qr-signature-invalid"));
+                results[index] = new SyncResultEntry(entry.qrCode(), "INVALID", "checkin.qr-signature-invalid");
                 invalid++;
                 continue;
             }
@@ -216,25 +221,21 @@ public class CheckinService {
                                 ticket.id(), ticket.concertId())
                         .requireConcert(request.concertId());
             } catch (org.ticketbox.checkin.domain.DomainViolation failure) {
-                results.add(
-                        new SyncResultEntry(entry.qrCode(), "INVALID", "checkin.wrong-concert"));
+                results[index] = new SyncResultEntry(entry.qrCode(), "INVALID", "checkin.wrong-concert");
                 invalid++;
                 continue;
             }
 
             if ("CANCELLED".equals(ticket.status()) || "TRANSFERRED".equals(ticket.status())) {
-                results.add(
-                        new SyncResultEntry(
-                                entry.qrCode(),
-                                "INVALID",
-                                "checkin.ticket-cancelled-or-transferred"));
+                results[index] = new SyncResultEntry(
+                        entry.qrCode(), "INVALID", "checkin.ticket-cancelled-or-transferred");
                 invalid++;
                 continue;
             }
 
             SyncResultEntry result =
                     checkinSyncHelper.syncSingleEntry(entry, ticket, staffId, request.deviceId());
-            results.add(result);
+            results[index] = result;
 
             switch (result.result()) {
                 case "ACCEPTED" -> accepted++;
@@ -243,7 +244,7 @@ public class CheckinService {
             }
         }
 
-        return new SyncCheckinResponse(request.logs().size(), accepted, skipped, invalid, results);
+        return new SyncCheckinResponse(logs.size(), accepted, skipped, invalid, Arrays.asList(results));
     }
 
     private CheckinConcertView getConcert(UUID concertId) {

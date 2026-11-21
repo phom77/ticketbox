@@ -105,19 +105,19 @@ function ScannerApp() {
     let mounted = true;
     async function restore() {
       try {
-        const [token, user, restoredDeviceId, cachedConcerts, selectedId, savedGate] =
-          await Promise.all([
-            getAccessToken(),
-            getStaffUser(),
-            getOrCreateDeviceId(),
-            listCachedConcerts(),
-            getMetadata(SELECTED_CONCERT_KEY),
-            getMetadata(SELECTED_GATE_KEY),
-          ]);
+        const [token, user, restoredDeviceId] = await Promise.all([
+          getAccessToken(), getStaffUser(), getOrCreateDeviceId(),
+        ]);
         if (!mounted) return;
         setDeviceId(restoredDeviceId);
-        setConcerts(cachedConcerts);
         if (token && user?.role === 'STAFF') {
+          const [cachedConcerts, selectedId, savedGate] = await Promise.all([
+            listCachedConcerts(user.id),
+            getMetadata(user.id, SELECTED_CONCERT_KEY),
+            getMetadata(user.id, SELECTED_GATE_KEY),
+          ]);
+          if (!mounted) return;
+          setConcerts(cachedConcerts);
           setSession({ accessToken: token, user });
           const restoredConcert = cachedConcerts.find((concert) => concert.id === selectedId);
           if (restoredConcert) {
@@ -193,19 +193,22 @@ function ScannerApp() {
     setIsLoadingConcerts(true);
     setConcertError(null);
     try {
-      const cached = await listCachedConcerts();
+      const cached = await listCachedConcerts(session.user.id);
       if (request !== concertLoad.current) return;
       if (cached.length) {
         setConcerts(cached);
         await loadDatasetInfo(cached, request);
       }
       if (isOnline) {
-        const page = await getStaffConcerts(session.accessToken);
+        const shows = await getStaffConcerts(session.accessToken);
         if (request !== concertLoad.current) return;
-        await cacheStaffConcerts(page.content);
+        await cacheStaffConcerts(session.user.id, shows);
         if (request !== concertLoad.current) return;
-        setConcerts(page.content);
-        await loadDatasetInfo(page.content, request);
+        setConcerts(shows);
+        setSelectedConcert((current) => current
+          ? shows.find((show) => show.id === current.id && show.organizationId === current.organizationId) ?? null
+          : null);
+        await loadDatasetInfo(shows, request);
       }
     } catch (error) {
       if (request === concertLoad.current) setConcertError(toErrorKey(error));
@@ -215,8 +218,9 @@ function ScannerApp() {
   }
 
   async function loadDatasetInfo(items: StaffConcert[], request: number) {
+    if (!session) return;
     const entries = await Promise.all(
-      items.map(async (concert) => [concert.id, await getDatasetInfo(concert.id)] as const),
+      items.map(async (concert) => [concert.id, await getDatasetInfo(session.user.id, concert.id)] as const),
     );
     if (request === concertLoad.current) setDatasetInfo(Object.fromEntries(entries));
   }
@@ -228,12 +232,14 @@ function ScannerApp() {
   }
 
   function saveSelection(concertId: string, gate: string) {
-    // Serialize these writes because old installs store the selection as two keys.
+    if (!session) return;
+    const accountId = session.user.id;
+    // Save the event and gate in order even when the selection changes quickly.
     selectionWrite.current = selectionWrite.current
       .then(async () => {
-        await setMetadata(SELECTED_GATE_KEY, '');
-        await setMetadata(SELECTED_CONCERT_KEY, concertId);
-        if (gate) await setMetadata(SELECTED_GATE_KEY, gate);
+        await setMetadata(accountId, SELECTED_GATE_KEY, '');
+        await setMetadata(accountId, SELECTED_CONCERT_KEY, concertId);
+        if (gate) await setMetadata(accountId, SELECTED_GATE_KEY, gate);
       })
       .catch(() => Alert.alert(t('gateSaveError'), t('gateSaveHint')));
   }
@@ -308,6 +314,8 @@ function ConcertWorkspace({
   onLogout: () => void;
 }) {
   const { t } = useScannerLanguage();
+  const accountId = session.user.id;
+  const scope = { organizationId: selectedConcert.organizationId, token: session.accessToken };
   const [screen, setScreen] = useState<ConcertRoute>('overview');
   const [menuOpen, setMenuOpen] = useState(false);
   const [overview, setOverview] = useState<StaffConcertOverview | null>(null);
@@ -383,9 +391,9 @@ function ConcertWorkspace({
   async function refreshSelectedConcert() {
     if (!selectedConcert || !session) return;
     try {
-      setSelectedDataset(await getDatasetInfo(selectedConcert.id));
+      setSelectedDataset(await getDatasetInfo(accountId, selectedConcert.id));
       if (isOnline) {
-        setOverview(await getStaffConcertOverview(selectedConcert.id, session.accessToken));
+        setOverview(await getStaffConcertOverview(selectedConcert.id, scope));
         setAuthority('reachable');
       }
     } catch (error) {
@@ -405,7 +413,8 @@ function ConcertWorkspace({
       await downloadCheckinDataset({
         concertId: selectedConcert.id,
         gate,
-        accessToken: session.accessToken,
+        ...scope,
+        accountId,
       });
       await Promise.all([refreshSelectedConcert(), loadLocalTicketIndex()]);
     } catch (error) {
@@ -420,7 +429,7 @@ function ConcertWorkspace({
     setIsDownloadingGuestList(true);
     setOperationError(null);
     try {
-      const response = await getStaffGuestList(selectedConcert.id, session.accessToken);
+      const response = await getStaffGuestList(selectedConcert.id, scope);
       setGuestList(response);
     } catch (error) {
       setOperationError(toErrorKey(error));
@@ -437,7 +446,7 @@ function ConcertWorkspace({
       const updatedGuest = await checkInStaffGuest(
         guest.guestId,
         { concertId: selectedConcert.id, gate: gate.trim() },
-        session.accessToken,
+        scope,
       );
       setGuestList((current) =>
         current.map((item) => (item.guestId === updatedGuest.guestId ? updatedGuest : item)),
@@ -459,7 +468,8 @@ function ConcertWorkspace({
         qrCode: value,
         gate,
         deviceId,
-        accessToken: session.accessToken,
+        ...scope,
+        accountId,
       });
       setAuthority(
         outcome.result.status === 'ONLINE_ACCEPTED' || outcome.result.status === 'ONLINE_FAILED'
@@ -490,8 +500,8 @@ function ConcertWorkspace({
   async function refreshLocalActivity() {
     const request = ++localActivityRequest.current;
     const [logs, counts] = await Promise.all([
-      listLocalCheckinLogs(selectedConcert.id),
-      loadCheckinCounters(selectedConcert.id),
+      listLocalCheckinLogs(accountId, selectedConcert.id),
+      loadCheckinCounters(accountId, selectedConcert.id),
     ]);
     if (request !== localActivityRequest.current) return;
     setLocalLogs(logs);
@@ -499,7 +509,7 @@ function ConcertWorkspace({
   }
 
   async function loadLocalTicketIndex() {
-    const tickets = await listLocalTickets(selectedConcert.id);
+    const tickets = await listLocalTickets(accountId, selectedConcert.id);
     setLocalTicketIndex(tickets.map(({ qrCode, ticketId }) => ({ qrCode, ticketId })));
   }
 
@@ -513,7 +523,8 @@ function ConcertWorkspace({
       const summary = await syncPendingLogs({
         concertId: selectedConcert.id,
         deviceId,
-        accessToken: session.accessToken,
+        ...scope,
+        accountId,
       });
       setSyncSummary(summary);
       if (summary.total) setAuthority('reachable');
@@ -540,7 +551,7 @@ function ConcertWorkspace({
     try {
       await refreshLocalActivity();
       if (isOnline) {
-        const result = await getCheckinHistory(selectedConcert.id, { size: 100 }, session.accessToken);
+        const result = await getCheckinHistory(selectedConcert.id, { size: 100 }, scope);
         if (request !== historyRequest.current) return;
         setServerHistory(result.content);
         setServerTotal(result.totalElements);
@@ -557,11 +568,11 @@ function ConcertWorkspace({
     setIsLoadingTickets(true);
     setTicketsError(null);
     try {
-      const local = await listLocalTickets(selectedConcert.id);
+      const local = await listLocalTickets(accountId, selectedConcert.id);
       if (request !== ticketsRequest.current) return;
       setLocalTickets(local);
       if (isOnline) {
-        const result = await getStaffTickets(selectedConcert.id, { size: 100 }, session.accessToken);
+        const result = await getStaffTickets(selectedConcert.id, { size: 100 }, scope);
         if (request === ticketsRequest.current) setServerTickets(result.content);
       }
     } catch (error) {

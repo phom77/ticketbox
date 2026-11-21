@@ -220,6 +220,7 @@ services:
     stop_grace_period: 30s
     environment:
       DATABASE_URL: jdbc:postgresql://catalog-db:5432/ticketbox_catalog
+      TICKETBOX_PERFORMANCE_SALES_ORGANIZATIONS: ${TICKETBOX_PERFORMANCE_SALES_ORGANIZATIONS:-}
       DATABASE_USER: catalog_runtime
       DATABASE_PASSWORD: catalog-runtime-local-only
       DATABASE_OWNER: catalog_owner

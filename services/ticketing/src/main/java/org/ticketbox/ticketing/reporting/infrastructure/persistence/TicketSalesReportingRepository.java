@@ -30,15 +30,15 @@ public interface TicketSalesReportingRepository
             value =
                     """
                     SELECT
-                        oi.ticket_type_id AS ticketTypeId,
+                        COALESCE(oi.group_id, oi.ticket_type_id) AS ticketTypeId,
                         COALESCE(SUM(oi.quantity), 0) AS soldQuantity,
                         COALESCE(SUM(oi.subtotal), 0) AS revenue
                     FROM orders o
                     JOIN order_items oi ON oi.order_id = o.id
                     WHERE o.concert_id = :concertId
                       AND o.status = 'PAID'
-                    GROUP BY oi.ticket_type_id
-                    ORDER BY oi.ticket_type_id
+                    GROUP BY COALESCE(oi.group_id, oi.ticket_type_id)
+                    ORDER BY COALESCE(oi.group_id, oi.ticket_type_id)
                     """,
             nativeQuery = true)
     List<ZoneRevenueProjection> findZoneRevenue(@Param("concertId") UUID concertId);

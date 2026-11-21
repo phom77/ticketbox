@@ -65,7 +65,7 @@
   "organizationMembersPage_moiThanhVien": "Mời thành viên",
   "organizationMembersPage_maTaiKhoanNguoiNhan": "Mã tài khoản người nhận",
   "organizationMembersPage_taoLoiMoi": "Tạo lời mời",
-  "organizationMembersPage_guiMaNayChoNguoiDuocMoi": "Gửi mã này cho người được mời. Hết hạn lúc",
+  "organizationMembersPage_guiMaNayChoNguoiDuocMoi": "Gửi mã này cho người được mời. Mã hết hạn {{expires}}.",
   "organizationMembersPage_danhSachThanhVien": "Danh sách thành viên",
   "organizationMembersPage_dangTaiThanhVien": "Đang tải thành viên…",
   "organizationMembersPage_lamMoiDanhSach": "Làm mới danh sách",
@@ -143,5 +143,16 @@
   "organizerOverviewPage_maLoiMoi": "Mã lời mời",
   "organizerOverviewPage_thamGiaToChuc": "Tham gia tổ chức",
   "organizerRevenuePage_veDaBan_2_other": "{{formattedCount}} vé đã bán",
-  "organizerOverviewPage_revenue": "Doanh thu"
+  "organizerOverviewPage_revenue": "Doanh thu",
+  "organizationMembersPage_accountId": "Mã tài khoản",
+  "organizationMembersPage_accountIdHelp": "Lấy mã tài khoản trong hồ sơ TicketBox của người nhận.",
+  "organizationMembersPage_active": "Đang hoạt động",
+  "organizationMembersPage_confirmRemoval": "Thành viên này sẽ mất quyền truy cập tổ chức. Hãy xác nhận để gỡ thành viên.",
+  "organizationMembersPage_editFor": "Chỉnh quyền của {{member}}",
+  "organizationMembersPage_editPermissions": "Chỉnh quyền",
+  "organizationMembersPage_memberCount_one": "{{count}} thành viên",
+  "organizationMembersPage_memberCount_other": "{{count}} thành viên",
+  "organizationMembersPage_noMatchingMembers": "Không tìm thấy thành viên phù hợp.",
+  "organizationMembersPage_noMembers": "Tổ chức chưa có thành viên.",
+  "organizationMembersPage_searchMembers": "Tìm thành viên"
 }

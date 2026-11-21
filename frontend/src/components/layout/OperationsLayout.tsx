@@ -1,4 +1,4 @@
-import { translate } from '../../i18n';
+import { currentLanguage, languages, selectLanguage, translate, type Language } from '../../i18n';
 import { useTranslation } from 'react-i18next';
 import type { OrganizationGrant } from '../../api/organizations';
 import { useOrganization } from '../../features/organizations/OrganizationProvider';
@@ -13,9 +13,11 @@ import {
   FileClock,
   LogOut,
   Menu,
+  Moon,
   Receipt,
   ScanLine,
   Settings,
+  Sun,
   Ticket,
   UserCog,
   Users,
@@ -24,7 +26,20 @@ import {
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth, type UserSummary } from '../../features/auth/AuthContext';
 import { Logo } from './PublicLayout';
-import { LanguageSelect } from '../LanguageSelect';
+import { WorkspaceSelect } from '../WorkspaceSelect';
+
+type WorkspaceTheme = 'light' | 'dark';
+const themePreferenceKey = 'ticketbox.workspace.theme';
+
+function initialTheme(): WorkspaceTheme {
+  try {
+    const saved = window.localStorage.getItem(themePreferenceKey);
+    if (saved === 'light' || saved === 'dark') return saved;
+  } catch {
+    // The workspace can still switch themes when storage is unavailable.
+  }
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
 
 type NavigationItem = {
   to: string;
@@ -36,8 +51,10 @@ type NavigationItem = {
 
 const adminNavigation: NavigationItem[] = [
   { to: '/admin', get label() { return translate("shared:operationsLayout_tongQuan"); }, icon: BarChart3, end: true },
+  { to: '/admin/performance-operations', get label() { return translate('performances:operations'); }, icon: CalendarDays },
   { to: '/admin/concerts', get label() { return translate("shared:operationsLayout_buoiDien"); }, icon: CalendarDays },
   { to: '/admin/ticket-types', get label() { return translate("shared:operationsLayout_hangVe"); }, icon: Ticket },
+  { to: '/organizer/events', get label() { return translate('performances:manageConcerts'); }, icon: Ticket },
   { to: '/admin/reconciliation', get label() { return translate("shared:operationsLayout_doiSoat"); }, icon: CircleDollarSign },
   { to: '/admin/orders', get label() { return translate("shared:operationsLayout_donHangVe"); }, icon: Receipt },
   { to: '/admin/guests', get label() { return translate("shared:operationsLayout_khachMoi"); }, icon: Users },
@@ -55,6 +72,7 @@ const staffNavigation: NavigationItem[] = [
 
 const organizerNavigation: NavigationItem[] = [
   { to: '/organizer', get label() { return translate("shared:operationsLayout_tongQuan"); }, icon: BarChart3, end: true },
+  { to: '/organizer/events', grant: 'EVENTS', get label() { return translate('performances:manageConcerts'); }, icon: Ticket },
   { to: '/organizer/concerts', grant: 'EVENTS', get label() { return translate("shared:operationsLayout_buoiDien"); }, icon: CalendarDays },
   { to: '/organizer/ticket-types', grant: 'EVENTS', get label() { return translate("shared:operationsLayout_hangVe"); }, icon: Ticket },
   { to: '/organizer/reconciliation', grant: 'FINANCE', get label() { return translate("shared:operationsLayout_doiSoat"); }, icon: CircleDollarSign },
@@ -78,6 +96,9 @@ export function OperationsLayout({ mode }: { mode: 'admin' | 'organizer' | 'staf
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [theme, setTheme] = useState(initialTheme);
+  const dark = theme === 'dark';
+  const themeAction = translate(dark ? 'shared:workspaceSwitchToLight' : 'shared:workspaceSwitchToDark');
   const navigation =
     mode === 'admin'
       ? adminNavigation
@@ -93,13 +114,23 @@ export function OperationsLayout({ mode }: { mode: 'admin' | 'organizer' | 'staf
         ? translate("shared:operationsLayout_khongGianNhaToChuc")
         : translate("shared:operationsLayout_banSoatVe");
 
+  function switchTheme() {
+    const next = dark ? 'light' : 'dark';
+    setTheme(next);
+    try {
+      window.localStorage.setItem(themePreferenceKey, next);
+    } catch {
+      // Keep the current preference for the active workspace session.
+    }
+  }
+
   function logOut() {
     logout();
     navigate('/');
   }
 
   return (
-    <div className="operations-shell">
+    <div className="operations-shell" data-theme={theme}>
       <aside
         className={`operations-sidebar ${mobileOpen ? 'is-open' : ''}`}
         aria-label={mode === 'staff' ? translate("shared:operationsLayout_dieuHuongNhanVien") : translate("shared:operationsLayout_dieuHuongQuanLy")}
@@ -110,7 +141,6 @@ export function OperationsLayout({ mode }: { mode: 'admin' | 'organizer' | 'staf
         </div>
 
         <nav className="operations-nav">
-          <p>{translate("shared:operationsLayout_khongGianLamViec")}</p>
           {navigation.map((item) => {
             const Icon = item.icon;
             return (
@@ -156,7 +186,7 @@ export function OperationsLayout({ mode }: { mode: 'admin' | 'organizer' | 'staf
             {mobileOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
           <div className={mode === 'organizer' ? 'operations-context organization-context' : 'operations-context'}>
-            <span>
+            <span className="operations-context-caption">
               {mode === 'admin'
                 ? translate("shared:operationsLayout_quanLyVanHanh")
                 : mode === 'organizer'
@@ -164,23 +194,33 @@ export function OperationsLayout({ mode }: { mode: 'admin' | 'organizer' | 'staf
                   : translate("shared:operationsLayout_vanHanhTaiCong")}
             </span>
             {mode === 'organizer' && organization?.memberships.length ? (
-              <select
-                aria-label={translate("shared:operationsLayout_toChucDangLamViec")}
+              <WorkspaceSelect
+                className="operations-organization-select"
+                label={translate('shared:operationsLayout_toChucDangLamViec')}
                 value={organization.selected?.id ?? ''}
-                onChange={(event) => {
-                  organization.choose(event.target.value);
+                onChange={(id) => {
+                  organization.choose(id);
                   navigate('/organizer');
                 }}
+                options={organization.memberships.map(({ id, name }) => ({ value: id, label: name }))}
                 disabled={organization.loading}
-              >
-                {organization.memberships.map((membership) => (
-                  <option key={membership.id} value={membership.id}>{membership.name}</option>
-                ))}
-              </select>
+              />
             ) : <strong>TicketBox Vietnam</strong>}
           </div>
           <div className="operations-account">
-            <LanguageSelect />
+            <div className="operations-preferences">
+              <WorkspaceSelect
+                className="operations-language-select"
+                label={translate('language')}
+                value={currentLanguage()}
+                onChange={(language) => void selectLanguage(language as Language)}
+                options={languages.map(({ code, name }) => ({ value: code, label: name, lang: code }))}
+              />
+              <button type="button" className="operations-theme-toggle" aria-label={themeAction} title={themeAction}
+                onClick={switchTheme}>
+                {dark ? <Sun size={19} aria-hidden /> : <Moon size={19} aria-hidden />}
+              </button>
+            </div>
             <button
               type="button"
               aria-expanded={accountOpen}
@@ -195,6 +235,10 @@ export function OperationsLayout({ mode }: { mode: 'admin' | 'organizer' | 'staf
             </button>
             {accountOpen ? (
               <div className="operations-account-menu">
+                {mode === 'organizer' && user?.role === 'ADMIN' && <Link
+                  className="internal-profile-link" to="/admin" onClick={() => setAccountOpen(false)}>
+                  {translate('shared:roleRoutes_quanTriHeThong')}
+                </Link>}
                 <Link
                   className="internal-profile-link"
                   to={workspaceHome}

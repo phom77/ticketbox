@@ -45,6 +45,8 @@ public class OrderConcurrencyTest {
 
     @Mock private OrderRepository orderRepository;
 
+    @Mock private org.ticketbox.ticketing.performance.application.port.PerformanceCatalog performanceCatalog;
+
     @Mock private OrderItemRepository orderItemRepository;
 
     @Mock private OrderMapper orderMapper;

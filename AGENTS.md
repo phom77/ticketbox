@@ -1,5 +1,27 @@
 # TicketBox project instructions
 
+## Product UX feedback to preserve
+
+- Read [the organizer and concert UX feedback](docs/product/organizer-concert-ux-feedback.md)
+  before changing concert creation, ticket setup, venue maps, organizer records
+  or admin workspaces. It captures direct product-owner feedback and should
+  guide future agents.
+- Ship production workflows that explain the task and help users complete it.
+  Do not add controls solely to invoke APIs or demo states without a useful
+  workflow and clear feedback.
+- Concert setup must use guided, calendar-based date and time controls. Avoid
+  requiring users to type raw timestamps, map coordinates or unexplained fill
+  values.
+- A venue image is a visual reference, not interactive inventory. Maps must
+  support selecting actual zones or seats and assigning ticket types and prices,
+  with assisted authoring such as templates, generated rows and seats, direct
+  canvas editing and an accessible list or keyboard route.
+- Admins and organizers need a clear, permission-aware route into creating and
+  managing concerts. Explain access states and give an appropriate next action.
+- Workspace pages should use available space beside navigation, provide readable
+  type and contrast, use styled searchable controls for long option lists, and
+  offer a persistent user-selectable dark theme.
+
 ## Development workflow
 
 - Start with the [core engineering rules](docs/engineering/core.md) and select

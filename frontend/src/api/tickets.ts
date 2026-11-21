@@ -11,6 +11,13 @@ export type Ticket = {
   qrCode: string;
   status: TicketStatus;
   issuedAt: string;
+  performanceId?: string | null;
+  eventId?: string | null;
+  performanceVenueName?: string | null;
+  performanceStartsAt?: string | null;
+  sectionLabel?: string | null;
+  rowLabel?: string | null;
+  seatLabel?: string | null;
 };
 
 export function getMyTickets(signal?: AbortSignal) {

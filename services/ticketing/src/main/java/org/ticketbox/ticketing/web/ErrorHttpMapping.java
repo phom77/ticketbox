@@ -18,7 +18,7 @@ public final class ErrorHttpMapping {
             case REFUND_CONFLICT -> HttpStatus.CONFLICT;
             case DUPLICATE_IDEMPOTENCY_KEY -> HttpStatus.CONFLICT;
             case EMAIL_ALREADY_EXISTS -> HttpStatus.CONFLICT;
-            case TICKET_SOLD_OUT -> HttpStatus.CONFLICT;
+            case TICKET_SOLD_OUT, PERFORMANCE_CONFLICT -> HttpStatus.CONFLICT;
             case TICKET_LIMIT_EXCEEDED -> HttpStatus.CONFLICT;
             case PAYMENT_GATEWAY_UNAVAILABLE -> HttpStatus.SERVICE_UNAVAILABLE;
             case AI_PROVIDER_UNAVAILABLE -> HttpStatus.SERVICE_UNAVAILABLE;

@@ -15,6 +15,7 @@ public enum ErrorCode {
 
     DUPLICATE_IDEMPOTENCY_KEY("error.duplicate-idempotency-key"),
     EMAIL_ALREADY_EXISTS("error.email-already-exists"),
+    PERFORMANCE_CONFLICT("error.performance.conflict"),
     TICKET_SOLD_OUT("error.ticket-sold-out"),
     TICKET_LIMIT_EXCEEDED("error.ticket-limit-exceeded"),
     PAYMENT_GATEWAY_UNAVAILABLE("error.payment-gateway-unavailable"),

@@ -22,6 +22,11 @@ type ConcertPickerProps<T extends ConcertPickerItem> = {
   allowAll?: boolean;
   allLabel?: string;
   className?: string;
+  compact?: boolean;
+  selection?: T;
+  onSearch?: (query: string) => void;
+  searchLabel?: string;
+  searching?: boolean;
 };
 
 const dateTime = dateFormatter({
@@ -57,23 +62,29 @@ export function ConcertPicker<T extends ConcertPickerItem>({
   allowAll = false,
   allLabel = translate("shared:concertPicker_tatCaBuoiDien"),
   className = '',
+  compact = false,
+  selection,
+  onSearch,
+  searchLabel = translate("shared:concertPicker_timBuoiDien"),
+  searching = false,
 }: ConcertPickerProps<T>) {
   useTranslation();
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const selected = concerts.find((concert) => concert.id === value) ?? null;
+  const selected = selection?.id === value ? selection : concerts.find((concert) => concert.id === value) ?? null;
 
   const filtered = useMemo(() => {
     const keyword = normalize(query.trim());
-    if (!keyword) return concerts;
+    if (!keyword || onSearch) return concerts;
     return concerts.filter((concert) =>
       normalize(
         [concert.title, concert.venueName, statusLabel(concert.status)].filter(Boolean).join(' '),
       ).includes(keyword),
     );
-  }, [concerts, query]);
+  }, [concerts, onSearch, query]);
 
   useEffect(() => {
     if (!open) return;
@@ -88,23 +99,37 @@ export function ConcertPicker<T extends ConcertPickerItem>({
   function choose(id: string) {
     onChange(id);
     setOpen(false);
-    setQuery('');
+    updateQuery('');
+    triggerRef.current?.focus();
+  }
+
+  function updateQuery(next: string) {
+    setQuery(next);
+    onSearch?.(next);
   }
 
   return (
-    <div className={`concert-picker ${open ? 'is-open' : ''} ${className}`} ref={rootRef}>
+    <div onKeyDown={(event) => {
+      if (open && event.key === 'Escape') {
+        event.stopPropagation();
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    }} className={`concert-picker ${open ? 'is-open' : ''} ${compact ? 'concert-picker-compact' : ''} ${className}`} ref={rootRef}>
       <span className="concert-picker-label">{label}</span>
       <button
         className="concert-picker-trigger"
+        ref={triggerRef}
+        aria-label={compact ? label : undefined}
         type="button"
-        aria-haspopup="listbox"
+        aria-haspopup={compact ? undefined : 'listbox'}
         aria-expanded={open}
         disabled={disabled}
         onClick={() => setOpen((current) => !current)}
       >
         <span className="concert-picker-main">
           <strong>{selected?.title ?? (allowAll && !value ? allLabel : placeholder)}</strong>
-          <small>
+          {!compact && <small>
             {selected
               ? [
                   selected.venueName,
@@ -115,7 +140,7 @@ export function ConcertPicker<T extends ConcertPickerItem>({
               : concerts.length
                 ? translate("shared:concertPicker_timTheoTenDiaDiemHoacTrang")
                 : translate("shared:concertPicker_chuaCoBuoiDienPhuHop")}
-          </small>
+          </small>}
         </span>
         {selected?.status ? (
           <span className={`concert-picker-status status-${selected.status.toLowerCase()}`}>
@@ -129,30 +154,33 @@ export function ConcertPicker<T extends ConcertPickerItem>({
         <div className="concert-picker-popover">
           <label className="concert-picker-search">
             <Search aria-hidden="true" size={17} />
-            <span className="sr-only">{translate("shared:concertPicker_timBuoiDien")}</span>
+            <span className="sr-only">{searchLabel}</span>
             <input
               ref={searchRef}
+              type={compact ? 'search' : 'text'}
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => updateQuery(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === 'Escape') setOpen(false);
-                if (event.key === 'Enter' && filtered.length === 1) choose(filtered[0].id);
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  if (!searching && filtered.length === 1) choose(filtered[0].id);
+                }
               }}
               placeholder={translate("shared:concertPicker_timTenDiaDiemTrangThai")}
             />
             {query ? (
-              <button type="button" aria-label={translate("shared:concertPicker_xoaTuKhoa")} onClick={() => setQuery('')}>
+              <button type="button" aria-label={translate("shared:concertPicker_xoaTuKhoa")} onClick={() => { updateQuery(''); searchRef.current?.focus(); }}>
                 <X size={15} />
               </button>
             ) : null}
           </label>
-          <div className="concert-picker-results" role="listbox" aria-label={label}>
+          <div className="concert-picker-results" role={compact ? undefined : "listbox"} aria-label={compact ? undefined : label}>
             {allowAll ? (
               <button
                 className={!value ? 'is-selected' : ''}
                 type="button"
-                role="option"
-                aria-selected={!value}
+                role={compact ? undefined : "option"}
+                aria-selected={compact ? undefined : !value}
                 onClick={() => choose('')}
               >
                 <span className="concert-picker-option-icon">
@@ -165,13 +193,14 @@ export function ConcertPicker<T extends ConcertPickerItem>({
                 {!value ? <Check size={17} /> : null}
               </button>
             ) : null}
-            {filtered.map((concert) => (
+            {!searching && filtered.map((concert) => (
               <button
                 key={concert.id}
                 className={concert.id === value ? 'is-selected' : ''}
                 type="button"
-                role="option"
-                aria-selected={concert.id === value}
+                role={compact ? undefined : "option"}
+                aria-label={compact ? concert.title : undefined}
+                aria-selected={compact ? undefined : concert.id === value}
                 onClick={() => choose(concert.id)}
               >
                 <span className="concert-picker-option-icon">
@@ -188,9 +217,9 @@ export function ConcertPicker<T extends ConcertPickerItem>({
                 {concert.id === value ? <Check size={17} /> : null}
               </button>
             ))}
-            {!filtered.length ? (
+            {!searching && !filtered.length ? (
               <p className="concert-picker-empty">
-                {translate("shared:concertPicker_khongTimThayBuoiDienPhuHop")}{query}".
+                {translate("shared:concertPicker_chuaCoBuoiDienPhuHop")}
               </p>
             ) : null}
           </div>

@@ -10,4 +10,7 @@ public record StaffTicketResponse(
         String qrCode,
         String status,
         OffsetDateTime issuedAt,
-        OffsetDateTime usedAt) {}
+        OffsetDateTime usedAt,
+        String sectionLabel,
+        String rowLabel,
+        String seatLabel) {}

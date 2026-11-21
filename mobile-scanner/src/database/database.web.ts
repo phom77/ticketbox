@@ -17,31 +17,37 @@ type WebScannerStore = {
   metadata: Map<string, string>;
 };
 
-const store: WebScannerStore = {
-  concerts: new Map(),
-  tickets: new Map(),
-  logs: [],
-  metadata: new Map(),
-};
+const stores = new Map<string, WebScannerStore>();
 
-export async function initDatabase() {
+function getStore(accountId: string) {
+  const existing = stores.get(accountId);
+  if (existing) return existing;
+  const store: WebScannerStore = { concerts: new Map(), tickets: new Map(), logs: [], metadata: new Map() };
+  stores.set(accountId, store);
   return store;
 }
 
-export async function cacheStaffConcerts(concerts: Omit<LocalConcert, 'cachedAt'>[]) {
+export async function initDatabase(accountId: string) {
+  return getStore(accountId);
+}
+
+export async function cacheStaffConcerts(accountId: string, concerts: Omit<LocalConcert, 'cachedAt'>[]) {
+  const store = getStore(accountId);
+  store.concerts.clear();
   const cachedAt = nowIso();
   concerts.forEach((concert) => {
     store.concerts.set(concert.id, { ...concert, cachedAt });
   });
 }
 
-export async function listCachedConcerts() {
-  return Array.from(store.concerts.values()).sort((left, right) =>
+export async function listCachedConcerts(accountId: string) {
+  return Array.from(getStore(accountId).concerts.values()).sort((left, right) =>
     left.eventDate.localeCompare(right.eventDate),
   );
 }
 
-export async function saveCheckinDataset(dataset: SaveDatasetInput, downloadedAt = nowIso()) {
+export async function saveCheckinDataset(accountId: string, dataset: SaveDatasetInput, downloadedAt = nowIso()) {
+  const store = getStore(accountId);
   for (const key of Array.from(store.tickets.keys())) {
     if (key.startsWith(`${dataset.concertId}:`)) {
       store.tickets.delete(key);
@@ -53,30 +59,28 @@ export async function saveCheckinDataset(dataset: SaveDatasetInput, downloadedAt
       concertId: dataset.concertId,
       ticketId: ticket.ticketId,
       qrCode: ticket.qrCode,
-      qrSecret: ticket.qrSecret,
       ticketTypeId: ticket.ticketTypeId,
-      userId: ticket.userId,
       downloadedAt,
     };
     store.tickets.set(ticketKey(snapshot.concertId, snapshot.ticketId), snapshot);
   });
 
-  await setMetadata(`dataset:${dataset.concertId}:downloadedAt`, downloadedAt);
-  await setMetadata(`dataset:${dataset.concertId}:totalCount`, String(dataset.totalCount));
+  await setMetadata(accountId, `dataset:${dataset.concertId}:downloadedAt`, downloadedAt);
+  await setMetadata(accountId, `dataset:${dataset.concertId}:totalCount`, String(dataset.totalCount));
 }
 
-export async function getTicketByQrCode(concertId: string, qrCode: string) {
-  return Array.from(store.tickets.values()).find(
+export async function getTicketByQrCode(accountId: string, concertId: string, qrCode: string) {
+  return Array.from(getStore(accountId).tickets.values()).find(
     (ticket) => ticket.concertId === concertId && ticket.qrCode === qrCode,
   ) ?? null;
 }
 
-export async function listLocalTickets(concertId: string) {
-  return Array.from(store.tickets.values())
+export async function listLocalTickets(accountId: string, concertId: string) {
+  return Array.from(getStore(accountId).tickets.values())
     .filter((ticket) => ticket.concertId === concertId)
     .sort((left, right) => left.ticketId.localeCompare(right.ticketId))
     .map<LocalTicketListItem>((ticket) => {
-      const latestLog = latestLogForQr(ticket.concertId, ticket.qrCode);
+      const latestLog = latestLogForQr(accountId, ticket.concertId, ticket.qrCode);
       return {
         ...ticket,
         checkinStatus: latestLog?.status ?? null,
@@ -85,7 +89,7 @@ export async function listLocalTickets(concertId: string) {
     });
 }
 
-export async function insertLocalCheckinLog(input: InsertLocalCheckinLogInput) {
+export async function insertLocalCheckinLog(accountId: string, input: InsertLocalCheckinLogInput) {
   const log: LocalCheckinLog = {
     localId: createLocalId(),
     concertId: input.concertId,
@@ -97,12 +101,12 @@ export async function insertLocalCheckinLog(input: InsertLocalCheckinLogInput) {
     syncResult: null,
     syncReason: null,
   };
-  store.logs.push(log);
+  getStore(accountId).logs.push(log);
   return log;
 }
 
-export async function getLocalCheckinLogByQrCode(concertId: string, qrCode: string) {
-  return store.logs
+export async function getLocalCheckinLogByQrCode(accountId: string, concertId: string, qrCode: string) {
+  return getStore(accountId).logs
     .filter(
       (log) =>
         log.concertId === concertId &&
@@ -112,37 +116,37 @@ export async function getLocalCheckinLogByQrCode(concertId: string, qrCode: stri
     .sort((left, right) => right.checkedAt.localeCompare(left.checkedAt))[0] ?? null;
 }
 
-export async function listPendingLogs(concertId: string, limit = 500) {
-  return store.logs
+export async function listPendingLogs(accountId: string, concertId: string, limit = 500) {
+  return getStore(accountId).logs
     .filter((log) => log.concertId === concertId && log.status === 'PENDING')
     .sort((left, right) => left.checkedAt.localeCompare(right.checkedAt))
     .slice(0, limit);
 }
 
-export async function listLocalCheckinLogs(concertId: string, limit = 200) {
-  return store.logs
+export async function listLocalCheckinLogs(accountId: string, concertId: string, limit = 200) {
+  return getStore(accountId).logs
     .filter((log) => log.concertId === concertId)
     .sort((left, right) => right.checkedAt.localeCompare(left.checkedAt))
     .slice(0, limit);
 }
 
-export async function getDatasetInfo(concertId: string): Promise<DatasetInfo> {
-  const downloadedAt = await getMetadata(`dataset:${concertId}:downloadedAt`);
-  const totalCount = Number((await getMetadata(`dataset:${concertId}:totalCount`)) ?? 0);
+export async function getDatasetInfo(accountId: string, concertId: string): Promise<DatasetInfo> {
+  const downloadedAt = await getMetadata(accountId, `dataset:${concertId}:downloadedAt`);
+  const totalCount = Number((await getMetadata(accountId, `dataset:${concertId}:totalCount`)) ?? 0);
   return { downloadedAt, totalCount };
 }
 
-export async function updateSyncResult(input: UpdateSyncResultInput) {
-  const log = store.logs.find((item) => item.localId === input.localId);
+export async function updateSyncResult(accountId: string, input: UpdateSyncResultInput) {
+  const log = getStore(accountId).logs.find((item) => item.localId === input.localId);
   if (!log) return;
   log.status = input.status;
   log.syncResult = input.syncResult;
   log.syncReason = input.syncReason ?? null;
 }
 
-export async function countLogsByStatus(concertId?: string) {
+export async function countLogsByStatus(accountId: string, concertId?: string) {
   const counts = createEmptyStatusCounts();
-  store.logs
+  getStore(accountId).logs
     .filter((log) => concertId === undefined || log.concertId === concertId)
     .forEach((log) => {
       counts[log.status] += 1;
@@ -150,16 +154,16 @@ export async function countLogsByStatus(concertId?: string) {
   return counts;
 }
 
-export async function setMetadata(key: string, value: string) {
-  store.metadata.set(key, value);
+export async function setMetadata(accountId: string, key: string, value: string) {
+  getStore(accountId).metadata.set(key, value);
 }
 
-export async function getMetadata(key: string) {
-  return store.metadata.get(key) ?? null;
+export async function getMetadata(accountId: string, key: string) {
+  return getStore(accountId).metadata.get(key) ?? null;
 }
 
-function latestLogForQr(concertId: string, qrCode: string) {
-  return store.logs
+function latestLogForQr(accountId: string, concertId: string, qrCode: string) {
+  return getStore(accountId).logs
     .filter((log) => log.concertId === concertId && log.qrCode === qrCode)
     .sort((left, right) => right.checkedAt.localeCompare(left.checkedAt))[0];
 }

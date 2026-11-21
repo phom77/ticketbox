@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Performance purchase command bodies v2",
+  "oneOf": [
+    { "$ref": "#/$defs/hold" },
+    { "$ref": "#/$defs/order" }
+  ],
+  "$defs": {
+    "hold": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["layoutVersion", "holdVersion", "items"],
+      "properties": {
+        "layoutVersion": { "type": ["integer", "null"], "minimum": 1 },
+        "holdVersion": { "type": "integer", "minimum": 0 },
+        "items": { "type": "array", "items": { "$ref": "#/$defs/item" } }
+      }
+    },
+    "order": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["holdVersion"],
+      "properties": { "holdVersion": { "type": "integer", "minimum": 1 } }
+    },
+    "item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["offerId"],
+      "properties": {
+        "offerId": { "type": "string", "format": "uuid" },
+        "quantity": { "type": "integer", "minimum": 1 },
+        "seatId": { "type": "string", "format": "uuid" }
+      },
+      "oneOf": [{ "required": ["quantity"] }, { "required": ["seatId"] }]
+    }
+  }
+}

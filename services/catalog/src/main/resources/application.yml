@@ -1,4 +1,8 @@
 spring:
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 11MB
   messages:
     fallback-to-system-locale: false
   application:
@@ -21,6 +25,8 @@ spring:
       host: ${REDIS_HOST:redis}
       timeout: 2s
 ticketbox:
+  performance-sales:
+    organizations: ${TICKETBOX_PERFORMANCE_SALES_ORGANIZATIONS:}
   security:
     jwt:
       secret: ${JWT_SECRET}

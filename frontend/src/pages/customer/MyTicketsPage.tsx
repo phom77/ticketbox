@@ -1,3 +1,4 @@
+import { seatDescription } from '../../features/performance/checkoutPresentation';
 import { translate } from '../../i18n';
 import { useTranslation } from 'react-i18next';
 import { concertTitle } from '../../features/concert/concertText';
@@ -52,7 +53,7 @@ export function MyTicketsPage() {
 
     getMyTickets(controller.signal)
       .then(async (ticketList) => {
-        const concertIds = [...new Set(ticketList.map((ticket) => ticket.concertId))];
+        const concertIds = [...new Set(ticketList.filter((ticket) => !ticket.performanceId).map((ticket) => ticket.concertId))];
         const concertResults = await Promise.allSettled(
           concertIds.map((concertId) => getConcert(concertId, controller.signal)),
         );
@@ -71,9 +72,7 @@ export function MyTicketsPage() {
         setSelectedTicket((current) =>
           current ? (enrichedTickets.find((ticket) => ticket.id === current.id) ?? null) : null,
         );
-        if (!openConcertId && enrichedTickets[0]) {
-          setOpenConcertId(enrichedTickets[0].concertId);
-        }
+        setOpenConcertId((current) => current ?? enrichedTickets[0]?.concertId ?? null);
       })
       .catch((requestError: unknown) => {
         if (active && !isRequestCanceled(requestError)) {
@@ -296,6 +295,7 @@ function TicketRow({ ticket, onOpen }: { ticket: TicketWithConcert; onOpen: () =
       <span className={`ticket-status status-${statusClass}`}>{statusLabel(ticket.status)}</span>
       <div>
         <strong>{ticket.ticketTypeName}</strong>
+        {seatDescription(ticket) && <small>{seatDescription(ticket)}</small>}
         <small>
           {translate("customer:myTicketsPage_maVe")} {ticket.id.slice(0, 8).toUpperCase()} {translate("customer:myTicketsPage_phatHanh")}{' '}
           {issuedDate.format(new Date(ticket.issuedAt))}
@@ -353,22 +353,22 @@ function TicketDetail({ ticket, onClose }: { ticket: TicketWithConcert; onClose:
           </div>
           <div>
             <dt>{translate("customer:myTicketsPage_zone")}</dt>
-            <dd>{ticket.ticketTypeName}</dd>
+            <dd>{seatDescription(ticket) || ticket.ticketTypeName}</dd>
           </div>
           <div>
             <dt>{translate("customer:myTicketsPage_status")}</dt>
             <dd>{statusLabel(ticket.status)}</dd>
           </div>
-          {ticket.concert ? (
+          {ticket.concert?.eventDate || ticket.performanceStartsAt ? (
             <div>
               <dt>{translate("customer:myTicketsPage_eventDate")}</dt>
-              <dd>{eventDate.format(new Date(ticket.concert.eventDate))}</dd>
+              <dd>{eventDate.format(new Date(ticket.performanceStartsAt ?? ticket.concert?.eventDate ?? ''))}</dd>
             </div>
           ) : null}
-          {ticket.concert ? (
+          {ticket.concert?.venueName || ticket.performanceVenueName ? (
             <div>
               <dt>{translate("customer:myTicketsPage_venue")}</dt>
-              <dd>{ticket.concert.venueName}</dd>
+              <dd>{ticket.performanceVenueName ?? ticket.concert?.venueName}</dd>
             </div>
           ) : null}
           <div>

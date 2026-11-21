@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Issued performance ticket snapshot v2",
+  "allOf": [
+    { "$ref": "ticketing.ticket-snapshot.v1.json" },
+    {
+      "properties": {
+        "ticket": {
+          "type": "object",
+          "required": ["performance_id"],
+          "properties": {
+            "performance_id": { "type": "string", "format": "uuid" },
+            "section_label": { "type": ["string", "null"] },
+            "row_label": { "type": ["string", "null"] },
+            "seat_label": { "type": ["string", "null"] }
+          }
+        }
+      }
+    }
+  ]
+}

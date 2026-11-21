@@ -17,7 +17,7 @@ class OrganizationAccessConfig {
         return new WebMvcConfigurer() {
             @Override
             public void addInterceptors(InterceptorRegistry registry) {
-                registry.addInterceptor(interceptor).addPathPatterns("/api/admin/**", "/api/organizer/**");
+                registry.addInterceptor(interceptor).addPathPatterns("/api/admin/**", "/api/organizer/**", "/api/v2/staff/performances/**");
             }
         };
     }

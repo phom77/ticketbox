@@ -1,3 +1,4 @@
+import { WorkspaceSelect } from '../../components/WorkspaceSelect';
 import { translate, formatLanguage } from '../../i18n';
 import { useTranslation } from 'react-i18next';
 import { useOrganization } from '../../features/organizations/OrganizationProvider';
@@ -270,25 +271,15 @@ function TicketTab({
       <div className="admin-toolbar admin-filter-toolbar">
         <div className="admin-filter-controls">
           <Filter size={14} style={{ color: 'var(--muted)' }} />
-          <select value={concertId} onChange={(e) => setConcertId(e.target.value)}>
-            <option value="">{translate("admin:adminOrdersPage_chonConcert")}</option>
-            {concerts.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.title}
-              </option>
-            ))}
-          </select>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            disabled={!concertId}
-          >
-            <option value="">{translate("admin:adminOrdersPage_tatCaTrangThai")}</option>
-            <option value="VALID">{translate('status_VALID')}</option>
-            <option value="USED">{translate('status_USED')}</option>
-            <option value="CANCELLED">{translate('status_CANCELLED')}</option>
-            <option value="TRANSFERRED">{translate('status_TRANSFERRED')}</option>
-          </select>
+          <WorkspaceSelect label={translate('admin:adminOrdersPage_buoiDien')} value={concertId}
+            onChange={setConcertId} options={[
+              { value: '', label: translate('admin:adminOrdersPage_chonConcert') },
+              ...concerts.map(({ id, title }) => ({ value: id, label: title })),
+            ]} />
+          <WorkspaceSelect label={translate('admin:adminOrdersPage_trangThaiDonHang')}
+            value={statusFilter} onChange={setStatusFilter} disabled={!concertId} options={[
+              { value: '', label: translate('admin:adminOrdersPage_tatCaTrangThai') }, ...ticketStatusOptions(),
+            ]} />
         </div>
         <button onClick={load} disabled={loading || !concertId}>
           <RefreshCw size={12} className={loading ? 'spin' : ''} />
@@ -363,17 +354,9 @@ function TicketTab({
                       {canManageTickets ? (
                         <td>
                           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                            <select
-                              value={t.status}
-                              onChange={(e) => handleStatusChange(t.id, e.target.value)}
-                              disabled={savingId === t.id}
-                              style={{ fontSize: 11 }}
-                            >
-                              <option value="VALID">{translate('status_VALID')}</option>
-                              <option value="USED">{translate('status_USED')}</option>
-                              <option value="CANCELLED">{translate('status_CANCELLED')}</option>
-                              <option value="TRANSFERRED">{translate('status_TRANSFERRED')}</option>
-                            </select>
+                            <WorkspaceSelect label={translate('admin:adminOrdersPage_trangThaiDonHang')}
+                              value={t.status} onChange={(value) => handleStatusChange(t.id, value)} disabled={savingId === t.id}
+                              options={ticketStatusOptions()} />
                             {savingId === t.id && <RefreshCw size={12} className="spin" />}
                           </div>
                         </td>
@@ -558,16 +541,12 @@ export function AdminOrdersPage({ apiScope = 'admin' }: { apiScope?: ManagementA
           </div>}
 
           <form className="admin-toolbar admin-order-support-form" role="search" aria-label={translate("admin:adminOrdersPage_traCuuDonHang")} onSubmit={submitLookup}>
-            <select
-              aria-label={translate("admin:adminOrdersPage_timTheo")}
-              value={lookupField}
-              onChange={(event) => {
-                setLookupField(event.target.value as OrderSupportLookup['field']);
+            <WorkspaceSelect label={translate('admin:adminOrdersPage_timTheo')} value={lookupField}
+              onChange={(value) => {
+                setLookupField(value as OrderSupportLookup['field']);
                 setLookupValue('');
               }}
-            >
-              {Object.entries(orderLookupLabels).map(([field, label]) => <option key={field} value={field}>{label}</option>)}
-            </select>
+              options={Object.entries(orderLookupLabels).map(([value, label]) => ({ value, label }))} />
             <label className="admin-search-control">
               <Search aria-hidden="true" size={16} />
               <input
@@ -590,31 +569,24 @@ export function AdminOrdersPage({ apiScope = 'admin' }: { apiScope?: ManagementA
           <div className="admin-toolbar admin-filter-toolbar">
             <div className="admin-filter-controls">
               <Filter size={14} style={{ color: 'var(--muted)' }} />
-              <select aria-label={translate("admin:adminOrdersPage_buoiDien")} value={concertFilter} onChange={(event) => {
-                setConcertFilter(event.target.value);
+              <WorkspaceSelect label={translate('admin:adminOrdersPage_buoiDien')} value={concertFilter} onChange={(value) => {
+                setConcertFilter(value);
                 setSupportPage(null);
                 setPage(0);
-              }}>
-                <option value="">{translate("admin:adminOrdersPage_tatCaConcert")}</option>
-                {concerts.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.title}
-                  </option>
-                ))}
-              </select>
-              {!lookup && <select
-                aria-label={translate("admin:adminOrdersPage_trangThaiDonHang")}
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as OrderStatus | '')}
-              >
-                <option value="">{translate("admin:adminOrdersPage_tatCaTrangThai")}</option>
-                <option value="AWAITING_PAYMENT">{translate('status_AWAITING_PAYMENT')}</option>
-                <option value="PAID">{translate('status_PAID')}</option>
-                <option value="EXPIRED">{translate('status_EXPIRED')}</option>
-                <option value="CANCELLED">{translate('status_CANCELLED')}</option>
-                <option value="PAYMENT_FAILED">{translate('status_PAYMENT_FAILED')}</option>
-                <option value="REFUNDED">{translate('status_REFUNDED')}</option>
-              </select>}
+              }} options={[
+                { value: '', label: translate('admin:adminOrdersPage_tatCaConcert') },
+                ...concerts.map(({ id, title }) => ({ value: id, label: title })),
+              ]} />
+              {!lookup && <WorkspaceSelect label={translate('admin:adminOrdersPage_trangThaiDonHang')} value={statusFilter}
+                onChange={(value) => setStatusFilter(value as OrderStatus | '')} options={[
+                  { value: '', label: translate('admin:adminOrdersPage_tatCaTrangThai') },
+                  { value: 'AWAITING_PAYMENT', label: translate('status_AWAITING_PAYMENT') },
+                  { value: 'PAID', label: translate('status_PAID') },
+                  { value: 'EXPIRED', label: translate('status_EXPIRED') },
+                  { value: 'CANCELLED', label: translate('status_CANCELLED') },
+                  { value: 'PAYMENT_FAILED', label: translate('status_PAYMENT_FAILED') },
+                  { value: 'REFUNDED', label: translate('status_REFUNDED') },
+                ]} />}
             </div>
             <button type="button" onClick={() => setRefresh((value) => value + 1)} disabled={loadingOrders}>
               <RefreshCw size={12} className={loadingOrders ? 'spin' : ''} />
@@ -743,4 +715,13 @@ export function AdminOrdersPage({ apiScope = 'admin' }: { apiScope?: ManagementA
       )}
     </>
   );
+}
+
+function ticketStatusOptions() {
+  return [
+    { value: 'VALID', label: translate('status_VALID') },
+    { value: 'USED', label: translate('status_USED') },
+    { value: 'CANCELLED', label: translate('status_CANCELLED') },
+    { value: 'TRANSFERRED', label: translate('status_TRANSFERRED') },
+  ];
 }

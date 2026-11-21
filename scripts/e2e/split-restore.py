@@ -9,6 +9,8 @@ import subprocess
 import time
 import uuid
 
+from split import COMPOSE_FILES
+
 ROOT=Path(__file__).resolve().parents[2]
 PROJECT=os.environ.get("E2E_PROJECT","ticketbox-e2e-split")
 PORT=os.environ.get("E2E_PORT","18096")
@@ -25,7 +27,7 @@ suffix=uuid.uuid4().hex[:8]
 
 
 def compose(*args,**options):
-    return subprocess.check_output(["docker","compose","-p",PROJECT,"-f",str(ROOT/"compose.yaml"),*args],
+    return subprocess.check_output(["docker","compose","-p",PROJECT,*COMPOSE_FILES,*args],
                                    cwd=ROOT,env={**os.environ,"APP_PORT":PORT,
                                        "APP_PUBLIC_URL":"http://localhost:"+PORT,
                                        "APP_ALLOWED_ORIGINS":"http://localhost:"+PORT,
@@ -88,7 +90,7 @@ try:
             "jdbc:postgresql://"+s+"-db:5432/"+restored[s]}} for s in SERVICES}}
     overlay_path=DIRECTORY/"overlay.json"
     overlay_path.write_text(json.dumps(overlay))
-    command=["docker","compose","-p",PROJECT,"-f",str(ROOT/"compose.yaml"),"-f",str(overlay_path)]
+    command=["docker","compose","-p",PROJECT,*COMPOSE_FILES,"-f",str(overlay_path)]
     subprocess.check_call([*command,"up","-d","--no-deps",*SERVICES,"gateway"],cwd=ROOT,
         env={**os.environ,"APP_PORT":PORT,"APP_PUBLIC_URL":"http://localhost:"+PORT,
              "APP_ALLOWED_ORIGINS":"http://localhost:"+PORT,
@@ -119,6 +121,17 @@ try:
     admission_query = "SELECT count(*) FROM checkin_logs"
     assert sql("checkin", restored["checkin"], admission_query) == sql("checkin", DATABASES["checkin"], admission_query)
     proof["orderTicketAdmissionConsistent"] = True
+    performance_report = REPORT_DIRECTORY / "performance-sales.json"
+    if performance_report.exists():
+        performance = json.loads(performance_report.read_text())
+        for profile in ("ga", "hybrid"):
+            show = uuid.UUID(performance[f"{profile}Performance"])
+            order = uuid.UUID(performance[f"{profile}Order"])
+            assert sql("ticketing", restored["ticketing"], f"SELECT replay_order('{order}')->>'status'") == "PAID"
+            assert sql("ticketing", restored["ticketing"], f"SELECT sales_mode FROM concerts WHERE id='{show}'") == "V2"
+        hybrid = uuid.UUID(performance["hybridPerformance"])
+        assert sql("ticketing", restored["ticketing"], f"SELECT count(*) FROM performance_seats WHERE performance_id='{hybrid}' AND status='ALLOCATED'") == "1"
+        proof["performanceOrdersAndStockRestored"] = True
     sql("payment", restored["payment"], f"""UPDATE payment_reconciliation_outbox SET delivered_revision=0, next_attempt_at=now()
         WHERE intent_id=(SELECT intent_id FROM payment_attempts WHERE order_id='{order_id}')""")
     deadline = time.monotonic() + 60

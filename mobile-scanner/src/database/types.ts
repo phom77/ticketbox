@@ -7,9 +7,7 @@ export type TicketSnapshot = {
   concertId: string;
   ticketId: string;
   qrCode: string;
-  qrSecret: string;
   ticketTypeId: string;
-  userId: string;
   downloadedAt: string;
 };
 

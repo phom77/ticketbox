@@ -22,6 +22,13 @@ public class OrderItem extends BaseEntity {
 
     private BigDecimal subtotal;
 
+    private UUID groupId;
+    private UUID seatId;
+    private String offerName;
+    private String sectionLabel;
+    private String rowLabel;
+    private String seatLabel;
+
     public void setOrderId(UUID orderId) {
         this.orderId = orderId;
     }
@@ -40,6 +47,19 @@ public class OrderItem extends BaseEntity {
 
     public void setSubtotal(BigDecimal subtotal) {
         this.subtotal = subtotal;
+    }
+
+    public static OrderItem pricedPerformance(UUID offerId, UUID groupId, UUID seatId, int quantity,
+                                              BigDecimal unitPrice, String offerName, String sectionLabel,
+                                              String rowLabel, String seatLabel) {
+        OrderItem line = priced(offerId, quantity, unitPrice);
+        line.groupId = java.util.Objects.requireNonNull(groupId);
+        line.seatId = seatId;
+        line.offerName = java.util.Objects.requireNonNull(offerName);
+        line.sectionLabel = java.util.Objects.requireNonNull(sectionLabel);
+        line.rowLabel = rowLabel;
+        line.seatLabel = seatLabel;
+        return line;
     }
 
     public static OrderItem priced(UUID ticketTypeId, int quantity, BigDecimal unitPrice) {

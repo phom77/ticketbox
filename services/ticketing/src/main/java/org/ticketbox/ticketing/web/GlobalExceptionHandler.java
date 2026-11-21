@@ -83,6 +83,11 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(503, "error.service-busy"));
     }
 
+    @ExceptionHandler(org.springframework.web.bind.MissingRequestHeaderException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMissingHeader() {
+        return ResponseEntity.badRequest().body(ApiResponse.error(400, "error.invalid-request"));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<Void>> handleValidationException(
             MethodArgumentNotValidException ex) {

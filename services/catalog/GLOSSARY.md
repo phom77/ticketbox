@@ -21,3 +21,23 @@ A concert's named ticket category, price, configured capacity and account limit.
 **Artist biography**
 
 Concert information reviewed by an organizer before publication.
+
+**Event**
+
+A production or program that groups its scheduled performances.
+
+**Performance**
+
+A scheduled occurrence of an event with its own venue space and sale lifecycle.
+
+**Venue space**
+
+An area at a venue where a performance takes place, such as a screening room or arena.
+
+**Venue layout**
+
+A description of an arrangement of a venue space. A performance uses the layout published for that occurrence.
+
+**Sale offer**
+
+A named way to buy access to a performance at a price during a sale window. Offers can draw from the same capacity group.

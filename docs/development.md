@@ -17,6 +17,8 @@ The SMTP sink accepts email locally without forwarding it. Its private HTTP endp
 
 For a separate staging deployment, set `TICKETBOX_PAYMENT_PROFILE=staging` for the shared Payment and Ticketing profiles. Use the staging secret store for `VNPAY_TMN_CODE` and `VNPAY_HASH_SECRET`. Set `VNPAY_PAY_URL` and `VNPAY_QUERY_URL` to the merchant's sandbox endpoints. Set `VNPAY_RETURN_URL` and `VNPAY_IPN_URL` to the staging HTTPS origin at `/payment/result` and `/api/payments/webhooks/vnpay`, and register the IPN with the merchant. Confirm `GET /api/payments/providers` returns only `VNPAY` as a buyer before running the checkout. The provider list is empty until the VNPAY settings pass readiness checks.
 
+To enable initial publication of new performances, set `TICKETBOX_PERFORMANCE_SALES_ORGANIZATIONS` on Catalog to the comma-separated UUIDs of the approved organizations. Use `*` for isolated local fixtures that create a new organization on each run. An empty list closes initial publication. Existing performances keep their stored write mode and continue to process holds, payments and admission. Use the performance operations workspace to suspend sales for an individual show during an incident.
+
 Set a separate `PASSWORD_RESET_KEY` of at least 32 bytes in Identity's secret store to enable buyer account recovery. Configure Notification with the HTTPS `APP_PUBLIC_URL` as the origin for reset emails and use the staging SMTP relay. Keep the reset key stable while encrypted deliveries are pending. Set the approved HTTPS destinations `VITE_SUPPORT_URL` and `VITE_TERMS_URL` before building the web image. An absent or invalid destination hides its link.
 
 ```sh
@@ -145,6 +147,22 @@ pwsh -File scripts/e2e/run.ps1 -LocalAcceptance -Build
 The command uses project `ticketbox-e2e-acceptance`, loopback ports 18096 and 18097, fixture secrets, MOCK payment and the SMTP sink. It exercises two fixture organizations and restores copied databases. Results are in `.artifacts/e2e/local-acceptance/`. The report records a quiesced checkpoint and elapsed recovery time. The local load fixture measures eight shoppers competing for three tickets, one quota rejection and an accelerated hold expiry. These measurements apply to the local fixture and host.
 
 The journey reports aggregate operations counts by owner. For a failed email, use the platform exception queue, inspect the delivery status, retry the same command once and confirm the record becomes sent. For pending settlement or reconciliation, inspect the Payment review and result backlog. For missing issuance or delayed admission projection, inspect the corresponding Ticketing and Check-in outbox and confirm it drains after recovery. The A6 report records an injected email failure and the count after retry. CI publishes the named JSON summaries. Dumps, generated overlays and raw E2E logs stay local.
+
+For performance sales, start an isolated `ticketbox-e2e-seating` project on loopback ports 18105 and 18106 with `TICKETBOX_PAYMENT_PROFILE=dev` and `TICKETBOX_PERFORMANCE_SALES_ORGANIZATIONS=*`. Use this fixture to rehearse one-room GA, multiple GA areas, a hybrid with numbered seats, and an arena-sized map.
+
+```sh
+export E2E_PROJECT=ticketbox-e2e-seating E2E_PORT=18105 CHECKIN_PORT=18106
+export E2E_REPORT_DIRECTORY=.artifacts/e2e/seating
+python3 scripts/e2e/performance-sales.py
+node scripts/e2e/performance-organizer.mjs
+node scripts/e2e/performance-seat-assignment.mjs
+python3 scripts/e2e/performance-arena.py
+node scripts/e2e/performance-arena-browser.mjs
+```
+
+Use `E2E_COMPOSE_OVERRIDE` if the isolated project uses additional Compose files. Run the basic split journey before the restore rehearsal. If the report directory contains fresh output from `performance-sales.py`, restore also verifies the V2 write mode and paid-order replay against the copied databases. Recreate Catalog with an empty publication allowlist to close publication of new shows. For a show that is already on sale, disabling its offers through a sale revision stops new holds while honoring confirmed quotes until they expire. A formal postponement or cancellation uses the performance operations workspace and dispatches notifications.
+
+The organizer supports interactive SVG maps with a `viewBox` and section groups marked with `data-code` and `data-kind` (`GA` or `ASSIGNED`). Use a polygon for the section outline. An assigned seating section contains groups marked `data-row`, each containing seat groups marked `data-seat` with circular coordinates (`cx`, `cy`). The seat assignment rehearsal contains portable examples. PNG and JPEG remain available as floor-plan backgrounds for drawing layout geometry. After saving the geometry, use Seat assignment to choose a section, add a seated ticket type and assign its seats.
 
 While the acceptance stack is running, repeat the aggregate check from a second terminal.
 

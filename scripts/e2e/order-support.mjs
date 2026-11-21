@@ -1,3 +1,4 @@
+import { selectWorkspaceOption } from './select-workspace-option.mjs';
 // Run against the built frontend. The fixture checks requests and renders API responses.
 import assert from 'node:assert/strict';
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
@@ -43,7 +44,7 @@ async function fixture(role, { actor = requesterId, refund, disruption } = {}) {
   const user = { sub: actor, email: 'fixture@test.invalid',
     fullName: 'Quản trị thử', role, exp: Math.floor(Date.now() / 1000) + 3600 };
   const token = `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringify(user)).toString('base64url')}.fixture`;
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const context = await browser.newContext({ locale: 'vi-VN', viewport: { width: 1440, height: 900 } });
   await context.addCookies([{ name: 'ticketbox_auth_token', value: token, url: origin }]);
   const page = await context.newPage();
   page.setDefaultTimeout(6_000);
@@ -168,7 +169,7 @@ async function fixture(role, { actor = requesterId, refund, disruption } = {}) {
 
 async function search(page, kind, value, submitByKeyboard = false) {
   const form = page.getByRole('search', { name: 'Tra cứu đơn hàng' });
-  await form.getByLabel('Tìm theo').selectOption(kind);
+  await selectWorkspaceOption(form.getByLabel('Tìm theo'), { value: kind });
   const input = form.getByRole('textbox');
   await input.fill(value);
   if (submitByKeyboard) await input.press('Enter');
@@ -233,7 +234,7 @@ try {
   await search(organizer.page, 'orderId', first.id);
   await organizer.page.getByText(first.concertTitle, { exact: true }).waitFor();
   assert.equal(organizer.state.searches.at(-1).scope, 'org-a');
-  await organizer.page.getByLabel('Tổ chức đang làm việc').selectOption('org-b');
+  await selectWorkspaceOption(organizer.page.getByLabel('Tổ chức đang làm việc'), { value: 'org-b' });
   await organizer.page.goto(`${origin}/organizer/orders`);
   await search(organizer.page, 'orderId', second.id);
   await organizer.page.getByText(second.concertTitle, { exact: true }).waitFor();
@@ -262,7 +263,7 @@ try {
   checks.push('Exception queue loads only the chosen category and supports independent retry and pagination');
 
   for (const [kind, label] of [['UNKNOWN_PAYMENT', 'Kiểm tra lại giao dịch'], ['FAILED_EMAIL', 'Gửi lại email']]) {
-    await queue.getByLabel('Loại ngoại lệ').selectOption(kind);
+    await selectWorkspaceOption(queue.getByLabel('Loại ngoại lệ'), { value: kind });
     await queue.getByRole('button', { name: label }).click();
     await queue.getByRole('alert').waitFor();
     await queue.getByRole('button', { name: label }).click();
@@ -279,7 +280,7 @@ try {
   }
   checks.push('Payment and email actions keep the same identity when the first response is lost');
 
-  await queue.getByLabel('Loại ngoại lệ').selectOption('PENDING_REFUND');
+  await selectWorkspaceOption(queue.getByLabel('Loại ngoại lệ'), { value: 'PENDING_REFUND' });
   await queue.getByRole('link', { name: first.id }).waitFor();
   assert.equal(await queue.getByRole('button', { name: /Gửi lại|Kiểm tra lại/ }).count(), 0);
   for (const width of [1440, 768, 390]) {
@@ -310,7 +311,8 @@ try {
   await requestPayment.getByRole('button', { name: 'Gửi yêu cầu hoàn tiền' }).click();
   await requestPayment.getByText('Chờ admin khác duyệt.', { exact: true }).waitFor();
   assert.equal(await requestPayment.getByRole('button', { name: 'Duyệt yêu cầu' }).count(), 0);
-  assert.equal(await requestPayment.getByText(/trên cổng thanh toán/).count(), 0);
+  const providerInstructions = /hoàn tiền toàn bộ đơn qua VNPAY/i;
+  assert.equal(await requestPayment.getByText(providerInstructions).count(), 0);
   await requestAdmin.close();
 
   const finance = await fixture('ORGANIZER', { refund });
@@ -328,9 +330,9 @@ try {
   await approvePayment.getByRole('alert').waitFor();
   await approvePayment.getByRole('button', { name: 'Xác nhận duyệt' }).click();
   await approvePayment.getByText('Đang chờ xác nhận giữ vé. Có thể kiểm tra lại.', { exact: true }).waitFor();
-  assert.equal(await approvePayment.getByText(/trên cổng thanh toán/).count(), 0);
+  assert.equal(await approvePayment.getByText(providerInstructions).count(), 0);
   await approvePayment.getByRole('button', { name: 'Xác nhận duyệt' }).click();
-  await approvePayment.getByText(/thực hiện hoàn toàn đơn trên cổng thanh toán/i).waitFor();
+  await approvePayment.getByText(providerInstructions).waitFor();
   const approvalCommands = refund.commands.filter((command) => command.action === 'APPROVE');
   assert.equal(approvalCommands.length, 3);
   assert.deepEqual(approvalCommands[1], approvalCommands[0]);
@@ -388,7 +390,7 @@ try {
   await panel.getByRole('button', { name: 'Trang sau' }).click();
   await panel.getByRole('link', { name: second.id }).waitFor();
   assert(disruption.requests.some((path) => path.endsWith('/impact?page=1&size=10')));
-  await panel.getByLabel('Quyết định').selectOption('CANCEL');
+  await selectWorkspaceOption(panel.getByLabel('Quyết định'), { value: 'CANCEL' });
   await panel.getByLabel('Lý do').fill('Hội trường không thể mở cửa');
   const cancel = panel.getByRole('button', { name: 'Xác nhận hủy' });
   assert(await cancel.isDisabled());
@@ -408,7 +410,7 @@ try {
   await postponeAdmin.page.goto(`${origin}/admin/concerts/${concertId}?tab=operations`);
   const postponement = postponeAdmin.page.getByRole('region', { name: 'Hoãn hoặc hủy buổi diễn' });
   await postponement.getByRole('link', { name: first.id }).waitFor();
-  await postponement.getByLabel('Quyết định').selectOption('POSTPONE');
+  await selectWorkspaceOption(postponement.getByLabel('Quyết định'), { value: 'POSTPONE' });
   await postponement.getByLabel('Lý do').fill('Dời lịch do thời tiết');
   const newDate = new Date(Date.now() + 172_800_000).toISOString().slice(0, 16);
   const saleStart = new Date(Date.now() + 86_400_000).toISOString().slice(0, 16);

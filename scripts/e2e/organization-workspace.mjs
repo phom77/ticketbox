@@ -1,3 +1,4 @@
+import { selectWorkspaceOption } from './select-workspace-option.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { mkdir } from 'node:fs/promises';
@@ -45,10 +46,10 @@ try {
   await approve(admin.page, secondName, audience.user.id);
 
   await organizer.page.goto('/organizer');
-  await organizer.page.getByLabel('Tổ chức đang làm việc').selectOption({ label: firstName });
+  await selectWorkspaceOption(organizer.page.getByLabel('Tổ chức đang làm việc'), { label: firstName });
   await organizer.page.getByRole('heading', { name: firstName, exact: true }).waitFor();
   await organizer.page.locator('.operations-nav').getByRole('link', { name: 'Thành viên' }).click();
-  await organizer.page.getByRole('heading', { name: 'Mời thành viên' }).waitFor();
+  await organizer.page.getByRole('button', { name: 'Mời thành viên', exact: true }).click();
   await organizer.page.getByLabel('Mã tài khoản người nhận').fill(audience.user.id);
   await organizer.page.getByRole('checkbox', { name: 'Xem đơn hàng và doanh thu' }).first().check();
   await organizer.page.getByRole('button', { name: 'Tạo lời mời' }).click();
@@ -60,7 +61,7 @@ try {
     mask: [invitation] });
 
   await audience.page.goto('/organizer');
-  await audience.page.getByLabel('Tổ chức đang làm việc').selectOption({ label: secondName });
+  await selectWorkspaceOption(audience.page.getByLabel('Tổ chức đang làm việc'), { label: secondName });
   await audience.page.getByRole('heading', { name: secondName, exact: true }).waitFor();
   await audience.page.getByLabel('Mã lời mời').fill(code);
   await audience.page.getByRole('button', { name: 'Tham gia tổ chức' }).click();
@@ -74,14 +75,14 @@ try {
   for (const width of [1440, 834, 390]) {
     await audience.page.setViewportSize({ width, height: 900 });
     const selection = audience.page.getByLabel('Tổ chức đang làm việc');
-    await selection.selectOption({ label: secondName });
+    await selectWorkspaceOption(selection, { label: secondName });
     await audience.page.getByRole('heading', { name: secondName, exact: true }).waitFor();
     await navigation.getByRole('link', { name: 'Buổi diễn' }).waitFor({ state: 'attached' });
     await selection.focus();
     assert.equal(await selection.evaluate((node) => node === document.activeElement), true);
     await fits(audience.page, `Organization workspace at ${width}px`);
     await audience.page.screenshot({ path: `${output}/overview-${width}.png`, animations: 'disabled' });
-    await selection.selectOption({ label: firstName });
+    await selectWorkspaceOption(selection, { label: firstName });
     await audience.page.getByRole('heading', { name: firstName, exact: true }).waitFor();
     assert.equal(await navigation.getByRole('link', { name: 'Buổi diễn' }).count(), 0);
   }
@@ -124,11 +125,11 @@ try {
   const englishTitle = `English title ${suffix}`;
   await englishFields.getByLabel('Tên concert').fill(englishTitle);
   const language = organizer.page.getByRole('combobox', { name: 'Ngôn ngữ' });
-  await language.selectOption('en');
+  await selectWorkspaceOption(language, { value: 'en' });
   assert.equal(await englishFields.getByLabel('Event title').inputValue(), englishTitle);
   assert.equal(await organizer.page.getByRole('group', { name: 'Original text' }).getByLabel('Event title').inputValue(), title);
   assert.equal(await organizer.page.getByRole('group', { name: 'Tiếng Việt' }).getByLabel('Event title').inputValue(), '');
-  await organizer.page.getByRole('combobox', { name: 'Language' }).selectOption('vi');
+  await selectWorkspaceOption(organizer.page.getByRole('combobox', { name: 'Language' }), { value: 'vi' });
   const saved = organizer.page.waitForResponse((response) => response.request().method() === 'PUT' &&
     new URL(response.url()).pathname === `/api/organizer/manage/concerts/${concert.id}`);
   await organizer.page.locator('.concert-settings-form button[type=submit], .concert-settings-form button:not([type])').click();
@@ -140,9 +141,9 @@ try {
   await preview.focus();
   await organizer.page.keyboard.press('Enter');
   await organizer.page.getByText('Chế độ xem trước', { exact: true }).first().waitFor();
-  await organizer.page.getByRole('combobox', { name: 'Ngôn ngữ' }).selectOption('en');
+  await selectWorkspaceOption(organizer.page.getByRole('combobox', { name: 'Ngôn ngữ' }), { value: 'en' });
   await organizer.page.getByRole('heading', { name: englishTitle, exact: true }).waitFor();
-  await organizer.page.getByRole('combobox', { name: 'Language' }).selectOption('vi');
+  await selectWorkspaceOption(organizer.page.getByRole('combobox', { name: 'Language' }), { value: 'vi' });
   assert.equal(await organizer.page.getByRole('link', { name: /Mua ngay|Vào phòng chờ/ }).count(), 0);
   await organizer.page.goto(`${workspace}?tab=operations`);
   const retryOrders = organizer.page.getByRole('alert').filter({ hasText: 'Đơn hàng tạm gián đoạn' })

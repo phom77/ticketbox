@@ -30,11 +30,14 @@ public class LocalTickets implements TicketCheckinPort {
                 rs.getString("qr_secret"),
                 rs.getString("status"),
                 rs.getObject("issued_at", OffsetDateTime.class),
-                rs.getObject("used_at", OffsetDateTime.class));
+                rs.getObject("used_at", OffsetDateTime.class),
+                rs.getString("section_label"),
+                rs.getString("row_label"),
+                rs.getString("seat_label"));
     }
 
-    public Optional<TicketView> findByQrCode(String qr) {
-        return jdbc.query("SELECT * FROM tickets WHERE qr_code=?", this::row, qr).stream()
+    public Optional<TicketView> findByQrCode(String qr, UUID concert) {
+        return jdbc.query("SELECT * FROM tickets WHERE qr_code=? AND concert_id=?", this::row, qr, concert).stream()
                 .findFirst();
     }
 
@@ -102,17 +105,19 @@ FROM tickets WHERE concert_id=?
                 concert);
     }
 
-    public boolean markAsUsedIfValid(UUID id, OffsetDateTime time) {
+    public boolean markAsUsedIfValid(UUID id, UUID concert, OffsetDateTime time) {
         return jdbc.update(
                         """
                         WITH admission AS (
                             SELECT c.id FROM concerts c JOIN tickets t ON t.concert_id=c.id
-                            WHERE t.id=? AND NOT c.sales_suspended AND (c.resumed_admission_at IS NULL OR c.resumed_admission_at<=clock_timestamp())
+                            WHERE t.id=? AND c.id=? AND c.status<>'CANCELLED' AND NOT c.sales_suspended
+                                AND (c.resumed_admission_at IS NULL OR c.resumed_admission_at<=clock_timestamp())
                             FOR SHARE OF c
                         ) UPDATE tickets SET status='USED',used_at=?,updated_at=now()
                         WHERE id=? AND status='VALID' AND refund_case_id IS NULL AND concert_id IN (SELECT id FROM admission)
                         """,
                         id,
+                        concert,
                         time,
                         id)
                 == 1;

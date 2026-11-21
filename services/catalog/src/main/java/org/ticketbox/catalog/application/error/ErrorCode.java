@@ -16,6 +16,7 @@ public enum ErrorCode {
     ARTIST_BIO_ALREADY_EXISTS("error.artist-bio-already-exists"),
     INVALID_STATUS_TRANSITION("error.invalid-status-transition"),
     CONCERT_NOT_DELETABLE("error.concert-not-deletable"),
+    PERFORMANCE_VERSION_CONFLICT("error.performance.version-conflict"),
     INVALID_DATE("error.invalid-date"),
     RATE_LIMIT_EXCEEDED("error.rate-limit-exceeded"),
     REDIS_UNAVAILABLE("error.redis-unavailable");

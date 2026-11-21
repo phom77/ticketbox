@@ -14,6 +14,7 @@ import type { ApiFieldError, ApiResponse } from './types';
 type JsonRequestOptions = {
   method?: Method;
   token?: string;
+  organizationId?: string;
   body?: unknown;
 };
 
@@ -26,7 +27,7 @@ export const apiClient = axios.create({
 
 apiClient.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
   const admission = process.env.EXPO_PUBLIC_ADMISSION_API_BASE_URL;
-  config.baseURL = config.url?.startsWith('/staff/') && admission
+  config.baseURL = config.url?.startsWith('/v2/staff/') && admission
     ? admission.replace(/\/+$/, '')
     : getApiBaseUrl();
   config.timeout = 8000;
@@ -62,7 +63,7 @@ export async function requestJson<T>(path: string, options: JsonRequestOptions =
   const config: AxiosRequestConfig = {
     url: path,
     method: options.method ?? 'GET',
-    headers: buildHeaders(options.token),
+    headers: buildHeaders(options),
     data: options.body,
   };
 
@@ -88,12 +89,13 @@ export async function requestJson<T>(path: string, options: JsonRequestOptions =
   }
 }
 
-function buildHeaders(token?: string) {
+function buildHeaders({ token, organizationId }: JsonRequestOptions) {
   const headers: Record<string, string> = {};
 
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
+  if (organizationId) headers['X-Organization-Id'] = organizationId;
 
   return headers;
 }

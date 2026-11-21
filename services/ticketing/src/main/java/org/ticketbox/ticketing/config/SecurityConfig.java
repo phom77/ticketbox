@@ -107,7 +107,9 @@ public class SecurityConfig {
                                                 "/api/auth/login")
                                         .permitAll()
                                         .requestMatchers(
-                                                HttpMethod.GET, "/api/concerts", "/api/concerts/**")
+                                                HttpMethod.GET, "/api/concerts", "/api/concerts/**",
+                                                "/api/v2/performances/*/availability",
+                                                "/api/v2/performances/*/availability/sections/*")
                                         .permitAll()
                                         .requestMatchers("/ws/**")
                                         .permitAll()
@@ -142,6 +144,8 @@ public class SecurityConfig {
                                         .hasRole("ADMIN")
                                         .requestMatchers("/api/organizer/**")
                                         .authenticated()
+                                        .requestMatchers("/api/v2/performances/**")
+                                        .hasRole("AUDIENCE")
                                         .requestMatchers("/api/queue/**")
                                         .hasRole("AUDIENCE")
                                         .requestMatchers(

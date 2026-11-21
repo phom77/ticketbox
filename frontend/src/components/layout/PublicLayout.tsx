@@ -58,7 +58,7 @@ export function PublicLayout() {
   const location = useLocation();
 
   const isBookingFlow =
-    /^\/concerts\/[^/]+\/(waiting-room|seats)$/.test(location.pathname) ||
+    /^\/(?:concerts\/[^/]+|events\/[^/]+\/performances\/[^/]+)\/(waiting-room|seats)$/.test(location.pathname) ||
     ['/checkout', '/booking-confirmation', '/payment/result'].includes(location.pathname);
 
   const homePath = getRoleHome(user?.role);
@@ -106,6 +106,7 @@ export function PublicLayout() {
             <Logo to={homePath} label={homeLabel} />
             <nav className="desktop-nav" aria-label={translate("shared:publicLayout_dieuHuongChinh")}>
               {canBrowseCatalogue ? <NavLink to="/">{translate("shared:publicLayout_khamPha")}</NavLink> : null}
+              {canBrowseCatalogue && <NavLink to="/events">{translate("performances:events")}</NavLink>}
               {isAudience ? <NavLink to="/my-tickets">{translate("shared:publicLayout_veCuaToi")}</NavLink> : null}
               {isAudience ? (
                 <NavLink to="/notifications">
@@ -217,6 +218,7 @@ export function PublicLayout() {
                   {translate("shared:publicLayout_khamPha")}
                 </NavLink>
               ) : null}
+              {canBrowseCatalogue && <NavLink to="/events" onClick={() => setMobileOpen(false)}>{translate("performances:events")}</NavLink>}
               {isAudience ? (
                 <NavLink to="/profile" onClick={() => setMobileOpen(false)}>
                   {translate("shared:publicLayout_hoSo")}

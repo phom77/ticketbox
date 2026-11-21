@@ -1,0 +1,493 @@
+.operations-shell {
+  color-scheme: light;
+  --ink: #f4f6f9;
+  --surface: #fff;
+  --surface-2: #edf1f7;
+  --cream: #172238;
+  --muted: #4a596e;
+  --line: #d4dce8;
+  --coral: #174fc1;
+  --coral-light: #174fc1;
+  --violet: #1446aa;
+  --ops-input-line: #7b8ca3;
+  --ops-focus-ring: #2463dd;
+  --ops-placeholder: #526177;
+  --ops-primary-text: #fff;
+  --ops-primary-hover: #12439f;
+  --ops-selection-bg: #e6eeff;
+  --ops-danger-bg: #ffedec;
+  --ops-danger-text: #962219;
+  --ops-warning-bg: #fff1cf;
+  --ops-warning-text: #79400e;
+  --ops-success-bg: #e1f4e9;
+  --ops-success-text: #145b37;
+  --ops-sidebar-bg: #10244c;
+  --ops-sidebar-line: #2f456e;
+  --ops-sidebar-text: #f4f7ff;
+  --ops-sidebar-context: #bdcbdf;
+  --ops-sidebar-active: #284675;
+  --ops-surface-shadow: 0 12px 32px rgb(16 24 40 / .14);
+  --ops-gutter: clamp(1.25rem, 2vw, 2.25rem);
+  background: var(--ink);
+  color: var(--cream);
+  font-family: Manrope, sans-serif;
+}
+
+.operations-shell[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #0e141e;
+  --surface: #151e2c;
+  --surface-2: #1d283a;
+  --cream: #f0f4fc;
+  --muted: #b6c3d7;
+  --line: #394860;
+  --coral: #94baff;
+  --coral-light: #b5ceff;
+  --violet: #adcbff;
+  --ops-input-line: #687c9a;
+  --ops-focus-ring: #a8c8ff;
+  --ops-placeholder: #a8b6cd;
+  --ops-primary-text: #0d1b34;
+  --ops-primary-hover: #b3ceff;
+  --ops-selection-bg: #20385d;
+  --ops-danger-bg: #422229;
+  --ops-danger-text: #ffbcb7;
+  --ops-warning-bg: #3b2d17;
+  --ops-warning-text: #fbd491;
+  --ops-success-bg: #15372e;
+  --ops-success-text: #a1edc9;
+  --ops-sidebar-bg: #101827;
+  --ops-sidebar-line: #30405b;
+  --ops-sidebar-text: #eff4ff;
+  --ops-sidebar-context: #b6c3d7;
+  --ops-sidebar-active: #263e63;
+  --ops-surface-shadow: 0 12px 32px rgb(0 0 0 / .35);
+}
+
+.operations-shell .operations-content {
+  width: 100%;
+  margin: 0;
+  padding: 1.75rem var(--ops-gutter) 4rem;
+  color: var(--cream);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.operations-shell .operations-topbar {
+  min-height: 4.5rem;
+  gap: 1rem;
+  padding-inline: var(--ops-gutter);
+  border-color: var(--line);
+  background: var(--surface);
+  backdrop-filter: none;
+}
+
+.operations-shell .operations-sidebar {
+  border-color: var(--ops-sidebar-line);
+  background: var(--ops-sidebar-bg);
+}
+
+.operations-shell .operations-brand {
+  min-height: 4.5rem;
+  padding-inline: 1.25rem;
+  border-color: var(--ops-sidebar-line);
+}
+
+.operations-shell .operations-brand > span {
+  color: var(--ops-sidebar-context);
+  font-size: .75rem;
+  letter-spacing: .035em;
+  text-transform: none;
+}
+
+.operations-shell .operations-nav {
+  gap: .25rem;
+  padding: .9rem .75rem;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.operations-shell .operations-nav a,
+.operations-shell .operations-sidebar-footer button {
+  color: var(--ops-sidebar-text);
+  font-size: .9375rem;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.operations-shell .operations-nav a:hover,
+.operations-shell .operations-nav a.active {
+  background: var(--ops-sidebar-active);
+  color: var(--ops-sidebar-text);
+}
+
+.operations-shell .operations-nav a:focus-visible,
+.operations-shell .operations-sidebar-footer button:focus-visible {
+  outline: 2px solid #b1ccff;
+  outline-offset: -3px;
+}
+
+.operations-shell .operations-sidebar-footer { border-color: var(--ops-sidebar-line); }
+
+.operations-shell .operations-context { min-width: 0; }
+.operations-shell .operations-context > .operations-context-caption,
+.operations-shell .operations-account small {
+  color: var(--muted);
+  font-size: .8125rem;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.operations-shell .operations-context > strong,
+.operations-shell .operations-account strong { font-size: .9375rem; }
+
+.operations-account,
+.operations-preferences {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  flex: none;
+}
+
+.operations-language-select { width: 8.25rem; }
+.operations-organization-select { width: min(28vw, 23rem); }
+
+.operations-theme-toggle {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 1px solid var(--ops-input-line);
+  border-radius: .5rem;
+  background: var(--surface);
+  color: var(--cream);
+  cursor: pointer;
+}
+
+.operations-theme-toggle:hover,
+.operations-shell .operations-account-menu a:hover,
+.operations-shell .operations-account-menu button:hover {
+  background: var(--surface-2);
+}
+
+.operations-shell .operations-avatar {
+  width: 2.5rem;
+  height: 2.5rem;
+  background: var(--coral);
+  color: var(--ops-primary-text);
+  font-size: .875rem;
+}
+
+.operations-shell .operations-account-menu {
+  border-color: var(--line);
+  border-radius: .65rem;
+  background: var(--surface);
+  box-shadow: var(--ops-surface-shadow);
+}
+.operations-shell .operations-account-menu :is(a, button) {
+  color: var(--cream);
+  font-size: .9375rem;
+}
+.operations-shell .operations-account-menu .operations-danger-menu-item:hover {
+  background: var(--ops-danger-bg);
+  color: var(--ops-danger-text);
+}
+.operations-shell :focus-visible {
+  outline-color: var(--ops-focus-ring);
+}
+
+.operations-shell .admin-page-header {
+  align-items: center;
+  gap: .9rem 1.25rem;
+  margin-block: 0 1.35rem;
+  padding: 0 0 1rem;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.operations-shell .admin-page-header-copy > p { display: none; }
+.operations-shell .admin-page-header h1 {
+  margin-bottom: .35rem;
+  color: var(--cream);
+  font-size: clamp(1.65rem, 2vw, 2.125rem);
+  letter-spacing: -.025em;
+  line-height: 1.18;
+}
+.operations-shell .admin-page-header > .admin-page-header-copy > span {
+  color: var(--muted);
+  font-size: .975rem;
+  line-height: 1.5;
+}
+.operations-shell .admin-page-actions { max-width: 100%; }
+
+.operations-shell :is(
+  .admin-inline-stats, .admin-data-panel, .admin-toolbar, .admin-role-note, .admin-workspace-grid,
+  .admin-section-tabs, .admin-reminder-toolbar, .admin-dialog, .admin-confirm-dialog, .admin-placeholder,
+  .guest-import-workspace, .guest-upload-panel, .guest-latest-panel, .ai-bio-workspace, .ai-bio-upload,
+  .ai-bio-latest, .staff-panel, .staff-scan-result, .staff-guest-card, .revenue-filter-panel,
+  .revenue-chart-panel, .revenue-chart-empty, .concert-workspace-hero, .concert-workspace-tabs,
+  .concert-workspace-card, .concert-workspace-metric, .artist-content-grid > section
+) {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--cream);
+  box-shadow: none;
+}
+
+.operations-shell :is(.admin-data-panel, .admin-toolbar, .admin-inline-stats) { border-radius: .75rem; }
+.operations-shell :is(.admin-inline-stats > div, .admin-workspace-link, .admin-table td, .admin-table th) { border-color: var(--line); }
+
+.operations-shell .admin-inline-stats > div {
+  min-height: 6rem;
+  gap: .3rem;
+  padding: .85rem 1.1rem;
+}
+.operations-shell .admin-inline-stats span {
+  color: var(--muted);
+  font-size: .9rem;
+}
+.operations-shell .admin-inline-stats strong {
+  color: var(--cream);
+  font-size: clamp(1.35rem, 2vw, 1.85rem);
+  font-variant-numeric: tabular-nums;
+}
+
+.operations-shell .admin-table th {
+  color: var(--muted);
+  background: var(--surface-2);
+  font-size: .875rem;
+  letter-spacing: 0;
+  text-transform: none;
+  line-height: 1.3;
+}
+.operations-shell .admin-table td,
+.operations-shell .admin-table-primary {
+  color: var(--cream);
+  font-size: .9375rem;
+  line-height: 1.45;
+}
+.operations-shell .admin-table-secondary,
+.operations-shell :is(.admin-workspace-link span, .admin-workspace-link p, .admin-role-note p, .admin-order-detail-section p) {
+  color: var(--muted);
+  font-size: .875rem;
+}
+.operations-shell :is(.admin-table-primary strong, .admin-workspace-link strong) { color: var(--cream); }
+.operations-shell :is(.admin-table tbody tr:hover, .admin-workspace-link:hover) { background: var(--surface-2); }
+
+.operations-shell :is(.admin-primary-action, .admin-secondary-action, .admin-danger-action, .button) {
+  min-height: 2.75rem;
+  font-size: .9375rem;
+  line-height: 1.25;
+}
+.operations-shell :is(.button-primary, .admin-primary-action) {
+  background: var(--coral);
+  color: var(--ops-primary-text);
+}
+.operations-shell :is(.button-primary, .admin-primary-action):hover:not(:disabled) {
+  background: var(--ops-primary-hover);
+  color: var(--ops-primary-text);
+}
+.operations-shell :is(.button-secondary, .admin-secondary-action, .admin-toolbar > button, .admin-dialog > header button,
+  .admin-confirm-dialog header button) {
+  border-color: var(--ops-input-line);
+  background: var(--surface);
+  color: var(--cream);
+}
+.operations-shell :is(.button-secondary, .admin-secondary-action, .admin-toolbar > button, .admin-dialog > header button,
+  .admin-confirm-dialog header button):hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--cream);
+}
+.operations-shell .admin-danger-action {
+  border-color: var(--ops-danger-text);
+  background: var(--ops-danger-bg);
+  color: var(--ops-danger-text);
+}
+.operations-shell .admin-danger-action:hover:not(:disabled) {
+  background: var(--ops-danger-text);
+  color: var(--surface);
+}
+
+.operations-shell .admin-field {
+  min-width: 0;
+  color: var(--cream);
+  font-size: .9rem;
+  font-weight: 650;
+  line-height: 1.35;
+  letter-spacing: normal;
+  text-transform: none;
+}
+.operations-shell .admin-field > span {
+  color: var(--cream);
+  font-size: .9rem;
+  letter-spacing: normal;
+  text-transform: none;
+}
+.operations-shell :is(.admin-field input, .admin-field select, .admin-field textarea,
+  .admin-search-control, .guest-log-filters select, .ai-job-filters select, .revenue-filter-panel select,
+  .revenue-filter-panel input, .admin-toolbar select, .admin-table select) {
+  min-height: 2.75rem;
+  border-color: var(--ops-input-line);
+  background: var(--surface);
+  color: var(--cream);
+  color-scheme: inherit;
+  font-size: .9375rem;
+}
+.operations-shell .admin-search-control input { color: var(--cream); font-size: .9375rem; }
+.operations-shell :is(input, textarea)::placeholder { color: var(--ops-placeholder); opacity: 1; }
+
+.operations-shell :is(.admin-notice, .admin-status) {
+  font-size: .875rem;
+  line-height: 1.45;
+  letter-spacing: normal;
+  text-transform: none;
+}
+.operations-shell :is(.admin-notice.success, .admin-status.status-on_sale, .staff-guest-checked) {
+  border-color: var(--line);
+  background: var(--ops-success-bg);
+  color: var(--ops-success-text);
+}
+.operations-shell :is(.admin-notice.error, .admin-status.status-cancelled) {
+  border-color: var(--line);
+  background: var(--ops-danger-bg);
+  color: var(--ops-danger-text);
+}
+.operations-shell .admin-status.status-draft {
+  border-color: var(--line);
+  background: var(--ops-warning-bg);
+  color: var(--ops-warning-text);
+}
+.operations-shell :is(.admin-status.status-sold_out, .admin-status.status-completed, .admin-section-tab.is-active) {
+  border-color: var(--line);
+  background: var(--ops-selection-bg);
+  color: var(--violet);
+}
+
+.operations-shell .admin-section-tab { font-size: .9375rem; }
+.operations-shell .admin-section-tab:not(.is-active) { color: var(--cream); }
+.operations-shell .admin-section-tab:hover { background: var(--surface-2); }
+.operations-shell :is(.admin-reminder-copy small, .concert-workspace-hint, .concert-workspace-hero :is(span, p),
+  .concert-card-heading span, .concert-workspace-metric small, .artist-content-intro,
+  .artist-content-section-heading span) { color: var(--muted); font-size: .875rem; }
+.operations-shell :is(.admin-reminder-copy span, .concert-workspace-hero strong, .concert-workspace-metric strong,
+  .artist-content-section-heading strong, .concert-definition-list dd) { color: var(--cream); }
+.operations-shell :is(.concert-workspace-tabs button.active, .concert-workspace-metric > span) {
+  color: var(--violet);
+  background: var(--ops-selection-bg);
+  box-shadow: none;
+}
+.operations-shell .concert-workspace-tabs button:not(.active) { color: var(--muted); }
+.operations-shell .admin-filter-controls::before { content: none; }
+
+.operations-shell[data-theme="dark"] :is(.admin-dialog-backdrop, .concert-picker-backdrop) {
+  background: rgb(7 12 21 / .75);
+}
+.operations-shell[data-theme="dark"] :is(
+  .admin-poster-field, .guest-file-picker, .ai-pdf-picker, .staff-selected-concert, .staff-qr-picker,
+  .ai-bio-draft, .batch-detail-loading, .admin-row-skeleton span, .revenue-page-skeleton > span,
+  .revenue-report-skeleton > span, .revenue-report-skeleton > div > span, .concert-workspace-hero img
+) {
+  border-color: var(--line);
+  background: var(--surface-2);
+  color: var(--cream);
+}
+.operations-shell[data-theme="dark"] .admin-concert-switcher,
+.operations-shell[data-theme="dark"] .admin-concert-switcher select {
+  background-color: var(--surface) !important;
+  color: var(--cream) !important;
+}
+
+@media (max-width: 980px) {
+  .operations-shell .admin-page-header { align-items: flex-start; }
+}
+
+@media (max-width: 720px) {
+  .operations-shell { --ops-gutter: 1rem; }
+  .operations-shell .operations-topbar { gap: .5rem; min-height: 4.25rem; }
+  .operations-shell .operations-content { padding-top: 1.25rem; }
+  .operations-shell .organization-context { flex: 1; }
+  .operations-organization-select { width: 100%; }
+  .operations-language-select { width: 6.55rem; }
+  .operations-shell .operations-account > button { padding-inline: 0; }
+  .operations-shell .operations-account > button > :is(span:nth-child(2), svg) { display: none; }
+  .operations-shell .admin-page-actions { justify-content: flex-start; }
+}
+
+@media (max-width: 380px) {
+  .operations-shell .operations-topbar { padding-inline: .6rem; gap: .3rem; }
+  .operations-account, .operations-preferences { gap: .25rem; }
+  .operations-language-select { width: 6rem; }
+  .operations-shell .operations-theme-toggle { width: 2.5rem; }
+}
+
+.operations-shell .workspace-select-trigger {
+  border-color: var(--ops-input-line);
+}
+.operations-shell .workspace-select-trigger[aria-invalid="true"] {
+  border-color: var(--ops-danger-text);
+}
+.operations-shell .workspace-select-popup {
+  font-family: inherit;
+  box-shadow: var(--ops-surface-shadow);
+}
+
+.operations-shell .concert-picker-label {
+  color: var(--cream);
+  font-size: .9rem;
+  line-height: 1.35;
+  text-transform: none;
+  letter-spacing: normal;
+}
+.operations-shell :is(.concert-picker-trigger, .concert-picker-popover, .concert-picker-search) {
+  border-color: var(--ops-input-line);
+  background: var(--surface);
+  color: var(--cream);
+}
+.operations-shell .concert-picker-popover {
+  box-shadow: var(--ops-surface-shadow);
+}
+.operations-shell .concert-picker-trigger:hover:not(:disabled) { background: var(--surface-2); }
+.operations-shell :is(.concert-picker-main strong, .concert-picker-results strong, .concert-picker-search input) {
+  color: var(--cream);
+  font-size: .9375rem;
+}
+.operations-shell :is(.concert-picker-main small, .concert-picker-results small, .concert-picker-empty) {
+  color: var(--muted);
+  font-size: .875rem;
+}
+.operations-shell :is(.concert-picker-option-icon, .concert-picker-results > button.is-selected,
+  .concert-picker-search button:hover) {
+  color: var(--violet);
+  background: var(--ops-selection-bg);
+}
+.operations-shell :is(.concert-picker-results > button:hover, .concert-picker-results > button:focus-visible) {
+  border-color: var(--line);
+  background: var(--surface-2);
+}
+.operations-shell .concert-picker-results > button > svg { color: var(--violet); }
+.operations-shell .concert-picker-compact {
+  width: 100%;
+  min-width: 0;
+  gap: .45rem;
+}
+.operations-shell .concert-picker-compact .concert-picker-trigger {
+  min-height: 2.75rem;
+  padding: .45rem .7rem;
+}
+.operations-shell .concert-picker-compact .concert-picker-popover {
+  min-width: 100%;
+}
+
+.operations-shell .admin-filter-controls > .workspace-select,
+.operations-shell .admin-order-support-form > .workspace-select {
+  flex: 0 1 16rem;
+}
+.operations-shell :is(.guest-log-filters, .ai-job-filters) > label span,
+.operations-shell .order-support-queue-header label > span {
+  font-size: .875rem;
+  color: var(--cream);
+}

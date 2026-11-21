@@ -7,6 +7,7 @@ import SockJS from 'sockjs-client';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ApiClientError, apiBaseUrl, isRequestCanceled } from '../../api/client';
 import { getConcert, type ConcertDetail } from '../../api/concerts';
+import { eventPath, getEventPerformance, performancePath } from '../../api/performances';
 import { getAuthToken } from '../../features/auth/tokenCookie';
 import {
   clearStoredQueueAdmission,
@@ -20,14 +21,15 @@ import { eventDate } from '../../data/formatters';
 
 export function WaitingRoomPage() {
   useTranslation();
-  const { id } = useParams();
+  const { id, eventId } = useParams();
   const navigate = useNavigate();
-  const [concert, setConcert] = useState<ConcertDetail | null>(null);
+  const [concert, setConcert] = useState<Pick<ConcertDetail, 'id' | 'title' | 'translations' | 'eventDate' | 'venueName' | 'saleStartAt'> | null>(null);
   const [queueStatus, setQueueStatus] = useState<QueueStatusResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  const readyForQueue = !eventId || concert?.id === id;
   const stopWaitingRef = useRef<(() => void) | null>(null);
   const leavingRef = useRef(false);
 
@@ -37,7 +39,13 @@ export function WaitingRoomPage() {
     let active = true;
 
     setLoading(true);
-    getConcert(id, controller.signal)
+    const details = eventId
+      ? getEventPerformance(eventId, id, controller.signal).then(({ event, performance }) => ({
+        id: performance.id, title: event.title, eventDate: performance.startsAt,
+        venueName: performance.venueName, saleStartAt: performance.saleStartAt,
+      }))
+      : getConcert(id, controller.signal);
+    details
       .then((detail) => {
         if (active) setConcert(detail);
       })
@@ -53,10 +61,10 @@ export function WaitingRoomPage() {
       active = false;
       controller.abort();
     };
-  }, [id]);
+  }, [eventId, id]);
 
   useEffect(() => {
-    if (!id) return;
+    if (!id || !readyForQueue) return;
     const concertId = id;
     const controller = new AbortController();
     const { signal } = controller;
@@ -115,7 +123,7 @@ export function WaitingRoomPage() {
           return;
         }
         stopWaiting();
-        navigate(`/concerts/${concertId}/seats`, { replace: true });
+        navigate((eventId ? performancePath(eventId, concertId) : `/concerts/${concertId}`) + '/seats', { replace: true });
         return;
       }
 
@@ -211,7 +219,7 @@ export function WaitingRoomPage() {
       stopWaiting();
       if (stopWaitingRef.current === stopWaiting) stopWaitingRef.current = null;
     };
-  }, [id, navigate]);
+  }, [eventId, id, navigate, readyForQueue]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1_000);
@@ -236,7 +244,7 @@ export function WaitingRoomPage() {
     }
     if (stopWaitingRef.current !== stopWaiting) return;
     clearStoredQueueAdmission();
-    navigate(`/concerts/${id}`);
+    navigate(eventId ? eventPath(eventId) : `/concerts/${id}`);
   }
 
   if (loading) {

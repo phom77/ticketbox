@@ -143,6 +143,8 @@ public class SecurityConfig {
                                         .authenticated()
                                         .requestMatchers("/api/queue/**")
                                         .hasRole("AUDIENCE")
+                                        .requestMatchers("/api/v2/staff/performances", "/api/v2/staff/performances/**")
+                                        .hasRole("STAFF")
                                         .requestMatchers("/api/staff/**")
                                         .denyAll()
                                         .requestMatchers("/api/reservations/**")

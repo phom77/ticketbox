@@ -11,6 +11,7 @@ import org.ticketbox.ticketing.application.port.catalog.ConcertOrderPort;
 import org.ticketbox.ticketing.application.port.catalog.ConcertView;
 import org.ticketbox.ticketing.application.port.catalog.TicketTypeView;
 import org.ticketbox.ticketing.issuance.application.port.TicketRepository;
+import org.ticketbox.ticketing.issuance.application.port.TicketPlaces;
 import org.ticketbox.ticketing.issuance.domain.Ticket;
 import org.ticketbox.ticketing.issuance.infrastructure.OrderETicketPdfService;
 import org.ticketbox.ticketing.order.application.port.OrderRepository;
@@ -23,6 +24,7 @@ import org.ticketbox.ticketing.reporting.infrastructure.RevenueReportExportServi
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -35,6 +37,7 @@ class VietnamesePdfTest {
         var orders = mock(OrderRepository.class);
         var tickets = mock(TicketRepository.class);
         var concerts = mock(ConcertOrderPort.class);
+        var places = mock(TicketPlaces.class);
         UUID orderId = UUID.randomUUID(), concertId = UUID.randomUUID(), typeId = UUID.randomUUID();
         var order = new Order();
         order.setStatus(Order.Status.PAID);
@@ -62,10 +65,39 @@ class VietnamesePdfTest {
                                         typeId, concertId, ZONE, BigDecimal.TEN, 4, 3, 2, true)));
 
         var document =
-                new OrderETicketPdfService(orders, tickets, concerts)
+                new OrderETicketPdfService(orders, tickets, concerts, places)
                         .createForOrder(orderId)
                         .orElseThrow();
         verifyPdf(document.content());
+    }
+
+    @Test
+    void numberedTicketPdfUsesPurchasedSeatAndVenue() throws Exception {
+        var orders = mock(OrderRepository.class);
+        var tickets = mock(TicketRepository.class);
+        var concerts = mock(ConcertOrderPort.class);
+        var places = mock(TicketPlaces.class);
+        UUID orderId = UUID.randomUUID(), performanceId = UUID.randomUUID(), ticketId = UUID.randomUUID();
+        var order = new Order();
+        order.setStatus(Order.Status.PAID);
+        order.setConcertId(performanceId);
+        var ticket = new Ticket();
+        ticket.setId(ticketId);
+        ticket.setTicketTypeId(UUID.randomUUID());
+        ticket.setQrCode("qr-fixture");
+        when(orders.findById(orderId)).thenReturn(Optional.of(order));
+        when(tickets.findByOrderId(orderId)).thenReturn(List.of(ticket));
+        when(concerts.findConcertById(performanceId)).thenReturn(Optional.of(
+                new ConcertView(performanceId, TITLE, "ON_SALE", OffsetDateTime.now(), null, null)));
+        when(places.forTickets(List.of(ticketId))).thenReturn(Map.of(ticketId, new TicketPlaces.Place(
+                performanceId, UUID.randomUUID(), TITLE, "Nhà hát Sông Hồng", OffsetDateTime.now(), ZONE,
+                "Ban công", "B", "12")));
+
+        var document = new OrderETicketPdfService(orders, tickets, concerts, places)
+                .createForOrder(orderId).orElseThrow();
+        try (var pdf = Loader.loadPDF(document.content())) {
+            assertThat(new PDFTextStripper().getText(pdf)).contains(TITLE, ZONE, "Nhà hát Sông Hồng", "Ban công", "B", "12");
+        }
     }
 
     @Test

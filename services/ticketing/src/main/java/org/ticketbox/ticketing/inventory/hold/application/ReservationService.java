@@ -33,6 +33,7 @@ public class ReservationService {
     private final TicketHoldRepository ticketHoldRepository;
     private final OrderItemRepository orderItemRepository;
     private final ConcertOrderPort concertOrderPort;
+    private final org.ticketbox.ticketing.performance.application.port.PerformanceCatalog performanceCatalog;
     private final org.ticketbox.ticketing.inventory.application.port.InventoryPort inventory;
     private final QueueAccessPort queueAccessPort;
     private final PurchaseSessions purchaseSessions;
@@ -47,7 +48,7 @@ public class ReservationService {
             int quantityRequest,
             UUID userId,
             String queueAccessToken) {
-        if (concertOrderPort.lockAndCheckSalesSuspended(concertId)) {
+        if (performanceCatalog.usesPerformanceStock(concertId) || concertOrderPort.lockAndCheckSalesSuspended(concertId)) {
             throw new AppException(ErrorCode.CONCERT_NOT_ON_SALE, "error.concert-not-on-sale");
         }
         purchaseGuard.lock(userId, concertId);
@@ -127,6 +128,7 @@ public class ReservationService {
             int quantityRequest,
             UUID userId,
             String queueAccessToken) {
+        requireLegacyStock(concertId);
         purchaseGuard.lock(userId, concertId);
         queueAccessPort.validateAccess(concertId, userId, queueAccessToken);
 
@@ -170,6 +172,7 @@ public class ReservationService {
 
     @Transactional
     public void releaseAllCurrentHolds(UUID concertId, UUID userId, String queueAccessToken) {
+        requireLegacyStock(concertId);
         purchaseGuard.lock(userId, concertId);
         queueAccessPort.validateAccess(concertId, userId, queueAccessToken);
         releaseAllHoldsForUserAndConcert(userId, concertId);
@@ -210,6 +213,12 @@ public class ReservationService {
                                         || !token.equals(hold.getSessionToken()))
                 .ifPresent(this::releaseAndDelete);
         ticketHoldRepository.flush();
+    }
+
+    private void requireLegacyStock(UUID concertId) {
+        if (performanceCatalog.usesPerformanceStock(concertId)) {
+            throw new AppException(ErrorCode.CONCERT_NOT_ON_SALE, "error.concert-not-on-sale");
+        }
     }
 
     private List<TicketHold> sortedHolds(UUID userId, UUID concertId) {

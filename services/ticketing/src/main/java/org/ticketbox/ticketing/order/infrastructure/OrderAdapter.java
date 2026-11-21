@@ -91,8 +91,12 @@ public class OrderAdapter implements OrderPort {
                     orderItemRepository.findByOrderId(orderId).stream()
                             .sorted(java.util.Comparator.comparing(OrderItem::getTicketTypeId))
                             .toList();
-            for (OrderItem item : items) {
-                inventory.release(item.getTicketTypeId(), item.getQuantity());
+            if (order.getPerformanceId() != null) {
+                orderService.releasePendingAllocations(order, items);
+            } else {
+                for (OrderItem item : items) {
+                    inventory.release(item.getTicketTypeId(), item.getQuantity());
+                }
             }
             order.setStatus(Order.Status.EXPIRED);
             orderEvents.record(order, version, OrderEventStore.Transition.OrderExpired);
