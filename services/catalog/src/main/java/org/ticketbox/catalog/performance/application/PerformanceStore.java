@@ -26,7 +26,13 @@ public interface PerformanceStore {
 
     boolean ownsNativeEvent(UUID id, UUID organizer);
 
+    Optional<Long> lockNativeEventVersion(UUID id, UUID organizer);
+
+    boolean hasReleasedPerformances(UUID event);
+
     void createEvent(UUID id, UUID organizer, String title, String description, String category);
+
+    void updateDraftEvent(UUID id, String title, String description, String category);
 
     List<Venue> venues(UUID organizer);
 
@@ -38,6 +44,10 @@ public interface PerformanceStore {
 
     Performance createPerformance(
             UUID id, UUID event, UUID space, OffsetDateTime starts, OffsetDateTime ends, OffsetDateTime doors,
+            String timezone, OffsetDateTime saleStart, OffsetDateTime saleEnd, int limit, boolean isPublic);
+
+    Performance updateDraftSchedule(
+            UUID id, UUID space, OffsetDateTime starts, OffsetDateTime ends, OffsetDateTime doors,
             String timezone, OffsetDateTime saleStart, OffsetDateTime saleEnd, int limit, boolean isPublic);
 
     Optional<Performance> lockOwnedPerformance(UUID id, UUID organizer);

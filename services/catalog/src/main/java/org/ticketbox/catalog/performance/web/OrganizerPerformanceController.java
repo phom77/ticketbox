@@ -1,6 +1,7 @@
 package org.ticketbox.catalog.performance.web;
 
 import java.security.Principal;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
@@ -55,6 +56,14 @@ public class OrganizerPerformanceController {
         return ApiResponse.success(catalog.event(id, owner));
     }
 
+    @PutMapping("/events/{id}")
+    public ApiResponse<Event> updateDraftEvent(
+            @PathVariable UUID id, @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID owner,
+            @RequestBody EventRequest request) {
+        return ApiResponse.success(catalog.updateDraftEvent(
+                owner, id, request.expectedDraftVersion(), request.title(), request.description(), request.category()));
+    }
+
     @GetMapping("/venues")
     public ApiResponse<List<Venue>> venues(@RequestAttribute(OrganizationAccess.ORGANIZATION) UUID owner) {
         return ApiResponse.success(catalog.venues(owner));
@@ -69,8 +78,15 @@ public class OrganizerPerformanceController {
     @PostMapping("/events/{id}/performances")
     public ApiResponse<Performance> createPerformance(
             @PathVariable UUID id, @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID owner,
-            @RequestBody PerformanceCatalog.Schedule request) {
-        return ApiResponse.success(catalog.createPerformance(owner, id, request));
+            @RequestBody ScheduleRequest request) {
+        return ApiResponse.success(catalog.createPerformance(owner, id, request.schedule()));
+    }
+
+    @PutMapping("/performances/{id}/schedule")
+    public ApiResponse<Performance> updateDraftSchedule(
+            @PathVariable UUID id, @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID owner,
+            @RequestBody ScheduleRequest request) {
+        return ApiResponse.success(catalog.updateDraftSchedule(owner, id, request.expectedDraftVersion(), request.schedule()));
     }
 
     @GetMapping("/performances/{id}/sale")
@@ -98,7 +114,9 @@ public class OrganizerPerformanceController {
             @RequestBody(required = false) PublishRequest request) {
         return ApiResponse.success(catalog.publish(owner, actor(actor), id,
                 request == null ? null : request.expectedSaleVersion(),
-                request == null ? null : request.expectedLayoutVersion()));
+                request == null ? null : request.expectedLayoutVersion(),
+                request == null ? null : request.expectedEventDraftVersion(),
+                request == null ? null : request.expectedScheduleDraftVersion()));
     }
 
     @GetMapping("/performances/{id}/layout")
@@ -163,10 +181,20 @@ public class OrganizerPerformanceController {
         return UUID.fromString(actor.getName());
     }
 
-    record EventRequest(String title, String description, String category) {}
+    record EventRequest(String title, String description, String category, Long expectedDraftVersion) {}
     record VenueRequest(String name, String address, String spaceName) {}
+    record ScheduleRequest(UUID venueSpaceId, OffsetDateTime startsAt, OffsetDateTime endsAt,
+                           OffsetDateTime doorsOpenAt, String timezone, OffsetDateTime saleStartAt,
+                           OffsetDateTime saleEndAt, int maxPerAccount, boolean publicVisible, Long expectedDraftVersion) {
+        PerformanceCatalog.Schedule schedule() {
+            return new PerformanceCatalog.Schedule(
+                    venueSpaceId, startsAt, endsAt, doorsOpenAt, timezone, saleStartAt, saleEndAt, maxPerAccount, publicVisible);
+        }
+    }
     record SaleRequest(long expectedSaleVersion, List<PerformanceSale.Group> groups, List<PerformanceSale.Offer> offers) {}
-    record PublishRequest(Long expectedSaleVersion, Long expectedLayoutVersion) {}
+    record PublishRequest(
+            Long expectedSaleVersion, Long expectedLayoutVersion, Long expectedEventDraftVersion,
+            Long expectedScheduleDraftVersion) {}
     record LayoutRequest(long expectedVersion, PerformanceLayout layout) {}
     record TemplateRequest(UUID venueSpaceId, String name, PerformanceLayout layout) {}
     record CopyRequest(UUID templateId, long revision, long expectedVersion) {}

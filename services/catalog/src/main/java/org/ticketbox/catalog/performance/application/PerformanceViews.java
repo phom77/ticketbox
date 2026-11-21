@@ -9,13 +9,15 @@ import org.ticketbox.catalog.performance.domain.PerformanceSale;
 public final class PerformanceViews {
     private PerformanceViews() {}
 
-    public record Event(UUID id, String title, String description, String category, List<Performance> performances) {}
+    public record Event(
+            UUID id, String title, String description, String category, long draftVersion, List<Performance> performances) {}
 
     public record Performance(
             UUID id, UUID eventId, UUID venueSpaceId, String venueName, String venueAddress, String spaceName,
             OffsetDateTime startsAt, OffsetDateTime endsAt, OffsetDateTime doorsOpenAt, String timezone,
             OffsetDateTime saleStartAt, OffsetDateTime saleEndAt, String status, boolean salesSuspended, OffsetDateTime resumedAdmissionAt,
-            boolean publicVisible, int maxPerAccount, long saleVersion, Long layoutVersion, UUID legacyConcertId) {}
+            boolean publicVisible, int maxPerAccount, long saleVersion, Long layoutVersion, UUID legacyConcertId,
+            long draftVersion) {}
 
     public record Venue(UUID id, String name, String address, List<Space> spaces) {}
 

@@ -55,7 +55,7 @@ public class JdbcPerformanceStore implements PerformanceStore {
         long total = named.queryForObject(
                 "SELECT count(*) FROM catalog_event_view e WHERE " + where, params, Long.class);
         var rows = named.query("""
-                SELECT e.id,e.title,e.description,e.category FROM catalog_event_view e WHERE %s
+                SELECT e.id,e.title,e.description,e.category,e.draft_version FROM catalog_event_view e WHERE %s
                 ORDER BY e.created_at DESC,e.id LIMIT :limit OFFSET :offset
                 """.formatted(where), params, (rs, n) -> readEvent(rs));
         return new PageImpl<>(withPerformances(rows, organizer == null), page, total);
@@ -67,14 +67,14 @@ public class JdbcPerformanceStore implements PerformanceStore {
         var params = new org.springframework.jdbc.core.namedparam.MapSqlParameterSource()
                 .addValue("id", id).addValue("organizer", organizer);
         var rows = named.query("""
-                SELECT e.id,e.title,e.description,e.category FROM catalog_event_view e WHERE e.id=:id AND %s
+                SELECT e.id,e.title,e.description,e.category,e.draft_version FROM catalog_event_view e WHERE e.id=:id AND %s
                 """.formatted(where), params, (rs, n) -> readEvent(rs));
         return withPerformances(rows, organizer == null).stream().findFirst();
     }
 
     private static Event readEvent(ResultSet rs) throws SQLException {
         return new Event(id(rs, "id"), rs.getString("title"), rs.getString("description"),
-                rs.getString("category"), List.of());
+                rs.getString("category"), rs.getLong("draft_version"), List.of());
     }
 
     private List<Event> withPerformances(List<Event> events, boolean publicOnly) {
@@ -85,7 +85,7 @@ public class JdbcPerformanceStore implements PerformanceStore {
                 Map.of("ids", events.stream().map(Event::id).toList()), this::performance)
                 .stream().collect(Collectors.groupingBy(Performance::eventId));
         return events.stream().map(event -> new Event(event.id(), event.title(), event.description(),
-                event.category(), performances.getOrDefault(event.id(), List.of()))).toList();
+                event.category(), event.draftVersion(), performances.getOrDefault(event.id(), List.of()))).toList();
     }
 
     @Override
@@ -96,9 +96,31 @@ public class JdbcPerformanceStore implements PerformanceStore {
     }
 
     @Override
+    public Optional<Long> lockNativeEventVersion(UUID id, UUID organizer) {
+        return first("""
+                SELECT draft_version FROM events
+                WHERE id=? AND organization_id=? AND legacy_concert_id IS NULL FOR NO KEY UPDATE
+                """, (rs, n) -> rs.getLong("draft_version"), id, organizer);
+    }
+
+    @Override
+    public boolean hasReleasedPerformances(UUID event) {
+        return jdbc.queryForObject("""
+                SELECT EXISTS(SELECT 1 FROM performances WHERE event_id=? AND status<>'DRAFT')
+                """, Boolean.class, event);
+    }
+
+    @Override
     public void createEvent(UUID id, UUID organizer, String title, String description, String category) {
         jdbc.update("INSERT INTO events(id,organization_id,title,description,category) VALUES(?,?,?,?,?)",
                 id, organizer, title, description, category);
+    }
+
+    @Override
+    public void updateDraftEvent(UUID id, String title, String description, String category) {
+        jdbc.update("""
+                UPDATE events SET title=?,description=?,category=?,draft_version=draft_version+1 WHERE id=?
+                """, title, description, category, id);
     }
 
     @Override
@@ -146,16 +168,28 @@ public class JdbcPerformanceStore implements PerformanceStore {
                 INSERT INTO performances(id,event_id,venue_space_id,starts_at,ends_at,doors_open_at,timezone,
                   sale_start_at,sale_end_at,max_per_account,public_visible) VALUES (?,?,?,?,?,?,?,?,?,?,?)
                 """, id, event, space, starts, ends, doors, timezone, saleStart, saleEnd, limit, isPublic);
-        return first("SELECT * FROM catalog_performance_view WHERE id=?", this::performance, id).orElseThrow();
+        return performanceView(id).orElseThrow();
+    }
+
+    @Override
+    public Performance updateDraftSchedule(
+            UUID id, UUID space, OffsetDateTime starts, OffsetDateTime ends, OffsetDateTime doors,
+            String timezone, OffsetDateTime saleStart, OffsetDateTime saleEnd, int limit, boolean isPublic) {
+        jdbc.update("""
+                UPDATE performances SET venue_space_id=?, starts_at=?, ends_at=?, doors_open_at=?, timezone=?,
+                  sale_start_at=?, sale_end_at=?, max_per_account=?, public_visible=?, draft_version=draft_version+1
+                WHERE id=?
+                """, space, starts, ends, doors, timezone, saleStart, saleEnd, limit, isPublic, id);
+        return performanceView(id).orElseThrow();
     }
 
     @Override
     public Optional<Performance> lockOwnedPerformance(UUID id, UUID organizer) {
+        // Read the view after acquiring the lock so it includes the preceding owner's commit.
         return first("""
-                SELECT v.* FROM performances p JOIN events e ON e.id=p.event_id
-                JOIN catalog_performance_view v ON v.id=p.id
+                SELECT p.id FROM performances p JOIN events e ON e.id=p.event_id
                 WHERE p.id=? AND e.organization_id=? AND p.legacy_concert_id IS NULL FOR UPDATE OF p
-                """, this::performance, id, organizer);
+                """, (rs, n) -> id(rs, "id"), id, organizer).flatMap(this::performanceView);
     }
 
     @Override
@@ -179,13 +213,18 @@ public class JdbcPerformanceStore implements PerformanceStore {
         return first("SELECT * FROM catalog_performance_view WHERE id=? AND discoverable", this::performance, id);
     }
 
+    private Optional<Performance> performanceView(UUID id) {
+        return first("SELECT * FROM catalog_performance_view WHERE id=?", this::performance, id);
+    }
+
     private Performance performance(ResultSet rs, int n) throws SQLException {
         return new Performance(id(rs, "id"), id(rs, "event_id"), id(rs, "venue_space_id"),
                 rs.getString("venue_name"), rs.getString("venue_address"), rs.getString("space_name"),
                 time(rs, "starts_at"), time(rs, "ends_at"), time(rs, "doors_open_at"), rs.getString("timezone"),
                 time(rs, "sale_start_at"), time(rs, "sale_end_at"), rs.getString("status"),
                 rs.getBoolean("sales_suspended"), time(rs, "resumed_admission_at"), rs.getBoolean("public_visible"), rs.getInt("max_per_account"),
-                rs.getLong("sale_version"), rs.getObject("layout_version", Long.class), id(rs, "legacy_concert_id"));
+                rs.getLong("sale_version"), rs.getObject("layout_version", Long.class), id(rs, "legacy_concert_id"),
+                rs.getLong("draft_version"));
     }
 
     @Override

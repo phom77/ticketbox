@@ -2,20 +2,27 @@ package org.ticketbox.catalog.performance;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.awaitility.Awaitility.await;
 import static org.springframework.http.HttpMethod.PUT;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeAll;
@@ -23,10 +30,15 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
+import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.client.RestClient;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -41,6 +53,9 @@ import org.ticketbox.catalog.performance.domain.PerformanceLayout.Point;
 import org.ticketbox.catalog.performance.domain.PerformanceSale;
 import org.ticketbox.catalog.performance.infrastructure.JdbcPerformanceStore;
 import org.ticketbox.catalog.performance.infrastructure.PerformancePublisher;
+import org.ticketbox.catalog.performance.web.OrganizerPerformanceController;
+import org.ticketbox.catalog.web.GlobalExceptionHandler;
+import org.ticketbox.catalog.web.security.OrganizationAccess;
 
 @Testcontainers
 class PerformanceCatalogIntegrationTest {
@@ -48,11 +63,13 @@ class PerformanceCatalogIntegrationTest {
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
     private static final String TICKETING = "http://ticketing/internal/ticketing/catalog/performances/";
     private static final String CHECKIN = "http://checkin/internal/checkin/catalog/performances/";
+    private static final String ORGANIZER = "/api/organizer/manage/v2";
 
     private static JdbcTemplate jdbc;
     private static TransactionTemplate transaction;
     private static ObjectMapper json;
     private static PerformanceCatalog catalog;
+    private static MockMvc organizer;
     private UUID owner;
     private UUID event;
     private UUID venue;
@@ -66,6 +83,121 @@ class PerformanceCatalogIntegrationTest {
         transaction = new TransactionTemplate(new DataSourceTransactionManager(source));
         json = new ObjectMapper().findAndRegisterModules().disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         catalog = new PerformanceCatalog(new JdbcPerformanceStore(jdbc, json), "*");
+        organizer = MockMvcBuilders.standaloneSetup(new OrganizerPerformanceController(catalog))
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .setMessageConverters(new MappingJackson2HttpMessageConverter(json))
+                .build();
+    }
+
+    @Test
+    void revisesEventDraftInPlaceAndRejectsStaleEditors() {
+        var draft = newPerformance(3);
+        var update = json.createObjectNode().put("title", "Third night").put("category", "music")
+                .put("expectedDraftVersion", 0);
+        var path = ORGANIZER + "/events/" + event;
+        organizerRequest(MockMvcRequestBuilders.put(path), UUID.randomUUID(), update, 404);
+        var revised = organizerRequest(MockMvcRequestBuilders.put(path), owner, update, 200);
+        assertThat(revised.path("id").asText()).isEqualTo(event.toString());
+        assertThat(revised.path("draftVersion").asLong()).isEqualTo(1);
+        assertThat(revised.path("performances").get(0).path("id").asText()).isEqualTo(draft.id().toString());
+        organizerRequest(MockMvcRequestBuilders.put(path), owner, update.put("title", "Stale"), 409);
+        assertThat(catalog.event(event, owner).title()).isEqualTo("Third night");
+    }
+
+    @Test
+    void changesDraftScheduleInPlaceAndPreservesExistingOffers() {
+        var draft = newPerformance(3);
+        var sale = maplessSale(draft.saleStartAt(), draft.saleEndAt());
+        tx(() -> catalog.saveSale(owner, owner, draft.id(), 0, sale));
+        var venue = tx(() -> catalog.createVenue(owner, "Other room", "Address", "Stage"));
+        var moved = draft.startsAt().plusDays(1);
+        var update = json.<ObjectNode>valueToTree(new PerformanceCatalog.Schedule(venue.spaces().getFirst().id(),
+                moved, moved.plusHours(2), moved.minusHours(1), "Asia/Ho_Chi_Minh",
+                draft.saleStartAt(), draft.saleEndAt(), 6, false));
+        update.put("expectedDraftVersion", 0);
+        var path = ORGANIZER + "/performances/" + draft.id() + "/schedule";
+        organizerRequest(MockMvcRequestBuilders.put(path), UUID.randomUUID(), update, 404);
+        var invalid = update.deepCopy().put("endsAt", moved.minusHours(1).toString());
+        organizerRequest(MockMvcRequestBuilders.put(path), owner, invalid, 400);
+        var revised = organizerRequest(MockMvcRequestBuilders.put(path), owner, update, 200);
+        assertThat(revised.path("id").asText()).isEqualTo(draft.id().toString());
+        assertThat(revised.path("draftVersion").asLong()).isEqualTo(1);
+        assertThat(revised.path("venueName").asText()).isEqualTo("Other room");
+        assertThat(revised.path("maxPerAccount").asInt()).isEqualTo(6);
+        assertThat(revised.path("publicVisible").asBoolean()).isFalse();
+        organizerRequest(MockMvcRequestBuilders.put(path), owner, update, 409);
+        assertThat(catalog.event(event, owner).performances()).singleElement()
+                .satisfies(saved -> assertThat(saved.startsAt()).isEqualTo(moved));
+        assertThat(tx(() -> catalog.sale(owner, draft.id())).offers()).containsExactlyElementsOf(sale.offers());
+    }
+
+    @Test
+    void waitingScheduleEditUsesTheVersionCommittedByTheFirstEditor() throws Exception {
+        var draft = newPerformance(3);
+        var path = ORGANIZER + "/performances/" + draft.id() + "/schedule";
+        var update = json.<ObjectNode>valueToTree(new PerformanceCatalog.Schedule(space, draft.startsAt(),
+                draft.endsAt(), draft.doorsOpenAt(), draft.timezone(), draft.saleStartAt(), draft.saleEndAt(), 6, true));
+        update.put("expectedDraftVersion", 0);
+
+        try (var worker = Executors.newSingleThreadExecutor()) {
+            var backendPid = new CompletableFuture<Integer>();
+            var waiting = tx(() -> {
+                jdbc.queryForObject("SELECT id FROM performances WHERE id=? FOR UPDATE", UUID.class, draft.id());
+                var request = worker.submit(() -> tx(() -> {
+                    backendPid.complete(jdbc.queryForObject("SELECT pg_backend_pid()", Integer.class));
+                    return organizerRequest(MockMvcRequestBuilders.put(path), owner,
+                            update.deepCopy().put("maxPerAccount", 10), 409);
+                }));
+                await().atMost(Duration.ofSeconds(5)).until(() -> backendPid.isDone()
+                        && jdbc.queryForObject("SELECT cardinality(pg_blocking_pids(?)) > 0",
+                                Boolean.class, backendPid.join()));
+                organizerRequest(MockMvcRequestBuilders.put(path), owner, update, 200);
+                return request;
+            });
+            waiting.get(5, TimeUnit.SECONDS);
+        }
+
+        assertThat(catalog.event(event, owner).performances().getFirst().maxPerAccount()).isEqualTo(6);
+    }
+
+    @Test
+    void publishesOnlyTheReviewedDraftAndLocksItWhileActivating() {
+        var draft = newPerformance(3);
+        tx(() -> catalog.saveSale(owner, owner, draft.id(), 0, maplessSale(draft.saleStartAt(), draft.saleEndAt())));
+        var eventPath = ORGANIZER + "/events/" + event;
+        var eventUpdate = json.createObjectNode().put("title", "Ready to publish").put("expectedDraftVersion", 0);
+        organizerRequest(MockMvcRequestBuilders.put(eventPath), owner, eventUpdate, 200);
+        var schedulePath = ORGANIZER + "/performances/" + draft.id() + "/schedule";
+        var schedule = json.<ObjectNode>valueToTree(new PerformanceCatalog.Schedule(space, draft.startsAt(),
+                draft.endsAt(), draft.doorsOpenAt(), draft.timezone(), draft.saleStartAt(), draft.saleEndAt(), 8, true));
+        organizerRequest(MockMvcRequestBuilders.put(schedulePath), owner, schedule.put("expectedDraftVersion", 0), 200);
+        var publishPath = ORGANIZER + "/performances/" + draft.id() + "/publication";
+        var review = json.createObjectNode().put("expectedSaleVersion", 1).put("expectedLayoutVersion", 0)
+                .put("expectedEventDraftVersion", 0).put("expectedScheduleDraftVersion", 0);
+        organizerRequest(MockMvcRequestBuilders.post(publishPath), owner, review, 409);
+        organizerRequest(MockMvcRequestBuilders.post(publishPath), owner, review.put("expectedEventDraftVersion", 1), 409);
+        var result = organizerRequest(MockMvcRequestBuilders.post(publishPath), owner,
+                review.put("expectedScheduleDraftVersion", 1), 200);
+        assertThat(result.path("status").asText()).isEqualTo("ON_SALE");
+        assertThat(result.path("ticketingAcknowledged").asBoolean()).isFalse();
+        organizerRequest(MockMvcRequestBuilders.put(eventPath), owner, eventUpdate.put("expectedDraftVersion", 1), 400);
+        organizerRequest(MockMvcRequestBuilders.put(schedulePath), owner, schedule.put("expectedDraftVersion", 1), 400);
+    }
+
+    private static com.fasterxml.jackson.databind.JsonNode organizerRequest(
+            MockHttpServletRequestBuilder request, UUID actor, ObjectNode data, int expectedStatus) {
+        return tx(() -> {
+            try {
+                var response = organizer.perform(request.requestAttr(OrganizationAccess.ORGANIZATION, actor)
+                                .principal(actor::toString)
+                                .contentType(MediaType.APPLICATION_JSON).content(data.toString()))
+                        .andExpect(status().is(expectedStatus)).andReturn().getResponse();
+                return response.getContentAsString().isBlank() ? null
+                        : json.readTree(response.getContentAsString()).path("data");
+            } catch (Exception failure) {
+                throw new AssertionError(failure);
+            }
+        });
     }
 
     @BeforeEach
@@ -85,10 +217,10 @@ class PerformanceCatalogIntegrationTest {
         var enabled = new PerformanceCatalog(new JdbcPerformanceStore(jdbc, json), owner.toString());
         var disabled = new PerformanceCatalog(new JdbcPerformanceStore(jdbc, json), "");
         tx(() -> catalog.saveSale(owner, owner, night.id(), 0, maplessSale(night.saleStartAt(), night.saleEndAt())));
-        assertThatThrownBy(() -> tx(() -> disabled.publish(owner, owner, night.id(), 1L, 0L)))
+        assertThatThrownBy(() -> tx(() -> disabled.publish(owner, owner, night.id(), 1L, 0L, null, null)))
                 .isInstanceOf(AppException.class).hasMessage("error.performance.rollout-disabled");
-        assertThat(tx(() -> enabled.publish(owner, owner, night.id(), 1L, 0L)).status()).isEqualTo("ON_SALE");
-        assertThat(tx(() -> disabled.publish(owner, owner, night.id(), 2L, 0L)).saleVersion()).isEqualTo(2);
+        assertThat(tx(() -> enabled.publish(owner, owner, night.id(), 1L, 0L, null, null)).status()).isEqualTo("ON_SALE");
+        assertThat(tx(() -> disabled.publish(owner, owner, night.id(), 2L, 0L, null, null)).saleVersion()).isEqualTo(2);
         assertThat(tx(() -> disabled.publication(owner, draft.id()).status())).isEqualTo("DRAFT");
     }
 
@@ -97,9 +229,9 @@ class PerformanceCatalogIntegrationTest {
         var night = newPerformance(3);
         var draft = newPerformance(4);
         tx(() -> catalog.saveSale(owner, owner, night.id(), 0, maplessSale(night.saleStartAt(), night.saleEndAt())));
-        assertThatThrownBy(() -> tx(() -> catalog.publish(owner, owner, night.id(), 0L, 0L)))
+        assertThatThrownBy(() -> tx(() -> catalog.publish(owner, owner, night.id(), 0L, 0L, null, null)))
                 .isInstanceOf(AppException.class).hasMessage("error.performance.version-conflict");
-        var publication = tx(() -> catalog.publish(owner, owner, night.id(), 1L, 0L));
+        var publication = tx(() -> catalog.publish(owner, owner, night.id(), 1L, 0L, null, null));
         assertThat(publication.saleVersion()).isEqualTo(2);
         assertThatThrownBy(() -> catalog.event(event, null)).isInstanceOf(AppException.class);
         assertThatThrownBy(() -> tx(() -> catalog.publication(UUID.randomUUID(), night.id())))
@@ -151,7 +283,7 @@ class PerformanceCatalogIntegrationTest {
                 List.of(new PerformanceSale.Seat(seat.id(), "Row A", "Seat 1", false)));
         var offer = standard(group.id(), night.saleStartAt(), night.saleEndAt());
         tx(() -> catalog.saveSale(owner, owner, night.id(), 0, new PerformanceSale(List.of(group), List.of(offer))));
-        tx(() -> catalog.publish(owner, owner, night.id(), 1L, 1L));
+        tx(() -> catalog.publish(owner, owner, night.id(), 1L, 1L, null, null));
         jdbc.update("UPDATE performance_sale_publications SET ticketing_ack=true WHERE performance_id=?", night.id());
         tx(() -> catalog.reviseTemplate(owner, venue, template.id(), 1,
                 new PerformanceLayout(600, 600, null, List.of(), List.of())));

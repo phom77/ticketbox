@@ -44,12 +44,26 @@ public class PerformanceCatalog {
 
     @Transactional
     public Event createEvent(UUID owner, String title, String description, String category) {
-        require(PerformanceRules.text(title, 500) && (description == null || description.length() <= 60_000)
-                        && (category == null || PerformanceRules.text(category, 100)),
-                "error.performance.invalid-event");
+        validateEvent(title, description, category);
         UUID id = UUID.randomUUID();
         store.createEvent(id, owner, title.trim(), description, category);
         return event(id, owner);
+    }
+
+    @Transactional
+    public Event updateDraftEvent(UUID owner, UUID id, Long expected, String title, String description, String category) {
+        long current = store.lockNativeEventVersion(id, owner).orElseThrow(PerformanceCatalog::missing);
+        require(!store.hasReleasedPerformances(id), "error.performance.event-draft-locked");
+        requireDraftVersion(expected, current);
+        validateEvent(title, description, category);
+        store.updateDraftEvent(id, title.trim(), description, category);
+        return event(id, owner);
+    }
+
+    private static void validateEvent(String title, String description, String category) {
+        require(PerformanceRules.text(title, 500) && (description == null || description.length() <= 60_000)
+                        && (category == null || PerformanceRules.text(category, 100)),
+                "error.performance.invalid-event");
     }
 
     @Transactional(readOnly = true)
@@ -68,14 +82,28 @@ public class PerformanceCatalog {
 
     @Transactional
     public Performance createPerformance(UUID owner, UUID event, Schedule schedule) {
-        if (!store.ownsNativeEvent(event, owner) || !store.ownsSpace(schedule.venueSpaceId(), owner)) {
-            throw missing();
-        }
-        PerformanceRules.validateSchedule(schedule.startsAt(), schedule.endsAt(), schedule.doorsOpenAt(),
-                schedule.timezone(), schedule.saleStartAt(), schedule.saleEndAt(), schedule.maxPerAccount());
+        if (!store.ownsNativeEvent(event, owner)) throw missing();
+        validateSchedule(owner, schedule);
         return store.createPerformance(UUID.randomUUID(), event, schedule.venueSpaceId(), schedule.startsAt(),
                 schedule.endsAt(), schedule.doorsOpenAt(), schedule.timezone(), schedule.saleStartAt(),
                 schedule.saleEndAt(), schedule.maxPerAccount(), schedule.publicVisible());
+    }
+
+    @Transactional
+    public Performance updateDraftSchedule(UUID owner, UUID id, Long expected, Schedule schedule) {
+        var performance = owned(owner, id);
+        require("DRAFT".equals(performance.status()), "error.performance.schedule-draft-locked");
+        requireDraftVersion(expected, performance.draftVersion());
+        validateSchedule(owner, schedule);
+        return store.updateDraftSchedule(id, schedule.venueSpaceId(), schedule.startsAt(), schedule.endsAt(),
+                schedule.doorsOpenAt(), schedule.timezone(), schedule.saleStartAt(), schedule.saleEndAt(),
+                schedule.maxPerAccount(), schedule.publicVisible());
+    }
+
+    private void validateSchedule(UUID owner, Schedule schedule) {
+        if (!store.ownsSpace(schedule.venueSpaceId(), owner)) throw missing();
+        PerformanceRules.validateSchedule(schedule.startsAt(), schedule.endsAt(), schedule.doorsOpenAt(),
+                schedule.timezone(), schedule.saleStartAt(), schedule.saleEndAt(), schedule.maxPerAccount());
     }
 
     public record Schedule(UUID venueSpaceId, OffsetDateTime startsAt, OffsetDateTime endsAt,
@@ -134,7 +162,8 @@ public class PerformanceCatalog {
     }
 
     @Transactional
-    public Publication publish(UUID owner, UUID actor, UUID id, Long expectedSale, Long expectedLayout) {
+    public Publication publish(UUID owner, UUID actor, UUID id, Long expectedSale, Long expectedLayout,
+                               Long expectedEventDraft, Long expectedScheduleDraft) {
         var performance = owned(owner, id);
         if (!"DRAFT".equals(performance.status())) return store.publication(performance);
         if (!publishingOrganizations.contains("*") && !publishingOrganizations.contains(owner.toString())) {
@@ -143,6 +172,10 @@ public class PerformanceCatalog {
         var draft = store.draftLayout(id).orElse(null);
         if (expectedSale != null) version(expectedSale, performance.saleVersion());
         if (expectedLayout != null) version(expectedLayout, draft == null ? 0 : draft.version());
+        if (expectedScheduleDraft != null) version(expectedScheduleDraft, performance.draftVersion());
+        long eventVersion = store.lockNativeEventVersion(performance.eventId(), owner)
+                .orElseThrow(PerformanceCatalog::missing);
+        if (expectedEventDraft != null) version(expectedEventDraft, eventVersion);
         require(performance.saleEndAt().isAfter(OffsetDateTime.now()), "error.performance.sale-window-ended");
         var sale = store.sale(id);
         PerformanceRules.validateSale(sale, performance.saleStartAt(), performance.saleEndAt(),
@@ -265,6 +298,11 @@ public class PerformanceCatalog {
 
     private static void require(boolean condition, String key) {
         if (!condition) throw new AppException(ErrorCode.INVALID_REQUEST, key);
+    }
+
+    private static void requireDraftVersion(Long expected, long actual) {
+        require(expected != null, "error.performance.expected-draft-version");
+        version(expected, actual);
     }
 
     private static void version(long expected, long actual) {
