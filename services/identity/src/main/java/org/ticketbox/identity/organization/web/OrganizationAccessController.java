@@ -30,7 +30,7 @@ class OrganizationAccessController {
     ResponseEntity<Access> organization(
             @PathVariable UUID id,
             @RequestHeader(name = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
-        UUID actor = sessions.requireAccount(authorization);
+        UUID actor = sessions.requireOrganizer(authorization);
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
                 .body(new Access(actor, id, organizations.access(actor, id)));
     }

@@ -8,6 +8,8 @@ import org.ticketbox.catalog.application.error.ErrorCode;
 import org.ticketbox.catalog.concert.application.port.ConcertArtistBioPort;
 import org.ticketbox.catalog.concert.application.port.ConcertArtistBioView;
 import org.ticketbox.catalog.concert.application.port.ConcertRepository;
+import org.ticketbox.catalog.concert.application.port.ConcertPublicationStore;
+import org.ticketbox.catalog.concert.application.port.ConcertPublicationStore.StagedEdit;
 import org.ticketbox.catalog.concert.domain.Concert;
 import org.ticketbox.catalog.infrastructure.cache.PublicCatalogCache;
 
@@ -19,11 +21,13 @@ public class ConcertArtistBioAdapter implements ConcertArtistBioPort {
 
     private final ConcertRepository concertRepository;
     private final RedisTemplate<String, Object> redisTemplate;
+    private final ConcertPublicationStore reviews;
 
     public ConcertArtistBioAdapter(
-            ConcertRepository concertRepository, RedisTemplate<String, Object> redisTemplate) {
+            ConcertRepository concertRepository, RedisTemplate<String, Object> redisTemplate, ConcertPublicationStore reviews) {
         this.concertRepository = concertRepository;
         this.redisTemplate = redisTemplate;
+        this.reviews = reviews;
     }
 
     @Override
@@ -55,13 +59,19 @@ public class ConcertArtistBioAdapter implements ConcertArtistBioPort {
     @Transactional
     public void applyArtistBio(
             UUID concertId, String artistBio, UUID requesterId, boolean admin, boolean overwrite) {
-        Concert concert = requireEntity(concertId);
+        Concert concert = concertRepository.findByIdForUpdate(concertId)
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "error.concert-not-found"));
         if (!admin && (requesterId == null || !requesterId.equals(concert.getOrganizationId()))) {
             throw new AppException(ErrorCode.RESOURCE_NOT_FOUND, "error.concert-not-found");
         }
         if (!overwrite && concert.getArtistBio() != null && !concert.getArtistBio().isBlank()) {
             throw new AppException(
                     ErrorCode.ARTIST_BIO_ALREADY_EXISTS, "error.artist-bio.overwrite-required");
+        }
+        if ((concert.getStatus() == Concert.Status.ON_SALE || concert.getStatus() == Concert.Status.SOLD_OUT)
+                && reviews.releasedBefore(concertId)) {
+            reviews.stageEdit(concertId, new StagedEdit(null, null, artistBio));
+            return;
         }
         concert.setArtistBio(artistBio);
         concertRepository.save(concert);

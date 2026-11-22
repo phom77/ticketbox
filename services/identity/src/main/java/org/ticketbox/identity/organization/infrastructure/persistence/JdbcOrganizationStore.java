@@ -72,11 +72,12 @@ class JdbcOrganizationStore implements OrganizationStore {
     @Override
     public List<Member> members(UUID organizationId) {
         return jdbc.query("""
-                SELECT m.account_id, m.grants, u.is_active FROM organization_members m
+                SELECT m.account_id, m.grants, u.is_active, u.email, u.full_name, u.role FROM organization_members m
                 JOIN users u ON u.id = m.account_id
                 WHERE m.organization_id = ? ORDER BY m.account_id
                 """, (rs, row) -> new Member(rs.getObject("account_id", UUID.class),
-                readGrants(rs), rs.getBoolean("is_active")), organizationId);
+                readGrants(rs), rs.getBoolean("is_active"), rs.getString("email"), rs.getString("full_name"),
+                rs.getString("role")), organizationId);
     }
 
     @Override

@@ -16,7 +16,10 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.ticketbox.ticketing.infrastructure.integration.catalog.TicketingCatalogReceiver;
+import org.ticketbox.ticketing.infrastructure.integration.catalog.TicketingCatalogProjection;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
+import java.time.OffsetDateTime;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 
@@ -147,5 +150,20 @@ FROM concerts c WHERE id=?
                                 Long.class,
                                 id))
                 .isZero();
+    }
+
+    @Test
+    void governedSaleStaysClosedToDirectEntryBeforeItsReleaseTime() {
+        UUID id = ticketing.queryForObject("SELECT id FROM concerts ORDER BY id OFFSET 1 LIMIT 1", UUID.class);
+        var snapshot = catalog(id, 50, "Scheduled fixture");
+        var concert = (ObjectNode) snapshot.get("concert");
+        concert.put("status", "ON_SALE");
+        concert.put("public_release_at", OffsetDateTime.now().plusHours(1).toString());
+        var receiver = new TicketingCatalogReceiver(ticketing);
+        ticketingTransaction.executeWithoutResult(tx -> receiver.catalog(snapshot));
+
+        var projection = new TicketingCatalogProjection(ticketing, new NamedParameterJdbcTemplate(ticketing), null);
+        assertThat(projection.findConcertById(id).orElseThrow().status()).isEqualTo("DRAFT");
+        assertThat(projection.lockAndCheckSalesSuspended(id)).isTrue();
     }
 }

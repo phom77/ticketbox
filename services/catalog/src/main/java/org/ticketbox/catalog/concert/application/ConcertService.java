@@ -20,6 +20,9 @@ import org.ticketbox.catalog.domain.DomainViolation;
 import org.ticketbox.catalog.concert.application.dto.UpdateConcertRequest;
 import org.ticketbox.catalog.concert.application.mapper.ConcertMapper;
 import org.ticketbox.catalog.concert.application.port.ConcertRepository;
+import org.ticketbox.catalog.concert.application.port.ConcertPublicationStore;
+import org.ticketbox.catalog.concert.application.port.ConcertPublicationStore.StagedEdit;
+import org.ticketbox.catalog.concert.application.port.ConcertPublicationStore.PosterEdit;
 import org.ticketbox.catalog.concert.application.port.PosterStorage;
 import org.ticketbox.catalog.concert.domain.Concert;
 import org.ticketbox.catalog.sales.application.dto.TicketTypeResponse;
@@ -45,6 +48,7 @@ public class ConcertService {
     private final ReadCache readCache;
     private final PosterStorage posterStorage;
     private final org.ticketbox.catalog.concert.application.port.OrganizerDisplayNames organizerNames;
+    private final ConcertPublicationStore reviews;
 
     public ConcertService(
             ConcertRepository concertRepository,
@@ -53,7 +57,8 @@ public class ConcertService {
             TicketTypeMapper ticketTypeMapper,
             PosterStorage posterStorage,
             ReadCache readCache,
-            org.ticketbox.catalog.concert.application.port.OrganizerDisplayNames organizerNames) {
+            org.ticketbox.catalog.concert.application.port.OrganizerDisplayNames organizerNames,
+            ConcertPublicationStore reviews) {
         this.concertRepository = concertRepository;
         this.ticketTypeRepository = ticketTypeRepository;
         this.concertMapper = concertMapper;
@@ -61,6 +66,7 @@ public class ConcertService {
         this.posterStorage = posterStorage;
         this.readCache = readCache;
         this.organizerNames = organizerNames;
+        this.reviews = reviews;
     }
 
     @org.ticketbox.catalog.application.query.ReplicaRead
@@ -206,19 +212,6 @@ public class ConcertService {
         return publication(ownedConcert(id, organizationId, false));
     }
 
-    @Transactional
-    public SalePublication publish(UUID id, UUID organizationId) {
-        Concert concert = ownedConcert(id, organizationId, true);
-        SalePublication state = publication(concert);
-        if (concert.getStatus() == Concert.Status.DRAFT && state.issues().isEmpty()) {
-            concert.changeStatus(Concert.Status.ON_SALE);
-            concertRepository.saveAndFlush(concert);
-            evictConcertCaches(id);
-            return publication(concert);
-        }
-        return state;
-    }
-
     private Concert ownedConcert(UUID id, UUID organizationId, boolean lock) {
         Concert concert = (lock ? concertRepository.findByIdForUpdate(id) : concertRepository.findById(id))
                 .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "error.concert-not-found"));
@@ -226,7 +219,7 @@ public class ConcertService {
         return concert;
     }
 
-    private SalePublication publication(Concert concert) {
+    SalePublication publication(Concert concert) {
         List<String> issues = new ArrayList<>();
         if (concert.getStatus() == Concert.Status.DRAFT) {
             if (blank(concert.getTitle()) || blank(concert.getVenueName()) || blank(concert.getVenueAddress())) {
@@ -331,12 +324,44 @@ public class ConcertService {
             throw new AppException(
                     ErrorCode.INVALID_STATUS_TRANSITION, "error.concert.sale-window-locked");
         }
-        concert.editText(request.title(), request.description(), request.original(), request.translations());
-        concertMapper.updateConcertFromRequest(request, concert);
-
+        if (concert.getStatus() != Concert.Status.DRAFT && reviews.releasedBefore(id)) {
+            var validation = new Concert();
+            validation.editText(concert.getTitle(), concert.getDescription(), concert.getOriginal(), concert.getTranslations());
+            validation.editText(request.title(), request.description(), request.original(), request.translations());
+            reviews.stageEdit(id, new StagedEdit(request, null, null));
+            return concertMapper.toDetailResponse(concert);
+        }
+        applyDetails(concert, request);
         Concert saved = concertRepository.save(concert);
         evictConcertCaches(id);
         return concertMapper.toDetailResponse(saved);
+    }
+
+    void applyReviewedEdit(Concert concert, StagedEdit edit) {
+        if (edit.details() != null) applyDetails(concert, edit.details());
+        if (edit.artistBio() != null) concert.setArtistBio(edit.artistBio());
+        if (edit.poster() != null) {
+            deletePosterAfterCommit(concert.getPosterPublicId());
+            concert.setPosterUrl(edit.poster().url());
+            concert.setPosterPublicId(edit.poster().publicId());
+        }
+        concertRepository.save(concert);
+        evictConcertCaches(concert.getId());
+    }
+
+    boolean stagesEdits(UUID concertId) {
+        return reviews.releasedBefore(concertId);
+    }
+
+    void stagePoster(UUID concertId, PosterEdit poster) {
+        reviews.stagedEdit(concertId).map(StagedEdit::poster).map(PosterEdit::publicId)
+                .ifPresent(this::deletePosterAfterCommit);
+        reviews.stageEdit(concertId, new StagedEdit(null, poster, null));
+    }
+
+    private void applyDetails(Concert concert, UpdateConcertRequest request) {
+        concert.editText(request.title(), request.description(), request.original(), request.translations());
+        concertMapper.updateConcertFromRequest(request, concert);
     }
 
     private static boolean sameInstant(OffsetDateTime stored, OffsetDateTime requested) {
@@ -368,7 +393,7 @@ public class ConcertService {
         if (concert.isSalesSuspended() && concert.getStatus() != newStatus) {
             throw new AppException(ErrorCode.INVALID_STATUS_TRANSITION, "error.concert.use-disruption");
         }
-        if (!isAdmin && concert.getStatus() == Concert.Status.DRAFT && newStatus == Concert.Status.ON_SALE) {
+        if (concert.getStatus() == Concert.Status.DRAFT && newStatus == Concert.Status.ON_SALE) {
             throw new AppException(ErrorCode.INVALID_STATUS_TRANSITION, "error.concert.use-publication");
         }
         concert.changeStatus(newStatus);
@@ -401,8 +426,12 @@ public class ConcertService {
         ticketTypeRepository.deleteByConcertId(id);
         concertRepository.delete(concert);
         evictConcertCaches(id);
-        String posterPublicId = concert.getPosterPublicId();
-        if (posterPublicId != null && TransactionSynchronizationManager.isSynchronizationActive()) {
+        deletePosterAfterCommit(concert.getPosterPublicId());
+    }
+
+    void deletePosterAfterCommit(String posterPublicId) {
+        if (posterPublicId == null) return;
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(
                     new TransactionSynchronization() {
                         @Override
@@ -410,7 +439,7 @@ public class ConcertService {
                             posterStorage.deleteBestEffort(posterPublicId);
                         }
                     });
-        } else if (posterPublicId != null) {
+        } else {
             posterStorage.deleteBestEffort(posterPublicId);
         }
     }

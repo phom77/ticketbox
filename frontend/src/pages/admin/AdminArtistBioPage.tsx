@@ -348,9 +348,7 @@ export function AdminArtistBioPage({ apiScope = 'admin' }: { apiScope?: Manageme
   return (
     <>
       <AdminPageHeader
-        eyebrow={translate("admin:adminArtistBioPage_bienTapAi")}
         title={translate("admin:adminArtistBioPage_gioiThieuNgheSiBangAi")}
-        description={translate("admin:adminArtistBioPage_taoBanGioiThieuNgheSiTu")}
         actions={
           safeReturnTo ? (
             <Link className="admin-secondary-action" to={safeReturnTo}>

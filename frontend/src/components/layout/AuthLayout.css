@@ -64,11 +64,19 @@
   text-transform: none;
 }
 
-.buyer-auth .field input {
+.buyer-auth .field :is(input, textarea) {
   min-height: 48px;
   border-radius: 6px;
   font-size: 1rem;
   font-weight: 400;
+}
+
+.buyer-auth .field textarea {
+  padding: .75rem;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--cream);
+  resize: vertical;
 }
 
 .buyer-auth .field input[aria-invalid="true"] { border-color: #a32631; }

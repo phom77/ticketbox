@@ -91,7 +91,9 @@ SELECT jsonb_build_object('id',o.concert_id,'version',o.version,'deleted',c.id I
     'status',c.status,'seat_map_svg',c.seat_map_svg,'poster_url',c.poster_url,'created_by',c.created_by,
     'created_at',c.created_at,'updated_at',c.updated_at,'poster_public_id',c.poster_public_id,
     'is_public',c.is_public,'organization_id',c.organization_id,'sales_suspended',c.sales_suspended,
-    'resumed_admission_at',c.resumed_admission_at) END,
+    'resumed_admission_at',c.resumed_admission_at) ||
+      COALESCE((SELECT jsonb_build_object('public_release_at',r.publish_at) FROM concert_publication_reviews r
+                WHERE r.concert_id=c.id AND r.released_at IS NOT NULL ORDER BY r.sequence LIMIT 1), '{}'::jsonb) END,
   'types',COALESCE((SELECT jsonb_agg(jsonb_build_object(
     'id',t.id,'concert_id',t.concert_id,'name',t.name,'price',t.price,
     'total_quantity',t.total_quantity,'available_qty',t.available_qty,'max_per_account',t.max_per_account,

@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.HttpClientErrorException;
 
 import java.util.Map;
 import java.util.Optional;
@@ -31,6 +32,22 @@ class IdentityResetMailClient implements PasswordResetMailSource {
 
     public void finish(UUID id, UUID leaseId, boolean delivered) {
         identity.post().uri("/internal/split/password-reset/mail/finish")
+                .body(Map.of("id", id, "leaseId", leaseId, "delivered", delivered))
+                .retrieve().toBodilessEntity();
+    }
+
+    public Optional<Message> claimOrganizerLink() {
+        if (identity == null) return Optional.empty();
+        try {
+            return Optional.ofNullable(identity.post().uri("/internal/split/organization-links/claim")
+                    .retrieve().body(Message.class));
+        } catch (HttpClientErrorException.NotFound previousIdentityVersion) {
+            return Optional.empty();
+        }
+    }
+
+    public void finishOrganizerLink(UUID id, UUID leaseId, boolean delivered) {
+        identity.post().uri("/internal/split/organization-links/finish")
                 .body(Map.of("id", id, "leaseId", leaseId, "delivered", delivered))
                 .retrieve().toBodilessEntity();
     }

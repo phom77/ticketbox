@@ -9,6 +9,7 @@ import org.ticketbox.catalog.application.error.ErrorCode;
 import org.ticketbox.catalog.application.port.CatalogCacheKeys;
 import org.ticketbox.catalog.application.port.ReadCache;
 import org.ticketbox.catalog.concert.application.port.ConcertRepository;
+import org.ticketbox.catalog.concert.application.port.ConcertPublicationStore;
 import org.ticketbox.catalog.concert.domain.Concert;
 import org.ticketbox.catalog.sales.application.dto.CreateTicketTypeRequest;
 import org.ticketbox.catalog.sales.application.dto.TicketTypeAvailabilityResponse;
@@ -34,6 +35,7 @@ public class TicketTypeService {
     private final TicketTypeMapper ticketTypeMapper;
     private final ReadCache readCache;
     private final CatalogAvailabilityReader inventory;
+    private final ConcertPublicationStore publications;
 
     public List<TicketTypeResponse> getTicketTypes(UUID concertId) {
         verifyConcertExists(concertId);
@@ -110,6 +112,7 @@ public class TicketTypeService {
             UUID concertId, CreateTicketTypeRequest request, UUID requesterId, boolean isAdmin) {
         Concert concert = lockConcertOrThrow(concertId);
         verifyConcertOwnership(concert, requesterId, isAdmin, "error.concert-not-found");
+        requireDraftForReviewedTerms(concert);
         TicketType ticketType = ticketTypeMapper.toEntity(request);
         ticketType.setConcertId(concertId);
         ticketType.setAvailableQty(request.totalQuantity());
@@ -148,6 +151,7 @@ public class TicketTypeService {
         TicketType ticketType = getTicketTypeOrThrow(id);
         Concert concert = lockConcertOrThrow(ticketType.getConcertId());
         verifyConcertOwnership(concert, requesterId, isAdmin, "error.ticket-type.not-found");
+        if (isActive && !ticketType.isActive()) requireDraftForReviewedTerms(concert);
         ticketType.setActive(isActive);
         TicketType saved = ticketTypeRepository.saveAndFlush(ticketType);
         evictTicketTypeCaches(ticketType.getConcertId());
@@ -159,6 +163,7 @@ public class TicketTypeService {
         TicketType ticketType = getTicketTypeOrThrow(id);
         Concert concert = lockConcertOrThrow(ticketType.getConcertId());
         verifyConcertOwnership(concert, requesterId, isAdmin, "error.ticket-type.not-found");
+        requireDraftForReviewedTerms(concert);
 
         if (inventory.available(id) < ticketType.getTotalQuantity()) {
             throw new AppException(ErrorCode.INVALID_REQUEST, "error.ticket-type.already-sold");
@@ -176,6 +181,12 @@ public class TicketTypeService {
                         () ->
                                 new AppException(
                                         ErrorCode.RESOURCE_NOT_FOUND, "error.concert-not-found"));
+    }
+
+    private void requireDraftForReviewedTerms(Concert concert) {
+        if (concert.getStatus() != Concert.Status.DRAFT && publications.releasedBefore(concert.getId())) {
+            throw new AppException(ErrorCode.INVALID_STATUS_TRANSITION, "error.ticket-type.draft-required");
+        }
     }
 
     private Concert getConcertOrThrow(UUID concertId) {

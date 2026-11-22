@@ -19,6 +19,14 @@ public class SessionAccess {
         return sessions.require(bearer(authorization)).getId();
     }
 
+    public UUID requireOrganizer(String authorization) {
+        var account = sessions.require(bearer(authorization));
+        if (account.getRole() != org.ticketbox.identity.account.domain.User.Role.ORGANIZER) {
+            throw new AppException(ErrorCode.FORBIDDEN, "error.forbidden");
+        }
+        return account.getId();
+    }
+
     public UUID requirePlatformAdmin(String authorization) {
         return sessions.requirePlatformAdmin(bearer(authorization));
     }

@@ -394,13 +394,7 @@ export function AdminGuestImportsPage({
   return (
     <>
       <AdminPageHeader
-        eyebrow={translate("admin:adminGuestImportsPage_vanHanhKhachMoi")}
         title={translate("admin:adminGuestImportsPage_importKhachMoi")}
-        description={
-          uploadMode === 'scheduled'
-            ? translate("admin:adminGuestImportsPage_duaDanhSachCsvVaoHangCho")
-            : translate("admin:adminGuestImportsPage_tiepNhanDanhSachCsvTheoDoi")
-        }
         actions={
           safeReturnTo ? (
             <Link className="admin-secondary-action" to={safeReturnTo}>

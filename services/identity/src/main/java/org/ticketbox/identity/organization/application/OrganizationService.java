@@ -85,6 +85,23 @@ public class OrganizationService {
         return store.members(organization);
     }
 
+    public List<Member> platformMembers(UUID organization) {
+        if (store.displayName(organization).isEmpty()) throw notFound();
+        return store.members(organization);
+    }
+
+    @Transactional
+    public void setMemberActivity(UUID actor, UUID organization, UUID member, boolean active) {
+        if (!store.lock(organization) || store.grants(organization, member).isEmpty()) throw notFound();
+        var account = accounts.findByIdForUpdate(member).filter(user -> user.getRole() == User.Role.ORGANIZER)
+                .orElseThrow(this::notFound);
+        if (account.isActive() != active) {
+            account.changeActivity(active);
+            store.audit(organization, actor, member, active ? "MEMBER_UNLOCKED" : "MEMBER_LOCKED",
+                    store.grants(organization, member));
+        }
+    }
+
     public Set<OrganizationGrant> access(UUID actor, UUID organization) {
         Set<OrganizationGrant> grants = store.grants(organization, actor);
         if (grants.isEmpty()) {
@@ -167,11 +184,13 @@ public class OrganizationService {
     }
 
     private void requireActiveAccount(UUID account) {
-        accounts.findById(account).filter(User::isActive).orElseThrow(this::notFound);
+        accounts.findById(account).filter(User::isActive).filter(user -> user.getRole() == User.Role.ORGANIZER)
+                .orElseThrow(this::notFound);
     }
 
     private boolean activeManager(Member member) {
-        return member.active() && member.grants().contains(OrganizationGrant.MEMBERS);
+        return member.active() && "ORGANIZER".equals(member.role())
+                && member.grants().contains(OrganizationGrant.MEMBERS);
     }
 
     private String hash(String code) {

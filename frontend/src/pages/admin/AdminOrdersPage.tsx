@@ -515,11 +515,7 @@ export function AdminOrdersPage({ apiScope = 'admin' }: { apiScope?: ManagementA
   return (
     <>
       <AdminPageHeader
-        eyebrow={translate("admin:adminOrdersPage_vanHanh")}
         title={translate("admin:adminOrdersPage_donHangVe")}
-        description={apiScope === 'organizer'
-          ? translate("admin:adminOrdersPage_xemDonHangVaVeCuaTo")
-          : translate("admin:adminOrdersPage_xemDonHangVaVeTraCuu")}
       />
 
       {/* Tabs */}

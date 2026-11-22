@@ -91,7 +91,6 @@ export function StaffHistoryPage() {
   return (
     <>
       <AdminPageHeader
-        eyebrow="Đối soát cổng"
         title="Lịch sử check-in"
         description="Theo dõi các lượt vào cổng theo concert, gồm lượt quét online từ web/mobile và các log offline đã đồng bộ lên máy chủ."
         actions={

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { ConcertTextFields } from '../../features/concert/ConcertTextFields';
 import { editConcertText } from '../../features/concert/concertText';
 import { PublicationPanel } from '../../features/organizations/PublicationPanel';
+import { getPublication } from '../../api/publication';
 import { useOrganization } from '../../features/organizations/OrganizationProvider';
 import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -317,7 +318,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
       const result = await updateConcert(id, payload, apiScope);
       setConcert(result.data);
       setForm(toForm(result.data));
-      toast.success(translate("admin:concertWorkspacePage_daLuuCauHinhConcert"));
+      await showEditResult(id, "admin:concertWorkspacePage_daLuuCauHinhConcert");
     } catch (requestError) {
       toast.error(
         requestError instanceof Error ? requestError.message : translate("admin:concertWorkspacePage_khongTheLuuCauHinhConcert"),
@@ -333,7 +334,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
     try {
       const result = await uploadConcertPoster(id, file, apiScope);
       setConcert(result.data);
-      toast.success(translate("admin:concertWorkspacePage_daCapNhatPosterConcert"));
+      await showEditResult(id, "admin:concertWorkspacePage_daCapNhatPosterConcert");
     } catch (requestError) {
       toast.error(
         requestError instanceof Error ? requestError.message : translate("admin:concertWorkspacePage_khongTheTaiPosterLen"),
@@ -373,10 +374,9 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
     setPublishingArtistBio(true);
     try {
       await publishConcertArtistBio(id, artistBioDraft.trim(), apiScope);
-      setConcert((current) =>
-        current ? { ...current, artistBio: artistBioDraft.trim() } : current,
-      );
-      toast.success(translate("admin:concertWorkspacePage_daXuatBanNoiDungNgheSi"));
+      if (!await showEditResult(id, "admin:concertWorkspacePage_daXuatBanNoiDungNgheSi")) {
+        await load(undefined, true);
+      }
     } catch (requestError) {
       toast.error(
         requestError instanceof Error
@@ -386,6 +386,12 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
     } finally {
       setPublishingArtistBio(false);
     }
+  }
+
+  async function showEditResult(concertId: string, savedMessage: string) {
+    const publication = concert?.status === 'DRAFT' ? null : await getPublication(concertId, apiScope).catch(() => null);
+    toast.success(translate(publication?.draftEdit ? "shared:releaseStaged" : savedMessage));
+    return publication?.draftEdit === true;
   }
 
   function toggleArtistSource(jobId: string) {
@@ -474,7 +480,6 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
   return (
     <>
       <AdminPageHeader
-        eyebrow={translate("admin:concertWorkspacePage_khongGianQuanLyConcert")}
         title={concert.title}
         description={`${concert.venueName} · ${dateTime.format(new Date(concert.eventDate))}`}
         actions={
@@ -484,8 +489,9 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
         }
       />
 
-      {apiScope === 'organizer' && tab === 'overview' && id ? (
-        <PublicationPanel id={id} updatedAt={concert.updatedAt} onPublished={() => void load()} />
+      {tab === 'overview' && id ? (
+        <PublicationPanel key={id} id={id} scope={apiScope} saleStartAt={concert.saleStartAt}
+          updatedAt={concert.updatedAt} onPublished={() => void load()} />
       ) : null}
 
       <section className="concert-workspace-hero">

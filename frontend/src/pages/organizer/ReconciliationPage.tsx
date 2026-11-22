@@ -115,7 +115,7 @@ export function ReconciliationPage({ scope }: { scope: ManagementApiScope }) {
 
   return (
     <>
-      <AdminPageHeader title={translate("organizer:reconciliationPage_doiSoatThanhToan")} description={translate("organizer:reconciliationPage_traCuuKhoanThuDaXacMinh")} />
+      <AdminPageHeader title={translate("organizer:reconciliationPage_doiSoatThanhToan")} />
       <section className="admin-data-panel organization-panel">
         <form className="organization-form" onSubmit={apply}>
           <label className="admin-field">{translate("organizer:reconciliationPage_tuNgay")}<input type="date" required value={draft.from} onChange={(e) => setDraft({ ...draft, from: e.target.value })} /></label>

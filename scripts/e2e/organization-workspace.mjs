@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { mkdir } from 'node:fs/promises';
 import { chromium } from 'playwright';
 
@@ -12,26 +13,62 @@ const firstName = `Buổi diễn A ${suffix}`;
 const secondName = `Buổi diễn B ${suffix}`;
 const browser = await chromium.launch({ headless: true });
 
-async function session(role, viewport = { width: 1440, height: 900 }) {
+async function session(email, viewport = { width: 1440, height: 900 }) {
   const context = await browser.newContext({ baseURL, locale: 'vi-VN', viewport });
-  // The gateway journey should run independently of hosted posters and fonts.
   const origin = new URL(baseURL).origin;
   await context.route((url) => url.origin !== origin, (route) => route.abort());
-  const login = await context.request.post('/api/auth/login', {
-    data: { email: `${role}@ticketbox.com`, password: 'password123' },
-  });
-  assert.equal(login.status(), 200);
-  const { accessToken, user } = (await login.json()).data;
-  await context.addCookies([{ name: 'ticketbox_auth_token', value: accessToken, url: baseURL }]);
-  return { context, user, accessToken, page: await context.newPage() };
+  const page = await context.newPage();
+  const login = async () => {
+    const response = await context.request.post('/api/auth/login', {
+      data: { email: email.includes('@') ? email : `${email}@ticketbox.com`, password: 'password123' },
+    });
+    assert.equal(response.status(), 200);
+    const { accessToken, user } = (await response.json()).data;
+    await context.addCookies([{ name: 'ticketbox_auth_token', value: accessToken, url: baseURL }]);
+    return { accessToken, user };
+  };
+  return { context, page, login, ...(email ? await login() : {}) };
 }
 
-async function approve(page, name, manager) {
-  const panel = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Duyệt tổ chức' }) });
-  await panel.getByLabel('Tên tổ chức').fill(name);
-  await panel.getByLabel('Mã tài khoản quản lý', { exact: true }).fill(manager);
-  await panel.getByRole('button', { name: 'Duyệt tổ chức' }).click();
-  await page.getByRole('listitem').filter({ hasText: name }).waitFor();
+function compose(...args) {
+  return execFileSync('docker', ['compose', '-p', process.env.E2E_PROJECT ?? 'ticketbox-e2e-split',
+    '-f', 'compose.yaml', ...args], { encoding: 'utf8' });
+}
+
+function claimLink(email) {
+  const serviceToken = process.env.SPLIT_SERVICE_TOKEN ?? 'ticketbox-local-split-service-token-change-before-deploy';
+  const result = JSON.parse(compose('exec', '-T', 'smtp', 'node', '-e', `
+    fetch('http://identity:8080/internal/split/organization-links/claim', {
+      method: 'POST', headers: { 'X-Service-Token': process.argv[1] }
+    }).then(response => response.json()).then(result => process.stdout.write(JSON.stringify(result)))
+  `, serviceToken));
+  assert.equal(result.email, email);
+  return '/partner/activate#token=' + result.token;
+}
+
+async function onboard(admin, name, email) {
+  const partner = await session('');
+  await admin.page.goto('/admin/organizations');
+  await admin.page.getByRole('button', { name: 'Tạo liên kết đăng ký riêng' }).click();
+  const link = admin.page.getByLabel('Liên kết đăng ký riêng');
+  await link.waitFor();
+  await partner.page.goto(await link.inputValue());
+  await partner.page.getByLabel('Tổ chức', { exact: true }).fill(name);
+  await partner.page.getByLabel('Người quản lý', { exact: true }).fill(name);
+  await partner.page.getByLabel('Email công việc').fill(email);
+  await partner.page.getByLabel('Sự kiện đầu tiên').fill('Một buổi diễn thử nghiệm');
+  await partner.page.getByRole('button', { name: 'Gửi hồ sơ' }).click();
+  await partner.page.getByText('Đã gửi hồ sơ đăng ký.').waitFor();
+
+  await admin.page.reload();
+  await admin.page.getByRole('row').filter({ hasText: name }).getByRole('button', { name: 'Duyệt tổ chức' }).click();
+  await admin.page.getByRole('row').filter({ hasText: name }).getByText('Đã duyệt').waitFor();
+  await partner.page.goto(claimLink(email));
+  await partner.page.getByLabel('Mật khẩu', { exact: true }).fill('password123');
+  await partner.page.getByRole('button', { name: 'Kích hoạt tài khoản nhà tổ chức' }).click();
+  await partner.page.getByText('Quyền nhà tổ chức đã được kích hoạt.').waitFor();
+  await partner.context.close();
+  return session(email);
 }
 
 async function fits(page, label) {
@@ -40,54 +77,58 @@ async function fits(page, label) {
 
 try {
   const admin = await session('admin');
-  const organizer = await session('organizer');
-  const audience = await session('audience');
+  const buyer = await session('audience', { width: 390, height: 900 });
+  await buyer.page.goto('/organizer');
+  await buyer.page.waitForURL((url) => url.pathname === '/');
+  await buyer.page.goto('/partner/apply');
+  await buyer.page.waitForURL((url) => url.pathname === '/');
+  const unauthorized = await buyer.context.request.get('/api/organizations', {
+    headers: { Authorization: `Bearer ${buyer.accessToken}` },
+  });
+  assert.equal(unauthorized.status(), 403);
+  let organizer;
+  const memberEmail = `partner-b-${suffix}@example.test`;
+  compose('stop', 'notification');
+  try {
+    organizer = await onboard(admin, firstName, `partner-a-${suffix}@example.test`);
+    const member = await onboard(admin, secondName, memberEmail);
+    await organizer.page.goto('/organizer');
+    await organizer.page.getByRole('heading', { name: firstName, exact: true }).waitFor();
+    await organizer.page.locator('.operations-nav').getByRole('link', { name: 'Thành viên' }).click();
+    await organizer.page.getByLabel('Email công việc, mỗi dòng một địa chỉ').fill(memberEmail + '\ninvalid');
+    await organizer.page.getByRole('checkbox', { name: 'Xem đơn hàng và doanh thu' }).first().check();
+    await organizer.page.getByRole('button', { name: 'Tạo lời mời' }).click();
+    await organizer.page.getByText('invalid · Email không hợp lệ').waitFor();
+    await organizer.page.getByText(memberEmail + ' · Email đang chờ gửi').first().waitFor();
+    await organizer.page.screenshot({ path: `${output}/members-desktop.png`, animations: 'disabled' });
 
-  await admin.page.goto('/admin/organizations');
-  await approve(admin.page, firstName, organizer.user.id);
-  await approve(admin.page, secondName, audience.user.id);
-
-  await organizer.page.goto('/organizer');
-  await organizer.page.getByLabel('Tổ chức đang làm việc').selectOption({ label: firstName });
-  await organizer.page.getByRole('heading', { name: firstName, exact: true }).waitFor();
-  await organizer.page.locator('.operations-nav').getByRole('link', { name: 'Thành viên' }).click();
-  await organizer.page.getByRole('heading', { name: 'Mời thành viên' }).waitFor();
-  await organizer.page.getByLabel('Mã tài khoản người nhận').fill(audience.user.id);
-  await organizer.page.getByRole('checkbox', { name: 'Xem đơn hàng và doanh thu' }).first().check();
-  await organizer.page.getByRole('button', { name: 'Tạo lời mời' }).click();
-  const invitation = organizer.page.getByRole('status').filter({ hasText: 'Gửi mã này' });
-  await invitation.waitFor();
-  const code = await invitation.locator('code').textContent();
-  assert.ok(code);
-  await organizer.page.screenshot({ path: `${output}/members-desktop.png`, animations: 'disabled',
-    mask: [invitation] });
-
-  await audience.page.goto('/organizer');
-  await audience.page.getByLabel('Tổ chức đang làm việc').selectOption({ label: secondName });
-  await audience.page.getByRole('heading', { name: secondName, exact: true }).waitFor();
-  await audience.page.getByLabel('Mã lời mời').fill(code);
-  await audience.page.getByRole('button', { name: 'Tham gia tổ chức' }).click();
-  await audience.page.getByRole('heading', { name: firstName, exact: true }).waitFor();
-  const navigation = audience.page.locator('.operations-nav');
-  assert.equal(await navigation.getByRole('link', { name: 'Buổi diễn' }).count(), 0);
-  await navigation.getByRole('link', { name: 'Doanh thu' }).waitFor();
-  await audience.page.goto('/organizer/concerts');
-  await audience.page.getByText('Tổ chức đang chọn chưa cấp quyền cho mục này.').waitFor();
-
-  for (const width of [1440, 834, 390]) {
-    await audience.page.setViewportSize({ width, height: 900 });
-    const selection = audience.page.getByLabel('Tổ chức đang làm việc');
-    await selection.selectOption({ label: secondName });
-    await audience.page.getByRole('heading', { name: secondName, exact: true }).waitFor();
-    await navigation.getByRole('link', { name: 'Buổi diễn' }).waitFor({ state: 'attached' });
-    await selection.focus();
-    assert.equal(await selection.evaluate((node) => node === document.activeElement), true);
-    await fits(audience.page, `Organization workspace at ${width}px`);
-    await audience.page.screenshot({ path: `${output}/overview-${width}.png`, animations: 'disabled' });
+    await member.page.goto(claimLink(memberEmail));
+    await member.page.getByRole('button', { name: 'Tham gia tổ chức' }).click();
+    await member.page.getByText('Quyền nhà tổ chức đã được kích hoạt.').waitFor();
+    await member.page.getByRole('link', { name: /Không gian nhà tổ chức/ }).click();
+    const selection = member.page.getByLabel('Tổ chức đang làm việc');
     await selection.selectOption({ label: firstName });
-    await audience.page.getByRole('heading', { name: firstName, exact: true }).waitFor();
+    await member.page.getByRole('heading', { name: firstName, exact: true }).waitFor();
+    const navigation = member.page.locator('.operations-nav');
     assert.equal(await navigation.getByRole('link', { name: 'Buổi diễn' }).count(), 0);
+    await navigation.getByRole('link', { name: 'Doanh thu' }).waitFor();
+    await member.page.goto('/organizer/concerts');
+    await member.page.getByText('Tổ chức đang chọn chưa cấp quyền cho mục này.').waitFor();
+    for (const width of [1440, 834, 390]) {
+      await member.page.setViewportSize({ width, height: 900 });
+      await selection.selectOption({ label: secondName });
+      await member.page.getByRole('heading', { name: secondName, exact: true }).waitFor();
+      await navigation.getByRole('link', { name: 'Buổi diễn' }).waitFor();
+      await fits(member.page, `Organization workspace at ${width}px`);
+      await member.page.screenshot({ path: `${output}/overview-${width}.png`, animations: 'disabled' });
+      await selection.selectOption({ label: firstName });
+      await member.page.getByRole('heading', { name: firstName, exact: true }).waitFor();
+      assert.equal(await navigation.getByRole('link', { name: 'Buổi diễn' }).count(), 0);
+    }
+  } finally {
+    compose('start', 'notification');
   }
+  const audience = buyer;
 
   const orgs = await organizer.context.request.get('/api/organizations', {
     headers: { Authorization: `Bearer ${organizer.accessToken}` },
@@ -98,7 +139,7 @@ try {
     headers: { Authorization: `Bearer ${organizer.accessToken}`, 'X-Organization-Id': organization.id },
     data: { title, venueName: 'Sân khấu thử', venueAddress: 'Địa chỉ thử',
       eventDate: new Date(Date.now() + 86400000 * 2).toISOString(),
-      saleStartAt: new Date(Date.now() - 60000).toISOString(),
+      saleStartAt: new Date(Date.now() + 5 * 60000).toISOString(),
       saleEndAt: new Date(Date.now() + 86400000).toISOString() },
   });
   assert.equal(draft.status(), 201);
@@ -138,7 +179,7 @@ try {
   assert.equal((await saved).status(), 200);
   await organizer.page.goto(workspace);
   await organizer.page.getByText('Thêm hạng vé đang hoạt động', { exact: false }).waitFor();
-  assert(await organizer.page.getByRole('button', { name: 'Xác nhận mở bán' }).isDisabled());
+  assert.equal(await organizer.page.getByRole('button', { name: 'Gửi duyệt', exact: true }).count(), 0);
   const preview = organizer.page.getByRole('link', { name: 'Xem trước' });
   await preview.focus();
   await organizer.page.keyboard.press('Enter');
@@ -167,8 +208,21 @@ try {
   });
   assert.equal(tier.status(), 201);
   await organizer.page.goto(workspace);
-  await organizer.page.getByRole('button', { name: 'Xác nhận mở bán' }).click();
-  await organizer.page.getByText('Buổi diễn đã được công khai theo lịch bán.').waitFor();
+  const releaseTime = organizer.page.getByLabel('Giờ công khai (ICT)');
+  assert.equal(await releaseTime.inputValue(), '');
+  assert(await organizer.page.getByRole('button', { name: 'Gửi duyệt', exact: true }).isDisabled());
+  await releaseTime.fill(new Date(Date.now() + 7 * 3600000 + 90000).toISOString().slice(0, 16));
+  await organizer.page.getByRole('button', { name: 'Gửi duyệt', exact: true }).click();
+  await organizer.page.getByText('Chờ duyệt', { exact: true }).waitFor();
+  await admin.page.goto('/admin/event-review');
+  await admin.page.getByRole('link', { name: title, exact: true }).click();
+  await admin.page.getByRole('button', { name: 'Duyệt lịch' }).click();
+  await admin.page.getByText('Đã lên lịch', { exact: true }).waitFor();
+  assert.equal((await audience.context.request.get(`/api/concerts/${concert.id}`)).status(), 404);
+  assert.match(concert.id, /^[\da-f-]{36}$/i);
+  compose('exec', '-T', 'catalog-db', 'psql', '-U', 'catalog_owner', '-d', 'ticketbox_catalog', '-c',
+    `UPDATE concert_publication_reviews SET publish_at=now()-interval '1 second' WHERE concert_id='${concert.id}'`);
+  await organizer.page.getByText('Đã công khai', { exact: true }).waitFor({ timeout: 60000 });
   for (const width of [1440, 834, 390]) {
     await organizer.page.setViewportSize({ width, height: 900 });
     await fits(organizer.page, `Publication workspace at ${width}px`);
@@ -177,6 +231,12 @@ try {
   await organizer.page.goto(`/concerts/${concert.id}`);
   await organizer.page.getByRole('heading', { name: title }).waitFor();
   assert.equal(await organizer.page.getByRole('link', { name: /Mua ngay|Vào phòng chờ/ }).count(), 0);
+  await audience.page.goto('/');
+  await audience.page.getByRole('region', { name: 'Sắp mở bán', exact: true })
+    .getByRole('link', { name: title }).waitFor();
+  compose('exec', '-T', 'catalog-db', 'psql', '-U', 'catalog_owner', '-d', 'ticketbox_catalog', '-c',
+    `UPDATE concerts SET sale_start_at=now()-interval '1 minute' WHERE id='${concert.id}'`);
+  await admin.page.waitForTimeout(4000);
   await audience.page.goto(`/?q=${encodeURIComponent(title)}`);
   await audience.page.getByRole('main').getByRole('link', { name: title, exact: true }).click();
   await audience.page.waitForURL(`**/concerts/${concert.id}`);
@@ -236,6 +296,33 @@ try {
   const englishTicket = audience.page.getByRole('dialog', { name: englishTitle });
   await englishTicket.getByRole('img', { name: `Ticket QR code for ${englishTitle}`, exact: true }).waitFor();
   console.log('Mobile buyer found the event, paid with MOCK, opened the event tickets from the paid order and recovered the QR after reload.');
+
+  const administration = `/api/admin/concerts/${concert.id}/publication`;
+  const adminHeaders = { Authorization: `Bearer ${admin.accessToken}` };
+  const heldVersion = (await (await admin.context.request.get(administration, { headers: adminHeaders })).json()).data.review.id;
+  const hold = await admin.context.request.post(administration + '/hold', {
+    headers: adminHeaders, data: { revision: heldVersion, reason: 'Isolated publication hold' },
+  });
+  assert.equal(hold.status(), 200);
+  assert.equal((await audience.context.request.get(`/api/concerts/${concert.id}`)).status(), 404);
+  await englishTicket.getByRole('img', { name: `Ticket QR code for ${englishTitle}`, exact: true }).waitFor();
+
+  const resume = await admin.context.request.post(administration, {
+    headers: adminHeaders, data: { publishAt: new Date(Date.now() + 90000).toISOString() },
+  });
+  assert.equal(resume.status(), 200);
+  const revision = (await resume.json()).data.review.id;
+  assert.match(revision, /^[\da-f-]{36}$/i);
+  const decision = await admin.context.request.post(administration + '/decision', {
+    headers: adminHeaders, data: { revision, decision: 'APPROVE' },
+  });
+  assert.equal(decision.status(), 200);
+  assert.equal((await audience.context.request.get(`/api/concerts/${concert.id}`)).status(), 404);
+  compose('exec', '-T', 'catalog-db', 'psql', '-U', 'catalog_owner', '-d', 'ticketbox_catalog', '-c',
+    `UPDATE concert_publication_reviews SET publish_at=now()-interval '1 second' WHERE id='${revision}'`);
+  await audience.page.goto('/');
+  await audience.page.waitForFunction(async (id) => (await fetch('/api/concerts/' + id)).ok, concert.id, { timeout: 60000 });
+  console.log('The platform hold hid the event and kept the issued QR accessible. A reviewed reopening restored the event.');
 
   console.log('Organization approval, invitation, grant guards and switching passed at 1440, 834 and 390 px.');
 } finally {

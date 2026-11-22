@@ -1,8 +1,12 @@
-import { translate, formatLanguage } from '../../i18n';
+import { translate } from '../../i18n';
 import { useTranslation } from 'react-i18next';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import {
-  createOrganizationInvite,
+  createOrganizationInvites,
+  getPendingOrganizationInvites,
+  resendOrganizationInvite,
+  type InviteResult,
+  type PendingOrganizerInvite,
   getOrganizationMembers,
   organizationGrantLabels,
   type OrganizationGrant,
@@ -43,7 +47,7 @@ function MemberEditor({
   return (
     <li>
       <form className="organization-form" onSubmit={(event) => { event.preventDefault(); void save(value); }}>
-        <div><code>{member.accountId}</code>{!member.active ? <p>{translate("organizer:organizationMembersPage_taiKhoanDaKhoa")}</p> : null}</div>
+        <div><strong>{member.fullName}</strong><p>{member.email}</p>{!member.active ? <p>{translate("organizer:organizationMembersPage_taiKhoanDaKhoa")}</p> : null}</div>
         <GrantFields value={value} onChange={setValue} disabled={disabled} />
         <button className="admin-secondary-action" type="submit" disabled={disabled || !changed}>
           {value.length ? translate("organizer:organizationMembersPage_luuQuyen") : translate("organizer:organizationMembersPage_goThanhVien")}
@@ -59,9 +63,10 @@ export function OrganizationMembersPage() {
   const { user } = useAuth();
   const id = organization?.selected?.id;
   const [members, setMembers] = useState<OrganizationMember[]>([]);
-  const [account, setAccount] = useState('');
+  const [emails, setEmails] = useState('');
   const [selectedGrants, setSelectedGrants] = useState<OrganizationGrant[]>([]);
-  const [invite, setInvite] = useState<{ code: string; expiresAt: string } | null>(null);
+  const [results, setResults] = useState<InviteResult[]>([]);
+  const [pending, setPending] = useState<PendingOrganizerInvite[]>([]);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(true);
@@ -72,8 +77,8 @@ export function OrganizationMembersPage() {
     setLoading(true);
     setError('');
     try {
-      const next = await getOrganizationMembers(id, signal);
-      if (!signal?.aborted) setMembers(next);
+      const [next, invites] = await Promise.all([getOrganizationMembers(id, signal), getPendingOrganizationInvites(id, signal)]);
+      if (!signal?.aborted) { setMembers(next); setPending(invites); }
     } catch (failure) {
       if (!signal?.aborted) {
         setError(failure instanceof Error ? failure.message : translate("organizer:organizationMembersPage_khongTheTaiDanhSachThanhVien"));
@@ -95,11 +100,14 @@ export function OrganizationMembersPage() {
     setSaving(true);
     setError('');
     setNotice('');
-    setInvite(null);
+    setResults([]);
     try {
-      setInvite(await createOrganizationInvite(id, account.trim(), selectedGrants));
-      setAccount('');
+      const recipients = emails.split(/[\n,;]+/).map((email) => email.trim()).filter(Boolean);
+      if (recipients.length > 50) throw new Error(translate("shared:partnerBatchLimit"));
+      setResults(await createOrganizationInvites(id, recipients, selectedGrants));
+      setEmails('');
       setSelectedGrants([]);
+      await load();
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : translate("organizer:organizationMembersPage_khongTheTaoLoiMoi"));
     } finally {
@@ -133,18 +141,28 @@ export function OrganizationMembersPage() {
         <h2>{translate("organizer:organizationMembersPage_moiThanhVien")}</h2>
         <form className="organization-form" onSubmit={(event) => void sendInvite(event)}>
           <label className="admin-field">
-            {translate("organizer:organizationMembersPage_maTaiKhoanNguoiNhan")}
-            <input value={account} onChange={(event) => setAccount(event.target.value)} required minLength={36} maxLength={36} />
+            {translate("shared:partnerTeamEmails")}
+            <textarea required rows={3} maxLength={12800} value={emails} onChange={(event) => setEmails(event.target.value)} />
           </label>
           <GrantFields value={selectedGrants} onChange={setSelectedGrants} disabled={saving} />
           <button className="admin-primary-action" type="submit" disabled={saving || selectedGrants.length === 0}>{translate("organizer:organizationMembersPage_taoLoiMoi")}</button>
         </form>
-        {invite ? (
-          <div className="admin-notice success" role="status">
-            <p>{translate("organizer:organizationMembersPage_guiMaNayChoNguoiDuocMoi")} {new Date(invite.expiresAt).toLocaleString(formatLanguage())}.</p>
-            <code>{invite.code}</code>
-          </div>
-        ) : null}
+        {results.length ? <ul className="organization-list" aria-live="polite">
+          {results.map((result) => <li key={result.email}>{result.email} · {translate(`shared:partnerInvite_${result.outcome}`)}</li>)}
+        </ul> : null}
+        {pending.length ? <>
+          <h3>{translate("shared:partnerPendingInvites")}</h3>
+          <ul className="organization-list">{pending.map((invite) => <li key={invite.id}>
+            {invite.email} · {translate(invite.delivered ? "shared:partnerInviteSent" : "shared:partnerInvite_QUEUED")}
+            <button className="admin-secondary-action" type="button" disabled={saving} onClick={() => {
+              if (!id) return;
+              setSaving(true); setError('');
+              void resendOrganizationInvite(id, invite.email).then(() => load())
+                .catch((failure: unknown) => setError(failure instanceof Error ? failure.message : translate("shared:partnerUnavailable")))
+                .finally(() => setSaving(false));
+            }}>{translate("shared:partnerResend")}</button>
+          </li>)}</ul>
+        </> : null}
       </section>
       <section className="admin-data-panel organization-panel" aria-labelledby="organization-member-list">
         <h2 id="organization-member-list">{translate("organizer:organizationMembersPage_danhSachThanhVien")}</h2>

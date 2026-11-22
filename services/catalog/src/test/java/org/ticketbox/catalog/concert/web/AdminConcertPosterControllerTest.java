@@ -39,6 +39,10 @@ class AdminConcertPosterControllerTest {
 
     @MockBean private ConcertPosterService concertPosterService;
 
+    @MockBean private org.ticketbox.catalog.concert.application.ConcertPublicationReview publication;
+
+    @MockBean private org.ticketbox.catalog.concert.application.port.OrganizerDisplayNames organizations;
+
     @MockBean private JwtService jwtService;
 
     @Test

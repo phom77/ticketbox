@@ -92,7 +92,6 @@ export function StaffGuestsPage() {
   return (
     <>
       <AdminPageHeader
-        eyebrow="Bàn khách mời"
         title="Tra cứu khách mời"
         description="Xác minh khách mời tại cổng theo concert và số điện thoại. Danh sách import đầy đủ nằm trong không gian admin/nhà tổ chức."
       />

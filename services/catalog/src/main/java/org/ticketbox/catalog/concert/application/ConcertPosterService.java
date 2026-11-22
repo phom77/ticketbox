@@ -13,6 +13,7 @@ import org.ticketbox.catalog.concert.application.port.ConcertRepository;
 import org.ticketbox.catalog.concert.application.port.PosterStorage;
 import org.ticketbox.catalog.concert.application.port.PosterStorage.StoredPoster;
 import org.ticketbox.catalog.concert.domain.Concert;
+import org.ticketbox.catalog.concert.application.port.ConcertPublicationStore.PosterEdit;
 
 import java.util.UUID;
 
@@ -39,38 +40,28 @@ public class ConcertPosterService {
     public ConcertDetailResponse replacePoster(
             UUID concertId, Upload file, UUID requesterId, boolean isAdmin) {
         Concert concert = editableConcert(concertId, requesterId, isAdmin);
-        String previousPublicId = concert.getPosterPublicId();
         StoredPoster uploaded = posterStorage.upload(concertId, file);
-
-        concert.setPosterUrl(uploaded.secureUrl());
-        concert.setPosterPublicId(uploaded.publicId());
-        concertRepository.saveAndFlush(concert);
-        concertService.evictConcertCaches(concertId);
-
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            posterStorage.deleteBestEffort(previousPublicId);
-            return concertMapper.toDetailResponse(concert);
+        deleteOnRollback(uploaded.publicId());
+        if (concertService.stagesEdits(concertId)) {
+            concertService.stagePoster(concertId, new PosterEdit(uploaded.secureUrl(), uploaded.publicId()));
+        } else {
+            String previousPublicId = concert.getPosterPublicId();
+            concert.setPosterUrl(uploaded.secureUrl());
+            concert.setPosterPublicId(uploaded.publicId());
+            concertRepository.saveAndFlush(concert);
+            concertService.evictConcertCaches(concertId);
+            deleteAfterCommit(previousPublicId);
         }
-        TransactionSynchronizationManager.registerSynchronization(
-                new TransactionSynchronization() {
-                    @Override
-                    public void afterCommit() {
-                        posterStorage.deleteBestEffort(previousPublicId);
-                    }
-
-                    @Override
-                    public void afterCompletion(int status) {
-                        if (status != STATUS_COMMITTED) {
-                            posterStorage.deleteBestEffort(uploaded.publicId());
-                        }
-                    }
-                });
         return concertMapper.toDetailResponse(concert);
     }
 
     @Transactional
     public ConcertDetailResponse removePoster(UUID concertId, UUID requesterId, boolean isAdmin) {
         Concert concert = editableConcert(concertId, requesterId, isAdmin);
+        if (concertService.stagesEdits(concertId)) {
+            concertService.stagePoster(concertId, new PosterEdit(null, null));
+            return concertMapper.toDetailResponse(concert);
+        }
         String previousPublicId = concert.getPosterPublicId();
 
         concert.setPosterUrl(null);
@@ -84,7 +75,7 @@ public class ConcertPosterService {
     private Concert editableConcert(UUID concertId, UUID requesterId, boolean isAdmin) {
         Concert concert =
                 concertRepository
-                        .findById(concertId)
+                        .findByIdForUpdate(concertId)
                         .orElseThrow(
                                 () ->
                                         new AppException(
@@ -118,5 +109,15 @@ public class ConcertPosterService {
                         posterStorage.deleteBestEffort(publicId);
                     }
                 });
+    }
+
+    private void deleteOnRollback(String publicId) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) return;
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status != STATUS_COMMITTED) posterStorage.deleteBestEffort(publicId);
+            }
+        });
     }
 }

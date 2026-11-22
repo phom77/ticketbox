@@ -240,9 +240,7 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
   return (
     <>
       <AdminPageHeader
-        eyebrow={translate("admin:adminTicketTypesPage_tonKhoVe")}
         title={translate("admin:adminTicketTypesPage_quanLyHangVe")}
-        description={translate("admin:adminTicketTypesPage_thietLapGiaHanMucMuaVa")}
         actions={
           <>
             {safeReturnTo ? (
@@ -262,30 +260,6 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
           </>
         }
       />
-
-      <div className="admin-concert-switcher admin-context-switcher">
-        <ConcertPicker
-          concerts={concerts}
-          value={selectedConcertId}
-          onChange={(id) => {
-            setSelectedConcertId(id);
-            setQuery('');
-            setAvailability('all');
-          }}
-          label={translate("admin:adminTicketTypesPage_concertDangQuanLy")}
-          disabled={loadingConcerts}
-        />
-        {selectedConcert ? (
-          <div className="admin-context-summary">
-            <span>{translate("admin:adminTicketTypesPage_thoiGianMoBan")}</span>
-            <strong>
-              {dateFormatter({ dateStyle: 'medium', timeStyle: 'short' }).format(
-                new Date(selectedConcert.saleStartAt),
-              )}
-            </strong>
-          </div>
-        ) : null}
-      </div>
 
       <section className="admin-inline-stats" aria-label={translate("admin:adminTicketTypesPage_tomTatHangVe")}>
         <div>
@@ -308,8 +282,30 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
         </div>
       ) : null}
 
-      {ticketTypes.length ? (
-        <div className="admin-toolbar ticket-type-toolbar">
+      <div className="admin-toolbar ticket-type-toolbar">
+        <div className="ticket-type-event-context">
+          <ConcertPicker
+            concerts={concerts}
+            value={selectedConcertId}
+            onChange={(id) => {
+              setSelectedConcertId(id);
+              setQuery('');
+              setAvailability('all');
+            }}
+            disabled={loadingConcerts}
+          />
+          {selectedConcert ? (
+            <div className="admin-context-summary">
+              <span>{translate("admin:adminTicketTypesPage_thoiGianMoBan")}</span>
+              <strong>
+                {dateFormatter({ dateStyle: 'medium', timeStyle: 'short' }).format(
+                  new Date(selectedConcert.saleStartAt),
+                )}
+              </strong>
+            </div>
+          ) : null}
+        </div>
+        {ticketTypes.length ? <>
           <label className="admin-search-control">
             <Search aria-hidden="true" size={16} />
             <span className="sr-only">{translate("admin:adminTicketTypesPage_timHangVe")}</span>
@@ -334,8 +330,8 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
           <span className="admin-filter-count">
             {translate("admin:adminTicketTypesPage_hienThi")} {visibleTicketTypes.length} / {ticketTypes.length}
           </span>
-        </div>
-      ) : null}
+        </> : null}
+      </div>
 
       <section className="admin-data-panel">
         {loadingTickets ? (

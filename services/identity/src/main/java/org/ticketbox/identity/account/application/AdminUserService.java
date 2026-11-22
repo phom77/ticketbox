@@ -13,23 +13,25 @@ import org.ticketbox.identity.application.error.AppException;
 import org.ticketbox.identity.application.error.ErrorCode;
 
 import java.util.UUID;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class AdminUserService {
+    private static final Set<User.Role> INTERNAL = Set.of(User.Role.ADMIN, User.Role.STAFF);
 
     private final UserRepository userRepository;
     private final org.ticketbox.identity.account.application.port.AccountAccessAudit audit;
 
     public Page<UserResponse> listUsers(Pageable pageable) {
-        return userRepository.findAll(pageable).map(UserResponse::fromEntity);
+        return userRepository.findByRoleIn(INTERNAL, pageable).map(UserResponse::fromEntity);
     }
 
     public UserResponse getUserDetail(UUID id) {
         User user =
                 userRepository
-                        .findById(id)
+                        .findById(id).filter(account -> INTERNAL.contains(account.getRole()))
                         .orElseThrow(
                                 () ->
                                         new AppException(
@@ -40,9 +42,12 @@ public class AdminUserService {
 
     @Transactional
     public UserResponse updateUserRole(UUID actor, UUID id, User.Role role) {
+        if (!INTERNAL.contains(role)) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "error.invalid-request");
+        }
         User user =
                 userRepository
-                        .findByIdForUpdate(id)
+                        .findByIdForUpdate(id).filter(account -> INTERNAL.contains(account.getRole()))
                         .orElseThrow(
                                 () ->
                                         new AppException(
@@ -59,7 +64,7 @@ public class AdminUserService {
     public UserResponse updateUserStatus(UUID actor, UUID id, boolean isActive) {
         User user =
                 userRepository
-                        .findByIdForUpdate(id)
+                        .findByIdForUpdate(id).filter(account -> INTERNAL.contains(account.getRole()))
                         .orElseThrow(
                                 () ->
                                         new AppException(

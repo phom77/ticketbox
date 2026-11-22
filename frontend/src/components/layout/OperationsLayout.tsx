@@ -16,7 +16,6 @@ import {
   Receipt,
   ScanLine,
   Settings,
-  Ticket,
   UserCog,
   Users,
   X,
@@ -36,14 +35,13 @@ type NavigationItem = {
 
 const adminNavigation: NavigationItem[] = [
   { to: '/admin', get label() { return translate("shared:operationsLayout_tongQuan"); }, icon: BarChart3, end: true },
+  { to: '/admin/event-review', get label() { return translate("shared:releaseQueue"); }, icon: CalendarDays },
   { to: '/admin/concerts', get label() { return translate("shared:operationsLayout_buoiDien"); }, icon: CalendarDays },
-  { to: '/admin/ticket-types', get label() { return translate("shared:operationsLayout_hangVe"); }, icon: Ticket },
   { to: '/admin/reconciliation', get label() { return translate("shared:operationsLayout_doiSoat"); }, icon: CircleDollarSign },
   { to: '/admin/orders', get label() { return translate("shared:operationsLayout_donHangVe"); }, icon: Receipt },
-  { to: '/admin/guests', get label() { return translate("shared:operationsLayout_khachMoi"); }, icon: Users },
   { to: '/admin/notifications', get label() { return translate("shared:operationsLayout_thongBao"); }, icon: Bell },
   { to: '/admin/organizations', get label() { return translate("shared:operationsLayout_toChuc"); }, icon: Users },
-  { to: '/admin/users', get label() { return translate("shared:operationsLayout_nguoiDung"); }, icon: UserCog },
+  { to: '/admin/users', get label() { return translate("shared:partnerInternalAccounts"); }, icon: UserCog },
 ];
 
 const staffNavigation: NavigationItem[] = [
@@ -56,10 +54,8 @@ const staffNavigation: NavigationItem[] = [
 const organizerNavigation: NavigationItem[] = [
   { to: '/organizer', get label() { return translate("shared:operationsLayout_tongQuan"); }, icon: BarChart3, end: true },
   { to: '/organizer/concerts', grant: 'EVENTS', get label() { return translate("shared:operationsLayout_buoiDien"); }, icon: CalendarDays },
-  { to: '/organizer/ticket-types', grant: 'EVENTS', get label() { return translate("shared:operationsLayout_hangVe"); }, icon: Ticket },
   { to: '/organizer/reconciliation', grant: 'FINANCE', get label() { return translate("shared:operationsLayout_doiSoat"); }, icon: CircleDollarSign },
   { to: '/organizer/orders', grant: 'FINANCE', get label() { return translate("shared:operationsLayout_donHangVe"); }, icon: Receipt },
-  { to: '/organizer/guests', grant: 'EVENTS', get label() { return translate("shared:operationsLayout_khachMoi"); }, icon: Users },
   { to: '/organizer/revenue', grant: 'FINANCE', get label() { return translate('shared:operationsLayout_revenue'); }, icon: CircleDollarSign },
   { to: '/organizer/members', grant: 'MEMBERS', get label() { return translate("shared:operationsLayout_thanhVien"); }, icon: UserCog },
 ];
@@ -110,7 +106,6 @@ export function OperationsLayout({ mode }: { mode: 'admin' | 'organizer' | 'staf
         </div>
 
         <nav className="operations-nav">
-          <p>{translate("shared:operationsLayout_khongGianLamViec")}</p>
           {navigation.map((item) => {
             const Icon = item.icon;
             return (
@@ -156,13 +151,6 @@ export function OperationsLayout({ mode }: { mode: 'admin' | 'organizer' | 'staf
             {mobileOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
           <div className={mode === 'organizer' ? 'operations-context organization-context' : 'operations-context'}>
-            <span>
-              {mode === 'admin'
-                ? translate("shared:operationsLayout_quanLyVanHanh")
-                : mode === 'organizer'
-                  ? translate("shared:operationsLayout_khongGianNhaToChuc")
-                  : translate("shared:operationsLayout_vanHanhTaiCong")}
-            </span>
             {mode === 'organizer' && organization?.memberships.length ? (
               <select
                 aria-label={translate("shared:operationsLayout_toChucDangLamViec")}
