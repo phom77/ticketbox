@@ -4,7 +4,8 @@ import { concertTitle } from '../../features/concert/concertText';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { ApiClientError } from '../../api/client';
-import { getConcert } from '../../api/concerts';
+import { eventPath, performancePath } from '../../api/performances';
+import { checkoutPresentation } from '../../features/performance/checkoutPresentation';
 import {
   cancelOrder,
   completeMockPayment,
@@ -136,26 +137,12 @@ export function CheckoutPage() {
           return;
         }
 
-        const [concert, paymentStatus] = await Promise.all([
-          getConcert(order.concertId, controller.signal).catch(() => null),
+        const [presentation, paymentStatus] = await Promise.all([
+          checkoutPresentation(order, controller.signal),
           getPaymentStatus(order.id, controller.signal).catch(() => null),
         ]);
         if (!active) return;
-
-        const restoredEvent: CheckoutEvent = {
-          id: order.concertId,
-          title: concert?.title ?? order.concertTitle,
-          translations: concert?.translations,
-          venue: concert?.venueName ?? '',
-          date: concert?.eventDate ?? '',
-          image: concert?.posterUrl ?? null,
-        };
-        const restoredSelection = order.items.map((item) => ({
-          id: item.ticketTypeId,
-          name: item.ticketTypeName,
-          price: item.unitPrice,
-          quantity: item.quantity,
-        }));
+        const { event: restoredEvent, selection: restoredSelection } = presentation;
 
         setEvent(restoredEvent);
         setCreatedOrder(order);
@@ -221,7 +208,7 @@ export function CheckoutPage() {
       clearStoredQueueAdmission();
       setError(translate("customer:checkoutPage_phienMuaVeDaHetHanDang"));
       window.setTimeout(
-        () => navigate(`/concerts/${event.id}/waiting-room`, { replace: true }),
+        () => navigate((event.eventId ? performancePath(event.eventId, event.id) : `/concerts/${event.id}`) + '/waiting-room', { replace: true }),
         900,
       );
       return;
@@ -267,7 +254,7 @@ export function CheckoutPage() {
             clearStoredQueueAdmission();
             setError(translate("customer:checkoutPage_phienMuaVeDaHetHanDang"));
             window.setTimeout(
-              () => navigate(`/concerts/${event.id}/waiting-room`, { replace: true }),
+              () => navigate((event.eventId ? performancePath(event.eventId, event.id) : `/concerts/${event.id}`) + '/waiting-room', { replace: true }),
               900,
             );
             return;
@@ -402,7 +389,7 @@ export function CheckoutPage() {
       }
       clearPendingPayment(order.id);
       clearStoredQueueAdmission();
-      navigate(`/concerts/${event.id}/waiting-room`, { replace: true });
+      navigate((event.eventId ? performancePath(event.eventId, event.id) : `/concerts/${event.id}`) + '/waiting-room', { replace: true });
     } catch {
       // A late success can win the race with cancellation. Re-read before buying again.
       setError(translate("customer:checkoutPage_chuaTheHuyDonHayKiemTra"));
@@ -529,7 +516,7 @@ export function CheckoutPage() {
         // Queue session has a backend TTL fallback.
       }
       clearStoredQueueAdmission();
-      navigate(`/concerts/${event.id}`, { replace: true });
+      navigate(event.eventId ? eventPath(event.eventId) : `/concerts/${event.id}`, { replace: true });
     } catch {
       setError(translate("customer:checkoutPage_khongTheRoiTrangThanhToanAn"));
       setCancelling(false);

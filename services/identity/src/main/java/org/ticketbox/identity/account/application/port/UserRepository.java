@@ -5,8 +5,8 @@ import org.ticketbox.identity.account.domain.User;
 import java.util.Optional;
 
 public interface UserRepository {
-    org.springframework.data.domain.Page<User> findAll(
-            org.springframework.data.domain.Pageable pageable);
+    org.springframework.data.domain.Page<User> findByRoleIn(
+            java.util.Collection<User.Role> roles, org.springframework.data.domain.Pageable pageable);
 
     Optional<User> findByEmail(String email);
 

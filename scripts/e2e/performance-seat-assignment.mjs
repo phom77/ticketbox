@@ -1,3 +1,4 @@
+import { submitPerformanceReview } from './performance-review-fixture.mjs';
 import { selectWorkspaceOption } from './select-workspace-option.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -85,7 +86,7 @@ try {
     const venue = await create('/venues', { name, address: 'Fixture Street', spaceName: 'Main hall' });
     return create('/events/' + event.id + '/performances', {
       venueSpaceId: venue.spaces[0].id, startsAt: after(48), endsAt: after(52), doorsOpenAt: after(47),
-      saleStartAt: after(-2), saleEndAt: after(24), timezone: 'Asia/Ho_Chi_Minh',
+      saleStartAt: after(1), saleEndAt: after(24), timezone: 'Asia/Ho_Chi_Minh',
       maxPerAccount: 5, publicVisible: true,
     });
   }
@@ -186,7 +187,8 @@ try {
   await page.reload();
   await selectWorkspaceOption(page.getByLabel('Current performance'), { value: numbered.id });
   await sale.getByRole('button', { name: 'Save and review' }).click();
-  await page.getByRole('region', { name: 'Review performance' }).getByRole('button', { name: 'Publish performance' }).click();
+  await submitPerformanceReview(page.getByRole('region', { name: 'Review performance' }),
+    organizerContext.request, admin.accessToken, { openSale: true });
   await page.getByRole('region', { name: 'Publication status' }).getByText('Synchronized', { exact: true }).nth(1)
     .waitFor({ timeout: 30_000 });
   const published = await api(organizerContext, drafts(numbered.id) + '/sale', { headers: auth });

@@ -47,6 +47,9 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.ticketbox.catalog.application.error.AppException;
 import org.ticketbox.catalog.domain.DomainViolation;
 import org.ticketbox.catalog.performance.application.PerformanceCatalog;
+import org.ticketbox.catalog.performance.application.PerformancePublicationReview;
+import org.ticketbox.catalog.performance.application.PerformancePublicationReview.Action;
+import org.ticketbox.catalog.performance.infrastructure.JdbcPerformanceReviewStore;
 import org.ticketbox.catalog.performance.domain.PerformanceLayout;
 import org.ticketbox.catalog.performance.domain.PerformanceLayout.Kind;
 import org.ticketbox.catalog.performance.domain.PerformanceLayout.Point;
@@ -70,6 +73,7 @@ class PerformanceCatalogIntegrationTest {
     private static TransactionTemplate transaction;
     private static ObjectMapper json;
     private static PerformanceCatalog catalog;
+    private static PerformancePublicationReview reviews;
     private static MockMvc organizer;
     private UUID owner;
     private UUID event;
@@ -83,8 +87,10 @@ class PerformanceCatalogIntegrationTest {
         jdbc = new JdbcTemplate(source);
         transaction = new TransactionTemplate(new DataSourceTransactionManager(source));
         json = new ObjectMapper().findAndRegisterModules().disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-        catalog = new PerformanceCatalog(new JdbcPerformanceStore(jdbc, json), "*");
-        organizer = MockMvcBuilders.standaloneSetup(new OrganizerPerformanceController(catalog), new PerformanceOperationsController(catalog))
+        var store = new JdbcPerformanceStore(jdbc, json);
+        catalog = new PerformanceCatalog(store, "*");
+        reviews = new PerformancePublicationReview(store, new JdbcPerformanceReviewStore(jdbc, json), catalog);
+        organizer = MockMvcBuilders.standaloneSetup(new OrganizerPerformanceController(catalog, reviews), new PerformanceOperationsController(catalog))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setMessageConverters(new MappingJackson2HttpMessageConverter(json))
                 .build();
@@ -207,12 +213,23 @@ class PerformanceCatalogIntegrationTest {
         var publishPath = ORGANIZER + "/performances/" + draft.id() + "/publication";
         var review = json.createObjectNode().put("expectedSaleVersion", 1).put("expectedLayoutVersion", 0)
                 .put("expectedEventDraftVersion", 0).put("expectedScheduleDraftVersion", 0);
+        organizerRequest(MockMvcRequestBuilders.post(publishPath), owner, review, 400);
+        review.put("publishAt", OffsetDateTime.now(ZoneOffset.UTC).plusHours(1).toString());
         organizerRequest(MockMvcRequestBuilders.post(publishPath), owner, review, 409);
         organizerRequest(MockMvcRequestBuilders.post(publishPath), owner, review.put("expectedEventDraftVersion", 1), 409);
         var result = organizerRequest(MockMvcRequestBuilders.post(publishPath), owner,
                 review.put("expectedScheduleDraftVersion", 1), 200);
-        assertThat(result.path("status").asText()).isEqualTo("ON_SALE");
-        assertThat(result.path("ticketingAcknowledged").asBoolean()).isFalse();
+        assertThat(result.path("status").asText()).isEqualTo("DRAFT");
+        assertThat(result.path("review").path("state").asText()).isEqualTo("SUBMITTED");
+        var revision = UUID.fromString(result.path("review").path("id").asText());
+        var reviewer = UUID.randomUUID();
+        tx(() -> reviews.decide(draft.id(), revision, reviewer, Action.APPROVE, null));
+        tx(() -> { reviews.release(draft.id()); return null; });
+        assertThat(tx(() -> catalog.publication(owner, draft.id())).status()).isEqualTo("DRAFT");
+        jdbc.update("UPDATE performance_publication_reviews SET publish_at=clock_timestamp()-interval '1 second' WHERE id=?", revision);
+        tx(() -> { reviews.release(draft.id()); return null; });
+        assertThat(tx(() -> catalog.publication(owner, draft.id())).status()).isEqualTo("ON_SALE");
+        assertThat(tx(() -> catalog.publication(owner, draft.id())).ticketingAcknowledged()).isFalse();
         organizerRequest(MockMvcRequestBuilders.put(eventPath), owner, eventUpdate.put("expectedDraftVersion", 1), 400);
         organizerRequest(MockMvcRequestBuilders.put(schedulePath), owner, schedule.put("expectedDraftVersion", 1), 400);
     }

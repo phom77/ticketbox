@@ -217,8 +217,9 @@ export function getManagedConcert(
   return apiGet<ConcertDetail>(`${managementBase(scope)}/concerts/${encodeURIComponent(concertId)}`, signal);
 }
 
-export function createConcert(payload: ConcertMutation, scope: ManagementApiScope = 'admin') {
-  return apiCommand<ConcertDetail>('post', `${managementBase(scope)}/concerts`, payload);
+export function createConcert(payload: ConcertMutation, scope: ManagementApiScope = 'admin', organizationId?: string) {
+  const owner = scope === 'admin' && organizationId ? `?organizationId=${encodeURIComponent(organizationId)}` : '';
+  return apiCommand<ConcertDetail>('post', `${managementBase(scope)}/concerts${owner}`, payload);
 }
 
 export function updateConcert(concertId: string, payload: ConcertMutation, scope: ManagementApiScope = 'admin') {

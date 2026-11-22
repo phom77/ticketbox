@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import org.ticketbox.catalog.concert.application.ConcertPosterService;
+import org.ticketbox.catalog.concert.application.ConcertPublicationReview;
 import org.ticketbox.catalog.concert.application.ConcertService;
 import org.ticketbox.catalog.concert.application.dto.ConcertDetailResponse;
 import org.ticketbox.catalog.concert.application.dto.CreateConcertRequest;
@@ -38,6 +39,7 @@ import org.ticketbox.catalog.web.security.OrganizerPermission;
 import org.ticketbox.catalog.web.MultipartUpload;
 
 import java.util.UUID;
+import java.time.OffsetDateTime;
 
 @RestController
 @OrganizerPermission(OrganizerPermission.Grant.EVENTS)
@@ -47,6 +49,9 @@ public class OrganizerConcertController {
 
     private final ConcertService concertService;
     private final ConcertPosterService concertPosterService;
+    private final ConcertPublicationReview publication;
+
+    public record Submission(@jakarta.validation.constraints.NotNull OffsetDateTime publishAt) {}
 
     @GetMapping
     @OrganizerPermission({OrganizerPermission.Grant.EVENTS, OrganizerPermission.Grant.FINANCE})
@@ -91,20 +96,15 @@ public class OrganizerConcertController {
     public ResponseEntity<ApiResponse<SalePublication>> readiness(
             @PathVariable UUID id, @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID organizationId) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
-                .body(ApiResponse.success(concertService.publication(id, organizationId)));
+                .body(ApiResponse.success(publication.status(id, organizationId)));
     }
 
     @PostMapping("/{id}/publication")
-    public ResponseEntity<ApiResponse<SalePublication>> publish(
-            @PathVariable UUID id, @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID organizationId) {
-        var result = concertService.publish(id, organizationId);
-        if (!result.issues().isEmpty()) {
-            var issues = result.issues().stream().collect(
-                    java.util.stream.Collectors.toMap(issue -> issue, issue -> issue));
-            return ResponseEntity.unprocessableEntity()
-                    .body(ApiResponse.error(422, "error.concert.publication-incomplete", issues));
-        }
-        return ResponseEntity.ok(ApiResponse.success(result));
+    public ResponseEntity<ApiResponse<SalePublication>> submit(
+            @PathVariable UUID id, @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID organizationId,
+            java.security.Principal actor, @Valid @RequestBody Submission request) {
+        return ResponseEntity.ok(ApiResponse.success(publication.submit(
+                id, organizationId, UUID.fromString(actor.getName()), request.publishAt())));
     }
 
     @PutMapping("/{id}")

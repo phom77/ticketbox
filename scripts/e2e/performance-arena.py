@@ -9,7 +9,7 @@ from threading import Barrier
 from time import perf_counter
 from uuid import uuid4
 
-from split import REPORT_DIRECTORY, login, request, sql, until
+from split import approve_performance_fixture, REPORT_DIRECTORY, login, request, sql, until
 
 
 def key():
@@ -41,12 +41,13 @@ def main():
     venue = request("POST", root + "/venues", manager,
                     {"name": "Arena PX", "address": "Fixture", "spaceName": "Main"}, headers=scope)
     now = datetime.now(timezone.utc)
-    opens, closes = (now - timedelta(hours=1)).isoformat(), (now + timedelta(hours=6)).isoformat()
-    show = request("POST", root + f"/events/{event['id']}/performances", manager, {
+    opens, closes = (now + timedelta(seconds=45)).isoformat(), (now + timedelta(hours=6)).isoformat()
+    scheduled = request("POST", root + f"/events/{event['id']}/performances", manager, {
         "venueSpaceId": venue["spaces"][0]["id"], "startsAt": (now + timedelta(days=2)).isoformat(),
         "endsAt": (now + timedelta(days=2, hours=4)).isoformat(), "timezone": "Asia/Ho_Chi_Minh",
         "saleStartAt": opens, "saleEndAt": closes, "maxPerAccount": 1, "publicVisible": True,
-    }, headers=scope)["id"]
+    }, headers=scope)
+    show = scheduled["id"]
     management = f"{root}/performances/{show}"
     public = f"/api/v2/performances/{show}"
     queue = f"/api/queue/concerts/{show}"
@@ -82,13 +83,9 @@ def main():
         "expectedSaleVersion": 0, "groups": groups, "offers": offers,
     }, headers=scope))
 
-    def publish():
-        request("POST", management + "/publication", manager,
-                {"expectedSaleVersion": sale["version"], "expectedLayoutVersion": 1}, headers=scope)
-        return until(lambda: all(request("GET", management + "/publication", manager, headers=scope)[ack]
-                                 for ack in ("ticketingAcknowledged", "checkinAcknowledged")), seconds=180)
-
-    _, publish_ms = measure(publish)
+    _, publish_ms = measure(lambda: approve_performance_fixture(
+        management, scheduled, event, sale, 1, manager, admin, scope))
+    until(lambda: datetime.now(timezone.utc) >= datetime.fromisoformat(opens))
     sample_section = sections[0]["id"]
     first_seat = sections[0]["rows"][0]["seats"][0]["id"]
     assert all("rows" not in section for section in request("GET", public + "/layout")["sections"])

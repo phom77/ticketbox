@@ -34,7 +34,6 @@ export function StaffOverviewPage() {
   return (
     <>
       <AdminPageHeader
-        eyebrow="Vận hành cổng"
         title="Ca làm việc"
         description="Chọn concert đang mở bán để chuẩn bị check-in, tra khách mời và theo dõi lịch sử vào cổng."
         actions={

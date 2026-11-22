@@ -128,7 +128,6 @@ export function ReconciliationPage({ scope }: { scope: ManagementApiScope }) {
       <header className="workspace-records-header">
         <div>
           <h1>{translate('organizer:reconciliationPage_doiSoatThanhToan')}</h1>
-          <p>{translate('organizer:reconciliationPage_traCuuKhoanThuDaXacMinh')}</p>
         </div>
         <button className="admin-secondary-action" type="button" disabled={!report || exporting} onClick={() => void exportCsv()}>
           <Download size={18} aria-hidden />

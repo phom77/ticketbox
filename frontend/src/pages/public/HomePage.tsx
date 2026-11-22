@@ -55,12 +55,19 @@ export function HomePage({ previewConcerts }: { previewConcerts?: DiscoveryConce
   const hasMore = !isPreview && catalog.hasMore;
   const matches = filterConcerts(source, filters, now);
   const hasFilters = Boolean(filters.q || chipKeys.some((key) => filters[key]));
+  const showComingSoon = !hasFilters && !isPreview;
+  const comingSoon = showComingSoon ? matches.filter((concert) => {
+    const state = concertSaleState(concert, now);
+    return state === 'upcoming' || state === 'waiting-room';
+  }) : [];
+  const comingSoonIds = new Set(comingSoon.map((concert) => concert.id));
+  const availableEvents = matches.filter((concert) => !comingSoonIds.has(concert.id));
   const featureConcert = !hasFilters && !isPreview && matches.length > 1
-    ? matches.find((concert) => concert.posterUrl && concertSaleState(concert, now) === 'on-sale')
-      ?? matches.find((concert) => concert.posterUrl) ?? matches[0]
+    ? availableEvents.find((concert) => concert.posterUrl && concertSaleState(concert, now) === 'on-sale')
+      ?? availableEvents.find((concert) => concert.posterUrl)
     : undefined;
   const feature = featureConcert ? eventCard(featureConcert, now) : null;
-  const grid = feature ? matches.filter((concert) => concert.id !== feature.id) : matches;
+  const grid = feature ? availableEvents.filter((concert) => concert.id !== feature.id) : availableEvents;
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 60_000);
@@ -143,12 +150,35 @@ export function HomePage({ previewConcerts }: { previewConcerts?: DiscoveryConce
   ];
   const filterCount = chips.filter(({ key }) => key !== 'q').length;
 
+  function renderEventGrid(events: DiscoveryConcert[]) {
+    return (
+      <div className="discovery-grid">
+        {events.map((concert, index) => (
+          <EventCard
+            key={concert.id}
+            event={{
+              ...eventCard(concert, now),
+              supportingText: isPreview && concert.price !== undefined
+                ? [concert.city && t(discoveryOptions.city[concert.city]),
+                  concert.category && t(discoveryOptions.category[concert.category]),
+                  currency.format(concert.price)].filter(Boolean).join(' · ')
+                : undefined,
+            }}
+            priority={index < 2 && !feature}
+            preview={isPreview}
+            linkId={`discovery-event-${concert.id}`}
+            onOpen={savePosition}
+          />
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className="buyer-page discovery-page page-width" data-discovery-restore={restored ? true : undefined}>
       <section className="discovery-intro" aria-labelledby="discovery-title">
         <div className="discovery-main">
           <h1 id="discovery-title">{t('public:discovery_title')}</h1>
-          <p>{t('public:discovery_subtitle')}</p>
           <form className="discovery-search" role="search" aria-label={t('public:discovery_search')} onSubmit={submitSearch}>
             <div className="discovery-search-input">
               <Search aria-hidden="true" />
@@ -237,27 +267,15 @@ export function HomePage({ previewConcerts }: { previewConcerts?: DiscoveryConce
           </div>
         ) : null}
 
-        {grid.length > 0 ? (
-          <div className="discovery-grid">
-            {grid.map((concert, index) => (
-              <EventCard
-                key={concert.id}
-                event={{
-                  ...eventCard(concert, now),
-                  supportingText: isPreview && concert.price !== undefined
-                    ? [concert.city && t(discoveryOptions.city[concert.city]),
-                      concert.category && t(discoveryOptions.category[concert.category]),
-                      currency.format(concert.price)].filter(Boolean).join(' · ')
-                    : undefined,
-                }}
-                priority={index < 2 && !feature}
-                preview={isPreview}
-                linkId={`discovery-event-${concert.id}`}
-                onOpen={savePosition}
-              />
-            ))}
-          </div>
-        ) : null}
+        <div className="discovery-event-groups" data-sparse-upcoming={comingSoon.length === 1 && grid.length > 0 || undefined}>
+          {comingSoon.length > 0 ? (
+            <section className="discovery-coming-soon" aria-labelledby="discovery-coming-soon-heading">
+              <h3 id="discovery-coming-soon-heading">{t('public:discovery_comingSoon')}</h3>
+              {renderEventGrid(comingSoon)}
+            </section>
+          ) : null}
+          {grid.length > 0 ? renderEventGrid(grid) : null}
+        </div>
 
         {hasMore && !isInitialLoading ? (
           <div className="discovery-load-more">

@@ -31,6 +31,8 @@ public interface PerformanceStore {
 
     boolean hasReleasedPerformances(UUID event);
 
+    boolean hasPublicationReview(UUID performance);
+
     void createEvent(UUID id, UUID organizer, String title, String description, String category);
 
     void updateDraftEvent(UUID id, String title, String description, String category);

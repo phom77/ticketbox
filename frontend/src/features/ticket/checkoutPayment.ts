@@ -3,6 +3,7 @@ import type { Order, PaymentProvider, PaymentStatus } from '../../api/orders';
 
 export type CheckoutEvent = {
   id: string;
+  eventId?: string | null;
   title: string;
   translations?: ConcertTranslations;
   venue: string;

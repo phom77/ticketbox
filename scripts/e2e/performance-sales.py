@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 import json
 import uuid
 
-from split import REPORT_DIRECTORY, login, request, sql, until
+from split import approve_performance_fixture, REPORT_DIRECTORY, login, request, sql, until
 
 
 def new_id():
@@ -36,7 +36,7 @@ def main():
         "name": "Fixture Arena", "address": "Fixture Road", "spaceName": "Main room",
     }, headers=scope)
     now = datetime.now(timezone.utc).replace(microsecond=0)
-    opened = (now - timedelta(hours=1)).isoformat()
+    opened = (now + timedelta(seconds=40)).isoformat()
     closes = (now + timedelta(hours=6)).isoformat()
 
     def schedule(days):
@@ -94,11 +94,7 @@ def main():
         if shared_offer:
             offers.append({**offers[0], "id": new_id(), "name": "Early entry", "price": 90000})
         sale = request("PUT", path + "/sale", manager, {"expectedSaleVersion": 0, "groups": groups, "offers": offers}, headers=scope)
-        request("POST", path + "/publication", manager, {
-            "expectedSaleVersion": sale["version"], "expectedLayoutVersion": layout_version,
-        }, headers=scope)
-        until(lambda: all(request("GET", path + "/publication", manager, headers=scope)[ack]
-                          for ack in ("ticketingAcknowledged", "checkinAcknowledged")))
+        approve_performance_fixture(path, show, event, sale, layout_version, manager, admin, scope)
         return offers
 
     def pool(label, section=None):
@@ -116,6 +112,7 @@ def main():
     assert "rows" not in request("GET", v2 + "/layout")["sections"][0]
     assert request("GET", v2 + f"/layout/sections/{balcony}")["section"]["rows"][0]["seats"][0]["id"] == seat
     assert request("GET", v2 + f"/availability/sections/{balcony}")["seats"][0]["available"]
+    until(lambda: datetime.now(timezone.utc) >= datetime.fromisoformat(opened))
 
     def buy(show, items, layout_version):
         sale_path = f"/api/v2/performances/{show['id']}"

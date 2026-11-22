@@ -7,5 +7,7 @@ public interface NotificationContent {
 
     Content renderPasswordReset(String link);
 
+    Content renderOrganizerLink(String link);
+
     record Content(String subject, String body) {}
 }

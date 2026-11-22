@@ -9,4 +9,8 @@ public interface PasswordResetMailSource {
     Optional<Message> claim();
 
     void finish(UUID id, UUID leaseId, boolean delivered);
+
+    default Optional<Message> claimOrganizerLink() { return Optional.empty(); }
+
+    default void finishOrganizerLink(UUID id, UUID leaseId, boolean delivered) {}
 }

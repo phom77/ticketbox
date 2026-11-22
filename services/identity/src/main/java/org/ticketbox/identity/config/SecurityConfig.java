@@ -106,7 +106,9 @@ public class SecurityConfig {
                                                 "/api/auth/register",
                                                 "/api/auth/login",
                                                 "/api/auth/password-reset",
-                                                "/api/auth/password-reset/confirm")
+                                                "/api/auth/password-reset/confirm",
+                                                "/api/auth/organizer/application",
+                                                "/api/auth/organizer/activate")
                                         .permitAll()
                                         .requestMatchers(
                                                 HttpMethod.GET, "/api/concerts", "/api/concerts/**")

@@ -72,6 +72,13 @@ public class OrganizationService {
         return store.memberships(actor);
     }
 
+    public List<Membership> memberships(User actor) {
+        var memberships = memberships(actor.getId());
+        if (actor.getRole() != User.Role.STAFF) return memberships;
+        return memberships.stream().filter(member -> member.grants().contains(OrganizationGrant.ADMISSION))
+                .map(member -> new Membership(member.id(), member.name(), Set.of(OrganizationGrant.ADMISSION))).toList();
+    }
+
     public List<Organization> organizations() {
         return store.organizations();
     }
@@ -85,6 +92,23 @@ public class OrganizationService {
         return store.members(organization);
     }
 
+    public List<Member> platformMembers(UUID organization) {
+        if (store.displayName(organization).isEmpty()) throw notFound();
+        return store.members(organization);
+    }
+
+    @Transactional
+    public void setMemberActivity(UUID actor, UUID organization, UUID member, boolean active) {
+        if (!store.lock(organization) || store.grants(organization, member).isEmpty()) throw notFound();
+        var account = accounts.findByIdForUpdate(member).filter(user -> user.getRole() == User.Role.ORGANIZER)
+                .orElseThrow(this::notFound);
+        if (account.isActive() != active) {
+            account.changeActivity(active);
+            store.audit(organization, actor, member, active ? "MEMBER_UNLOCKED" : "MEMBER_LOCKED",
+                    store.grants(organization, member));
+        }
+    }
+
     public Set<OrganizationGrant> access(UUID actor, UUID organization) {
         Set<OrganizationGrant> grants = store.grants(organization, actor);
         if (grants.isEmpty()) {
@@ -93,10 +117,17 @@ public class OrganizationService {
         return grants;
     }
 
+    public Set<OrganizationGrant> access(User actor, UUID organization) {
+        var grants = access(actor.getId(), organization);
+        if (actor.getRole() != User.Role.STAFF) return grants;
+        if (!grants.contains(OrganizationGrant.ADMISSION)) throw forbidden();
+        return Set.of(OrganizationGrant.ADMISSION);
+    }
+
     @Transactional
     public InviteCode invite(UUID actor, UUID organization, UUID target, Set<OrganizationGrant> grants) {
         lockAndRequireManager(actor, organization);
-        requireActiveAccount(target);
+        requireInvitationTarget(target, grants);
         if (!store.grants(organization, target).isEmpty()) {
             throw conflict();
         }
@@ -120,6 +151,7 @@ public class OrganizationService {
             throw notFound();
         }
         UUID organization = invitation.organizationId();
+        requireInvitationTarget(actor, invitation.grants());
         if (invitation.consumed()) {
             access(actor, organization);
             return organization;
@@ -140,6 +172,7 @@ public class OrganizationService {
         if (previous.isEmpty()) {
             throw notFound();
         }
+        if (!grants.isEmpty()) requireInvitationTarget(target, grants);
         if (previous.equals(grants)) {
             return;
         }
@@ -167,11 +200,20 @@ public class OrganizationService {
     }
 
     private void requireActiveAccount(UUID account) {
-        accounts.findById(account).filter(User::isActive).orElseThrow(this::notFound);
+        accounts.findById(account).filter(User::isActive).filter(user -> user.getRole() == User.Role.ORGANIZER)
+                .orElseThrow(this::notFound);
+    }
+
+    private void requireInvitationTarget(UUID account, Set<OrganizationGrant> grants) {
+        accounts.findById(account).filter(User::isActive)
+                .filter(user -> user.getRole() == User.Role.ORGANIZER
+                        || (user.getRole() == User.Role.STAFF && grants.equals(Set.of(OrganizationGrant.ADMISSION))))
+                .orElseThrow(this::notFound);
     }
 
     private boolean activeManager(Member member) {
-        return member.active() && member.grants().contains(OrganizationGrant.MEMBERS);
+        return member.active() && "ORGANIZER".equals(member.role())
+                && member.grants().contains(OrganizationGrant.MEMBERS);
     }
 
     private String hash(String code) {

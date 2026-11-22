@@ -1,6 +1,7 @@
 import { api, apiGet } from './client';
 import type { Page } from './concerts';
 import type { EventDetails, Layout, MapSection, Performance, SectionKind } from './performances';
+import type { PublicationReview, ReviewDecision } from './publication';
 
 const root = '/api/organizer/manage/v2';
 const events = root + '/events';
@@ -33,7 +34,26 @@ export type SaleOffer = {
   active: boolean;
 };
 export type SaleDraft = { version: number; groups: SaleGroup[]; offers: SaleOffer[] };
-export type Publication = { status: string; saleVersion: number; ticketingAcknowledged: boolean; checkinAcknowledged: boolean };
+export type PerformanceReview = {
+  id: string;
+  performanceId: string;
+  publishAt: string;
+  state: PublicationReview['state'];
+  reason: string | null;
+  summary: {
+    title: string; description: string | null; venueName: string; spaceName: string;
+    startsAt: string; saleStartAt: string; saleEndAt: string; publicVisible: boolean;
+    offers: { name: string; price: number; active: boolean; saleStartAt: string; saleEndAt: string }[];
+  };
+};
+export type Publication = {
+  status: string; saleVersion: number; ticketingAcknowledged: boolean; checkinAcknowledged: boolean;
+  review: PerformanceReview | null;
+};
+const reviewPath = '/api/admin/v2/performance-reviews';
+export const getPerformanceReviewQueue = (signal?: AbortSignal) => apiGet<PerformanceReview[]>(reviewPath, signal);
+export const decidePerformanceReview = (id: string, revision: string, action: ReviewDecision | 'HOLD', reason: string) =>
+  api.post<unknown, PerformanceReview>(reviewPath + '/' + key(id), { revision, action, reason });
 export type EventInput = { title: string; description: string; category: string | null };
 type VenueInput = { name: string; address: string; spaceName: string };
 export type PerformanceInput = Pick<ManagedPerformance,
@@ -83,10 +103,10 @@ export const saveSaleDraft = (id: string, sale: SaleDraft) =>
 export const getPublication = (id: string, signal?: AbortSignal) =>
   apiGet<Publication>(performance(id) + '/publication', signal);
 export const publishPerformance = (id: string, expectedSaleVersion: number, expectedLayoutVersion: number,
-  draftVersions?: { event: number; schedule: number }) =>
+  draftVersions: { event: number; schedule: number }, publishAt: string) =>
   api.post<unknown, Publication>(performance(id) + '/publication', {
-    expectedSaleVersion, expectedLayoutVersion,
-    expectedEventDraftVersion: draftVersions?.event, expectedScheduleDraftVersion: draftVersions?.schedule,
+    expectedSaleVersion, expectedLayoutVersion, publishAt,
+    expectedEventDraftVersion: draftVersions.event, expectedScheduleDraftVersion: draftVersions.schedule,
   });
 
 export type PerformanceStaff = { staffId: string; grantedAt: string };

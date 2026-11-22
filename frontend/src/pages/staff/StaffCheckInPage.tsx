@@ -149,7 +149,6 @@ export function StaffCheckInPage() {
   return (
     <>
       <AdminPageHeader
-        eyebrow="Bàn kiểm soát cổng"
         title="Check-in bằng ảnh QR"
         description="Tải ảnh QR từ vé điện tử, web sẽ đọc mã và gọi API check-in online. Dùng scanner mobile khi cần camera trực tiếp và đồng bộ offline."
         actions={

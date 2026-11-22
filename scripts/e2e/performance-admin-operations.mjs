@@ -1,3 +1,4 @@
+import { approvePerformanceReview } from './performance-review-fixture.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { mkdir } from 'node:fs/promises';
@@ -57,7 +58,7 @@ try {
   const event = await api('POST', manage + '/events', organizerHeaders, { title });
   const schedule = {
     venueSpaceId: venue.spaces[0].id, startsAt: at(72), endsAt: at(75), doorsOpenAt: at(71),
-    timezone: 'Asia/Ho_Chi_Minh', saleStartAt: at(-1), saleEndAt: at(24), maxPerAccount: 4, publicVisible: false,
+    timezone: 'Asia/Ho_Chi_Minh', saleStartAt: at(1), saleEndAt: at(24), maxPerAccount: 4, publicVisible: false,
   };
   const show = await api('POST', manage + '/events/' + event.id + '/performances', organizerHeaders, schedule);
   const draft = await api('POST', manage + '/events/' + event.id + '/performances', organizerHeaders,
@@ -69,8 +70,17 @@ try {
     offers: [{ id: randomUUID(), groupId, name: 'General admission', price: 150000, currency: 'VND',
       saleStartAt: schedule.saleStartAt, saleEndAt: schedule.saleEndAt, active: true }],
   });
-  await api('POST', manage + '/performances/' + show.id + '/publication', organizerHeaders,
-    { expectedSaleVersion: sale.version, expectedLayoutVersion: 0 });
+  const publishAt = at(0.5);
+  const review = await api('POST', manage + '/performances/' + show.id + '/publication', organizerHeaders,
+    { expectedSaleVersion: sale.version, expectedLayoutVersion: 0,
+      expectedEventDraftVersion: event.draftVersion, expectedScheduleDraftVersion: show.draftVersion, publishAt });
+  await approvePerformanceReview(context.request, admin.accessToken, review);
+  let published = false;
+  for (let attempt = 0; attempt < 40 && !published; attempt += 1) {
+    published = (await context.request.get(directory + '/' + show.id, { headers: adminHeaders })).ok();
+    if (!published) await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  assert(published, 'The scheduled show entered operations');
 
   const unauthenticated = await context.request.get(directory);
   assert.equal(unauthenticated.status(), 401);

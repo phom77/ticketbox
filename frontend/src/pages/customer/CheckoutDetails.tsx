@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Order } from '../../api/orders';
 import { currency, dateFormatter } from '../../data/formatters';
+import { seatDescription } from '../../features/performance/checkoutPresentation';
 import type { CheckoutSelection } from './SeatSelectionPage';
 import './PurchaseCheckout.css';
 
@@ -17,19 +18,24 @@ export function CheckoutOrderLines({ order, selection = [] }: OrderLinesProps) {
     quantity: item.quantity,
     unitPrice: item.price,
     subtotal: item.quantity * item.price,
+    sectionLabel: item.sectionLabel,
+    rowLabel: item.rowLabel,
+    seatLabel: item.seatLabel,
   }));
 
   return (
     <dl className="purchase-order-lines">
-      {lines.map((item) => (
-        <div key={item.id}>
+      {lines.map((item) => {
+        const location = seatDescription(item);
+        return <div key={item.id}>
           <dt>
             {item.ticketTypeName}
+            {location && <span>{location}</span>}
             <span>{item.quantity} × {currency.format(item.unitPrice)}</span>
           </dt>
           <dd>{currency.format(item.subtotal)}</dd>
-        </div>
-      ))}
+        </div>;
+      })}
     </dl>
   );
 }

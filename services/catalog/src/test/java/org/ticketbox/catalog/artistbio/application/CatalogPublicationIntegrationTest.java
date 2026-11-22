@@ -21,8 +21,11 @@ import java.util.UUID;
 import java.time.OffsetDateTime;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.ticketbox.catalog.concert.application.ConcertService;
+import org.ticketbox.catalog.concert.application.ConcertPublicationReview;
+import org.ticketbox.catalog.concert.application.port.ConcertPublicationStore.State;
 import org.ticketbox.catalog.concert.application.dto.CreateConcertRequest;
 import org.ticketbox.catalog.concert.application.dto.UpdateConcertRequest;
+import org.ticketbox.catalog.concert.domain.Concert;
 
 @Testcontainers
 @SpringBootTest(
@@ -33,6 +36,7 @@ import org.ticketbox.catalog.concert.application.dto.UpdateConcertRequest;
             "split.checkin-url=http://127.0.0.1:1",
             "split.config-interval-ms=3600000",
             "split.stock-interval-ms=3600000",
+            "ticketbox.publication.interval-ms=3600000",
             "ticketbox.ai.recovery.fixed-delay-ms=3600000"
         })
 class CatalogPublicationIntegrationTest {
@@ -52,9 +56,93 @@ class CatalogPublicationIntegrationTest {
     @Autowired private JdbcTemplate jdbc;
     @Autowired private IncompleteEventPublications publications;
     @Autowired private ConcertService concerts;
+    @Autowired private ConcertPublicationReview review;
     @Autowired private ObjectMapper json;
     @MockBean private ArtistBioJobProcessor processor;
     @MockBean private org.ticketbox.catalog.sales.infrastructure.CatalogPublisher catalogPublisher;
+
+    @Test
+    void adminStatusChangeCannotPublishAnUnreviewedDraft() throws Exception {
+        UUID actor = UUID.randomUUID();
+        var draft = concerts.createConcert(json.readValue("""
+                {"title":"Unreviewed show","venueName":"Hall","venueAddress":"Main street",
+                 "eventDate":"%s","saleStartAt":"%s"}
+                """.formatted(OffsetDateTime.now().plusDays(10), OffsetDateTime.now().plusDays(1)),
+                CreateConcertRequest.class), actor, UUID.randomUUID());
+
+        assertThatThrownBy(() -> concerts.changeStatus(draft.id(), Concert.Status.ON_SALE, actor, true))
+                .hasMessage("error.concert.use-publication");
+        assertThat(concerts.getConcertForEdit(draft.id(), actor, true).status()).isEqualTo("DRAFT");
+    }
+
+    @Test
+    void approvedVersionRemainsPrivateUntilItsScheduleAndTicketingAcknowledgment() throws Exception {
+        UUID actor = UUID.randomUUID();
+        UUID organization = UUID.randomUUID();
+        var publicTime = OffsetDateTime.now().plusHours(1).truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
+        var draft = concerts.createConcert(json.readValue("""
+                {"title":"Scheduled show","venueName":"Hall","venueAddress":"Main street",
+                 "eventDate":"%s","saleStartAt":"%s"}
+                """.formatted(publicTime.plusDays(1), publicTime.plusHours(1)), CreateConcertRequest.class),
+                actor, organization);
+        jdbc.update("""
+                INSERT INTO ticket_types(concert_id,name,price,total_quantity,available_qty)
+                VALUES (?,'Standard',100000,20,20)
+                """, draft.id());
+        assertThatThrownBy(() -> review.submit(draft.id(), organization, actor, null))
+                .hasMessage("error.concert.publication-time");
+        var revision = review.submit(draft.id(), organization, actor, publicTime).review().id();
+        assertThat(review.decide(draft.id(), revision, actor, ConcertPublicationReview.Decision.APPROVE, null)
+                .review().state()).isEqualTo(State.SCHEDULED);
+
+        acknowledgeCurrent(draft.id());
+        review.release(draft.id());
+        assertThat(review.status(draft.id(), organization).status()).isEqualTo(Concert.Status.DRAFT);
+        assertThatThrownBy(() -> concerts.getConcertDetail(draft.id())).hasMessage("error.concert-not-found");
+
+        jdbc.update("UPDATE concert_publication_reviews SET publish_at=now()-interval '1 second' WHERE id=?", revision);
+        jdbc.update("UPDATE sale_config_outbox SET ticketing_version=0 WHERE concert_id=?", draft.id());
+        review.release(draft.id());
+        assertThat(review.status(draft.id(), organization).status()).isEqualTo(Concert.Status.DRAFT);
+
+        acknowledgeCurrent(draft.id());
+        review.release(draft.id());
+        assertThatThrownBy(() -> concerts.getConcertDetail(draft.id())).hasMessage("error.concert-not-found");
+        acknowledgeCurrent(draft.id());
+        assertThat(concerts.getConcertDetail(draft.id()).title()).isEqualTo("Scheduled show");
+        var version = review.status(draft.id(), organization).versions().version();
+        review.release(draft.id());
+        assertThat(review.status(draft.id(), organization).versions().version()).isEqualTo(version);
+
+        var edited = json.readValue("""
+                {"title":"Revised show","venueName":"Hall","venueAddress":"Main street",
+                 "eventDate":"%s","saleStartAt":"%s"}
+                """.formatted(publicTime.plusDays(1), publicTime.plusHours(1)), UpdateConcertRequest.class);
+        concerts.updateConcert(draft.id(), edited, organization, false);
+        assertThat(concerts.getConcertDetail(draft.id()).title()).isEqualTo("Scheduled show");
+        var next = review.submit(draft.id(), organization, actor, publicTime.minusMinutes(1)).review().id();
+        review.decide(draft.id(), next, actor, ConcertPublicationReview.Decision.APPROVE, null);
+        assertThat(concerts.getConcertDetail(draft.id()).title()).isEqualTo("Scheduled show");
+        jdbc.update("UPDATE concert_publication_reviews SET publish_at=now()-interval '1 second' WHERE id=?", next);
+        review.release(draft.id());
+        assertThat(concerts.getConcertDetail(draft.id()).title()).isEqualTo("Revised show");
+        assertThat(review.hold(draft.id(), next, actor, "Safety review").review().state()).isEqualTo(State.HELD);
+        assertThatThrownBy(() -> concerts.getConcertDetail(draft.id())).hasMessage("error.concert-not-found");
+        assertThat(jdbc.queryForObject("SELECT sales_suspended FROM concerts WHERE id=?", Boolean.class, draft.id())).isTrue();
+        var reopening = review.submit(draft.id(), organization, actor, publicTime.plusMinutes(5)).review();
+        assertThat(reopening.resumeHold()).isTrue();
+        review.decide(draft.id(), reopening.id(), actor, ConcertPublicationReview.Decision.APPROVE, null);
+        assertThatThrownBy(() -> concerts.getConcertDetail(draft.id())).hasMessage("error.concert-not-found");
+        acknowledgeCurrent(draft.id());
+        jdbc.update("UPDATE concert_publication_reviews SET publish_at=now()-interval '1 second' WHERE id=?", reopening.id());
+        review.release(draft.id());
+        acknowledgeCurrent(draft.id());
+        assertThat(concerts.getConcertDetail(draft.id()).title()).isEqualTo("Revised show");
+    }
+
+    private void acknowledgeCurrent(UUID id) {
+        jdbc.update("UPDATE sale_config_outbox SET ticketing_version=version WHERE concert_id=?", id);
+    }
 
     @Test
     void persistsOptionalTranslationsAndPreservesThemForLegacyEdits() throws Exception {

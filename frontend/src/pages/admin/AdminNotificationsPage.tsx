@@ -108,9 +108,7 @@ export function AdminNotificationsPage() {
   return (
     <>
       <AdminPageHeader
-        eyebrow={translate("admin:adminNotificationsPage_vanHanhThongBao")}
         title={translate("admin:adminNotificationsPage_vanHanhThongBao")}
-        description={translate("admin:adminNotificationsPage_theoDoiThongBaoAppEmailThu")}
         actions={
           <button
             className="admin-secondary-action"

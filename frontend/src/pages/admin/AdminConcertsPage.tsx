@@ -36,6 +36,7 @@ import {
   type ManagementApiScope,
 } from '../../api/admin';
 import type { ConcertDetail, ConcertStatus, Page } from '../../api/concerts';
+import { getApprovedOrganizations, type ApprovedOrganization } from '../../api/organizations';
 import { isRequestCanceled } from '../../api/client';
 import { AdminConfirmDialog } from '../../components/admin/AdminConfirmDialog';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
@@ -53,7 +54,7 @@ const statuses: Array<{ value: '' | ConcertStatus; label: string }> = [
 ];
 
 const transitions: Record<ConcertStatus, ConcertStatus[]> = {
-  DRAFT: ['ON_SALE', 'CANCELLED'],
+  DRAFT: ['CANCELLED'],
   ON_SALE: ['SOLD_OUT', 'COMPLETED', 'CANCELLED'],
   SOLD_OUT: ['ON_SALE', 'COMPLETED', 'CANCELLED'],
   COMPLETED: [],
@@ -142,6 +143,9 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
   const [deleteTarget, setDeleteTarget] = useState<ConcertDetail | null>(null);
   const [formOpen, setFormOpen] = useState(searchParams.get('create') === '1');
   const [form, setForm] = useState<ConcertFormState>(emptyForm);
+  const [organizations, setOrganizations] = useState<ApprovedOrganization[]>([]);
+  const [owner, setOwner] = useState('');
+  const [organizationsError, setOrganizationsError] = useState('');
   const [posterFile, setPosterFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [removingPoster, setRemovingPoster] = useState(false);
@@ -176,6 +180,18 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
   }, [loadConcerts]);
 
   useEffect(() => {
+    if (apiScope !== 'admin' || !formOpen || editing) return;
+    const controller = new AbortController();
+    void getApprovedOrganizations(controller.signal).then((items) => {
+      if (!controller.signal.aborted) { setOrganizations(items); setOrganizationsError(''); }
+    }).catch((failure: unknown) => {
+      if (!controller.signal.aborted) setOrganizationsError(failure instanceof Error ? failure.message
+        : translate("admin:adminOrganizationsPage_khongTheTaiDanhSachToChuc"));
+    });
+    return () => controller.abort();
+  }, [apiScope, editing, formOpen]);
+
+  useEffect(() => {
     if (apiScope !== 'admin' || !pageData?.content.length) {
       setCheckinSummaries({});
       return;
@@ -206,13 +222,14 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
 
   const filteredConcerts = pageData?.content ?? [];
   const availableTransitions = (concert: ConcertDetail) => transitions[concert.status].filter(
-    (next) => apiScope === 'admin' || (next !== 'CANCELLED' && !(concert.status === 'DRAFT' && next === 'ON_SALE')),
+    (next) => apiScope === 'admin' || next !== 'CANCELLED',
   );
 
   function openCreate() {
     setEditing(null);
     setForm(emptyForm);
     setPosterFile(null);
+    setOwner('');
     setFormOpen(true);
   }
 
@@ -236,7 +253,7 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
       const payload = toPayload(form);
       const result = editing
         ? await updateConcert(editing.id, payload, apiScope)
-        : await createConcert(payload, apiScope);
+        : await createConcert(payload, apiScope, owner);
 
       if (posterFile) {
         try {
@@ -337,9 +354,7 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
   return (
     <>
       <AdminPageHeader
-        eyebrow={translate("admin:adminConcertsPage_lichChuongTrinh")}
         title={translate("admin:adminConcertsPage_quanLyConcert")}
-        description={translate("admin:adminConcertsPage_taoChuongTrinhKiemSoatNoiDung")}
         actions={
           <button className="admin-primary-action" type="button" onClick={openCreate}>
             <Plus aria-hidden="true" size={17} />
@@ -560,6 +575,17 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
           onRemovePoster={() => void removePoster()}
           onClose={closeForm}
           onSubmit={submitForm}
+          ownerField={apiScope === 'admin' && !editing ? (
+            <label className="admin-field admin-field-wide">{translate("shared:partnerAssistedOwner")}
+              <select value={owner} onChange={(event) => setOwner(event.target.value)}>
+                <option value="">TicketBox</option>
+                {organizations.map((organization) => (
+                  <option key={organization.id} value={organization.id}>{organization.name}</option>
+                ))}
+              </select>
+              {organizationsError ? <span role="alert">{organizationsError}</span> : null}
+            </label>
+          ) : null}
         />
       ) : null}
 
@@ -599,6 +625,7 @@ function ConcertForm({
   onRemovePoster,
   onClose,
   onSubmit,
+  ownerField,
 }: {
   form: ConcertFormState;
   editing: ConcertDetail | null;
@@ -610,6 +637,7 @@ function ConcertForm({
   onRemovePoster: () => void;
   onClose: () => void;
   onSubmit: (event: FormEvent) => void;
+  ownerField: React.ReactNode;
 }) {
   useTranslation();
   const toast = useToast();
@@ -678,6 +706,7 @@ function ConcertForm({
         </header>
         <form onSubmit={onSubmit}>
           <div className="admin-form-grid">
+            {ownerField}
             <ConcertTextFields original={form.original} translations={form.translations}
               onChange={(text) => onChange({ ...form, ...text })} />
             <label className="admin-field">

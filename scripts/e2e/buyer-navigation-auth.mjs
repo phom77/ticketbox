@@ -106,7 +106,7 @@ const cases = [
       await menu.press('Enter');
       const navigation = header.getByRole('navigation', { name: 'Mobile navigation' });
       const organizer = navigation.getByRole('link', { name: 'Organizer workspace' });
-      assert.equal(await organizer.getAttribute('href'), '/organizer');
+      assert.equal(await organizer.count(), 0, 'Buyer navigation omits Organizer.');
       assert.equal(await navigation.getByRole('link', { name: 'Order history' }).getAttribute('href'), '/profile?tab=orders');
       await navigation.getByRole('link', { name: /Notifications.*7 unread/ }).waitFor();
       await navigation.getByRole('link', { name: 'Profile' }).focus();

@@ -3,7 +3,11 @@ import { useTranslation } from 'react-i18next';
 import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { RefreshCw, Search, UserPlus, X } from 'lucide-react';
 import {
-  createOrganizationInvite,
+  createOrganizationInvites,
+  getPendingOrganizationInvites,
+  resendOrganizationInvite,
+  type InviteResult,
+  type PendingOrganizerInvite,
   getOrganizationMembers,
   organizationGrantLabels,
   type OrganizationGrant,
@@ -15,7 +19,6 @@ import { useOrganization } from '../../features/organizations/OrganizationProvid
 import './WorkspaceRecords.css';
 
 const grants = Object.keys(organizationGrantLabels) as OrganizationGrant[];
-const accountPattern = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}';
 type MemberPanel = { kind: 'invite' } | { kind: 'edit'; accountId: string };
 
 function GrantFields({
@@ -87,9 +90,10 @@ export function OrganizationMembersPage() {
   const [members, setMembers] = useState<OrganizationMember[]>([]);
   const [query, setQuery] = useState('');
   const [panel, setPanel] = useState<MemberPanel | null>(null);
-  const [account, setAccount] = useState('');
+  const [emails, setEmails] = useState('');
   const [selectedGrants, setSelectedGrants] = useState<OrganizationGrant[]>([]);
-  const [invite, setInvite] = useState<{ code: string; expiresAt: string } | null>(null);
+  const [results, setResults] = useState<InviteResult[]>([]);
+  const [pending, setPending] = useState<PendingOrganizerInvite[]>([]);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(true);
@@ -103,8 +107,7 @@ export function OrganizationMembersPage() {
     : translate('organizer:organizationMembersPage_editPermissions');
   const filter = query.trim().toLocaleLowerCase(formatLanguage());
   const memberRows = members.filter((member) =>
-    member.accountId.toLowerCase().includes(filter) ||
-    (member.accountId === user?.id && user.fullName.toLocaleLowerCase(formatLanguage()).includes(filter)));
+    [member.accountId, member.fullName, member.email].some((value) => value.toLocaleLowerCase(formatLanguage()).includes(filter)));
   const showingPanel = panel?.kind === 'invite' || Boolean(selectedMember);
 
   const load = useCallback(async (signal?: AbortSignal) => {
@@ -112,8 +115,8 @@ export function OrganizationMembersPage() {
     setLoading(true);
     setError('');
     try {
-      const next = await getOrganizationMembers(id, signal);
-      if (!signal?.aborted) setMembers(next);
+      const [next, invitations] = await Promise.all([getOrganizationMembers(id, signal), getPendingOrganizationInvites(id, signal)]);
+      if (!signal?.aborted) { setMembers(next); setPending(invitations); }
     } catch (failure) {
       if (!signal?.aborted) {
         setError(failure instanceof Error ? failure.message : translate('organizer:organizationMembersPage_khongTheTaiDanhSachThanhVien'));
@@ -152,13 +155,16 @@ export function OrganizationMembersPage() {
     setSaving(true);
     setError('');
     setNotice('');
-    setInvite(null);
+    setResults([]);
     try {
-      setInvite(await createOrganizationInvite(id, account.trim(), selectedGrants));
-      setAccount('');
+      const recipients = emails.split(/[\n,;]+/).map((email) => email.trim()).filter(Boolean);
+      if (recipients.length > 50) throw new Error(translate("shared:partnerBatchLimit"));
+      setResults(await createOrganizationInvites(id, recipients, selectedGrants));
+      setEmails('');
       setSelectedGrants([]);
+      await load();
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : translate('organizer:organizationMembersPage_khongTheTaoLoiMoi'));
+      setError(failure instanceof Error ? failure.message : translate("organizer:organizationMembersPage_khongTheTaoLoiMoi"));
     } finally {
       setSaving(false);
     }
@@ -187,7 +193,6 @@ export function OrganizationMembersPage() {
       <header className="workspace-records-header">
         <div>
           <h1>{translate('organizer:organizationMembersPage_thanhVien')}</h1>
-          <p>{organization?.selected?.name}</p>
         </div>
         <button ref={inviteButton} className="admin-primary-action" type="button" disabled={saving} onClick={(event) => {
           openPanel({ kind: 'invite' }, event.currentTarget);
@@ -225,14 +230,11 @@ export function OrganizationMembersPage() {
           </p>}
           {memberRows.length > 0 && <ul className="workspace-member-list">
             {memberRows.map((member) => {
-              const ownAccount = member.accountId === user?.id;
-              const display = ownAccount ? user.fullName : member.accountId;
+              const display = member.fullName;
               return <li key={member.accountId} data-selected={selectedMember?.accountId === member.accountId}>
                 <div className="workspace-member-name">
-                  {ownAccount ? <>
-                    <strong>{display}</strong>
-                    <code>{member.accountId}</code>
-                  </> : <code>{display}</code>}
+                  <strong>{display}</strong>
+                  <span>{member.email}</span>
                   <small className="workspace-member-status">
                     {translate(member.active ? 'organizer:organizationMembersPage_active' : 'organizer:organizationMembersPage_taiKhoanDaKhoa')}
                   </small>
@@ -261,24 +263,33 @@ export function OrganizationMembersPage() {
           {panel?.kind === 'invite' ? <>
             <form className="workspace-records-form" onSubmit={(event) => void sendInvite(event)}>
               <label className="workspace-records-field">
-                {translate('organizer:organizationMembersPage_maTaiKhoanNguoiNhan')}
-                <input value={account} onChange={(event) => setAccount(event.target.value)}
-                  required pattern={accountPattern} spellCheck={false} disabled={saving} />
+                {translate('shared:partnerTeamEmails')}
+                <textarea value={emails} onChange={(event) => setEmails(event.target.value)}
+                  required rows={4} maxLength={13000} spellCheck={false} disabled={saving} />
               </label>
-              <p className="workspace-records-field-note">{translate('organizer:organizationMembersPage_accountIdHelp')}</p>
               <GrantFields value={selectedGrants} onChange={setSelectedGrants} disabled={saving} />
               <div className="workspace-records-actions">
-                <button className="admin-primary-action" type="submit" disabled={saving || !account || selectedGrants.length === 0}>
+                <button className="admin-primary-action" type="submit" disabled={saving || !emails.trim() || selectedGrants.length === 0}>
                   {translate('organizer:organizationMembersPage_taoLoiMoi')}
                 </button>
               </div>
             </form>
-            {invite && (
-              <div className="workspace-records-invitation" role="status">
-                <p>{translate('organizer:organizationMembersPage_guiMaNayChoNguoiDuocMoi', { expires: new Date(invite.expiresAt).toLocaleString(formatLanguage()) })}</p>
-                <code>{invite.code}</code>
-              </div>
-            )}
+            {results.length ? <ul className="organization-list" aria-live="polite">
+              {results.map((result) => <li key={result.email}>{result.email} · {translate(`shared:partnerInvite_${result.outcome}`)}</li>)}
+            </ul> : null}
+            {pending.length ? <>
+              <h3>{translate("shared:partnerPendingInvites")}</h3>
+              <ul className="organization-list">{pending.map((invite) => <li key={invite.id}>
+                {invite.email} · {translate(invite.delivered ? "shared:partnerInviteSent" : "shared:partnerInvite_QUEUED")}
+                <button className="admin-secondary-action" type="button" disabled={saving} onClick={() => {
+                  if (!id) return;
+                  setSaving(true); setError('');
+                  void resendOrganizationInvite(id, invite.email).then(() => load())
+                    .catch((failure: unknown) => setError(failure instanceof Error ? failure.message : translate("shared:partnerUnavailable")))
+                    .finally(() => setSaving(false));
+                }}>{translate("shared:partnerResend")}</button>
+              </li>)}</ul>
+            </> : null}
           </> : selectedMember && <MemberEditor key={`${selectedMember.accountId}:${selectedMember.grants.join(',')}`}
             member={selectedMember} save={(value) => save(selectedMember.accountId, value)} disabled={saving} />}
         </section>}

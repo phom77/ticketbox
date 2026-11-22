@@ -138,6 +138,7 @@ public class PerformanceCatalog {
         PerformanceRules.validateSale(sale, performance.saleStartAt(), performance.saleEndAt(), layout, false);
         long version = performance.saleVersion() + 1;
         if (alreadyPublished) {
+            require(!store.hasPublicationReview(id), "error.performance.sale-locked");
             var current = store.sale(id);
             require(sameGroups(current, sale) && retainsOfferScopes(current, sale), "error.performance.inventory-frozen");
         }
@@ -176,10 +177,23 @@ public class PerformanceCatalog {
                                Long expectedEventDraft, Long expectedScheduleDraft) {
         var performance = owned(owner, id);
         if (!"DRAFT".equals(performance.status())) return store.publication(performance);
+        var draft = validatePublication(owner, performance, expectedSale, expectedLayout,
+                expectedEventDraft, expectedScheduleDraft);
+        var sale = store.sale(id);
+        Long layoutVersion = draft == null ? null : draft.version();
+        String checksum = draft == null ? null : store.freezeLayout(id, draft);
+        long saleVersion = performance.saleVersion() + 1;
+        store.savePublication(snapshot(performance, event(performance.eventId(), owner), owner, saleVersion,
+                layoutVersion, checksum, "ON_SALE", false, null, sale), actor, layoutVersion, "ON_SALE", false);
+        return new Publication("ON_SALE", saleVersion, false, false);
+    }
+
+    Layout validatePublication(UUID owner, Performance performance, Long expectedSale, Long expectedLayout,
+                               Long expectedEventDraft, Long expectedScheduleDraft) {
         if (!publishingOrganizations.contains("*") && !publishingOrganizations.contains(owner.toString())) {
             throw new AppException(ErrorCode.UNAUTHORIZED, "error.performance.rollout-disabled");
         }
-        var draft = store.draftLayout(id).orElse(null);
+        var draft = store.draftLayout(performance.id()).orElse(null);
         if (expectedSale != null) version(expectedSale, performance.saleVersion());
         if (expectedLayout != null) version(expectedLayout, draft == null ? 0 : draft.version());
         if (expectedScheduleDraft != null) version(expectedScheduleDraft, performance.draftVersion());
@@ -187,15 +201,10 @@ public class PerformanceCatalog {
                 .orElseThrow(PerformanceCatalog::missing);
         if (expectedEventDraft != null) version(expectedEventDraft, eventVersion);
         require(performance.saleEndAt().isAfter(OffsetDateTime.now()), "error.performance.sale-window-ended");
-        var sale = store.sale(id);
+        var sale = store.sale(performance.id());
         PerformanceRules.validateSale(sale, performance.saleStartAt(), performance.saleEndAt(),
                 draft == null ? null : draft.layout(), true);
-        Long layoutVersion = draft == null ? null : draft.version();
-        String checksum = draft == null ? null : store.freezeLayout(id, draft);
-        long saleVersion = performance.saleVersion() + 1;
-        store.savePublication(snapshot(performance, event(performance.eventId(), owner), owner, saleVersion,
-                layoutVersion, checksum, "ON_SALE", false, null, sale), actor, layoutVersion, "ON_SALE", false);
-        return new Publication("ON_SALE", saleVersion, false, false);
+        return draft;
     }
 
     @Transactional

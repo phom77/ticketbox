@@ -1,7 +1,7 @@
 import { getConcert } from '../../api/concerts';
 import type { Order } from '../../api/orders';
 import { translate } from '../../i18n';
-import type { CheckoutEvent } from '../../pages/customer/CheckoutPage';
+import type { CheckoutEvent } from '../ticket/checkoutPayment';
 import type { CheckoutSelection } from '../../pages/customer/SeatSelectionPage';
 
 export function seatDescription(item: { sectionLabel?: string | null; rowLabel?: string | null; seatLabel?: string | null }) {
@@ -21,10 +21,10 @@ export async function checkoutPresentation(order: Order, signal: AbortSignal): P
       venue: order.performanceVenueName ?? '', date: order.performanceStartsAt, image: null,
     };
   } else {
-    const concert = await getConcert(order.concertId, signal);
+    const concert = await getConcert(order.concertId, signal).catch(() => null);
     event = {
-      id: concert.id, title: concert.title, translations: concert.translations,
-      venue: concert.venueName, date: concert.eventDate, image: concert.posterUrl,
+      id: order.concertId, title: concert?.title ?? order.concertTitle, translations: concert?.translations,
+      venue: concert?.venueName ?? '', date: concert?.eventDate ?? '', image: concert?.posterUrl ?? null,
     };
   }
   return {

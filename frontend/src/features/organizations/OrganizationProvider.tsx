@@ -10,6 +10,7 @@ import {
   type OrganizationMembership,
 } from '../../api/organizations';
 import { useAuth } from '../auth/AuthContext';
+import { AuthLayout } from '../../components/layout/AuthLayout';
 
 type OrganizationContextValue = {
   memberships: OrganizationMembership[];
@@ -82,6 +83,21 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
 
 export function useOrganization() {
   return useContext(OrganizationContext);
+}
+
+export function RequireOrganizationMembership({ children }: { children: ReactNode }) {
+  const { t } = useTranslation();
+  const organization = useOrganization();
+  const { logout } = useAuth();
+  if (organization?.loading) return <p className="buyer-state" role="status">{t('shared:organizationProvider_dangTaiQuyenCuaToChuc')}</p>;
+  if (organization?.selected) return <>{children}</>;
+  return (
+    <AuthLayout title={t('shared:partnerNoMembership')}>
+      {organization?.error ? <p role="alert">{organization.error}</p> : null}
+      {organization?.error ? <button className="button button-secondary" onClick={() => void organization.reload()}>{t('shared:publicationPanel_kiemTraLai')}</button> : null}
+      <button className="button button-secondary" onClick={() => { void logout(); }}>{t('shared:operationsLayout_dangXuat')}</button>
+    </AuthLayout>
+  );
 }
 
 export function RequireOrganizationGrant({

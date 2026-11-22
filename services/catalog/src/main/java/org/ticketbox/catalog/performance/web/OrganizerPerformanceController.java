@@ -21,6 +21,12 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import org.ticketbox.catalog.performance.application.PerformanceCatalog;
+import org.ticketbox.catalog.performance.application.PerformancePublicationReview;
+import org.ticketbox.catalog.performance.application.PerformancePublicationReview.Status;
+import org.ticketbox.catalog.performance.application.PerformanceReviewStore.Versions;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
 import org.ticketbox.catalog.performance.application.PerformanceViews.*;
 import org.ticketbox.catalog.performance.domain.PerformanceLayout;
 import org.ticketbox.catalog.performance.domain.PerformanceSale;
@@ -34,8 +40,11 @@ import org.ticketbox.catalog.web.security.OrganizerPermission;
 public class OrganizerPerformanceController {
     private final PerformanceCatalog catalog;
 
-    public OrganizerPerformanceController(PerformanceCatalog catalog) {
+    private final PerformancePublicationReview reviews;
+
+    public OrganizerPerformanceController(PerformanceCatalog catalog, PerformancePublicationReview reviews) {
         this.catalog = catalog;
+        this.reviews = reviews;
     }
 
     @GetMapping("/events")
@@ -103,20 +112,18 @@ public class OrganizerPerformanceController {
     }
 
     @GetMapping("/performances/{id}/publication")
-    public ApiResponse<Publication> publication(
+    public ApiResponse<Status> publication(
             @PathVariable UUID id, @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID owner) {
-        return ApiResponse.success(catalog.publication(owner, id));
+        return ApiResponse.success(reviews.status(owner, id));
     }
 
     @PostMapping("/performances/{id}/publication")
-    public ApiResponse<Publication> publish(
+    public ApiResponse<Status> submit(
             @PathVariable UUID id, @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID owner, Principal actor,
-            @RequestBody(required = false) PublishRequest request) {
-        return ApiResponse.success(catalog.publish(owner, actor(actor), id,
-                request == null ? null : request.expectedSaleVersion(),
-                request == null ? null : request.expectedLayoutVersion(),
-                request == null ? null : request.expectedEventDraftVersion(),
-                request == null ? null : request.expectedScheduleDraftVersion()));
+            @Valid @RequestBody PublishRequest request) {
+        return ApiResponse.success(reviews.submit(owner, actor(actor), id,
+                new Versions(request.expectedSaleVersion(), request.expectedLayoutVersion(),
+                        request.expectedEventDraftVersion(), request.expectedScheduleDraftVersion()), request.publishAt()));
     }
 
     @GetMapping("/performances/{id}/layout")
@@ -193,8 +200,9 @@ public class OrganizerPerformanceController {
     }
     record SaleRequest(long expectedSaleVersion, List<PerformanceSale.Group> groups, List<PerformanceSale.Offer> offers) {}
     record PublishRequest(
-            Long expectedSaleVersion, Long expectedLayoutVersion, Long expectedEventDraftVersion,
-            Long expectedScheduleDraftVersion) {}
+            @NotNull @PositiveOrZero Long expectedSaleVersion, @NotNull @PositiveOrZero Long expectedLayoutVersion,
+            @NotNull @PositiveOrZero Long expectedEventDraftVersion, @NotNull @PositiveOrZero Long expectedScheduleDraftVersion,
+            @NotNull OffsetDateTime publishAt) {}
     record LayoutRequest(long expectedVersion, PerformanceLayout layout) {}
     record TemplateRequest(UUID venueSpaceId, String name, PerformanceLayout layout) {}
     record CopyRequest(UUID templateId, long revision, long expectedVersion) {}

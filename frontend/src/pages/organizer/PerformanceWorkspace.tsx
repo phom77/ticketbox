@@ -41,6 +41,7 @@ export function PerformanceWorkspace({
   const [draft, setDraft] = useState<LayoutDraft | null>(null);
   const [sale, setSale] = useState<SaleDraft | null>(null);
   const [publication, setPublication] = useState<Publication | null>(null);
+  const [publishAt, setPublishAt] = useState('');
   const [layoutDirty, setLayoutDirty] = useState(false);
   const [layoutBusy, setLayoutBusy] = useState(false);
   const [saleDirty, setSaleDirty] = useState(false);
@@ -79,9 +80,11 @@ export function PerformanceWorkspace({
 
   const status = publication?.status ?? performance.status;
   const immutable = status !== 'DRAFT';
-  const canRevise = status === 'ON_SALE';
-  const pendingSync = Boolean(publication && immutable
-    && (!publication.ticketingAcknowledged || !publication.checkinAcknowledged));
+  const canRevise = status === 'ON_SALE' && !publication?.review;
+  const reviewStatus = publication?.review;
+  const awaitingReview = reviewStatus?.state === 'SUBMITTED' || reviewStatus?.state === 'SCHEDULED';
+  const pendingSync = Boolean(awaitingReview || (publication && immutable
+    && (!publication.ticketingAcknowledged || !publication.checkinAcknowledged)));
   const layout = draft?.layout ?? null;
   const assignedSections = useMemo(() => layout?.sections.filter((section) => section.kind === 'ASSIGNED') ?? [], [layout]);
   const setup = useMemo(() => sale ? getSaleSetup(layout, sale) : null, [layout, sale]);
@@ -108,7 +111,10 @@ export function PerformanceWorkspace({
     async function refresh() {
       try {
         const result = await getPublication(id, controller.signal);
-        if (!controller.signal.aborted) setPublication(result);
+        if (!controller.signal.aborted) {
+          setPublication(result);
+          if (result.saleVersion !== publication?.saleVersion && result.status !== 'DRAFT') onReload();
+        }
       } catch {
         // Retain the last known synchronization state and retry.
       } finally {
@@ -120,7 +126,7 @@ export function PerformanceWorkspace({
       controller.abort();
       window.clearTimeout(timer);
     };
-  }, [id, pendingSync]);
+  }, [id, pendingSync, onReload, publication?.saleVersion]);
 
   function replaceSale(next: SaleDraft) {
     setSale(next);
@@ -229,7 +235,7 @@ export function PerformanceWorkspace({
       setEditedDates({});
       if (immutable) {
         // The server submits the revision as part of saving an already published show.
-        setPublication({ status, saleVersion: saved.version, ticketingAcknowledged: false, checkinAcknowledged: false });
+        setPublication({ status, saleVersion: saved.version, ticketingAcknowledged: false, checkinAcknowledged: false, review: null });
         onUpdate({ ...performance, status, saleVersion: saved.version });
         setMessage(t('performances:publicationSubmitted'));
       } else if (review) {
@@ -268,14 +274,11 @@ export function PerformanceWorkspace({
   const ready = Boolean(review && !review.saveIssue && !review.publishIssues.length && !dirty && canPrice);
 
   async function publish() {
-    if (!sale || !draft || !ready || immutable || stage !== 'review') return;
+    if (!sale || !draft || !ready || immutable || stage !== 'review' || !publishAt) return;
     await run(async () => {
-      const published = await publishPerformance(id, sale.version, draft.version,
-        { event: event.draftVersion, schedule: performance.draftVersion });
-      setPublication(published);
-      setSale({ ...sale, version: published.saleVersion });
-      onUpdate({ ...performance, status: published.status, saleVersion: published.saleVersion, layoutVersion: draft.version || null });
-      setMessage(t('performances:publicationSubmitted'));
+      const scheduled = await publishPerformance(id, sale.version, draft.version,
+        { event: event.draftVersion, schedule: performance.draftVersion }, publishAt + ':00+07:00');
+      setPublication(scheduled);
     });
   }
 
@@ -447,7 +450,8 @@ export function PerformanceWorkspace({
       {stage === 'review' && review && <ReviewPerformance event={event} performance={performance} layout={draft.layout}
         sale={sale} model={setup.model} issues={review.saveIssue ? [review.saveIssue, ...review.publishIssues] : review.publishIssues}
         immutable={immutable} disabled={saving} ready={ready} dirty={dirty} onEdit={onEdit}
-        onEditSchedule={onEditSchedule} onPublish={() => void publish()} />}
+        onEditSchedule={onEditSchedule} onPublish={() => void publish()}
+        publishAt={publishAt} onPublishAt={setPublishAt} publication={publication} />}
       {publication?.checkinAcknowledged && <PerformanceStaffPanel id={id} />}
       {publication && immutable && <section className="performance-panel" aria-label={t('performances:publication')}>
         <h3>{t('performances:publication')}</h3>
@@ -466,6 +470,7 @@ export function PerformanceWorkspace({
 
 function ReviewPerformance({
   event, performance, layout, sale, model, issues, immutable, disabled, ready, dirty, onEdit, onEditSchedule, onPublish,
+  publishAt, onPublishAt, publication,
 }: {
   event: ManagedEvent;
   performance: ManagedPerformance;
@@ -480,9 +485,15 @@ function ReviewPerformance({
   onEdit: () => void;
   onEditSchedule?: () => void;
   onPublish: () => void;
+  publishAt: string;
+  onPublishAt: (value: string) => void;
+  publication: Publication | null;
 }) {
   const { t, i18n } = useTranslation('performances');
   const format = (time: string | null) => formatPerformanceDateTime(time, performance.timezone, i18n.resolvedLanguage);
+  const review = publication?.review;
+  const state = review?.state === 'RELEASED' && !publication?.ticketingAcknowledged ? 'PENDING' : review?.state;
+  const releaseTime = review && formatPerformanceDateTime(review.publishAt, 'Asia/Ho_Chi_Minh', i18n.resolvedLanguage);
   const activeOffers = sale.offers.filter((offer) => offer.active);
   const groups = new Map(sale.groups.map((group) => [group.id, group]));
   const activeGroupIds = new Set(activeOffers.map((offer) => offer.groupId));
@@ -518,25 +529,29 @@ function ReviewPerformance({
         </li>;
       })}
     </ul> : <p>{t('performances:reviewNoActiveOffer')}</p>}
-    {!immutable && (ready ? <>
-      <p>{t('performances:reviewReady')}</p>
-      <p>{t('performances:reviewPublicationHint')}</p>
-    </> : <div className="performance-feedback">
+    {state && <p role="status">{t(`shared:release_${state}`)} · {releaseTime} (ICT)</p>}
+    {review?.reason && <p>{review.reason}</p>}
+    {!immutable && !ready && <div className="performance-feedback">
       <p>{t('performances:reviewFixBeforePublishing')}</p>
       <ul>
         {dirty && <li>{t('performances:reviewUnsavedTickets')}</li>}
         {issues.map((issue) => <li key={issue}>{t(issue)}</li>)}
       </ul>
-    </div>)}
+    </div>}
     <div className="performance-options">
       {!immutable && onEditSchedule && <button type="button" className="button button-secondary" onClick={onEditSchedule}
         disabled={disabled}>{t('performances:editPerformanceSchedule')}</button>}
       <button type="button" className="button button-secondary" disabled={disabled} onClick={onEdit}>
         {t('performances:editTicketsAndMap')}
       </button>
-      {!immutable && <button type="button" className="button button-primary" disabled={disabled || !ready} onClick={onPublish}>
-        {t('performances:publish')}
-      </button>}
+      {!immutable && <>
+        <label className="admin-field">{t('shared:releasePublishAt')} (ICT)
+          <input type="datetime-local" required value={publishAt} onChange={(event) => onPublishAt(event.target.value)} />
+        </label>
+        <button type="button" className="button button-primary" disabled={disabled || !ready || !publishAt} onClick={onPublish}>
+          {t('shared:releaseSend')}
+        </button>
+      </>}
     </div>
   </section>;
 }

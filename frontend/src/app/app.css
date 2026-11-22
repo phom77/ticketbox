@@ -12,7 +12,7 @@
   --surface: #ffffff;
   --surface-2: #f0f3f7;
   --line: #d9dee8;
-  --muted: #667085;
+  --muted: #505d72;
   --coral: #1457d9;
   --coral-light: #1457d9;
   --violet: #003b95;
@@ -476,7 +476,7 @@ button.back-link { border: 0; padding: 0; background: transparent; cursor: point
 .operations-account-menu { position: absolute; right: 0; top: calc(100% + 12px); width: 210px; padding: 8px; border: 1px solid var(--line); background: #17171b; box-shadow: 0 22px 70px rgba(0,0,0,.42); }
 .operations-account-menu a, .operations-account-menu button { width: 100%; min-height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border: 0; background: transparent; color: var(--muted); font-size: 12px; text-align: left; }
 .operations-account-menu a:hover, .operations-account-menu button:hover { color: var(--cream); background: rgba(255,255,255,.04); }
-.operations-content { width: min(100% - 64px, 1380px); margin-inline: auto; padding: 54px 0 90px; }
+.operations-content { width: 100%; margin-inline: auto; padding: 24px clamp(16px, 2vw, 32px) 48px; }
 .operations-scrim { display: none; }
 
 .admin-page-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 36px; margin-bottom: 42px; padding-bottom: 28px; border-bottom: 1px solid var(--line); }
@@ -888,7 +888,6 @@ button.back-link { border: 0; padding: 0; background: transparent; cursor: point
   .operations-menu-button { display: grid; }
   .operations-topbar { justify-content: flex-start; }
   .operations-account { margin-left: auto; }
-  .operations-content { width: min(100% - 48px,1280px); }
   .admin-page-header { align-items: flex-start; flex-direction: column; }
   .admin-workspace-grid { grid-template-columns: 1fr; }
   .admin-workspace-link { border-right: 0; }
@@ -966,7 +965,7 @@ button.back-link { border: 0; padding: 0; background: transparent; cursor: point
   .operations-topbar { min-height: 68px; padding: 0 16px; }
   .operations-context { display: none; }
   .operations-account > button > span:nth-child(2), .operations-account > button > svg { display: none; }
-  .operations-content { width: min(100% - 32px,1280px); padding: 36px 0 70px; }
+  .operations-content { padding-block-start: 20px; }
   .admin-page-header { gap: 24px; margin-bottom: 28px; padding-bottom: 22px; }
   .admin-page-header h1 { font-size: 36px; }
   .admin-page-actions { width: 100%; justify-content: stretch; }
@@ -1054,7 +1053,7 @@ button.back-link { border: 0; padding: 0; background: transparent; cursor: point
   --surface: #ffffff;
   --surface-2: #f0f3f7;
   --line: #d9dee8;
-  --muted: #667085;
+  --muted: #505d72;
   --coral: #1457d9;
   --coral-light: #1457d9;
   --violet: #003b95;
@@ -3070,45 +3069,42 @@ body,
   border-color: rgba(191, 219, 254, .2);
 }
 
-/* Operations page system: shared headers, metrics and command bars. */
+/* Operations page system: titles, metrics and controls share one work surface. */
 .admin-page-header {
   align-items: center;
-  margin-bottom: 26px;
-  padding: 28px 30px;
-  border: 1px solid #d9e1ee;
-  border-radius: 16px;
-  background: linear-gradient(135deg, #ffffff 0%, #f8fbff 100%);
-  box-shadow: 0 10px 28px rgba(16, 24, 40, .05);
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 0 0 14px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
-
 .admin-page-header-copy { min-width: 0; }
-.admin-page-header p { margin-bottom: 10px; color: #496aab; font-size: 10px; }
-.admin-page-header h1 { margin-bottom: 10px; color: #17213a; font-size: clamp(30px, 3vw, 42px); line-height: 1.08; }
-.admin-page-header > .admin-page-header-copy > span { color: #66758b; font-size: 14px; line-height: 1.6; }
+.admin-page-header h1 { margin: 0; color: var(--cream); font-size: 1.875rem; line-height: 1.2; letter-spacing: -.025em; }
+.admin-page-header > .admin-page-header-copy > span { margin-block-start: 4px; color: var(--muted); font-size: .9375rem; }
 .admin-page-actions { gap: 10px; }
 
 .admin-inline-stats {
-  margin: 0 0 20px;
+  margin: 0 0 16px;
   overflow: hidden;
-  border: 1px solid #d9e1ee;
-  border-radius: 16px;
-  background: #fff;
-  box-shadow: 0 8px 22px rgba(16, 24, 40, .035);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: none;
 }
-
 .admin-inline-stats > div {
-  min-height: 122px;
-  align-items: flex-start;
-  justify-content: center;
-  flex-direction: column;
-  gap: 11px;
-  padding: 24px 28px;
-  border-color: #e4e9f1;
+  min-height: 60px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-color: var(--line);
 }
-
-.admin-inline-stats span { color: #62708a; font-size: 13px; font-weight: 700; }
-.admin-inline-stats strong { color: #17213a; font-size: clamp(32px, 3vw, 44px); letter-spacing: -.045em; }
-.admin-order-stats > div:last-child strong { font-size: clamp(25px, 2.45vw, 38px); }
+.admin-inline-stats span { color: var(--muted); font-size: .9375rem; font-weight: 700; }
+.admin-inline-stats strong,
+.admin-order-stats > div:last-child strong { color: var(--cream); font-size: 1.375rem; letter-spacing: -.02em; }
 
 .admin-section-tabs {
   display: flex;
@@ -3166,7 +3162,6 @@ body,
 
 .admin-filter-toolbar { justify-content: flex-start; }
 .admin-filter-controls { display: flex; align-items: center; flex: 1 1 auto; flex-wrap: wrap; gap: 10px; }
-.admin-filter-controls::before { content: 'Bộ lọc'; color: #66758b; font: 800 10px/1 "Manrope", sans-serif; letter-spacing: .08em; text-transform: uppercase; }
 .admin-filter-controls > svg { flex: none; color: #315bd6 !important; }
 .admin-filter-controls select { min-width: 220px; }
 .admin-filter-controls select:first-of-type { min-width: min(340px, 100%); }
@@ -3189,20 +3184,17 @@ body,
 
 @media (max-width: 920px) {
   .admin-page-header { align-items: flex-start; flex-direction: column; }
-  .admin-inline-stats > div { min-height: 108px; padding: 20px; }
   .admin-reminder-toolbar { grid-template-columns: 1fr; align-items: stretch; }
   .admin-reminder-toolbar .admin-primary-action { width: 100%; }
 }
 
 @media (max-width: 640px) {
-  .admin-page-header { padding: 22px 20px; border-radius: 13px; }
-  .admin-page-header h1 { font-size: 29px; }
+  .admin-page-header h1 { font-size: 1.625rem; }
   .admin-inline-stats { grid-template-columns: 1fr; }
-  .admin-inline-stats > div { min-height: 92px; border-right: 0; border-bottom: 1px solid #e4e9f1; }
+  .admin-inline-stats > div { min-height: 52px; border-right: 0; border-bottom: 1px solid #e4e9f1; }
   .admin-inline-stats > div:last-child { border-bottom: 0; }
   .admin-toolbar { align-items: stretch; flex-direction: column; }
   .admin-filter-controls { width: 100%; align-items: stretch; flex-direction: column; }
-  .admin-filter-controls::before { padding: 4px 2px; }
   .admin-filter-controls select, .admin-filter-controls select:first-of-type { width: 100%; min-width: 0; }
   .admin-filter-toolbar > button { width: 100%; margin-left: 0; justify-content: center; }
 }
@@ -3353,8 +3345,8 @@ body,
 }
 
 :is(.buyer-page, .buyer-ui) {
-  --buyer-body-size: 1rem;
-  --buyer-meta-size: .875rem;
+  --buyer-body-size: 1.0625rem;
+  --buyer-meta-size: .9375rem;
   --buyer-section-size: clamp(1.125rem, 1.03rem + .45vw, 1.375rem);
   color: var(--cream);
   font: var(--buyer-body-size)/1.55 Manrope, "Segoe UI", Arial, sans-serif;
@@ -3561,3 +3553,80 @@ body,
     padding-inline: .625rem;
   }
 }
+
+/* Use the same dropdown treatment without changing select semantics or form values. */
+select:not([multiple], [size]) {
+  min-block-size: 44px;
+  padding: .5rem .75rem;
+  border: 1px solid #aab8ca;
+  border-radius: 8px;
+  background-color: var(--surface);
+  color: var(--cream);
+  font: 600 .9375rem/1.35 Manrope, system-ui, sans-serif;
+}
+select:not([multiple], [size]):hover:not(:disabled) { border-color: var(--coral); }
+select:not([multiple], [size]):focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; }
+select:not([multiple], [size]):disabled { background-color: var(--surface-2); color: var(--muted); cursor: not-allowed; }
+
+@supports (appearance: base-select) {
+  select:not([multiple], [size]), select:not([multiple], [size])::picker(select) { appearance: base-select; }
+  select:not([multiple], [size])::picker(select) {
+    margin-block: 4px;
+    max-block-size: min(22rem, 60dvh);
+    padding: .25rem;
+    border: 1px solid #aab8ca;
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--cream);
+    box-shadow: 0 8px 20px #18213326;
+  }
+  select:not([multiple], [size])::picker-icon { margin-inline-start: auto; color: var(--violet); }
+  select:not([multiple], [size]) option { min-block-size: 40px; padding: .5rem .625rem; border-radius: 5px; }
+  select:not([multiple], [size]) option:hover { background: var(--surface-2); }
+  select:not([multiple], [size]) option:checked { background: #e9f1ff; color: var(--violet); font-weight: 800; }
+  select:not([multiple], [size]) option:focus-visible { outline-offset: -2px; }
+  select:not([multiple], [size]) option:disabled { color: var(--muted); cursor: not-allowed; }
+}
+
+.operations-content { font-size: 1rem; }
+.operations-content .admin-field { color: var(--cream); font-size: .9375rem; font-weight: 700; text-transform: none; letter-spacing: normal; }
+.operations-content :is(.admin-field input, .admin-field textarea, .admin-search-control input, .admin-toolbar button) { font-size: .9375rem; }
+.operations-content .admin-table th { color: var(--muted); font-size: .875rem; letter-spacing: normal; text-transform: none; }
+.operations-content .admin-table td { font-size: .9375rem; }
+.operations-content :is(.admin-table th, .admin-ticket-name strong, .admin-concert-cell strong, .admin-inline-stats strong) { font-family: inherit; }
+.operations-content :is(.admin-ticket-name strong, .admin-concert-cell strong) { font-size: inherit; }
+.operations-content :is(.admin-table-secondary, .admin-filter-count, .admin-ticket-name span) { color: var(--muted); font-size: .875rem; }
+.admin-workspace-link { min-height: 64px; align-items: center; gap: 12px; padding: 14px 16px; }
+.admin-workspace-link h2 { margin: 0; font: 700 1rem/1.35 Manrope, "Segoe UI", sans-serif; }
+.operations-nav a, .operations-sidebar-footer button { font-size: .9375rem; }
+.operations-context strong, .operations-account strong { font-size: .9375rem; }
+.operations-account small { color: var(--muted); font-size: .8125rem; }
+
+@media (max-width: 640px) {
+  .operations-topbar { gap: 8px; padding-inline: 12px; }
+  .operations-menu-button { flex: 0 0 44px; min-height: 44px; }
+  .operations-context { flex: 1 1 auto; min-width: 0; }
+  .organization-context select { max-width: 100%; }
+  .operations-account { flex: none; gap: 8px; }
+}
+
+
+.ticket-type-toolbar { flex-wrap: wrap; align-items: end; }
+.ticket-type-event-context {
+  flex: 1 1 min(100%, 25rem);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  min-width: 0;
+  gap: 12px;
+}
+.ticket-type-event-context .concert-picker { flex: 1 1 15rem; }
+.ticket-type-toolbar .admin-search-control { flex: 1 1 14rem; }
+.ticket-type-event-context .admin-context-summary {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0 0 5px;
+  font-size: .875rem;
+}
+.ticket-type-event-context .admin-context-summary span { color: var(--muted); }

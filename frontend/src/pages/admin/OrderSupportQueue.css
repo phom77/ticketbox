@@ -1,8 +1,7 @@
 .admin-data-panel.order-support-queue { min-height: 0; margin-bottom: 24px; }
 .order-support-queue-header { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px; padding: 18px 20px; }
 .order-support-queue-header h2 { margin: 0; font: 700 18px/1.3 "Manrope", sans-serif; }
-.order-support-queue-header label { display: grid; gap: 6px; width: min(100%, 280px); color: var(--muted); font-size: .9375rem; }
-.order-support-queue-header select { width: 100%; min-height: 44px; padding: 0 12px; border: 1px solid var(--ops-input-line, var(--line)); border-radius: 6px; background: var(--surface); color: var(--cream); font-size: .9375rem; }
+.order-support-queue-filter { width: min(100%, 280px); }
 .order-support-queue-list { display: grid; margin: 0; padding: 0; list-style: none; }
 .order-support-queue-list li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 20px; padding: 14px 20px; border-top: 1px solid var(--line); }
 .order-support-queue-list li > div { min-width: 0; }

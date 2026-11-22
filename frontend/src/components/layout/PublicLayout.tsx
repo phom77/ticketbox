@@ -81,7 +81,7 @@ function AccountMenuLinks({
           </Link>
         </>
       ) : null}
-      {user.role !== 'ORGANIZER' ? (
+      {user.role === 'ORGANIZER' ? (
         <Link to="/organizer" onClick={close}>{translate("shared:publicLayout_khongGianNhaToChuc")}</Link>
       ) : null}
       <button type="button" onClick={onLogout}>

@@ -1,133 +1,164 @@
 import { WorkspaceSelect } from '../../components/WorkspaceSelect';
-import { translate } from '../../i18n';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { type FormEvent, useEffect, useState } from 'react';
 import {
-  approveOrganization,
-  getApprovedOrganizations,
-  recoverOrganizationManager,
-  type ApprovedOrganization,
+  approveOrganizerApplication, createPartnerLink, getApprovedOrganizations, getOrganizerApplications,
+  getPlatformOrganizationMembers, getPlatformOrganizationInvites, migrateOrganizationMember, recoverOrganizationManager,
+  resendOrganizerActivation, setOrganizationMemberActivity,
+  type ApprovedOrganization, type OrganizationMember, type OrganizerApplication, type PendingOrganizerInvite,
 } from '../../api/organizations';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
-import { useAuth } from '../../features/auth/AuthContext';
 
 export function AdminOrganizationsPage() {
-  useTranslation();
-  const { user } = useAuth();
+  const { t } = useTranslation();
   const [organizations, setOrganizations] = useState<ApprovedOrganization[]>([]);
-  const [name, setName] = useState('');
-  const [account, setAccount] = useState('');
-  const [recoveryOrganization, setRecoveryOrganization] = useState('');
-  const [recoveryAccount, setRecoveryAccount] = useState('');
+  const [applications, setApplications] = useState<OrganizerApplication[]>([]);
+  const [members, setMembers] = useState<OrganizationMember[]>([]);
+  const [invites, setInvites] = useState<PendingOrganizerInvite[]>([]);
+  const [selected, setSelected] = useState('');
+  const [migration, setMigration] = useState('');
+  const [workEmail, setWorkEmail] = useState('');
+  const [replacement, setReplacement] = useState('');
+  const [link, setLink] = useState('');
+  const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-
-  async function load(signal?: AbortSignal) {
-    setLoading(true);
-    setError('');
-    try {
-      const next = await getApprovedOrganizations(signal);
-      if (!signal?.aborted) setOrganizations(next);
-    } catch (failure) {
-      if (!signal?.aborted) {
-        setError(failure instanceof Error ? failure.message : translate("admin:adminOrganizationsPage_khongTheTaiDanhSachToChuc"));
-      }
-    } finally {
-      if (!signal?.aborted) setLoading(false);
-    }
-  }
+  const [revision, setRevision] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
-    void load(controller.signal);
+    void Promise.all([getApprovedOrganizations(controller.signal), getOrganizerApplications(controller.signal)])
+      .then(([nextOrganizations, nextApplications]) => {
+        if (controller.signal.aborted) return;
+        setOrganizations(nextOrganizations);
+        setApplications(nextApplications);
+      }).catch((failure: unknown) => {
+        if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : t('admin:adminOrganizationsPage_khongTheTaiDanhSachToChuc'));
+      }).finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
     return () => controller.abort();
-  }, []);
+  }, [revision, t]);
 
-  async function submit(event: FormEvent<HTMLFormElement>, action: 'approve' | 'recover') {
-    event.preventDefault();
-    if (saving) return;
-    setSaving(true);
+  useEffect(() => {
+    if (!selected) return;
+    const controller = new AbortController();
+    void Promise.all([getPlatformOrganizationMembers(selected, controller.signal), getPlatformOrganizationInvites(selected, controller.signal)]).then(([next, pending]) => {
+      if (!controller.signal.aborted) { setMembers(next); setInvites(pending); }
+    }).catch((failure: unknown) => {
+      if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : t('admin:adminOrganizationsPage_khongTheTaiDanhSachToChuc'));
+    });
+    return () => controller.abort();
+  }, [selected, revision, t]);
+
+  async function change(action: () => Promise<void>) {
+    if (busy) return;
+    setBusy(true);
     setError('');
     setNotice('');
     try {
-      if (action === 'approve') {
-        await approveOrganization(name.trim(), account.trim());
-        setName('');
-        setAccount('');
-        setNotice(translate("admin:adminOrganizationsPage_daDuyetToChuc"));
-        await load();
-      } else {
-        await recoverOrganizationManager(recoveryOrganization, recoveryAccount.trim());
-        setRecoveryAccount('');
-        setNotice(translate("admin:adminOrganizationsPage_daCapQuyenChoQuanLyMoi"));
-      }
+      await action();
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : translate("admin:adminOrganizationsPage_khongTheLuuThayDoi"));
+      setError(failure instanceof Error ? failure.message : t('admin:adminOrganizationsPage_khongTheLuuThayDoi'));
     } finally {
-      setSaving(false);
+      setBusy(false);
     }
   }
 
-  return (
-    <>
-      <AdminPageHeader title={translate("admin:adminOrganizationsPage_toChuc")} description={translate("admin:adminOrganizationsPage_duyetDoiTacVaChiDinhTai")} />
-      {notice ? <p className="admin-notice success" role="status">{notice}</p> : null}
-      {error ? <p className="admin-notice error" role="alert">{error}</p> : null}
-
-      <section className="admin-data-panel organization-panel">
-        <h2>{translate("admin:adminOrganizationsPage_duyetToChuc")}</h2>
-        <form className="organization-form" onSubmit={(event) => void submit(event, 'approve')}>
-          <label className="admin-field">
-            {translate("admin:adminOrganizationsPage_tenToChuc")}
-            <input value={name} onChange={(event) => setName(event.target.value)} required maxLength={160} />
-          </label>
-          <label className="admin-field">
-            {translate("admin:adminOrganizationsPage_maTaiKhoanQuanLy")}
-            <input value={account} onChange={(event) => setAccount(event.target.value)} required minLength={36} maxLength={36} />
-          </label>
-          {user && <button className="admin-secondary-action" type="button" disabled={saving} onClick={() => setAccount(user.id)}>
-            {translate('performances:useMyManagerId')}
-          </button>}
-          <button className="admin-primary-action" type="submit" disabled={saving}>{translate("admin:adminOrganizationsPage_duyetToChuc")}</button>
-        </form>
-      </section>
-
-      <section className="admin-data-panel organization-panel" aria-labelledby="approved-organizations">
-        <h2 id="approved-organizations">{translate("admin:adminOrganizationsPage_daDuyet")}</h2>
-        {loading ? <p role="status">{translate("admin:adminOrganizationsPage_dangTaiToChuc")}</p> : null}
-        {!loading && organizations.length === 0 ? <p>{translate("admin:adminOrganizationsPage_chuaCoToChucDaDuyet")}</p> : null}
-        {organizations.length > 0 ? (
-          <ul className="organization-list">
-            {organizations.map((organization) => <li key={organization.id}>{organization.name}</li>)}
-          </ul>
-        ) : null}
-        <button className="admin-secondary-action" type="button" disabled={loading} onClick={() => void load()}>
-          {translate("admin:adminOrganizationsPage_lamMoiDanhSach")}
-        </button>
-      </section>
-
-      {organizations.length > 0 ? (
-        <section className="admin-data-panel organization-panel">
-          <h2>{translate("admin:adminOrganizationsPage_khoiPhucQuyenQuanLy")}</h2>
-          <p>{translate("admin:adminOrganizationsPage_dungKhiToChucKhongConQuan")}</p>
-          <form className="organization-form" onSubmit={(event) => void submit(event, 'recover')}>
-            <label className="admin-field">
-              {translate("admin:adminOrganizationsPage_toChuc")}
-              <WorkspaceSelect value={recoveryOrganization} onChange={setRecoveryOrganization} required
-                label={translate('admin:adminOrganizationsPage_toChuc')}
-                placeholder={translate('admin:adminOrganizationsPage_chonToChuc')}
-                options={organizations.map(({ id, name }) => ({ value: id, label: name }))} />
+  return <>
+    <AdminPageHeader title={t('shared:partnerOrganizations')} actions={
+      <button type="button" className="admin-primary-action" disabled={busy} onClick={() => void change(async () => {
+        const { token } = await createPartnerLink();
+        setLink(new URL('/partner/apply#token=' + token, window.location.origin).href);
+      })}>{t('shared:partnerCreateLink')}</button>
+    } />
+    {error ? <p role="alert" className="admin-notice error">{error}</p> : null}
+    {notice ? <p role="status" className="admin-notice success">{notice}</p> : null}
+    {link ? <div className="admin-toolbar">
+      <label className="admin-field">{t('shared:partnerPrivateLink')}<input readOnly value={link} onFocus={(e) => e.currentTarget.select()} /></label>
+      <button type="button" onClick={() => void change(async () => {
+        await navigator.clipboard.writeText(link);
+        setNotice(t('shared:partnerLinkCopied'));
+      })}>{t('shared:partnerCopyLink')}</button>
+    </div> : null}
+    <section className="organization-panel" aria-labelledby="partner-applications">
+      <h2 id="partner-applications">{t('shared:partnerApplications')}</h2>
+      {loading ? <p role="status">{t('admin:adminOrganizationsPage_dangTaiToChuc')}</p> : null}
+      {!loading && !applications.length ? <p role="status">{t('shared:partnerNoApplications')}</p> : null}
+      {applications.length ? <div className="admin-table-wrap">
+        <table className="admin-table">
+          <thead><tr><th>{t('shared:partnerOrganization')}</th><th>{t('shared:partnerManager')}</th>
+            <th>{t('shared:partnerFirstEvent')}</th><th>{t('shared:releaseState')}</th><th><span className="sr-only">{t('shared:partnerActions')}</span></th></tr></thead>
+          <tbody>{applications.map((item) => <tr key={item.id}>
+            <td className="admin-table-primary">{item.organizationName}</td>
+            <td>{item.managerName}<span className="admin-table-secondary">{item.email}</span></td>
+            <td>{item.firstEvent}</td>
+            <td>{t(item.organizationId ? 'shared:partnerApproved' : 'shared:release_SUBMITTED')}</td>
+            <td>{item.organizationId ? item.activationPending ? <button type="button" className="admin-secondary-action" disabled={busy} onClick={() => void change(async () => {
+              await resendOrganizerActivation(item.id); setNotice(t('shared:partnerInviteQueued'));
+            })}>{t('shared:partnerResend')}</button> : null : <button type="button" className="admin-primary-action" disabled={busy}
+              onClick={() => void change(async () => {
+                await approveOrganizerApplication(item.id);
+                setNotice(t('shared:partnerInviteQueued'));
+                setRevision((value) => value + 1);
+              })}>{t('admin:adminOrganizationsPage_duyetToChuc')}</button>}</td>
+          </tr>)}</tbody>
+        </table>
+      </div> : null}
+    </section>
+    <section className="organization-panel" aria-labelledby="approved-organizations">
+      <h2 id="approved-organizations">{t('admin:adminOrganizationsPage_daDuyet')}</h2>
+      <label className="admin-field">{t('shared:partnerOrganization')}
+        <WorkspaceSelect label={t('shared:partnerOrganization')} value={selected}
+          placeholder={t('admin:adminOrganizationsPage_chonToChuc')}
+          options={organizations.map(({ id, name }) => ({ value: id, label: name }))}
+          onChange={(id) => { setMembers([]); setInvites([]); setMigration(''); setReplacement(''); setSelected(id); }} />
+      </label>
+      {selected ? <>
+        <ul className="organization-list">{members.map((member) => <li key={member.accountId}>
+          <strong>{member.fullName}</strong> · {member.email}{' '}
+          {member.role === 'AUDIENCE' ? <button type="button" className="admin-secondary-action" onClick={() => {
+            setWorkEmail(''); setMigration(member.accountId);
+          }}>{t('shared:partnerMigrateMember')}</button> : null}
+          {member.role === 'ORGANIZER' ? <button type="button" className="admin-secondary-action" disabled={busy}
+            onClick={() => void change(async () => {
+              await setOrganizationMemberActivity(selected, member.accountId, !member.active);
+              setRevision((value) => value + 1);
+            })}>{t(member.active ? 'shared:partnerLock' : 'shared:partnerUnlock')}</button> : null}
+        </li>)}</ul>
+        {migration ? <form className="organization-form" onSubmit={(event) => {
+          event.preventDefault();
+          void change(async () => {
+            const result = await migrateOrganizationMember(selected, migration, workEmail);
+            setNotice(t(`shared:partnerInvite_${result.outcome}`));
+            if (result.outcome === 'QUEUED' || result.outcome === 'PENDING') setMigration('');
+            setRevision((value) => value + 1);
+          });
+        }}>
+          <label className="admin-field">{t('shared:partnerEmail')}<input required type="email" value={workEmail}
+            onChange={(event) => setWorkEmail(event.target.value)} /></label>
+          <button className="admin-primary-action" disabled={busy}>{t('shared:partnerMigrateMember')}</button>
+        </form> : null}
+        {invites.length ? <><h3>{t('shared:partnerPendingInvites')}</h3><ul className="organization-list">
+          {invites.map((invite) => <li key={invite.id}>{invite.email} · {t(invite.delivered ? 'shared:partnerInviteSent' : 'shared:partnerInvite_QUEUED')}</li>)}
+        </ul></> : null}
+        {!members.some((member) => member.role === 'ORGANIZER' && member.active && member.grants.includes('MEMBERS')) ? (
+          <form className="organization-form" onSubmit={(event) => {
+            event.preventDefault();
+            void change(async () => {
+              await recoverOrganizationManager(selected, replacement.trim());
+              setReplacement('');
+              setRevision((value) => value + 1);
+            });
+          }}>
+            <label className="admin-field">{t('admin:adminOrganizationsPage_maTaiKhoanQuanLyMoi')}
+              <input required minLength={36} maxLength={36} value={replacement} onChange={(event) => setReplacement(event.target.value)} />
             </label>
-            <label className="admin-field">
-              {translate("admin:adminOrganizationsPage_maTaiKhoanQuanLyMoi")}
-              <input value={recoveryAccount} onChange={(event) => setRecoveryAccount(event.target.value)} required minLength={36} maxLength={36} />
-            </label>
-            <button className="admin-primary-action" type="submit" disabled={saving || !recoveryOrganization}>{translate("admin:adminOrganizationsPage_capQuyenQuanLy")}</button>
+            <button className="admin-secondary-action" disabled={busy}>{t('admin:adminOrganizationsPage_khoiPhucQuyenQuanLy')}</button>
           </form>
-        </section>
-      ) : null}
-    </>
-  );
+        ) : null}
+      </> : null}
+    </section>
+  </>;
 }

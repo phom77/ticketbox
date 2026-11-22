@@ -82,7 +82,7 @@ class ConcertPosterServiceTest {
                         ownerId,
                         now,
                         now);
-        when(concertRepository.findById(concertId)).thenReturn(Optional.of(concert));
+        when(concertRepository.findByIdForUpdate(concertId)).thenReturn(Optional.of(concert));
         when(posterStorage.upload(concertId, file))
                 .thenReturn(new StoredPoster("https://cloudinary/poster.jpg", "ticketbox/poster"));
         when(concertMapper.toDetailResponse(concert)).thenReturn(response);
@@ -98,7 +98,7 @@ class ConcertPosterServiceTest {
 
     @Test
     void replacePoster_DifferentOrganizationIsNotDisclosed() {
-        when(concertRepository.findById(concertId)).thenReturn(Optional.of(concert));
+        when(concertRepository.findByIdForUpdate(concertId)).thenReturn(Optional.of(concert));
 
         AppException exception =
                 assertThrows(
@@ -112,7 +112,7 @@ class ConcertPosterServiceTest {
     @Test
     void removePoster_CompletedConcertIsRejected() {
         concert.setStatus(Concert.Status.COMPLETED);
-        when(concertRepository.findById(concertId)).thenReturn(Optional.of(concert));
+        when(concertRepository.findByIdForUpdate(concertId)).thenReturn(Optional.of(concert));
 
         AppException exception =
                 assertThrows(

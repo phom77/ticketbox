@@ -1,6 +1,7 @@
 package org.ticketbox.identity.web.security;
 
 import org.springframework.stereotype.Component;
+import org.ticketbox.identity.account.domain.User;
 import org.ticketbox.identity.application.error.AppException;
 import org.ticketbox.identity.application.error.ErrorCode;
 import org.ticketbox.identity.auth.application.CurrentSession;
@@ -17,6 +18,22 @@ public class SessionAccess {
 
     public UUID requireAccount(String authorization) {
         return sessions.require(bearer(authorization)).getId();
+    }
+
+    public UUID requireOrganizer(String authorization) {
+        var account = organizationAccount(authorization);
+        if (account.getRole() == User.Role.STAFF) {
+            throw new AppException(ErrorCode.FORBIDDEN, "error.forbidden");
+        }
+        return account.getId();
+    }
+
+    public User organizationAccount(String authorization) {
+        var account = sessions.require(bearer(authorization));
+        if (account.getRole() == User.Role.AUDIENCE) {
+            throw new AppException(ErrorCode.FORBIDDEN, "error.forbidden");
+        }
+        return account;
     }
 
     public UUID requirePlatformAdmin(String authorization) {

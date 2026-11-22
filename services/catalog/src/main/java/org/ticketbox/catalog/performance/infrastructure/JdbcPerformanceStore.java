@@ -128,6 +128,13 @@ public class JdbcPerformanceStore implements PerformanceStore {
     }
 
     @Override
+    public boolean hasPublicationReview(UUID performance) {
+        return jdbc.queryForObject("""
+                SELECT EXISTS(SELECT 1 FROM performance_publication_reviews WHERE performance_id=? AND state='RELEASED')
+                """, Boolean.class, performance);
+    }
+
+    @Override
     public void createEvent(UUID id, UUID organizer, String title, String description, String category) {
         jdbc.update("INSERT INTO events(id,organization_id,title,description,category) VALUES(?,?,?,?,?)",
                 id, organizer, title, description, category);

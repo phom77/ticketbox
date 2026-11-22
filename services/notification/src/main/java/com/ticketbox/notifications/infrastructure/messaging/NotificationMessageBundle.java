@@ -59,4 +59,8 @@ public class NotificationMessageBundle implements NotificationContent {
     public Content renderPasswordReset(String link) {
         return new Content(text("notification.password-reset.subject"), text("notification.password-reset.body", link));
     }
+
+    public Content renderOrganizerLink(String link) {
+        return new Content(text("notification.organizer-link.subject"), text("notification.organizer-link.body", link));
+    }
 }

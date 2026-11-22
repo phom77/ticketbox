@@ -30,9 +30,9 @@ class OrganizationAccessController {
     ResponseEntity<Access> organization(
             @PathVariable UUID id,
             @RequestHeader(name = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
-        UUID actor = sessions.requireAccount(authorization);
+        var actor = sessions.organizationAccount(authorization);
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
-                .body(new Access(actor, id, organizations.access(actor, id)));
+                .body(new Access(actor.getId(), id, organizations.access(actor, id)));
     }
 
     @GetMapping("/platform-access")

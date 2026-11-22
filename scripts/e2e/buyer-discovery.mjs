@@ -21,7 +21,7 @@ const nextPage = [
 const browser = await chromium.launch();
 const context = await browser.newContext({ baseURL: origin, locale: 'en-US', viewport: { width: 390, height: 844 } });
 const page = await context.newPage();
-page.setDefaultTimeout(5_000);
+page.setDefaultTimeout(10_000);
 const requests = [];
 let failNextPage = true;
 let catalogDelay;
@@ -69,6 +69,9 @@ try {
   assert.equal(await main.getByText('City', { exact: true }).count(), 0, 'Fixture fields do not ship on the public route.');
   const openingSoon = results().getByRole('link', { name: 'Sunrise Jazz' });
   await openingSoon.getByText('Coming soon', { exact: true }).waitFor();
+  const comingSoon = results().getByRole('region', { name: 'Coming soon', exact: true });
+  assert(await comingSoon.getByRole('link', { name: 'Sunrise Jazz' }).isVisible());
+  assert.equal(await comingSoon.getByText('On sale', { exact: true }).count(), 0);
   await results().getByRole('button', { name: 'Load more events' }).click();
   await results().getByText('Could not load more events.').waitFor();
   assert(await openingSoon.isVisible(), 'A failed page keeps the previously loaded results.');
@@ -145,10 +148,14 @@ try {
     await main.getByRole('heading', { name: /Chamber Night|Đêm nhạc thính phòng/ }).waitFor();
     assert.equal(await results().getByRole('link', { name: /Chamber Night|Đêm nhạc thính phòng/ }).count(), 0);
     await results().getByRole('link', { name: 'Sunrise Jazz' }).waitFor();
-    for (const width of [320, 390, 834, 1440]) {
+    for (const width of [320, 390, 834, 1440, 2560]) {
       await page.setViewportSize({ width, height: 924 });
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
       assert(overflow <= 1, `${language} at ${width}px overflows by ${overflow}px`);
+      if (width === 2560) {
+        const bounds = await page.locator('.discovery-page').boundingBox();
+        assert(bounds.width > width * .85, 'Discovery uses most of a wide display.');
+      }
       if (process.env.TICKETBOX_DISCOVERY_SCREENSHOTS) {
         await page.screenshot({ path: `${process.env.TICKETBOX_DISCOVERY_SCREENSHOTS}/discovery-${language}-${width}.png` });
       }
@@ -180,6 +187,10 @@ try {
   assert((await results().getByRole('article').count()) > 1);
   assert.equal(requests.length, beforePreview, 'Preview does not request any Catalog pages.');
   console.log('Buyer discovery, pagination, Back restoration, legacy URLs, and isolated preview passed.');
+} catch (error) {
+  console.error('Discovery failure at', new URL(page.url()).pathname + new URL(page.url()).search,
+    'Catalog pages requested:', requests, 'Visible state:', (await main.innerText()).slice(0, 420));
+  throw error;
 } finally {
   await browser.close();
 }

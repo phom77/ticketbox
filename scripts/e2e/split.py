@@ -186,7 +186,50 @@ def operations_snapshot():
     }
 
 
-def verify_local_load(run_id, manager, scope, event):
+def fixture_organizer(email):
+    password = "fixture-organizer-pass"
+    account = request("POST", "/api/auth/register", body={"email": email, "fullName": "Organizer fixture",
+                                                       "password": password}, expected=(201,))
+    account_id = str(uuid.UUID(account["id"]))
+    sql("identity", f"UPDATE users SET role='ORGANIZER' WHERE id='{account_id}'")
+    return account_id, request("POST", "/api/auth/login", body={"email": email, "password": password})["accessToken"]
+
+
+def schedule_publication(concert, manager, scope, admin, delay=6):
+    publish_at = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(seconds=delay)).isoformat()
+    path = f"/api/organizer/manage/concerts/{concert}/publication"
+    submitted = request("POST", path, manager, {"publishAt": publish_at}, headers=scope)
+    revision = submitted["review"]["id"]
+    decision = {"revision": revision, "decision": "APPROVE"}
+    admin_path = f"/api/admin/concerts/{concert}/publication/decision"
+    approved = request("POST", admin_path, admin, decision)
+    assert approved["review"]["state"] == "SCHEDULED"
+    assert request("POST", admin_path, admin, decision)["review"]["id"] == revision
+    return publish_at
+
+
+def approve_performance_fixture(path, performance, event, sale, layout_version, manager, admin, scope):
+    publish_at = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(seconds=3)).isoformat()
+    status = request("POST", path + "/publication", manager, {
+        "expectedSaleVersion": sale["version"], "expectedLayoutVersion": layout_version,
+        "expectedEventDraftVersion": event["draftVersion"], "expectedScheduleDraftVersion": performance["draftVersion"],
+        "publishAt": publish_at,
+    }, headers=scope)
+    review = status["review"]
+    assert status["status"] == "DRAFT" and review["state"] == "SUBMITTED"
+    decision = request("POST", "/api/admin/v2/performance-reviews/" + performance["id"], admin,
+                       {"revision": review["id"], "action": "APPROVE"})
+    assert decision["state"] == "SCHEDULED"
+    return until(lambda: all(request("GET", path + "/publication", manager, headers=scope)[ack]
+                             for ack in ("ticketingAcknowledged", "checkinAcknowledged")), seconds=180)
+
+
+def set_fixture_sale_start(concert, manager, scope, event, seconds=15):
+    event["saleStartAt"] = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(seconds=seconds)).isoformat()
+    request("PUT", f"/api/organizer/manage/concerts/{concert}", manager, event, headers=scope)
+
+
+def verify_local_load(run_id, admin, manager, scope, event):
     management = "/api/organizer/manage/concerts"
     concert = request("POST", management, manager, {**event, "title": f"Local capacity {run_id}"},
                       expected=(201,), headers=scope)["id"]
@@ -194,8 +237,10 @@ def verify_local_load(run_id, manager, scope, event):
     tiers = [request("POST", f"{management}/{concert}/ticket-types", manager, {
         "name": name, "price": 100000, "totalQuantity": stock, "maxPerAccount": 1, "zoneColor": "#123456",
     }, expected=(201,), headers=scope)["id"] for name, stock in (("Race", capacity), ("Expiry", 2))]
-    request("POST", f"{management}/{concert}/publication", manager, headers=scope)
+    set_fixture_sale_start(concert, manager, scope, {**event, "title": f"Local capacity {run_id}"})
+    schedule_publication(concert, manager, scope, admin)
     until(lambda: request("GET", f"/api/concerts/{concert}")["id"] == concert)
+    until(lambda: dt.datetime.fromisoformat(request("GET", f"/api/concerts/{concert}")["saleStartAt"]) <= dt.datetime.now(dt.timezone.utc))
 
     def client(index):
         credentials = {"email": f"load-{index}-{run_id}@example.test", "password": "fixture-load-pass"}
@@ -296,7 +341,8 @@ def verify_order_refund(run_id, admin, organizer, order, ticket_type, organizati
     email = f"refund-approver-{run_id}@example.test"
     password = "fixture-admin-pass"
     account = request("POST", "/api/auth/register", body={"email": email, "fullName": "Refund Approver", "password": password}, expected=(201,))
-    request("PUT", f"/api/admin/users/{account['id']}/role", admin, {"role": "ADMIN"})
+    account_id = str(uuid.UUID(account["id"]))
+    sql("identity", f"UPDATE users SET role='ADMIN' WHERE id='{account_id}'")
     approver = request("POST", "/api/auth/login", body={"email": email, "password": password})["accessToken"]
     path = f"/api/admin/orders/{order}/refunds"
     def action(kind, **fields):
@@ -347,8 +393,11 @@ def verify_event_disruption(run_id, admin, manager, scope, concert):
     tier = request("POST", management + "/ticket-types", manager, {
         "name": "GA", "price": 100000, "totalQuantity": 12, "maxPerAccount": 4, "zoneColor": "#123456",
     }, expected=(201,), headers=scope)["id"]
-    request("POST", management + "/publication", manager, headers=scope)
+    draft = request("GET", management, manager, headers=scope)
+    set_fixture_sale_start(concert, manager, scope, draft)
+    schedule_publication(concert, manager, scope, admin)
     until(lambda: request("GET", public)["id"] == concert)
+    until(lambda: dt.datetime.fromisoformat(request("GET", public)["saleStartAt"]) <= dt.datetime.now(dt.timezone.utc))
 
     def buyer_session(suffix):
         login_data = {"email": f"disruption-{suffix}-{run_id}@example.test", "password": "fixture-buyer-pass"}
@@ -452,15 +501,16 @@ def main(*, source_outage=True):
     organizer_id = request("GET", "/api/auth/me", organizer)["id"]
     audience_id = request("GET", "/api/auth/me", audience)["id"]
     run_id = uuid.uuid4().hex
+    second_manager_id, second_manager = fixture_organizer(f"second-{run_id}@example.test")
     first_org = request("POST", "/api/admin/organizations", admin, {
         "name": f"First {run_id}", "initialManagerId": organizer_id,
     }, expected=(201,))["id"]
     second_org = request("POST", "/api/admin/organizations", admin, {
-        "name": f"Second {run_id}", "initialManagerId": audience_id,
+        "name": f"Second {run_id}", "initialManagerId": second_manager_id,
     }, expected=(201,))["id"]
     first_scope = {"X-Organization-Id": first_org}
     second_scope = {"X-Organization-Id": second_org}
-    invitation = request("POST", f"/api/organizations/{second_org}/invitations", audience, {
+    invitation = request("POST", f"/api/organizations/{second_org}/invitations", second_manager, {
         "accountId": organizer_id, "grants": ["FINANCE"],
     }, expected=(201,))
     request("POST", "/api/organizations/invitations/accept", organizer, {"code": invitation["code"]})
@@ -475,9 +525,9 @@ def main(*, source_outage=True):
     }
     concerts = "/api/organizer/manage/concerts"
     concert_id = request("POST", concerts, organizer, event, expected=(201,), headers=first_scope)["id"]
-    second_concert = request("POST", concerts, audience, {
+    second_concert = request("POST", f"/api/admin/concerts?organizationId={second_org}", admin, {
         **event, "title": f"Second concert {run_id}",
-    }, expected=(201,), headers=second_scope)["id"]
+    }, expected=(201,))["id"]
     for service in ("ticketing", "checkin"):
         assert until(lambda: sql(service, f"SELECT organization_id FROM concerts WHERE id='{concert_id}'") == first_org)
         assert until(lambda: sql(service, f"SELECT organization_id FROM concerts WHERE id='{second_concert}'") == second_org)
@@ -508,36 +558,35 @@ def main(*, source_outage=True):
     with urllib.request.urlopen(req, timeout=20) as response:
         assert "no-store" in response.headers["Cache-Control"]
         assert json.load(response)["data"]["id"] == concert_id
-    request("GET", preview, audience, headers=second_scope, expected=(404,))
+    request("GET", preview, second_manager, headers=second_scope, expected=(404,))
     public = f"/api/concerts/{concert_id}"
     request("GET", public, expected=(404,))
     publication = f"{concerts}/{concert_id}/publication"
     readiness = request("GET", publication, organizer, headers=first_scope)
     assert readiness["status"] == "DRAFT" and readiness["issues"], readiness
-    request("POST", publication, organizer, headers=first_scope, expected=(422,))
+    request("POST", publication, organizer, {}, headers=first_scope, expected=(400,))
     ticket_type = request("POST", f"{concerts}/{concert_id}/ticket-types", organizer, {
         "name": "GA", "price": 100000, "totalQuantity": 20, "maxPerAccount": 4, "zoneColor": "#123456",
     }, expected=(201,), headers=first_scope)
     type_id = ticket_type["id"]
     request("PATCH", f"{concerts}/{concert_id}/status", organizer, {"status": "ON_SALE"},
             headers=first_scope, expected=(400, 409))
+    set_fixture_sale_start(concert_id, organizer, first_scope, localized, seconds=25)
+    event["saleStartAt"] = localized["saleStartAt"]
+    publish_at = schedule_publication(concert_id, organizer, first_scope, admin, delay=12)
+    request("GET", public, expected=(404,))
     if source_outage:
         compose("stop", "ticketing", "checkin")
-    try:
-        published = request("POST", publication, organizer, headers=first_scope)
-        activation = published["versions"]["activationVersion"]
-        assert activation and published["issues"] == [], published
-        assert request("POST", publication, organizer, headers=first_scope)["versions"]["activationVersion"] == activation
-        if source_outage:
-            assert published["versions"]["ticketingVersion"] < activation
+        try:
+            until(lambda: dt.datetime.fromisoformat(publish_at) <= dt.datetime.now(dt.timezone.utc))
             request("GET", public, expected=(404,))
-    finally:
-        if source_outage:
+        finally:
             compose("start", "ticketing")
     try:
         assert until(lambda: request("GET", public)["id"] == concert_id)
         versions = request("GET", publication, organizer, headers=first_scope)["versions"]
-        assert versions["ticketingVersion"] >= activation
+        activation = versions["activationVersion"]
+        assert activation and versions["ticketingVersion"] >= activation
         if source_outage:
             assert versions["checkinVersion"] < activation, versions
     finally:
@@ -550,7 +599,10 @@ def main(*, source_outage=True):
     revised = {"title": "Đêm nhạc cập nhật", "description": "Mô tả cập nhật"}
     request("PUT", f"{concerts}/{concert_id}", organizer,
             {**event, "translations": {"vi": revised}}, headers=first_scope)
+    assert request("GET", public).get("translations", {}).get("vi") == translation
+    schedule_publication(concert_id, organizer, first_scope, admin)
     assert until(lambda: request("GET", public).get("translations", {}).get("vi") == revised)
+    until(lambda: dt.datetime.fromisoformat(event["saleStartAt"]) <= dt.datetime.now(dt.timezone.utc))
     assert until(lambda: any(item["id"] == concert_id and item.get("translations", {}).get("vi") == revised
                              for item in request("GET", "/api/concerts?size=100")["content"]))
     request("POST", f"/api/queue/concerts/{concert_id}/join", organizer, expected=(403,))
@@ -597,6 +649,18 @@ def main(*, source_outage=True):
     request("PATCH", f"{concerts}/{concert_id}/status", organizer, {"status": "CANCELLED"},
             headers=first_scope, expected=(400, 409))
     assert request("GET", public)["status"] == "ON_SALE"
+    job=upload(f"/api/admin/concerts/{concert_id}/artist-bio-jobs",admin,"press-kit.pdf",press_kit(),"application/pdf")
+    completed=until(lambda:(lambda value:value if value["status"]=="DONE" else None)(
+        request("GET",f"/api/admin/artist-bio-jobs/{job['jobId']}",admin)))
+    assert completed.get("resultBio")
+    current_bio = request("GET", public).get("artistBio")
+    request("POST",f"/api/admin/artist-bio-jobs/{job['jobId']}/apply",admin,
+            {"artistBio":completed["resultBio"]})
+    assert request("GET", public).get("artistBio") == current_bio
+    schedule_publication(concert_id, organizer, first_scope, admin)
+    until(lambda: request("GET", public).get("artistBio") == completed["resultBio"])
+    check("Catalog owns PDF extraction, AI processing and publication of the approved revision")
+
     request("PATCH", f"{concerts}/{concert_id}/status", organizer, {"status": "COMPLETED"}, headers=first_scope)
     request("GET", f"/api/organizer/concerts/{concert_id}/revenue-summary", organizer, headers=first_scope)
     request("GET", f"/api/organizer/concerts/{concert_id}/revenue-summary", organizer,
@@ -665,7 +729,7 @@ def main(*, source_outage=True):
                                "recovered": recovered}
         check("Operations counts identify the failed email and clear after its authorized retry")
     check("Scoped support sections and the exception queue use owner data and replay email retry once")
-    request("PUT", f"/api/organizations/{second_org}/members/{organizer_id}", audience, {"grants": []})
+    request("PUT", f"/api/organizations/{second_org}/members/{organizer_id}", second_manager, {"grants": []})
     request("GET", orders, organizer, expected=(403,), headers=second_scope)
     request("GET", support, organizer, expected=(403,), headers=second_scope)
     check("Ticketing scopes orders and reporting and honors revocation with the same token")
@@ -695,9 +759,9 @@ def main(*, source_outage=True):
     guests = f"{concerts}/{concert_id}/guest-lists"
     entries = request("GET", guests, organizer, headers=first_scope)["content"]
     assert len(entries) == 1 and entries[0]["fullName"] == "Nguyễn Ánh", entries
-    request("GET", guests, audience, expected=(404,), headers=second_scope)
+    request("GET", guests, second_manager, expected=(404,), headers=second_scope)
     request("GET", f"/api/organizer/manage/batch-logs/{imported['batchLogId']}",
-            audience, expected=(404,), headers=second_scope)
+            second_manager, expected=(404,), headers=second_scope)
     upload(f"/api/admin/concerts/{concert_id}/guest-lists/import",admin,"guests.csv",guest_csv,"text/csv")
     assert len(request("GET", guests, organizer, headers=first_scope)["content"]) == 1
     large_csv = "phone,full_name,category,sponsor_name,notes\n" + "".join(
@@ -707,28 +771,21 @@ def main(*, source_outage=True):
                           large_csv.encode(), "text/csv")
     until(lambda: request("GET", f"/api/admin/batch-logs/{large_import['batchLogId']}", admin)["status"] == "SUCCESS")
     other_guests = f"{concerts}/{second_concert}/guest-lists"
-    unfiltered = request("GET", f"{other_guests}?size=100", audience, headers=second_scope)
+    unfiltered = request("GET", f"{other_guests}?size=100", second_manager, headers=second_scope)
     assert unfiltered["totalElements"] == 111 and len(unfiltered["content"]) == 100
-    filtered = request("GET", f"{other_guests}?query=Target&size=1", audience, headers=second_scope)
+    filtered = request("GET", f"{other_guests}?query=Target&size=1", second_manager, headers=second_scope)
     assert filtered["totalElements"] == 1 and filtered["content"][0]["fullName"] == "ZZZ Target"
-    assert request("GET", f"{other_guests}?query=Absent", audience, headers=second_scope)["totalElements"] == 0
+    assert request("GET", f"{other_guests}?query=Absent", second_manager, headers=second_scope)["totalElements"] == 0
     check("Guest filters search beyond the first 100 rows and return matching totals")
     check("Check-in scopes guest data and import results and deduplicates imports")
 
-    job=upload(f"/api/admin/concerts/{concert_id}/artist-bio-jobs",admin,"press-kit.pdf",press_kit(),"application/pdf")
-    completed=until(lambda:(lambda value:value if value["status"]=="DONE" else None)(
-        request("GET",f"/api/admin/artist-bio-jobs/{job['jobId']}",admin)))
-    assert completed.get("resultBio")
-    request("POST",f"/api/admin/artist-bio-jobs/{job['jobId']}/apply",admin,
-            {"artistBio":completed["resultBio"]})
-    check("Catalog owns PDF extraction, AI job processing and reviewed publication")
     if source_outage:
         verify_order_refund(run_id, admin, organizer, order_id, type_id, first_org, period)
-        verify_event_disruption(run_id, admin, audience, second_scope, second_concert)
+        verify_event_disruption(run_id, admin, second_manager, second_scope, second_concert)
     if source_outage and os.environ.get("PASSWORD_RESET_KEY"):
         verify_password_recovery(run_id)
     if LOCAL_ACCEPTANCE:
-        verify_local_load(run_id, organizer, first_scope, event)
+        verify_local_load(run_id, admin, organizer, first_scope, event)
     PROOF.update(passed=True, concertId=concert_id, orderId=order_id)
 
 

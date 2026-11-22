@@ -207,9 +207,7 @@ export function OrganizerRevenuePage() {
   return (
     <>
       <AdminPageHeader
-        eyebrow={translate("organizer:organizerRevenuePage_phanTichDoanhThu")}
         title={translate("organizer:organizerRevenuePage_baoCaoDoanhThu")}
-        description={translate("organizer:organizerRevenuePage_theoDoiKetQuaBanVeHieu")}
         actions={
           <div className="revenue-export-actions">
             <button

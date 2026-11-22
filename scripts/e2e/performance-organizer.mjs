@@ -1,3 +1,4 @@
+import { submitPerformanceReview } from './performance-review-fixture.mjs';
 import { selectWorkspaceOption } from './select-workspace-option.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -28,7 +29,7 @@ async function inspectViewport(stage) {
   await page.setViewportSize({ width: 1440, height: 900 });
 }
 
-async function fillSchedule(start, end, { doors = '', saleOpen = localTime(-2), saleClose = localTime(24) } = {}) {
+async function fillSchedule(start, end, { doors = '', saleOpen = localTime(1), saleClose = localTime(24) } = {}) {
   await page.locator('input[name="startsAt"]').fill(start);
   await page.locator('input[name="endsAt"]').fill(end);
   await page.locator('input[name="doorsOpenAt"]').fill(doors);
@@ -255,22 +256,20 @@ ${code},Z,2,365,125`) });
   await assignment.getByRole('button', { name: 'Add seated ticket type' }).click();
   await selectWorkspaceOption(assignment.getByLabel('Assign seats to'), { label: /^Reserved ·/ });
   await assignment.getByRole('button', { name: 'Assign remaining seats in section' }).click();
-  assert.equal(await page.getByRole('button', { name: 'Publish performance' }).count(), 0);
+  assert.equal(await page.getByRole('button', { name: 'Submit for review' }).count(), 0);
   await sale.getByRole('button', { name: 'Save and review' }).click();
   const review = page.getByRole('region', { name: 'Review performance' });
   await review.getByText('Standing', { exact: true }).waitFor();
   await review.getByText('Reserved', { exact: true }).waitFor();
   await inspectViewport('review-hybrid');
-  await review.getByRole('button', { name: 'Publish performance' }).click();
+  await submitPerformanceReview(review, context.request, admin.accessToken, { openSale: true });
   const publication = page.getByRole('region', { name: 'Publication status' });
   await publication.getByText('Synchronized', { exact: true }).nth(1).waitFor();
   await review.getByRole('button', { name: 'Edit tickets and map' }).click();
-  await sale.getByRole('group', { name: 'Reserved' }).getByLabel('Price in VND').fill('150000');
-  await sale.getByRole('button', { name: 'Publish sale revision' }).click();
-  await page.getByRole('status').filter({ hasText: 'Publication submitted.' }).waitFor();
+  assert.equal(await sale.getByRole('button', { name: 'Publish sale revision' }).count(), 0);
 
   const hybrid = (await readEvent()).performances[0];
-  assert.equal(hybrid.saleVersion, 3);
+  assert.equal(hybrid.saleVersion, 2);
   assert.equal(hybrid.maxPerAccount, 6);
   assert.equal(new Date(hybrid.startsAt).toISOString(), new Date(showStart + '+07:00').toISOString());
 
@@ -287,7 +286,7 @@ ${code},Z,2,365,125`) });
   await sale.getByRole('button', { name: 'Save and review' }).click();
   await review.getByText('General admission without a map', { exact: true }).waitFor();
   await inspectViewport('review-ga');
-  await review.getByRole('button', { name: 'Publish performance' }).click();
+  await submitPerformanceReview(review, context.request, admin.accessToken, { openSale: true });
   await publication.getByText('Synchronized', { exact: true }).nth(1).waitFor();
   const ga = (await readEvent()).performances.find(entry => entry.id !== hybrid.id);
   assert.equal(ga.layoutVersion, null);

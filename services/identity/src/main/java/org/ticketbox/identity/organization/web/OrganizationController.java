@@ -66,13 +66,27 @@ class OrganizationController {
 
     @GetMapping("/api/organizations")
     ApiResponse<List<Membership>> memberships(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorization) {
-        return ApiResponse.success(organizations.memberships(sessions.requireAccount(authorization)));
+        return ApiResponse.success(organizations.memberships(sessions.organizationAccount(authorization)));
+    }
+
+    @GetMapping("/api/admin/organizations/{id}/members")
+    ApiResponse<List<Member>> platformMembers(@PathVariable UUID id,
+            @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization) {
+        sessions.requirePlatformAdmin(authorization);
+        return ApiResponse.success(organizations.platformMembers(id));
+    }
+
+    @PutMapping("/api/admin/organizations/{id}/members/{accountId}/status")
+    ResponseEntity<Void> platformMemberActivity(@PathVariable UUID id, @PathVariable UUID accountId,
+            @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization, @Valid @RequestBody MemberActivity request) {
+        organizations.setMemberActivity(sessions.requirePlatformAdmin(authorization), id, accountId, request.active());
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/api/organizations/{id}/members")
     ApiResponse<List<Member>> members(
             @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization, @PathVariable UUID id) {
-        return ApiResponse.success(organizations.members(sessions.requireAccount(authorization), id));
+        return ApiResponse.success(organizations.members(sessions.requireOrganizer(authorization), id));
     }
 
     @PostMapping("/api/organizations/{id}/invitations")
@@ -80,7 +94,7 @@ class OrganizationController {
             @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
             @PathVariable UUID id, @Valid @RequestBody Invitation request) {
         var invite = organizations.invite(
-                sessions.requireAccount(authorization), id, request.accountId(), request.grants());
+                sessions.requireOrganizer(authorization), id, request.accountId(), request.grants());
         return ResponseEntity.status(HttpStatus.CREATED).cacheControl(CacheControl.noStore())
                 .body(ApiResponse.created(invite));
     }
@@ -89,7 +103,7 @@ class OrganizationController {
     ApiResponse<OrganizationId> accept(
             @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
             @Valid @RequestBody InvitationCode request) {
-        UUID id = organizations.accept(sessions.requireAccount(authorization), request.code());
+        UUID id = organizations.accept(sessions.organizationAccount(authorization).getId(), request.code());
         return ApiResponse.success(new OrganizationId(id));
     }
 
@@ -98,7 +112,7 @@ class OrganizationController {
             @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
             @PathVariable UUID id, @PathVariable UUID accountId,
             @Valid @RequestBody MemberGrants request) {
-        organizations.updateMember(sessions.requireAccount(authorization), id, accountId, request.grants());
+        organizations.updateMember(sessions.requireOrganizer(authorization), id, accountId, request.grants());
         return ApiResponse.success(null);
     }
 
@@ -111,6 +125,8 @@ class OrganizationController {
     record InvitationCode(@NotBlank @Size(min = 36, max = 36) String code) {}
 
     record MemberGrants(@NotNull Set<@NotNull OrganizationGrant> grants) {}
+
+    record MemberActivity(@NotNull Boolean active) {}
 
     record OrganizationId(UUID id) {}
 }

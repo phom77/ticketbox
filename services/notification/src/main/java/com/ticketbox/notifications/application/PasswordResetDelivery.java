@@ -29,6 +29,11 @@ public class PasswordResetDelivery {
 
     public void deliver() {
         if (origin == null) return;
+        deliverReset();
+        deliverOrganizerLink();
+    }
+
+    private void deliverReset() {
         try {
             var candidate = source.claim();
             if (candidate.isEmpty()) return;
@@ -45,6 +50,26 @@ public class PasswordResetDelivery {
             source.finish(message.id(), message.leaseId(), delivered);
         } catch (RuntimeException failure) {
             LOG.warn("Password recovery queue unavailable: {}", failure.getClass().getSimpleName());
+        }
+    }
+
+    private void deliverOrganizerLink() {
+        try {
+            var candidate = source.claimOrganizerLink();
+            if (candidate.isEmpty()) return;
+            var message = candidate.orElseThrow();
+            boolean delivered = false;
+            try {
+                String link = origin.resolve("/partner/activate#token=" + message.token()).toString();
+                var rendered = content.renderOrganizerLink(link);
+                mail.sendPlain(message.email(), rendered.subject(), rendered.body());
+                delivered = true;
+            } catch (Exception failure) {
+                LOG.warn("Organizer link delivery retained for retry: {}", failure.getClass().getSimpleName());
+            }
+            source.finishOrganizerLink(message.id(), message.leaseId(), delivered);
+        } catch (RuntimeException failure) {
+            LOG.warn("Organizer link queue unavailable: {}", failure.getClass().getSimpleName());
         }
     }
 

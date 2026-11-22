@@ -13,7 +13,7 @@ import { isRequestCanceled } from '../../api/client';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import type { UserRole } from '../../features/auth/AuthContext';
 
-const roles: UserRole[] = ['AUDIENCE', 'ORGANIZER', 'STAFF', 'ADMIN'];
+const roles: UserRole[] = ['STAFF', 'ADMIN'];
 
 function isUserActive(user: AdminUser) {
   return user.isActive ?? user.active;
@@ -95,9 +95,7 @@ export function AdminUsersPage() {
   return (
     <>
       <AdminPageHeader
-        eyebrow={translate("admin:adminUsersPage_chiDanhChoAdmin")}
-        title={translate("admin:adminUsersPage_quanLyNguoiDung")}
-        description={translate("admin:adminUsersPage_theoDoiTaiKhoanHeThongDoi")}
+        title={translate("shared:partnerInternalAccounts")}
         actions={
           <button
             className="admin-secondary-action"

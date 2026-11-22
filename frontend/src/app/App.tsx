@@ -6,7 +6,7 @@ import '../pages/public/Performances.css';
 import { translate } from '../i18n';
 import { useTranslation } from 'react-i18next';
 import { ReconciliationPage } from '../pages/organizer/ReconciliationPage';
-import { OrganizationProvider, RequireOrganizationGrant } from '../features/organizations/OrganizationProvider';
+import { OrganizationProvider, RequireOrganizationGrant, RequireOrganizationMembership } from '../features/organizations/OrganizationProvider';
 import { AdminOrganizationsPage } from '../pages/admin/AdminOrganizationsPage';
 import { OrganizationMembersPage } from '../pages/organizer/OrganizationMembersPage';
 import { lazy, Suspense, useLayoutEffect } from 'react';
@@ -23,6 +23,7 @@ import { AdminGuestImportsPage } from '../pages/admin/AdminGuestImportsPage';
 import { AdminNotificationsPage } from '../pages/admin/AdminNotificationsPage';
 import { AdminOrdersPage } from '../pages/admin/AdminOrdersPage';
 import { AdminOverviewPage } from '../pages/admin/AdminOverviewPage';
+import { AdminPublicationQueuePage } from '../pages/admin/AdminPublicationQueuePage';
 import { AdminTicketTypesPage } from '../pages/admin/AdminTicketTypesPage';
 import { AdminUsersPage } from '../pages/admin/AdminUsersPage';
 import { BookingConfirmationPage } from '../pages/customer/BookingConfirmationPage';
@@ -40,6 +41,7 @@ import { HomePage } from '../pages/public/HomePage';
 import { LoginPage } from '../pages/public/LoginPage';
 import { RequestPasswordResetPage, ResetPasswordPage } from '../pages/public/PasswordRecoveryPage';
 import { RegisterPage } from '../pages/public/RegisterPage';
+import { OrganizerApplicationPage, OrganizerActivationPage } from '../pages/public/OrganizerAccessPages';
 
 const audiencePage = (page: React.ReactNode) => (
   <ProtectedRoute allowedRoles={['AUDIENCE']} redirectUnauthorized>{page}</ProtectedRoute>
@@ -81,6 +83,8 @@ export function App() {
             <Route path="/forgot-password" element={<RequestPasswordResetPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/register" element={<RegisterPage />} />
+            <Route path="/partner/apply" element={<OrganizerApplicationPage />} />
+            <Route path="/partner/activate" element={<OrganizerActivationPage />} />
             <Route
               path="/admin"
               element={
@@ -92,6 +96,7 @@ export function App() {
               <Route index element={<AdminOverviewPage />} />
               <Route path="performance-operations" element={<PerformanceOperationsPage />} />
               <Route path="concerts" element={<AdminConcertsPage />} />
+              <Route path="event-review" element={<AdminPublicationQueuePage />} />
               <Route path="concerts/:id" element={<ConcertWorkspacePage />} />
               <Route path="artist-bio" element={<AdminArtistBioPage />} />
               <Route path="ticket-types" element={<AdminTicketTypesPage />} />
@@ -106,9 +111,9 @@ export function App() {
             <Route
               path="/organizer"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute allowedRoles={['ORGANIZER', 'ADMIN']} redirectUnauthorized>
                   <OrganizationProvider>
-                    <OperationsLayout mode="organizer" />
+                    <RequireOrganizationMembership><OperationsLayout mode="organizer" /></RequireOrganizationMembership>
                   </OrganizationProvider>
                 </ProtectedRoute>
               }

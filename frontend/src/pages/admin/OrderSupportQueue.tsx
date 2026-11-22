@@ -124,12 +124,9 @@ export function OrderSupportQueue() {
     <section className="admin-data-panel order-support-queue" aria-labelledby="order-support-queue-title">
       <header className="order-support-queue-header">
         <h2 id="order-support-queue-title" ref={heading} tabIndex={-1}>{translate("admin:orderSupportQueue_viecCanXuLy")}</h2>
-        <label>
-          <span>{translate("admin:orderSupportQueue_loaiNgoaiLe")}</span>
-          <WorkspaceSelect label={translate('admin:orderSupportQueue_loaiNgoaiLe')}
-            value={kind} onChange={(value) => selectCategory(value as SupportQueueKind)}
-            options={Object.entries(categories).map(([value, label]) => ({ value, label }))} />
-        </label>
+        <WorkspaceSelect className="order-support-queue-filter" label={translate('admin:orderSupportQueue_loaiNgoaiLe')}
+          value={kind} onChange={(value) => selectCategory(value as SupportQueueKind)}
+          options={Object.entries(categories).map(([value, label]) => ({ value, label }))} />
       </header>
       {activeFeedback && <p className={`admin-notice ${activeFeedback.failed ? 'error' : 'success'}`}
         role={activeFeedback.failed ? 'alert' : 'status'}>{activeFeedback.message}</p>}

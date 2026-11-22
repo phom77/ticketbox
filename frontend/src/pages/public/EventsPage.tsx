@@ -56,6 +56,7 @@ function EventDetailsPage({ id }: { id: string }) {
   const { user } = useAuth();
   const [event, setEvent] = useState<EventDetails | null>(null);
   const [failed, setFailed] = useState(false);
+  const [now, setNow] = useState(Date.now);
   useEffect(() => {
     const controller = new AbortController();
     getEvent(id, controller.signal).then((data) => {
@@ -65,6 +66,14 @@ function EventDetailsPage({ id }: { id: string }) {
     });
     return () => controller.abort();
   }, [id]);
+
+  useEffect(() => {
+    const next = event?.performances.flatMap((performance) => [Date.parse(performance.saleStartAt), Date.parse(performance.saleEndAt)])
+      .filter((boundary) => boundary > now).sort((first, second) => first - second)[0];
+    if (!next) return;
+    const timer = window.setTimeout(() => setNow(Date.now()), Math.min(Math.max(0, next - Date.now()), 2_147_483_647));
+    return () => window.clearTimeout(timer);
+  }, [event, now]);
 
   if (failed) return <section className="page-width performance-page"><p role="alert">{t('performances:loadFailed')}</p><Link to="/events">{t('performances:events')}</Link></section>;
   if (!event) return <p className="page-width performance-page" role="status">{t('performances:loading')}</p>;
@@ -78,7 +87,9 @@ function EventDetailsPage({ id }: { id: string }) {
       {event.performances.length === 0 && <p>{t('performances:noPerformances')}</p>}
       <ul className="performance-list">
         {event.performances.map((performance) => {
-          const saleClosed = performance.status !== 'ON_SALE' || performance.salesSuspended || Date.parse(performance.saleEndAt) <= Date.now();
+          const saleClosed = performance.status !== 'ON_SALE' || performance.salesSuspended || Date.parse(performance.saleEndAt) <= now;
+          const opensAt = Date.parse(performance.saleStartAt);
+          const comingSoon = !saleClosed && opensAt > now;
           const canBuy = !user || user.role === 'AUDIENCE';
           const base = performance.legacyConcertId
             ? '/concerts/' + encodeURIComponent(performance.legacyConcertId)
@@ -90,7 +101,8 @@ function EventDetailsPage({ id }: { id: string }) {
                 <p><time dateTime={performance.startsAt}>{performanceTime(performance)}</time></p>
               </div>
               {saleClosed ? <span>{t('performances:saleClosed')}</span>
-                : canBuy && <Link className="button button-primary" to={base + '/waiting-room'}>{t('performances:buy')}</Link>}
+                : comingSoon ? <span>{t('public:homePage_sapMoBan')} · {performanceTime({ ...performance, startsAt: performance.saleStartAt })}</span>
+                  : canBuy && <Link className="button button-primary" to={base + '/waiting-room'}>{t('performances:buy')}</Link>}
             </li>
           );
         })}

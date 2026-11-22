@@ -13,7 +13,7 @@ public interface OrganizationStore {
 
     record Membership(UUID id, String name, Set<OrganizationGrant> grants) {}
 
-    record Member(UUID accountId, Set<OrganizationGrant> grants, boolean active) {}
+    record Member(UUID accountId, Set<OrganizationGrant> grants, boolean active, String email, String fullName, String role) {}
 
     record Invitation(UUID organizationId, UUID accountId, Set<OrganizationGrant> grants,
                       Instant expiresAt, boolean consumed) {}
