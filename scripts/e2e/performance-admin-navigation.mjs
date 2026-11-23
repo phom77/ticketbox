@@ -1,4 +1,3 @@
-import { selectWorkspaceOption } from './select-workspace-option.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { chromium } from 'playwright';
@@ -8,7 +7,6 @@ assert.ok(['localhost', '127.0.0.1'].includes(new URL(baseURL).hostname), 'Use a
 const browser = await chromium.launch();
 const context = await browser.newContext({ baseURL, locale: 'en-US', viewport: { width: 1440, height: 900 } });
 const run = randomUUID().slice(0, 8);
-const settings = 'Concert workspace';
 
 async function api(path, data, { token, organization, method = 'POST' } = {}) {
   const response = await context.request.fetch(path, {
@@ -24,18 +22,14 @@ async function api(path, data, { token, organization, method = 'POST' } = {}) {
 }
 
 try {
-  const platform = await api('/api/auth/login', { email: 'admin@ticketbox.com', password: 'password123' });
-  const credentials = { email: 'seat-admin-' + run + '@example.test', password: 'local-seat-admin-password-32' };
-  const account = await api('/api/auth/register', { ...credentials, fullName: 'Seating administrator' });
-  await api('/api/admin/users/' + account.id + '/role', { role: 'ADMIN' }, {
-    method: 'PUT', token: platform.accessToken,
-  });
-  const admin = await api('/api/auth/login', credentials);
-  const foreign = await api('/api/admin/organizations', {
-    name: 'Other seating organization ' + run, initialManagerId: platform.user.id,
-  }, { token: platform.accessToken });
+  const admin = await api('/api/auth/login', { email: 'admin@ticketbox.com', password: 'password123' });
+  const organizer = await api('/api/auth/login', { email: 'organizer@ticketbox.com', password: 'password123' });
+  assert.deepEqual(await api('/api/organizations', undefined, { token: admin.accessToken, method: 'GET' }), []);
+  const owner = await api('/api/admin/organizations', {
+    name: 'Seat editor ' + run, initialManagerId: organizer.user.id,
+  }, { token: admin.accessToken });
   const denied = await context.request.get('/api/organizer/manage/v2/events', {
-    headers: { Authorization: 'Bearer ' + admin.accessToken, 'X-Organization-Id': foreign.id },
+    headers: { Authorization: 'Bearer ' + admin.accessToken, 'X-Organization-Id': owner.id },
   });
   assert.equal(denied.status(), 403);
   await context.addCookies([{ name: 'ticketbox_auth_token', value: admin.accessToken, url: baseURL }]);
@@ -43,28 +37,34 @@ try {
   const page = await context.newPage();
   page.setDefaultTimeout(10_000);
   await page.goto('/admin/ticket-types');
-  await page.locator('.admin-page-actions').getByRole('link', { name: settings }).click();
-  await page.getByRole('heading', { name: 'Event access required' }).waitFor();
-  await page.getByRole('link', { name: 'Manage organizations' }).click();
-  const organization = page.locator('section').filter({ has: page.getByRole('button', { name: 'Approve organization', exact: true }) });
-  const organizationName = 'Seat editor ' + run;
-  await organization.getByLabel('Organization name').fill(organizationName);
-  await organization.getByRole('button', { name: 'Use my account ID' }).click();
-  assert.equal(await organization.getByLabel('Manager account ID', { exact: true }).inputValue(), account.id);
-  await organization.getByRole('button', { name: 'Approve organization', exact: true }).click();
-  await page.getByRole('listitem').filter({ hasText: organizationName }).waitFor();
+  const concertNavigation = page.getByRole('navigation', { name: 'Concert navigation' });
+  await concertNavigation.getByRole('link', { name: 'All concerts', exact: true }).waitFor();
+  await page.locator('.admin-page-actions').getByRole('link', { name: 'Concert workspace' }).click();
+  await page.waitForURL('**/admin/concerts');
+  await concertNavigation.getByRole('link', { name: 'Event review', exact: true }).click();
+  await page.waitForURL('**/admin/event-review');
+  await concertNavigation.getByRole('link', { name: 'Performance operations', exact: true }).click();
+  await page.waitForURL('**/admin/performance-operations');
+  await page.goBack();
+  await page.waitForURL('**/admin/event-review');
+  await concertNavigation.getByRole('link', { name: 'Event review', exact: true })
+    .and(concertNavigation.locator('[aria-current="page"]')).waitFor();
+  await page.getByRole('navigation', { name: 'Management navigation' }).getByRole('link', { name: 'Organizations', exact: true }).click();
+  await page.waitForURL('**/admin/organizations');
 
-  await page.locator('.operations-nav').getByRole('link', { name: settings }).click();
+  await context.addCookies([{ name: 'ticketbox_auth_token', value: organizer.accessToken, url: baseURL }]);
+  await page.addInitScript(({ accountId, organizationId }) => sessionStorage.setItem(`ticketbox.organization.${accountId}`, organizationId),
+    { accountId: organizer.user.id, organizationId: owner.id });
+  await page.goto('/organizer/events');
   await page.getByRole('heading', { name: 'Your events', exact: true }).waitFor();
   const title = 'Seating event ' + run;
-  await page.getByRole('link', { name: 'Create concert' }).click();
+  await concertNavigation.getByRole('link', { name: 'Create concert' }).click();
   await page.getByLabel('Title', { exact: true }).fill(title);
   await page.getByRole('button', { name: 'Save and continue' }).click();
   await page.getByRole('heading', { name: title, exact: true }).waitFor();
   const eventPath = new URL(page.url()).pathname;
   const eventId = eventPath.split('/').at(-1);
-  const owner = await api('/api/organizations', undefined, { method: 'GET', token: admin.accessToken });
-  const manage = { token: admin.accessToken, organization: owner.find((entry) => entry.name === organizationName).id };
+  const manage = { token: organizer.accessToken, organization: owner.id };
   const venue = await api('/api/organizer/manage/v2/venues', { name: 'Fixture hall', address: 'Test street', spaceName: 'Hall' }, manage);
   const date = (hours) => new Date(Date.now() + hours * 3_600_000).toISOString();
   await api('/api/organizer/manage/v2/events/' + eventId + '/performances', {
@@ -78,19 +78,7 @@ try {
   await canvas.getByText('Import or reuse a map', { exact: true }).click();
   await canvas.getByLabel('Import interactive SVG').waitFor();
 
-  const invitation = await api('/api/organizations/' + foreign.id + '/invitations', {
-    accountId: account.id, grants: ['FINANCE'],
-  }, { token: platform.accessToken, organization: foreign.id });
-  await api('/api/organizations/invitations/accept', { code: invitation.code }, { token: admin.accessToken });
-  await page.reload();
-  await selectWorkspaceOption(page.getByLabel('Active organization'), { value: foreign.id });
-  await page.goto('/organizer/events');
-  await page.getByRole('heading', { name: 'Event access required' }).waitFor();
-  await page.getByRole('button', { name: organizationName, exact: true }).click();
-  await page.getByRole('heading', { name: 'Your events', exact: true }).waitFor();
-  await page.getByRole('link', { name: new RegExp(title) }).waitFor();
-
-  console.log('Platform navigation exposes concert management after explicit organization access. Cross-organization requests stay denied.');
+  console.log('Platform concert links stay in Admin without an organization. Organizer concert management requires organization access.');
 } finally {
   await browser.close();
 }

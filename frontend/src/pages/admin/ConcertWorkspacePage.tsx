@@ -41,6 +41,7 @@ import {
 import type { ConcertDetail } from '../../api/concerts';
 import { isRequestCanceled } from '../../api/client';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
+import { useOperationsConcert } from '../../components/layout/operationsConcertNavigation';
 import { useToast } from '../../components/feedback/toast-context';
 import { EventDisruptionPanel } from './EventDisruptionPanel';
 
@@ -176,6 +177,26 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
   const [guestImporting, setGuestImporting] = useState(false);
   const [activeGuestImportId, setActiveGuestImportId] = useState('');
 
+  const concertNavigation = useMemo(() => {
+    if (!concert) return null;
+    const root = managementRoot(apiScope);
+    return {
+      title: concert.title,
+      concertId: concert.id,
+      links: tabs.map((item) => {
+        const query = new URLSearchParams(searchParams);
+        if (item.id === 'overview') query.delete('tab');
+        else query.set('tab', item.id);
+        return {
+          to: `${root}/concerts/${concert.id}${query.size ? `?${query}` : ''}`,
+          get label() { return item.label; },
+          current: item.id === parseWorkspaceTab(searchParams.get('tab')),
+        };
+      }),
+    };
+  }, [apiScope, concert, searchParams]);
+  useOperationsConcert(concertNavigation);
+
   useEffect(() => {
     const nextTab = parseWorkspaceTab(searchParams.get('tab'));
     setTab((current) => (current === nextTab ? current : nextTab));
@@ -187,7 +208,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
       const nextParams = new URLSearchParams(searchParams);
       if (nextTab === 'overview') nextParams.delete('tab');
       else nextParams.set('tab', nextTab);
-      setSearchParams(nextParams, { replace: true });
+      setSearchParams(nextParams, { preventScrollReset: true });
     },
     [searchParams, setSearchParams],
   );
