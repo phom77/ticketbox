@@ -62,6 +62,8 @@ export function ConcertDirectoryPage({ scope }: { scope: ManagementApiScope }) {
 
   const loaded = result?.key === searchKey ? result : undefined;
   const listing = loaded?.data;
+  const filtered = Boolean(query || status || organizationId || page);
+  const firstOrganizerConcert = scope === 'organizer' && !filtered;
   const byId = new Map(organizations.map(({ id, name }) => [id, name]));
   const title = scope === 'admin' ? t('concert-directory:title') : t('performances:eventList');
   const path = `/${scope}/events`;
@@ -119,9 +121,10 @@ export function ConcertDirectoryPage({ scope }: { scope: ManagementApiScope }) {
       <p role="alert">{loaded.error || t('requestFailed')}</p>
       <button className="admin-secondary-action" type="button" onClick={() => setRetry((value) => value + 1)}>{t('performances:refresh')}</button>
     </section>}
-    {listing && !listing.content.length && <section className="admin-empty-state">
-      <h2>{t('concert-directory:empty')}</h2>
-      {(parameters.size > 0) && <Link className="admin-secondary-action" to={path}>{t('concert-directory:clearFilters')}</Link>}
+    {listing && !listing.content.length && <section className="admin-empty-state concert-directory-empty">
+      <h2>{t(firstOrganizerConcert ? 'performances:noManagedEvents' : 'concert-directory:empty')}</h2>
+      {firstOrganizerConcert && <p>{t('performances:noManagedEventsHelp')}</p>}
+      {filtered && <Link className="admin-secondary-action" to={path}>{t('concert-directory:clearFilters')}</Link>}
     </section>}
     {listing && listing.content.length > 0 && <div className="admin-table-wrap" role="region" aria-label={title} tabIndex={0}>
       <table className="admin-table concert-directory-table">
@@ -149,7 +152,7 @@ export function ConcertDirectoryPage({ scope }: { scope: ManagementApiScope }) {
         </tr>)}</tbody>
       </table>
     </div>}
-    {listing && <DirectoryPagination path={path} parameters={parameters} page={listing} />}
+    {listing && (listing.totalElements > 0 || page > 0) && <DirectoryPagination path={path} parameters={parameters} page={listing} />}
   </>;
 }
 

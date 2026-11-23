@@ -6,6 +6,7 @@ import { decidePerformanceReview, type PerformanceReview } from '../../api/perfo
 import type { ReviewDecision } from '../../api/publication';
 import { WorkspaceSelect } from '../../components/WorkspaceSelect';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
+import { useToast } from '../../components/feedback/toast-context';
 import { dateFormatter, numberFormatter } from '../../data/formatters';
 import { DirectoryPagination } from '../operations/ConcertDirectoryPage';
 
@@ -121,6 +122,7 @@ function PerformanceReviewSummary({ row, initiallyOpen, onChange }: {
 
 function PerformanceReviewItem({ row, onChange }: { row: PerformanceReview; onChange: () => void }) {
   const { t } = useTranslation();
+  const toast = useToast();
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -130,7 +132,8 @@ function PerformanceReviewItem({ row, onChange }: { row: PerformanceReview; onCh
     setBusy(true);
     setError('');
     try {
-      await decidePerformanceReview(row.performanceId, row.id, action, reason);
+      const updated = await decidePerformanceReview(row.performanceId, row.id, action, reason);
+      toast.success(t('concert-directory:reviewSaved', { state: t(`shared:release_${updated.state}`) }));
       onChange();
       setReason('');
     } catch (failure) {

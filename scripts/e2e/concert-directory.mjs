@@ -23,7 +23,7 @@ const row = {
 const pageOf = (content) => ({ content, totalElements: content.length, totalPages: 1, number: 0, size: 20 });
 const browser = await chromium.launch();
 
-async function session(role) {
+async function session(role, { empty = false } = {}) {
   const context = await browser.newContext({ baseURL, locale: 'en-US', viewport: { width: 1440, height: 900 } });
   const user = { id: 'ba1f50be-9db1-4bb4-9135-b94bad4490fd', role, email: 'fixture@example.test', fullName: 'Fixture User' };
   const payload = Buffer.from(JSON.stringify({ ...user, sub: user.id, exp: Date.now() / 1000 + 300 })).toString('base64url');
@@ -35,7 +35,8 @@ async function session(role) {
     if (pathname === '/api/auth/me') data = user;
     else if (pathname === '/api/organizations' || pathname === '/api/admin/organizations') data = [organization];
     else if (pathname === '/api/admin/v2/events' || pathname === '/api/organizer/manage/v2/event-directory') {
-      data = pageOf(url.searchParams.get('status') === 'CHANGES_REQUESTED' ? [event] : [event, legacy]);
+      data = pageOf(empty || url.searchParams.get('query') ? []
+        : url.searchParams.get('status') === 'CHANGES_REQUESTED' ? [event] : [event, legacy]);
     } else if (pathname === '/api/admin/v2/events/' + event.id) data = { ...event, performances: [row] };
     else return route.fulfill({ status: 404, json: { message: 'Unexpected fixture request ' + pathname } });
     return route.fulfill({ json: { code: 200, data } });
@@ -71,6 +72,15 @@ try {
   await organizer.goto('/organizer/events');
   assert.equal(await organizer.locator('main').getByRole('link', { name: 'Legacy Concert', exact: true }).getAttribute('href'),
     '/organizer/concerts/' + legacy.legacyConcertId);
+  await organizer.getByRole('searchbox', { name: 'Search concerts' }).fill('No matching title');
+  await organizer.getByRole('button', { name: 'Apply', exact: true }).click();
+  await organizer.getByRole('heading', { name: 'No matching concerts', exact: true }).waitFor();
+  await organizer.getByRole('link', { name: 'Clear filters' }).click();
+  await organizer.locator('main').getByRole('link', { name: 'Legacy Concert', exact: true }).waitFor();
+  const newOrganization = await session('ORGANIZER', { empty: true });
+  await newOrganization.goto('/organizer/events');
+  await newOrganization.getByRole('heading', { name: 'No concerts yet', exact: true }).waitFor();
+  await newOrganization.locator('main').getByRole('link', { name: 'Create concert', exact: true }).waitFor();
   console.log('Concert directory preserves workspace, owner, review and legacy destinations.');
 } finally {
   await browser.close();

@@ -22,5 +22,6 @@
   "publicationMissing": "No review submitted",
   "selectPerformance": "Select performance",
   "chooseApprovedOwner": "Select an approved organization or TicketBox.",
+  "reviewSaved": "Decision saved · {{state}}",
   "createdFor": "Draft created for {{organization}}."
 }

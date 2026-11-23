@@ -22,5 +22,6 @@
   "publicationMissing": "Chưa gửi duyệt",
   "selectPerformance": "Chọn suất diễn",
   "chooseApprovedOwner": "Chọn một tổ chức đã duyệt hoặc TicketBox.",
+  "reviewSaved": "Đã lưu quyết định · {{state}}",
   "createdFor": "Đã tạo bản nháp cho {{organization}}."
 }
