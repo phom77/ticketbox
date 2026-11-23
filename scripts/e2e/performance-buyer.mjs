@@ -18,6 +18,8 @@ const event = {
   id: eventId, title: 'River Tour', description: 'Two performances',
   performances: [night('first', 'Studio One'), night('second', 'Studio Two')],
 };
+const eventUrl = '/events/' + eventId;
+const performanceUrl = eventUrl + '/performances/second';
 const sectionId = 'balcony';
 const order = {
   id: 'seat-order', concertId: 'second', concertTitle: event.title, eventId, performanceId: 'second',
@@ -40,6 +42,8 @@ try {
   await context.tracing.start({ screenshots: true, snapshots: true });
   page.setDefaultTimeout(12_000);
   let detailReads = 0;
+  let admit = false;
+  const legacyPerformanceReads = [];
   let hold = { version: 0, expiresAt: null, items: [], totalAmount: 0 };
   await page.route('**/*', async (route) => {
     const url = new URL(route.request().url());
@@ -60,9 +64,12 @@ try {
       return send({ ...event.performances[0], title: 'Legacy River Show', eventDate: future(1440), ticketTypes: [] });
     }
     if (path === '/api/concerts/first/ticket-types') return send([]);
+    if (path.startsWith('/api/concerts/second')) legacyPerformanceReads.push(path);
     if (path === '/api/queue/concerts/second/join') {
+      if (!admit) return send({ status: 'WAITING', position: 1500, pollAfterMs: 60_000 });
       return send({ status: 'ADMITTED', queueAccessToken: 'seat-token', sessionExpiresAt: future(10) });
     }
+    if (path === '/api/queue/concerts/second/leave') return send({ status: 'LEFT' });
     if (path === '/api/v2/performances/second/layout') {
       return send(null, 503);
     }
@@ -99,8 +106,18 @@ try {
     await page.getByRole('heading', { name: 'River Tour', exact: true }).waitFor();
     assert.equal(await page.getByText('Studio One', { exact: true }).count(), 1);
     assert.equal(await page.getByText('Studio Two', { exact: true }).count(), 1);
-    await page.getByRole('link', { name: 'Buy tickets' }).nth(1).click();
+    const buy = page.getByRole('link', { name: 'Buy tickets' }).nth(1);
+    await buy.click();
+    await page.waitForURL('**' + performanceUrl + '/waiting-room');
+    await page.getByRole('heading', { name: 'River Tour', exact: true }).waitFor();
+    await page.getByText(/Studio Two/).waitFor();
+    await page.getByRole('button', { name: 'Leave the queue' }).click();
+    await page.waitForURL('**' + eventUrl);
+    admit = true;
+    await buy.click();
+    await page.waitForURL('**' + performanceUrl + '/seats');
     await page.getByRole('heading', { name: 'Choose tickets', exact: true }).waitFor();
+    assert.deepEqual(legacyPerformanceReads, [], 'Native performances never load legacy concert data.');
     assert.equal(detailReads, 0, 'Initial load must avoid seat detail requests');
     await page.getByRole('button', { name: 'Balcony' }).focus();
     await page.keyboard.press('Enter');
