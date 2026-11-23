@@ -2,8 +2,8 @@
 
 ## 1. Điều hướng hai cấp và ranh giới workspace
 
-- [ ] 1.1 Tổ chức sidebar chính và sidebar Concert theo vai trò bằng khung hiện có. Nhóm các route Admin đã có dưới Concert và đưa mục đang trỏ sang Organizer về đích Admin. Kiểm tra Enter, Space, chỉ báo trang hiện tại, thu gọn, thứ tự focus và bố cục ở desktop, tablet, điện thoại, zoom, sáng/tối và tiếng Việt/Anh bằng các bài kiểm tra workspace hiện có.
-- [ ] 1.2 Giữ liên kết cũ đến chi tiết concert, xem trước, hạng vé, khách mời, lịch sử import, duyệt và vận hành. Kiểm tra Admin không có membership vẫn mở được khu vực đúng quyền. Kiểm tra Organizer thiếu `EVENTS`, hai tổ chức khác quyền, URL trực tiếp và Back/Forward với bộ lọc hoặc tab giữ nguyên. Cập nhật `performance-admin-navigation.mjs`, `organization-workspace.mjs` và `operations-appearance.mjs` theo yêu cầu thay đổi.
+- [x] 1.1 Tổ chức sidebar chính và sidebar Concert theo vai trò bằng khung hiện có. Nhóm các route Admin đã có dưới Concert và đưa mục đang trỏ sang Organizer về đích Admin. Kiểm tra Enter, Space, chỉ báo trang hiện tại, thu gọn, thứ tự focus và bố cục ở desktop, tablet, điện thoại, zoom, sáng/tối và tiếng Việt/Anh bằng các bài kiểm tra workspace hiện có.
+- [x] 1.2 Giữ liên kết cũ đến chi tiết concert, xem trước, hạng vé, khách mời, lịch sử import, duyệt và vận hành. Kiểm tra Admin không có membership vẫn mở được khu vực đúng quyền. Kiểm tra Organizer thiếu `EVENTS`, hai tổ chức khác quyền, URL trực tiếp và Back/Forward với bộ lọc hoặc tab giữ nguyên. Cập nhật `performance-admin-navigation.mjs`, `organization-workspace.mjs` và `operations-appearance.mjs` theo yêu cầu thay đổi.
 
 ## 2. Hợp đồng đọc theo phạm vi
 
@@ -12,8 +12,8 @@
 
 ## 3. Danh sách Concert và luồng tác nghiệp
 
-- [ ] 3.1 Nối danh sách và chi tiết thống nhất trong Admin với dữ liệu Catalog. Đặt thông tin chủ sở hữu, duyệt, vận hành và các công cụ có sẵn trong đúng ngữ cảnh. Kiểm tra browser từ danh sách đến bản ghi mới và cũ, đến hàng chờ duyệt và đến xử lý sự cố của một suất mà URL vẫn ở `/admin`.
-- [ ] 3.2 Nối các điểm vào tạo chính của Organizer tới luồng có hướng dẫn và dùng chung danh sách Concert cho bản ghi cũ và mới. Kiểm tra tạo nháp hai suất, mở lại để tiếp tục, mở concert cũ và đổi suất không mất ngữ cảnh. Kiểm tra Tạo sự kiện hộ trong Admin với tổ chức đã chọn và xác nhận bản nháp vẫn xuất hiện trong đúng tổ chức và theo chính sách duyệt hiện có. Mở rộng bài kiểm tra `performance-organizer.mjs` và `performance-admin-navigation.mjs`.
+- [x] 3.1 Nối danh sách và chi tiết thống nhất trong Admin với dữ liệu Catalog. Đặt thông tin chủ sở hữu, duyệt, vận hành và các công cụ có sẵn trong đúng ngữ cảnh. Kiểm tra browser từ danh sách đến bản ghi mới và cũ, đến hàng chờ duyệt và đến xử lý sự cố của một suất mà URL vẫn ở `/admin`.
+- [x] 3.2 Nối các điểm vào tạo chính của Organizer tới luồng có hướng dẫn và dùng chung danh sách Concert cho bản ghi cũ và mới. Kiểm tra tạo nháp hai suất, mở lại để tiếp tục, mở concert cũ và đổi suất không mất ngữ cảnh. Kiểm tra Tạo sự kiện hộ trong Admin với tổ chức đã chọn và xác nhận bản nháp vẫn xuất hiện trong đúng tổ chức và theo chính sách duyệt hiện có. Mở rộng bài kiểm tra `performance-organizer.mjs` và `performance-admin-navigation.mjs`.
 
 ## 4. Trang Báo cáo chi tiết
 
@@ -27,7 +27,14 @@
 
 ## 6. Nghiệm thu tích hợp
 
-- [ ] 6.1 Chạy `npm --prefix frontend run lint` và `npm --prefix frontend run build`. Chạy các kịch bản workspace, giao diện, Organizer, vận hành Admin và báo cáo bằng Chromium trên stack cô lập. Xác nhận hai vai trò đi được trọn vòng tạo concert nhiều suất, yêu cầu sửa một suất, gửi lại và duyệt, rồi mở đúng báo cáo theo phạm vi. Chạy `openspec validate redesign-operations-workspaces --type change --strict` và ghi kết quả kiểm tra cùng các giới hạn còn lại.
+- [x] 6.1 Chạy `npm --prefix frontend run lint` và `npm --prefix frontend run build`. Chạy các kịch bản workspace, giao diện, Organizer, vận hành Admin và báo cáo bằng Chromium trên stack cô lập. Xác nhận hai vai trò đi được trọn vòng tạo concert nhiều suất, yêu cầu sửa một suất, gửi lại và duyệt, rồi mở đúng báo cáo theo phạm vi. Chạy `openspec validate redesign-operations-workspaces --type change --strict` và ghi kết quả kiểm tra cùng các giới hạn còn lại.
+
+## Kết quả kiểm tra
+
+- Catalog clean verify bằng Java 21 qua 55 test. Gate build độc lập, kiểm tra quyền sở hữu JAR, cấu hình Nginx và kiểm tra OpenSpec strict đều qua.
+- Frontend lint, build và 21 unit test qua. Vite vẫn cảnh báo kích thước bundle JavaScript.
+- Chromium trên stack Docker cô lập qua các luồng giao diện, quyền và đổi tổ chức, tạo hộ, vận hành Admin và hai suất diễn. Suất thứ hai được yêu cầu chỉnh sửa, gửi lại, duyệt, kiểm tra phát hành và mở báo cáo theo cả hai phạm vi. Tình huống mua vé hồi quy dùng MOCK payment.
+- Các bài Chromium cho dashboard, danh sách, hỗ trợ đơn và báo cáo dùng phản hồi giả lập để kiểm phân trang, lỗi và retry. Quyền đọc và tải CSV/PDF tài chính được kiểm riêng qua API Ticketing trên stack cô lập.
 
 ## Commit triển khai
 

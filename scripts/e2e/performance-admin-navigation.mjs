@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { chromium } from 'playwright';
+import { selectWorkspaceOption } from './select-workspace-option.mjs';
 
 const baseURL = process.env.TICKETBOX_E2E_URL ?? 'http://localhost:18105';
 assert.ok(['localhost', '127.0.0.1'].includes(new URL(baseURL).hostname), 'Use an isolated loopback deployment');
@@ -25,8 +26,9 @@ try {
   const admin = await api('/api/auth/login', { email: 'admin@ticketbox.com', password: 'password123' });
   const organizer = await api('/api/auth/login', { email: 'organizer@ticketbox.com', password: 'password123' });
   assert.deepEqual(await api('/api/organizations', undefined, { token: admin.accessToken, method: 'GET' }), []);
+  const organizationName = 'Seat editor ' + run;
   const owner = await api('/api/admin/organizations', {
-    name: 'Seat editor ' + run, initialManagerId: organizer.user.id,
+    name: organizationName, initialManagerId: organizer.user.id,
   }, { token: admin.accessToken });
   const denied = await context.request.get('/api/organizer/manage/v2/events', {
     headers: { Authorization: 'Bearer ' + admin.accessToken, 'X-Organization-Id': owner.id },
@@ -51,12 +53,32 @@ try {
     .and(concertNavigation.locator('[aria-current="page"]')).waitFor();
   await page.getByRole('navigation', { name: 'Management navigation' }).getByRole('link', { name: 'Organizations', exact: true }).click();
   await page.waitForURL('**/admin/organizations');
+  await selectWorkspaceOption(page.getByRole('combobox', { name: 'Organization', exact: true }), { label: organizationName });
+  await page.locator('main').getByRole('link', { name: 'Create event for a partner', exact: true }).click();
+  const draft = page.getByRole('dialog', { name: 'Create event', exact: true });
+  await draft.getByRole('combobox', { name: 'Owning organization' }).getByText(organizationName, { exact: true }).waitFor();
+  const assistedTitle = 'Partner concert ' + run;
+  const localTime = (hours) => new Date(Date.now() + (hours + 7) * 3_600_000).toISOString().slice(0, 16);
+  await draft.getByRole('group', { name: 'English', exact: true }).getByLabel('Event title').fill(assistedTitle);
+  await draft.getByLabel('Event date and time').fill(localTime(48));
+  await draft.getByLabel('Sales start').fill(localTime(1));
+  await draft.getByLabel('Venue', { exact: true }).fill('Fixture hall');
+  await draft.getByLabel('Address', { exact: true }).fill('Test street');
+  const saved = page.waitForResponse(response =>
+    new URL(response.url()).pathname === '/api/admin/concerts' && response.request().method() === 'POST');
+  await draft.getByRole('button', { name: 'Create draft' }).click();
+  const savedResponse = await saved;
+  assert.equal(savedResponse.status(), 201, await savedResponse.text());
+  const assisted = (await savedResponse.json()).data;
 
   await context.addCookies([{ name: 'ticketbox_auth_token', value: organizer.accessToken, url: baseURL }]);
   await page.addInitScript(({ accountId, organizationId }) => sessionStorage.setItem(`ticketbox.organization.${accountId}`, organizationId),
     { accountId: organizer.user.id, organizationId: owner.id });
   await page.goto('/organizer/events');
   await page.getByRole('heading', { name: 'Your events', exact: true }).waitFor();
+  const assistedLink = page.locator('main').getByRole('link', { name: assistedTitle, exact: true });
+  await assistedLink.waitFor();
+  assert.equal(await assistedLink.getAttribute('href'), '/organizer/concerts/' + assisted.id);
   const title = 'Seating event ' + run;
   await concertNavigation.getByRole('link', { name: 'Create concert' }).click();
   await page.getByLabel('Title', { exact: true }).fill(title);

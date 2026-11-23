@@ -1,18 +1,28 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 
+function isolatedProject() {
+  const project = process.env.E2E_PROJECT ?? 'ticketbox-e2e-seating';
+  assert.match(project, /^ticketbox-e2e(?:-[a-z0-9-]+)?$/);
+  return project;
+}
+
 export async function approvePerformanceReview(request, adminToken, submission, { openSale = false } = {}) {
   const review = submission.review;
   assert.equal(review.state, 'SUBMITTED');
   for (const id of [review.id, review.performanceId]) assert.match(id, /^[0-9a-f-]{36}$/i);
-  const project = process.env.E2E_PROJECT ?? 'ticketbox-e2e-seating';
-  assert.match(project, /^ticketbox-e2e(?:-[a-z0-9-]+)?$/);
+  isolatedProject();
   const decision = await request.post('/api/admin/v2/performance-reviews/' + review.performanceId, {
     headers: { Authorization: 'Bearer ' + adminToken },
     data: { revision: review.id, action: 'APPROVE' },
   });
   assert.ok(decision.ok(), await decision.text());
+  advanceApprovedPerformanceReview(review, { openSale });
+}
 
+export function advanceApprovedPerformanceReview(review, { openSale = false } = {}) {
+  for (const id of [review.id, review.performanceId]) assert.match(id, /^[0-9a-f-]{36}$/i);
+  const project = isolatedProject();
   // Advance the isolated fixture without waiting for a real scheduled sale.
   const sale = openSale ? `
     UPDATE performances SET sale_start_at=now()-interval '1 minute' WHERE id='${review.performanceId}';
@@ -24,6 +34,11 @@ export async function approvePerformanceReview(request, adminToken, submission, 
 }
 
 export async function submitPerformanceReview(region, request, adminToken, options) {
+  const submission = await submitReviewFromPage(region);
+  await approvePerformanceReview(request, adminToken, submission, options);
+}
+
+export async function submitReviewFromPage(region) {
   const release = region.getByLabel('Public release time (ICT)', { exact: true });
   assert.equal(await release.inputValue(), '');
   const local = new Date(Date.now() + 7 * 3600000 + 10 * 60000).toISOString().slice(0, 16);
@@ -33,5 +48,5 @@ export async function submitPerformanceReview(region, request, adminToken, optio
   await region.getByRole('button', { name: 'Submit for review', exact: true }).click();
   const submitted = await response;
   assert.ok(submitted.ok(), await submitted.text());
-  await approvePerformanceReview(request, adminToken, (await submitted.json()).data, options);
+  return (await submitted.json()).data;
 }

@@ -160,6 +160,21 @@ python3 scripts/e2e/performance-arena.py
 node scripts/e2e/performance-arena-browser.mjs
 ```
 
+With the updated gateway and the same isolated fixture running, verify the Admin and Organizer workspaces.
+
+```sh
+export TICKETBOX_E2E_URL=http://127.0.0.1:18105
+node scripts/e2e/operations-appearance.mjs
+node scripts/e2e/performance-admin-navigation.mjs
+node scripts/e2e/performance-admin-operations.mjs
+node scripts/e2e/concert-directory.mjs
+node scripts/e2e/operations-reports.mjs
+TICKETBOX_DASHBOARD_URL="$TICKETBOX_E2E_URL" node scripts/e2e/operations-dashboard.mjs
+TICKETBOX_E2E_LIVE_URL="$TICKETBOX_E2E_URL" node scripts/e2e/operations-reports.mjs --live
+```
+
+The directory, report and dashboard browser fixtures intercept API responses to exercise paging, recovery and organization changes. The live report test checks Ticketing's finance read and export permissions with a fixture organization. The performance organizer journey above exercises creation, correction, approval and reporting against the running services.
+
 Use `E2E_COMPOSE_OVERRIDE` if the isolated project uses additional Compose files. Run the basic split journey before the restore rehearsal. If the report directory contains fresh output from `performance-sales.py`, restore also verifies the V2 write mode and paid-order replay against the copied databases. Recreate Catalog with an empty publication allowlist to close publication of new shows. Existing pilot shows can disable offers through a sale revision while confirmed quotes expire. A show released through scheduled review keeps its approved offer terms. Use the performance operations workspace for a disruption affecting an open sale.
 
 The organizer supports interactive SVG maps with a `viewBox` and section groups marked with `data-code` and `data-kind` (`GA` or `ASSIGNED`). Use a polygon for the section outline. An assigned seating section contains groups marked `data-row`, each containing seat groups marked `data-seat` with circular coordinates (`cx`, `cy`). The seat assignment rehearsal contains portable examples. PNG and JPEG remain available as floor-plan backgrounds for drawing layout geometry. After saving the geometry, use Seat assignment to choose a section, add a seated ticket type and assign its seats.

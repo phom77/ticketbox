@@ -96,6 +96,17 @@ try {
   await page.getByRole('option', { name: 'English', exact: true }).click();
   await language.waitFor();
 
+  await page.goto('/organizer/events');
+  const organization = page.getByRole('combobox', { name: 'Active organization' });
+  for (const width of [1151, 1200]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.getByRole('navigation', { name: 'Concert navigation' }).waitFor();
+    const [organizationBox, languageBox] = await Promise.all([organization.boundingBox(), language.boundingBox()]);
+    assert.ok(organizationBox && languageBox && organizationBox.x + organizationBox.width <= languageBox.x,
+      `Organization and language controls overlap at ${width}px`);
+  }
+  await page.setViewportSize({ width: 1440, height: 1000 });
+
   await useSession(admin.accessToken);
   await page.goto('/admin');
   const concert = page.getByRole('button', { name: 'Concert', exact: true });
