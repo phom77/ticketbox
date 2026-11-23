@@ -13,6 +13,15 @@ Open http://localhost:18091. Docker builds the images from source with its bundl
 
 Copy `.env.example` to `.env` only when overriding demo defaults. If changing the public address/port, also update `APP_PUBLIC_URL`, `APP_ALLOWED_ORIGINS` and the provider return URLs. `docker compose logs -f identity catalog ticketing checkin payment notification` shows application logs; `docker compose down` stops the deployment and retains volumes.
 
+To create private Organizer application links locally, configure Identity's signing key first. If there is no `.env` file yet, generate a key and start or recreate Identity.
+
+```sh
+(umask 077; set -C; printf 'PASSWORD_RESET_KEY=%s\n' "$(openssl rand -hex 32)" > .env)
+docker compose up -d --no-deps identity
+```
+
+For an existing `.env`, set its `PASSWORD_RESET_KEY` entry to a generated value and run the Identity command above. Keep that value on subsequent runs. An empty key prevents link creation. Organizer activation email is queued after the application is approved.
+
 The SMTP sink accepts email locally without forwarding it. Its private HTTP endpoint `http://smtp:8080/stats` reports accepted message/PDF counts. MoMo/VNPAY require merchant credentials and publicly reachable signed callbacks; local MOCK checkout requires neither.
 
 For a separate staging deployment, set `TICKETBOX_PAYMENT_PROFILE=staging` for the shared Payment and Ticketing profiles. Use the staging secret store for `VNPAY_TMN_CODE` and `VNPAY_HASH_SECRET`. Set `VNPAY_PAY_URL` and `VNPAY_QUERY_URL` to the merchant's sandbox endpoints. Set `VNPAY_RETURN_URL` and `VNPAY_IPN_URL` to the staging HTTPS origin at `/payment/result` and `/api/payments/webhooks/vnpay`, and register the IPN with the merchant. Confirm `GET /api/payments/providers` returns only `VNPAY` as a buyer before running the checkout. The provider list is empty until the VNPAY settings pass readiness checks.
