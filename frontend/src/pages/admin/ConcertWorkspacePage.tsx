@@ -44,6 +44,7 @@ import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { useOperationsConcert } from '../../components/layout/operationsConcertNavigation';
 import { useToast } from '../../components/feedback/toast-context';
 import { EventDisruptionPanel } from './EventDisruptionPanel';
+import { reportReturnPath } from '../../features/operations/reportReturn';
 
 type WorkspaceTab = 'overview' | 'details' | 'tickets' | 'guests' | 'operations' | 'artist';
 
@@ -497,6 +498,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
     );
 
   const root = managementRoot(apiScope);
+  const reportBack = reportReturnPath(searchParams.get('returnTo'), apiScope);
 
   return (
     <>
@@ -504,9 +506,11 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
         title={concert.title}
         description={`${concert.venueName} · ${dateTime.format(new Date(concert.eventDate))}`}
         actions={
-          <span className={`admin-status status-${concert.status.toLowerCase()}`}>
+          <>{reportBack && <Link className="admin-secondary-action" to={reportBack}>
+            {translate('shared:operationsReports')}
+          </Link>}<span className={`admin-status status-${concert.status.toLowerCase()}`}>
             {workspaceStatus[concert.status]}
-          </span>
+          </span></>
         }
       />
 

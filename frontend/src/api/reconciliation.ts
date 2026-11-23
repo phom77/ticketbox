@@ -57,6 +57,6 @@ export function getReconciliation(scope: ManagementApiScope, filter: Reconciliat
   return apiGet<ReconciliationReport>(`/api/${scope}/reconciliation?${params}`, signal);
 }
 
-export function downloadReconciliation(scope: ManagementApiScope, filter: ReconciliationFilters) {
-  return api.get<unknown, Blob>(`/api/${scope}/reconciliation/export?${query(scope, filter)}`, { responseType: 'blob' });
+export function downloadReconciliation(scope: ManagementApiScope, filter: ReconciliationFilters, signal?: AbortSignal) {
+  return api.get<unknown, Blob>(`/api/${scope}/reconciliation/export?${query(scope, filter)}`, { responseType: 'blob', signal });
 }

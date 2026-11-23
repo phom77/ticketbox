@@ -6,7 +6,6 @@ import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, typ
 import {
   ArrowLeft,
   BarChart3,
-  Bell,
   CalendarDays,
   ChevronDown,
   ChevronRight,
@@ -67,10 +66,9 @@ function usesDrawer() {
 const adminNavigation: NavigationItem[] = [
   { to: '/admin', get label() { return translate('shared:operationsLayout_tongQuan'); }, icon: BarChart3, end: true },
   { to: '/admin/orders', get label() { return translate('shared:operationsOrdersSupport'); }, icon: Receipt },
-  { to: '/admin/reconciliation', get label() { return translate('shared:operationsReports'); }, icon: BarChart3 },
+  { to: '/admin/reports', get label() { return translate('shared:operationsReports'); }, icon: BarChart3 },
   { to: '/admin/organizations', get label() { return translate("shared:operationsLayout_toChuc"); }, icon: Users },
-  { to: '/admin/users', get label() { return translate('shared:operationsSettings'); }, icon: Settings },
-  { to: '/admin/notifications', get label() { return translate('shared:operationsLayout_thongBao'); }, icon: Bell },
+  { to: '/admin/settings', get label() { return translate('shared:operationsSettings'); }, icon: Settings },
 ];
 
 const staffNavigation: NavigationItem[] = [
@@ -82,9 +80,7 @@ const staffNavigation: NavigationItem[] = [
 
 const organizerNavigation: NavigationItem[] = [
   { to: '/organizer', get label() { return translate('shared:operationsLayout_tongQuan'); }, icon: BarChart3, end: true },
-  { to: '/organizer/reconciliation', grant: 'FINANCE', get label() { return translate('shared:operationsReports'); }, icon: BarChart3 },
-  { to: '/organizer/orders', grant: 'FINANCE', get label() { return translate("shared:operationsLayout_donHangVe"); }, icon: Receipt },
-  { to: '/organizer/revenue', grant: 'FINANCE', get label() { return translate('shared:operationsLayout_revenue'); }, icon: BarChart3 },
+  { to: '/organizer/reports', get label() { return translate('shared:operationsReports'); }, icon: BarChart3 },
   { to: '/organizer/members', grant: 'MEMBERS', get label() { return translate("shared:operationsLayout_thanhVien"); }, icon: UserCog },
 ];
 
@@ -125,7 +121,9 @@ export function OperationsLayout({ mode }: { mode: 'admin' | 'organizer' | 'staf
     mode === 'admin'
       ? adminNavigation
       : mode === 'organizer'
-        ? organizerNavigation.filter((item) => !item.grant || organization?.selected?.grants.includes(item.grant))
+        ? organizerNavigation.filter((item) => item.to === '/organizer/reports'
+          ? organization?.selected?.grants.some((grant) => grant === 'EVENTS' || grant === 'FINANCE')
+          : !item.grant || organization?.selected?.grants.includes(item.grant))
         : staffNavigation;
   const workspaceHome =
     mode === 'admin' ? '/admin' : mode === 'organizer' ? '/organizer' : '/staff';
@@ -238,6 +236,14 @@ export function OperationsLayout({ mode }: { mode: 'admin' | 'organizer' | 'staf
     : pathname === create;
   const review = '/admin/event-review';
   const performanceOperations = '/admin/performance-operations';
+  const reportParameters = new URLSearchParams(location.search);
+  reportParameters.delete('returnTo');
+  const reportQuery = activeConcert && new URLSearchParams({
+    returnTo: pathname + (reportParameters.size ? '?' + reportParameters : ''),
+    ...(activeConcert.eventId ? { eventId: activeConcert.eventId } : {}),
+    ...(activeConcert.performanceId ? { performanceId: activeConcert.performanceId } : {}),
+    ...(activeConcert.concertId ? { concertId: activeConcert.concertId } : {}),
+  });
   const concertSidebar = canOpenConcert && <aside
     id="operations-concert-navigation"
     className="operations-concert-sidebar"
@@ -249,7 +255,9 @@ export function OperationsLayout({ mode }: { mode: 'admin' | 'organizer' | 'staf
       </button>
       : <p className="operations-concert-title">{translate('shared:operationsConcert')}</p>}
     <nav className="operations-nav" aria-label={translate('shared:operationsConcertNavigation')}>
-      <Link to={allConcerts} aria-current={!creating && (pathname === allConcerts || (isAdmin && pathname === legacyConcerts)) ? 'page' : undefined} onClick={closeDrawerOnNavigation}>
+      <Link to={allConcerts}
+        aria-current={!creating && (pathname === allConcerts || (isAdmin && pathname === legacyConcerts)) ? 'page' : undefined}
+        onClick={closeDrawerOnNavigation}>
         <CalendarDays aria-hidden size={18} /><span>{translate('shared:operationsAllConcerts')}</span>
       </Link>
       {isAdmin && <>
@@ -263,9 +271,15 @@ export function OperationsLayout({ mode }: { mode: 'admin' | 'organizer' | 'staf
         <p>{activeConcert.title}</p>
         {activeConcert.links.map((link) => <Link key={link.to} to={link.to} state={link.state} aria-current={link.current ? 'page' : undefined}
           onClick={(event) => {
-            link.onClick?.(event);
+            if (isPlainLinkClick(event)) link.onClick?.(event);
             closeDrawerOnNavigation(event);
           }}>{link.label}</Link>)}
+        {reportQuery && <Link to={workspaceHome + '/reports?' + reportQuery} onClick={(event) => {
+          if (isPlainLinkClick(event) && activeConcert.canLeave && !activeConcert.canLeave()) event.preventDefault();
+          closeDrawerOnNavigation(event);
+        }}>
+          {translate('concert-directory:openReport')}
+        </Link>}
       </div>}
     </nav>
   </aside>;
@@ -311,8 +325,19 @@ export function OperationsLayout({ mode }: { mode: 'admin' | 'organizer' | 'staf
                 label={translate('shared:operationsLayout_toChucDangLamViec')}
                 value={organization.selected?.id ?? ''}
                 onChange={(id) => {
+                  const destination = organization.memberships.find((entry) => entry.id === id);
+                  if (!destination || id === organization.selected?.id) return;
                   organization.choose(id);
-                  navigate('/organizer');
+                  const reportRoute = ['/organizer/reports', '/organizer/reconciliation', '/organizer/revenue'].includes(pathname);
+                  if (!reportRoute || !destination.grants.some((grant) => grant === 'EVENTS' || grant === 'FINANCE')) {
+                    navigate('/organizer', { replace: true });
+                    return;
+                  }
+                  const currentView = pathname === '/organizer/reconciliation' ? 'reconciliation'
+                    : pathname === '/organizer/revenue' ? 'revenue' : new URLSearchParams(location.search).get('view');
+                  const view = currentView === 'reconciliation' || currentView === 'revenue' || currentView === 'operations'
+                    ? currentView : '';
+                  navigate('/organizer/reports' + (view ? '?' + new URLSearchParams({ view }) : ''), { replace: true });
                 }}
                 options={organization.memberships.map(({ id, name }) => ({ value: id, label: name }))}
                 disabled={organization.loading}

@@ -1,10 +1,10 @@
 import { dateFormatter, numberFormatter } from '../../data/formatters';
 import { translate } from '../../i18n';
 import { useTranslation } from 'react-i18next';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Download, FileSpreadsheet, RefreshCw, TrendingUp } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { isRequestCanceled } from '../../api/client';
+import { ApiClientError, isRequestCanceled } from '../../api/client';
 import {
   exportRevenueReport,
   getOrganizerRevenueConcerts,
@@ -33,7 +33,7 @@ const displayDate = dateFormatter({
   timeZone: REPORTING_TIME_ZONE,
 });
 
-export function OrganizerRevenuePage() {
+export function OrganizerRevenuePage({ embedded = false }: { embedded?: boolean } = {}) {
   useTranslation();
   const toast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -50,10 +50,19 @@ export function OrganizerRevenuePage() {
   const [draftTo, setDraftTo] = useState('');
   const [dateError, setDateError] = useState('');
   const [exporting, setExporting] = useState<'csv' | 'pdf' | null>(null);
+  const [accessDenied, setAccessDenied] = useState(false);
+  const exportRequest = useRef<AbortController | null>(null);
 
   const selectedConcertId = searchParams.get('concertId') ?? '';
   const from = searchParams.get('from') ?? '';
   const to = searchParams.get('to') ?? '';
+
+  useLayoutEffect(() => () => {
+    exportRequest.current?.abort();
+    exportRequest.current = null;
+  }, [selectedConcertId]);
+
+  useEffect(() => setExporting(null), [selectedConcertId]);
   const selectedConcert = useMemo(
     () => concerts.find((concert) => concert.id === selectedConcertId) ?? null,
     [concerts, selectedConcertId],
@@ -64,9 +73,10 @@ export function OrganizerRevenuePage() {
     setLoadingConcerts(true);
     setConcertsError('');
     getOrganizerRevenueConcerts(controller.signal)
-      .then((page) => setConcerts(page.content))
+      .then((page) => { if (!controller.signal.aborted) setConcerts(page.content); })
       .catch((requestError: unknown) => {
-        if (!isRequestCanceled(requestError)) {
+        if (!controller.signal.aborted && !isRequestCanceled(requestError)) {
+          if (requestError instanceof ApiClientError && requestError.status === 403) setAccessDenied(true);
           setConcertsError(
             requestError instanceof Error
               ? requestError.message
@@ -82,15 +92,21 @@ export function OrganizerRevenuePage() {
 
   useEffect(() => {
     if (!concerts.length) return;
-    const concert = concerts.find((item) => item.id === selectedConcertId) ?? concerts[0];
+    const activeConcert = concerts.find((item) => item.id === selectedConcertId);
+    if (embedded && selectedConcertId && !activeConcert) return;
+    const concert = activeConcert ?? concerts[0];
     const defaults = defaultRange(concert.eventDate);
     const validRange = isValidDate(from) && isValidDate(to) && from <= to;
     const nextFrom = validRange ? from : defaults.from;
     const nextTo = validRange ? to : defaults.to;
     if (concert.id !== selectedConcertId || from !== nextFrom || to !== nextTo) {
-      setSearchParams({ concertId: concert.id, from: nextFrom, to: nextTo }, { replace: true });
+      setSearchParams((current) => ({
+        ...(embedded ? { view: 'revenue' } : {}),
+        concertId: concert.id, from: nextFrom, to: nextTo,
+        ...(current.has('returnTo') ? { returnTo: current.get('returnTo') ?? '' } : {}),
+      }), { replace: true });
     }
-  }, [concerts, from, selectedConcertId, setSearchParams, to]);
+  }, [concerts, embedded, from, selectedConcertId, setSearchParams, to]);
 
   useEffect(() => {
     setDraftFrom(from);
@@ -109,12 +125,14 @@ export function OrganizerRevenuePage() {
       getSalesTrend(selectedConcert.id, from, to, controller.signal),
     ])
       .then(([nextSummary, nextZones, nextTrend]) => {
+        if (controller.signal.aborted) return;
         setSummary(nextSummary);
         setZones(nextZones);
         setTrend(nextTrend);
       })
       .catch((requestError: unknown) => {
-        if (!isRequestCanceled(requestError)) {
+        if (!controller.signal.aborted && !isRequestCanceled(requestError)) {
+          if (requestError instanceof ApiClientError && requestError.status === 403) setAccessDenied(true);
           setSummary(null);
           setZones([]);
           setTrend([]);
@@ -135,7 +153,7 @@ export function OrganizerRevenuePage() {
     const concert = concerts.find((item) => item.id === concertId);
     if (!concert) return;
     const range = defaultRange(concert.eventDate);
-    setSearchParams({ concertId, from: range.from, to: range.to });
+    setReportParams(concertId, range.from, range.to);
   }
 
   function applyDateRange(event: React.FormEvent) {
@@ -149,14 +167,26 @@ export function OrganizerRevenuePage() {
       return;
     }
     setDateError('');
-    setSearchParams({ concertId: selectedConcertId, from: draftFrom, to: draftTo });
+    setReportParams(selectedConcertId, draftFrom, draftTo);
+  }
+
+  function setReportParams(concertId: string, from: string, to: string) {
+    const params = new URLSearchParams(searchParams);
+    params.set('concertId', concertId);
+    params.set('from', from);
+    params.set('to', to);
+    setSearchParams(params);
   }
 
   async function download(format: 'csv' | 'pdf') {
     if (!selectedConcert) return;
+    const controller = new AbortController();
+    exportRequest.current?.abort();
+    exportRequest.current = controller;
     setExporting(format);
     try {
-      const blob = await exportRevenueReport(selectedConcert.id, format);
+      const blob = await exportRevenueReport(selectedConcert.id, format, controller.signal);
+      if (controller.signal.aborted) return;
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
@@ -166,11 +196,23 @@ export function OrganizerRevenuePage() {
       anchor.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (requestError) {
+      if (controller.signal.aborted) return;
+      if (requestError instanceof ApiClientError && requestError.status === 403) {
+        setAccessDenied(true);
+        return;
+      }
       toast.error(requestError instanceof Error ? requestError.message : translate("organizer:organizerRevenuePage_khongTheTaiBaoCao"));
     } finally {
-      setExporting(null);
+      if (!controller.signal.aborted) setExporting(null);
     }
   }
+
+  if (accessDenied) return (
+    <div className="workspace-records-panel operations-report-message">
+      <p role="alert">{translate('operations-reports:financeAccess')}</p>
+      <Link to="/organizer" className="admin-secondary-action">{translate('operations-reports:backToDashboard')}</Link>
+    </div>
+  );
 
   if (loadingConcerts) return <RevenuePageSkeleton />;
 
@@ -197,42 +239,35 @@ export function OrganizerRevenuePage() {
         <TrendingUp aria-hidden="true" size={30} />
         <h3>{translate("organizer:organizerRevenuePage_chuaCoConcertHoanThanh")}</h3>
         <p>{translate("organizer:organizerRevenuePage_baoCaoDoanhThuChiKhaDung")}</p>
-        <Link className="button button-secondary" to="/organizer/concerts">
-          {translate("organizer:organizerRevenuePage_quanLyConcert")}
+        <Link className="button button-secondary" to={embedded ? "/organizer" : "/organizer/concerts"}>
+          {translate(embedded ? "operations-reports:backToDashboard" : "organizer:organizerRevenuePage_quanLyConcert")}
         </Link>
       </div>
     );
   }
 
+  const title = translate('organizer:organizerRevenuePage_baoCaoDoanhThu');
+  const actions = (
+    <div className="revenue-export-actions">
+      <button className="admin-secondary-action" type="button" disabled={summary?.concertId !== selectedConcertId || exporting !== null}
+        onClick={() => void download('csv')}>
+        <FileSpreadsheet aria-hidden size={16} />
+        {exporting === 'csv' ? translate('organizer:organizerRevenuePage_dangXuat') : translate('organizer:organizerRevenuePage_xuatCsv')}
+      </button>
+      <button className="admin-primary-action" type="button" disabled={summary?.concertId !== selectedConcertId || exporting !== null}
+        onClick={() => void download('pdf')}>
+        <Download aria-hidden size={16} />
+        {exporting === 'pdf' ? translate('organizer:organizerRevenuePage_dangXuat') : translate('organizer:organizerRevenuePage_xuatPdf')}
+      </button>
+    </div>
+  );
   return (
     <>
-      <AdminPageHeader
-        title={translate("organizer:organizerRevenuePage_baoCaoDoanhThu")}
-        actions={
-          <div className="revenue-export-actions">
-            <button
-              className="admin-secondary-action"
-              type="button"
-              disabled={!summary || exporting !== null}
-              onClick={() => void download('csv')}
-            >
-              <FileSpreadsheet aria-hidden="true" size={16} />
-              {exporting === 'csv' ? translate("organizer:organizerRevenuePage_dangXuat") : translate("organizer:organizerRevenuePage_xuatCsv")}
-            </button>
-            <button
-              className="admin-primary-action"
-              type="button"
-              disabled={!summary || exporting !== null}
-              onClick={() => void download('pdf')}
-            >
-              <Download aria-hidden="true" size={16} />
-              {exporting === 'pdf' ? translate("organizer:organizerRevenuePage_dangXuat") : translate("organizer:organizerRevenuePage_xuatPdf")}
-            </button>
-          </div>
-        }
-      />
-
+      {embedded
+        ? <header className="workspace-records-header"><h2>{title}</h2>{actions}</header>
+        : <AdminPageHeader title={title} actions={actions} />}
       <section className="revenue-filter-panel" aria-label={translate("organizer:organizerRevenuePage_boLocBaoCao")}>
+        <p className="workspace-records-field-note">{translate('operations-reports:revenuePeriod')}</p>
         <ConcertPicker
           concerts={concerts}
           value={selectedConcertId}
@@ -260,7 +295,7 @@ export function OrganizerRevenuePage() {
           <button
             className="admin-secondary-action"
             type="submit"
-            disabled={!draftFrom || !draftTo || loadingReport}
+            disabled={!selectedConcert || !draftFrom || !draftTo || loadingReport}
           >
             {translate("organizer:organizerRevenuePage_apDung")}
           </button>
@@ -277,7 +312,9 @@ export function OrganizerRevenuePage() {
         ) : null}
       </section>
 
-      {reportError ? (
+      {selectedConcertId && !selectedConcert ? (
+        <p className="workspace-records-field-note" role="status">{translate('operations-reports:revenueUnavailableConcert')}</p>
+      ) : reportError ? (
         <div className="state-panel organizer-revenue-state" role="alert">
           <TrendingUp aria-hidden="true" size={30} />
           <h3>{translate("organizer:organizerRevenuePage_khongTheTaiDuLieuDoanhThu")}</h3>
@@ -290,7 +327,7 @@ export function OrganizerRevenuePage() {
             <RefreshCw size={16} /> {translate("organizer:organizerRevenuePage_thuLai")}
           </button>
         </div>
-      ) : loadingReport || !summary ? (
+      ) : loadingReport || !summary || summary.concertId !== selectedConcertId ? (
         <ReportSkeleton />
       ) : (
         <RevenueReport summary={summary} zones={zones} trend={trend} />

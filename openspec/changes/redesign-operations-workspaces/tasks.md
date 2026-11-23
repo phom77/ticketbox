@@ -17,8 +17,8 @@
 
 ## 4. Trang Báo cáo chi tiết
 
-- [ ] 4.1 Dựng báo cáo Vận hành cho Admin và Organizer có `EVENTS`, với bộ lọc URL, tổng, bảng phân trang, mở chi tiết và quay về đúng concert hoặc suất. Kiểm tra hành trình từ concert, tải lại, kỳ sai, trạng thái trống, dữ liệu chưa đồng bộ và tổng khớp khi đi qua nhiều trang.
-- [ ] 4.2 Tích hợp Đối soát và Doanh thu hiện có theo quyền. Kiểm tên và mốc tính của từng chỉ số, phạm vi của bộ lọc ngày, mẫu CSV cùng bộ lọc Đối soát và nhãn phạm vi toàn concert cho CSV/PDF Doanh thu. Kiểm URL cũ, quyền xuất qua API trực tiếp và báo cáo tài chính sau khi đổi tổ chức.
+- [x] 4.1 Dựng báo cáo Vận hành cho Admin và Organizer có `EVENTS`, với bộ lọc URL, tổng, bảng phân trang, mở chi tiết và quay về đúng concert hoặc suất. Kiểm tra hành trình từ concert, tải lại, kỳ sai, trạng thái trống, dữ liệu chưa đồng bộ và tổng khớp khi đi qua nhiều trang.
+- [x] 4.2 Tích hợp Đối soát và Doanh thu hiện có theo quyền. Kiểm tên và mốc tính của từng chỉ số, phạm vi của bộ lọc ngày, mẫu CSV cùng bộ lọc Đối soát và nhãn phạm vi toàn concert cho CSV/PDF Doanh thu. Kiểm URL cũ, quyền xuất qua API trực tiếp và báo cáo tài chính sau khi đổi tổ chức.
 
 ## 5. Dashboard theo vai trò
 

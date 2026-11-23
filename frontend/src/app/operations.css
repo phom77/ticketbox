@@ -28,6 +28,7 @@
   --ops-sidebar-active: #284675;
   --ops-surface-shadow: 0 12px 32px rgb(16 24 40 / .14);
   --ops-gutter: clamp(1.25rem, 2vw, 2.25rem);
+  grid-template-columns: 13.75rem minmax(0, 1fr);
   background: var(--ink);
   color: var(--cream);
   font-family: Manrope, sans-serif;
@@ -251,6 +252,7 @@
 .operations-shell .operations-sidebar-footer { border-color: var(--ops-sidebar-line); }
 
 .operations-shell .operations-context { min-width: 0; }
+.operations-shell .organization-context { flex: 0 1 min(28vw, 23rem); }
 .operations-shell .operations-context > .operations-context-caption,
 .operations-shell .operations-account small {
   color: var(--muted);
@@ -272,7 +274,7 @@
 }
 
 .operations-language-select { width: 8.25rem; }
-.operations-organization-select { width: min(28vw, 23rem); }
+.operations-organization-select { width: 100%; min-width: 0; }
 
 .operations-theme-toggle {
   display: grid;
