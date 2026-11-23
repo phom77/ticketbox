@@ -141,10 +141,12 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
   const [error, setError] = useState('');
   const [editing, setEditing] = useState<ConcertDetail | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ConcertDetail | null>(null);
-  const [formOpen, setFormOpen] = useState(searchParams.get('create') === '1');
+  const creatingFromLink = searchParams.get('create') === '1';
+  const requestedOwner = creatingFromLink && apiScope === 'admin' ? searchParams.get('organizationId') ?? '' : '';
+  const [formOpen, setFormOpen] = useState(creatingFromLink);
   const [form, setForm] = useState<ConcertFormState>(emptyForm);
   const [organizations, setOrganizations] = useState<ApprovedOrganization[]>([]);
-  const [owner, setOwner] = useState('');
+  const [owner, setOwner] = useState(requestedOwner);
   const [organizationsError, setOrganizationsError] = useState('');
   const [posterFile, setPosterFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
@@ -213,14 +215,17 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
   }, [apiScope, pageData?.content]);
 
   useEffect(() => {
-    if (searchParams.get('create') === '1') {
+    if (creatingFromLink) {
       setEditing(null);
       setForm(emptyForm);
+      setOwner(requestedOwner);
       setFormOpen(true);
     }
-  }, [searchParams]);
+  }, [creatingFromLink, requestedOwner]);
 
   const filteredConcerts = pageData?.content ?? [];
+  const ownerName = owner ? organizations.find((organization) => organization.id === owner)?.name : 'TicketBox';
+  const canSaveOwner = apiScope !== 'admin' || Boolean(editing || ownerName);
   const availableTransitions = (concert: ConcertDetail) => transitions[concert.status].filter(
     (next) => apiScope === 'admin' || next !== 'CANCELLED',
   );
@@ -248,6 +253,7 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
 
   async function submitForm(event: FormEvent) {
     event.preventDefault();
+    if (!canSaveOwner) return;
     setSaving(true);
     try {
       const payload = toPayload(form);
@@ -270,9 +276,9 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
         }
       }
 
-      toast.success(
-        editing ? translate("admin:adminConcertsPage_daCapNhatConcert") : translate("admin:adminConcertsPage_daTaoConcertOTrangThaiBan"),
-      );
+      toast.success(editing ? translate("admin:adminConcertsPage_daCapNhatConcert")
+        : apiScope === 'admin' ? translate('concert-directory:createdFor', { organization: ownerName })
+          : translate("admin:adminConcertsPage_daTaoConcertOTrangThaiBan"));
       closeForm();
       await loadConcerts();
     } catch (requestError) {
@@ -568,6 +574,7 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
           form={form}
           editing={editing}
           saving={saving}
+          canSave={canSaveOwner}
           removingPoster={removingPoster}
           posterFile={posterFile}
           onChange={setForm}
@@ -577,12 +584,9 @@ export function AdminConcertsPage({ apiScope = 'admin' }: { apiScope?: Managemen
           onSubmit={submitForm}
           ownerField={apiScope === 'admin' && !editing ? (
             <label className="admin-field admin-field-wide">{translate("shared:partnerAssistedOwner")}
-              <select value={owner} onChange={(event) => setOwner(event.target.value)}>
-                <option value="">TicketBox</option>
-                {organizations.map((organization) => (
-                  <option key={organization.id} value={organization.id}>{organization.name}</option>
-                ))}
-              </select>
+              <WorkspaceSelect label={translate("shared:partnerAssistedOwner")} value={owner} onChange={setOwner}
+                options={[{ value: '', label: 'TicketBox' }, ...organizations.map(({ id, name }) => ({ value: id, label: name }))]} />
+              {!canSaveOwner && <small>{translate('concert-directory:chooseApprovedOwner')}</small>}
               {organizationsError ? <span role="alert">{organizationsError}</span> : null}
             </label>
           ) : null}
@@ -618,6 +622,7 @@ function ConcertForm({
   form,
   editing,
   saving,
+  canSave,
   removingPoster,
   posterFile,
   onChange,
@@ -630,6 +635,7 @@ function ConcertForm({
   form: ConcertFormState;
   editing: ConcertDetail | null;
   saving: boolean;
+  canSave: boolean;
   removingPoster: boolean;
   posterFile: File | null;
   onChange: (form: ConcertFormState) => void;
@@ -825,7 +831,7 @@ function ConcertForm({
             <button className="admin-secondary-action" type="button" onClick={onClose}>
               {translate("admin:adminConcertsPage_huy")}
             </button>
-            <button className="admin-primary-action" type="submit" disabled={saving}>
+            <button className="admin-primary-action" type="submit" disabled={saving || !canSave}>
               {saving ? translate("admin:adminConcertsPage_dangLuu") : editing ? translate("admin:adminConcertsPage_luuThayDoi") : translate("admin:adminConcertsPage_taoBanNhap")}
             </button>
           </footer>

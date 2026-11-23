@@ -231,7 +231,7 @@ export function OperationsLayout({ mode }: { mode: 'admin' | 'organizer' | 'staf
 
   const isAdmin = mode === 'admin';
   const legacyConcerts = '/admin/concerts';
-  const allConcerts = isAdmin ? legacyConcerts : '/organizer/events';
+  const allConcerts = isAdmin ? '/admin/events' : '/organizer/events';
   const create = isAdmin ? `${legacyConcerts}?create=1` : '/organizer/events/new';
   const creating = isAdmin
     ? pathname === legacyConcerts && new URLSearchParams(location.search).get('create') === '1'
@@ -249,7 +249,7 @@ export function OperationsLayout({ mode }: { mode: 'admin' | 'organizer' | 'staf
       </button>
       : <p className="operations-concert-title">{translate('shared:operationsConcert')}</p>}
     <nav className="operations-nav" aria-label={translate('shared:operationsConcertNavigation')}>
-      <Link to={allConcerts} aria-current={pathname === allConcerts && !creating ? 'page' : undefined} onClick={closeDrawerOnNavigation}>
+      <Link to={allConcerts} aria-current={!creating && (pathname === allConcerts || (isAdmin && pathname === legacyConcerts)) ? 'page' : undefined} onClick={closeDrawerOnNavigation}>
         <CalendarDays aria-hidden size={18} /><span>{translate('shared:operationsAllConcerts')}</span>
       </Link>
       {isAdmin && <>

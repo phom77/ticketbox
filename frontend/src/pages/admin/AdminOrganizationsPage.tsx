@@ -1,6 +1,7 @@
 import { WorkspaceSelect } from '../../components/WorkspaceSelect';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 import {
   approveOrganizerApplication, createPartnerLink, getApprovedOrganizations, getOrganizerApplications,
   getPlatformOrganizationMembers, getPlatformOrganizationInvites, migrateOrganizationMember, recoverOrganizationManager,
@@ -116,6 +117,10 @@ export function AdminOrganizationsPage() {
           onChange={(id) => { setMembers([]); setInvites([]); setMigration(''); setReplacement(''); setSelected(id); }} />
       </label>
       {selected ? <>
+        <Link className="admin-secondary-action"
+          to={'/admin/concerts?' + new URLSearchParams({ create: '1', organizationId: selected })}>
+          {t('shared:partnerCreateAssisted')}
+        </Link>
         <ul className="organization-list">{members.map((member) => <li key={member.accountId}>
           <strong>{member.fullName}</strong> · {member.email}{' '}
           {member.role === 'AUDIENCE' ? <button type="button" className="admin-secondary-action" onClick={() => {

@@ -7,6 +7,7 @@ export type OperationsConcert = {
   concertId?: string;
   eventId?: string;
   performanceId?: string;
+  canLeave?: () => boolean;
   links: readonly {
     to: string;
     label: string;

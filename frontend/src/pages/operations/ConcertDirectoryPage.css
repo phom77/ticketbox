@@ -1,0 +1,53 @@
+.concert-directory-filters,
+.concert-directory-filters form,
+.concert-directory-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.75rem;
+}
+
+.concert-directory-filters {
+  margin-block: 1rem;
+}
+
+.concert-directory-filters > .admin-field,
+.concert-directory-filters form {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.concert-directory-filters form > .admin-field {
+  min-width: min(11rem, 100%);
+  flex: 1;
+}
+
+.concert-directory-table td {
+  overflow-wrap: anywhere;
+}
+
+.concert-directory-table td:first-child {
+  min-width: 11rem;
+}
+
+.concert-directory-pagination {
+  align-items: center;
+  margin-block: 1rem;
+}
+
+.concert-directory-pagination span {
+  margin-inline-end: auto;
+}
+
+.concert-directory-detail {
+  display: grid;
+  gap: 1rem;
+}
+
+.concert-directory-detail .admin-data-panel {
+  min-width: 0;
+}
+
+.concert-directory-detail .admin-field {
+  width: min(100%, 28rem);
+}

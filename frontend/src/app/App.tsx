@@ -1,5 +1,7 @@
 import { PerformanceOperationsPage } from '../pages/admin/PerformanceOperationsPage';
-import { NewPerformanceEventPage, PerformanceEventAccess, PerformanceEventPage, PerformanceEventsPage } from '../pages/organizer/PerformanceEventsPage';
+import { NewPerformanceEventPage, PerformanceEventAccess, PerformanceEventPage } from '../pages/organizer/PerformanceEventsPage';
+import { ConcertDirectoryPage } from '../pages/operations/ConcertDirectoryPage';
+import { AdminEventWorkspacePage } from '../pages/admin/AdminEventWorkspacePage';
 import { EventPage, EventsPage } from '../pages/public/EventsPage';
 import { PerformanceSelectionPage } from '../pages/customer/PerformanceSelectionPage';
 import '../pages/public/Performances.css';
@@ -94,6 +96,8 @@ export function App() {
               }
             >
               <Route index element={<AdminOverviewPage />} />
+              <Route path="events" element={<ConcertDirectoryPage scope="admin" />} />
+              <Route path="events/:eventId" element={<AdminEventWorkspacePage />} />
               <Route path="performance-operations" element={<PerformanceOperationsPage />} />
               <Route path="concerts" element={<AdminConcertsPage />} />
               <Route path="event-review" element={<AdminPublicationQueuePage />} />
@@ -119,7 +123,7 @@ export function App() {
               }
             >
               <Route index element={<OrganizerOverviewPage />} />
-              <Route path="events" element={<PerformanceEventAccess><PerformanceEventsPage /></PerformanceEventAccess>} />
+              <Route path="events" element={<PerformanceEventAccess><ConcertDirectoryPage scope="organizer" /></PerformanceEventAccess>} />
               <Route path="events/new" element={<PerformanceEventAccess><NewPerformanceEventPage /></PerformanceEventAccess>} />
               <Route path="events/:eventId" element={<PerformanceEventAccess><PerformanceEventPage /></PerformanceEventAccess>} />
               <Route path="concerts" element={<RequireOrganizationGrant grant="EVENTS"><AdminConcertsPage apiScope="organizer" /></RequireOrganizationGrant>} />

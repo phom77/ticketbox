@@ -40,7 +40,7 @@ try {
   const concertNavigation = page.getByRole('navigation', { name: 'Concert navigation' });
   await concertNavigation.getByRole('link', { name: 'All concerts', exact: true }).waitFor();
   await page.locator('.admin-page-actions').getByRole('link', { name: 'Concert workspace' }).click();
-  await page.waitForURL('**/admin/concerts');
+  await page.waitForURL('**/admin/events');
   await concertNavigation.getByRole('link', { name: 'Event review', exact: true }).click();
   await page.waitForURL('**/admin/event-review');
   await concertNavigation.getByRole('link', { name: 'Performance operations', exact: true }).click();
