@@ -54,10 +54,18 @@ type FilterOption = keyof typeof discoveryOptions;
 export type DiscoveryFilters = { q: string; from: string; to: string } & { [K in FilterOption]: keyof typeof discoveryOptions[K] };
 
 export type DiscoveryConcert = ConcertSummary & {
+  performance?: { eventId: string; salesSuspended: boolean };
   city?: Exclude<DiscoveryFilters['city'], ''>;
   category?: Exclude<DiscoveryFilters['category'], ''>;
   price?: number;
 };
+
+export function discoverySaleState(concert: DiscoveryConcert, now: number) {
+  const state = concertSaleState(concert, now);
+  if (!concert.performance || state === 'cancelled') return state;
+  if (concert.performance.salesSuspended) return 'closed';
+  return state === 'waiting-room' ? 'upcoming' : state;
+}
 
 const legacyStatus: Record<string, DiscoveryFilters['status']> = {
   ON_SALE: 'on-sale',
@@ -132,7 +140,7 @@ export function filterConcerts(concerts: DiscoveryConcert[], filters: DiscoveryF
   const to = Date.parse(filters.to + 'T00:00:00Z');
   const queryWords = searchable(filters.q).split(' ').filter(Boolean);
 
-  return concerts.filter((concert) => {
+  const matches = concerts.filter((concert) => {
     if (concert.status === 'DRAFT') return false;
     const eventDate = Date.parse(concert.eventDate);
     if (filters.date) {
@@ -147,7 +155,7 @@ export function filterConcerts(concerts: DiscoveryConcert[], filters: DiscoveryF
     }
 
     if (filters.status) {
-      const sale = concertSaleState(concert, now);
+      const sale = discoverySaleState(concert, now);
       if (filters.status !== (sale === 'waiting-room' ? 'upcoming' : sale)) return false;
     }
 
@@ -169,5 +177,14 @@ export function filterConcerts(concerts: DiscoveryConcert[], filters: DiscoveryF
       if (difference) return difference;
     }
     return timestamp(left.eventDate) - timestamp(right.eventDate);
+  });
+
+  const shownEvents = new Set<string>();
+  return matches.filter((concert) => {
+    if (!concert.performance) return true;
+    const { eventId } = concert.performance;
+    if (shownEvents.has(eventId)) return false;
+    shownEvents.add(eventId);
+    return true;
   });
 }

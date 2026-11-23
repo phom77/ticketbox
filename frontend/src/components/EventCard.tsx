@@ -10,6 +10,7 @@ import './EventCard.css';
 
 export type EventCardItem = {
   id: string;
+  href?: string;
   title: string;
   venue: string;
   eventDate: string;
@@ -57,7 +58,7 @@ export function EventCard({
   return (
     <article className="concert-card">
       {preview ? <div>{details}</div> : (
-        <Link aria-label={event.title} id={linkId} onClick={onOpen} to={`/concerts/${encodeURIComponent(event.id)}`}>
+        <Link aria-label={event.title} id={linkId} onClick={onOpen} to={event.href ?? `/concerts/${encodeURIComponent(event.id)}`}>
           {details}
         </Link>
       )}

@@ -18,12 +18,34 @@ const nextPage = [
   makeConcert('translated', { title: 'Late Night Orchestra', translations: { vi: { title: 'Đêm nhạc Đại Dương' } } }),
   makeConcert('rare', { title: 'Rare Starlight Symphony', venueName: 'Nhà hát Hòa Bình' }),
 ];
+const nativeEvent = {
+  id: 'native-event', title: 'Harbour Lights Live',
+  performances: [{
+    id: 'native-show', venueName: 'Harbour Concert Hall', startsAt: when(4),
+    saleStartAt: when(-1), saleEndAt: when(3), status: 'ON_SALE',
+    salesSuspended: false, legacyConcertId: null,
+  }],
+};
+nativeEvent.performances.push({
+  ...nativeEvent.performances[0], id: 'native-suspended', venueName: 'City Concert Hall',
+  startsAt: when(5), salesSuspended: true,
+});
+const laterEvent = {
+  id: 'native-later', title: 'Highland Orchestra',
+  performances: [{ ...nativeEvent.performances[0], id: 'native-later-show' }],
+};
+const mirroredEvent = {
+  id: featured.id, title: featured.title,
+  performances: [{ ...nativeEvent.performances[0], id: 'mirrored-show', legacyConcertId: featured.id }],
+};
 const browser = await chromium.launch();
 const context = await browser.newContext({ baseURL: origin, locale: 'en-US', viewport: { width: 390, height: 844 } });
 const page = await context.newPage();
 page.setDefaultTimeout(10_000);
 const requests = [];
+const nativeRequests = [];
 let failNextPage = true;
+let failNativeFirstPage = false;
 let catalogDelay;
 
 await page.route('**/*', async (route) => {
@@ -53,6 +75,14 @@ await page.route('**/*', async (route) => {
   if (path === '/api/concerts/rare') {
     return reply({ ...nextPage[1], description: 'Fixture show', ticketTypes: [] });
   }
+  if (path === '/api/v2/events') {
+    const number = Number(url.searchParams.get('page'));
+    nativeRequests.push(number);
+    if (number === 0 && failNativeFirstPage) return reply(null, 503);
+    const content = [[nativeEvent, mirroredEvent], [laterEvent], []][number] ?? [];
+    return reply({ content, number, totalPages: 3, last: number >= 2 });
+  }
+  if (path === '/api/v2/events/native-event') return reply(nativeEvent);
   if (path.endsWith('/ticket-types')) return reply([]);
   return reply(null, 404);
 });
@@ -69,20 +99,38 @@ try {
   assert.equal(await main.getByText('City', { exact: true }).count(), 0, 'Fixture fields do not ship on the public route.');
   const openingSoon = results().getByRole('link', { name: 'Sunrise Jazz' });
   await openingSoon.getByText('Coming soon', { exact: true }).waitFor();
+  const native = results().getByRole('link', { name: nativeEvent.title });
+  await native.getByText('On sale', { exact: true }).waitFor();
+  assert.equal(await native.count(), 1, 'Multiple performances share one event card.');
+  await search.fill('city concert hall');
+  await search.press('Enter');
+  await native.getByText('Sales ended', { exact: true }).waitFor();
+  await native.click();
+  assert.equal(new URL(page.url()).pathname, '/events/native-event');
+  await main.getByRole('heading', { name: nativeEvent.title }).waitFor();
+  await page.goBack();
+  await native.waitFor();
+  await results().getByRole('button', { name: 'Clear all' }).click();
   const comingSoon = results().getByRole('region', { name: 'Coming soon', exact: true });
-  assert(await comingSoon.getByRole('link', { name: 'Sunrise Jazz' }).isVisible());
+  await comingSoon.getByRole('link', { name: 'Sunrise Jazz' }).waitFor();
+  assert.equal(await results().getByRole('link', { name: /Chamber Night/ }).count(), 0, 'The featured legacy event has no mirrored card.');
   assert.equal(await comingSoon.getByText('On sale', { exact: true }).count(), 0);
   await results().getByRole('button', { name: 'Load more events' }).click();
   await results().getByText('Could not load more events.').waitFor();
   assert(await openingSoon.isVisible(), 'A failed page keeps the previously loaded results.');
+  await results().getByRole('link', { name: laterEvent.title }).waitFor();
+  const beforeRetry = nativeRequests.length;
 
   await search.fill('dat phong');
   await search.press('Enter');
   await results().getByText('No matches in loaded events').waitFor();
   await results().getByRole('button', { name: 'Try again' }).click();
+  await results().getByRole('button', { name: 'Load more events' }).waitFor();
+  assert.equal(nativeRequests.length, beforeRetry, 'Retry does not advance or refetch the successful feed.');
   await results().getByRole('button', { name: 'Load more events' }).click();
   await results().getByText('No events match these filters.').waitFor();
   assert(requests.filter((value) => value === 1).length >= 2, 'Retry fetches the failed page.');
+  assert.equal(nativeRequests.at(-1), 2, 'Load more advances the native feed after retry.');
 
   await search.fill('dem nhac dai duong');
   await search.press('Enter');
@@ -174,7 +222,18 @@ try {
   assert.equal(await search.evaluate((node) => node === document.activeElement), true, 'Delayed hash scrolling preserves active input.');
   assert.equal(await search.inputValue(), 'a new search in progress');
 
+  failNativeFirstPage = true;
+  await page.goto('/');
+  await results().getByText('Could not load events.', { exact: true }).waitFor();
+  await openingSoon.waitFor();
+  const beforeInitialRetry = requests.length;
+  failNativeFirstPage = false;
+  await results().getByRole('button', { name: 'Try again' }).click();
+  await native.waitFor();
+  assert.equal(requests.length, beforeInitialRetry, 'A failed initial request leaves the other feed intact.');
+
   const beforePreview = requests.length;
+  const nativeBeforePreview = nativeRequests.length;
   await page.goto('/discover-preview');
   await main.getByText('Illustrative data', { exact: true }).waitFor();
   await results().locator('summary').click();
@@ -186,10 +245,12 @@ try {
   await results().getByRole('button', { name: 'Clear all' }).click();
   assert((await results().getByRole('article').count()) > 1);
   assert.equal(requests.length, beforePreview, 'Preview does not request any Catalog pages.');
+  assert.equal(nativeRequests.length, nativeBeforePreview);
   console.log('Buyer discovery, pagination, Back restoration, legacy URLs, and isolated preview passed.');
 } catch (error) {
   console.error('Discovery failure at', new URL(page.url()).pathname + new URL(page.url()).search,
-    'Catalog pages requested:', requests, 'Visible state:', (await main.innerText()).slice(0, 420));
+    'Catalog pages requested:', requests, 'Native pages requested:', nativeRequests,
+    'Visible state:', (await main.innerText({ timeout: 500 }).catch(() => '')).slice(0, 420));
   throw error;
 } finally {
   await browser.close();
