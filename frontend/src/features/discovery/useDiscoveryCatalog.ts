@@ -1,18 +1,45 @@
 import { useEffect, useState } from 'react';
-import { getConcerts, type ConcertSummary } from '../../api/concerts';
+import { getConcerts, type Page } from '../../api/concerts';
+import { listEvents } from '../../api/performances';
 import { isRequestCanceled } from '../../api/client';
+import type { DiscoveryConcert } from './filters';
 
-type Catalog = {
-  concerts: ConcertSummary[];
-  nextPage: number;
-  hasMore: boolean;
+type Feed = {
+  concerts: DiscoveryConcert[];
+  nextPage: number | null;
 };
 
-const emptyCatalog: Catalog = { concerts: [], nextPage: 0, hasMore: true };
+export type DiscoveryCatalog = { legacy: Feed; native: Feed };
+
+const emptyFeed: Feed = { concerts: [], nextPage: 0 };
 const pageSize = 24;
 
-export function useDiscoveryCatalog(initial?: Catalog, enabled = true) {
-  const [catalog, setCatalog] = useState(initial ?? emptyCatalog);
+const loadLegacy = (page: number, signal: AbortSignal) => getConcerts(page, pageSize, signal);
+
+async function loadNative(page: number, signal: AbortSignal): Promise<Page<DiscoveryConcert>> {
+  const response = await listEvents(page, signal, pageSize);
+  const content = response.content.flatMap((event) => event.performances
+    .filter((show) => !show.legacyConcertId)
+    .map((show) => ({
+      id: show.id,
+      title: event.title,
+      venueName: show.venueName,
+      eventDate: show.startsAt,
+      saleStartAt: show.saleStartAt,
+      saleEndAt: show.saleEndAt,
+      status: show.status,
+      posterUrl: null,
+      performance: { eventId: event.id, salesSuspended: show.salesSuspended },
+    })));
+  return { ...response, content };
+}
+
+function useCatalogFeed(
+  load: (page: number, signal: AbortSignal) => Promise<Page<DiscoveryConcert>>,
+  initial: Feed | undefined,
+  enabled: boolean,
+) {
+  const [feed, setFeed] = useState(initial ?? emptyFeed);
   const [requestedPage, setRequestedPage] = useState(enabled && !initial ? 0 : null);
   const [failedPage, setFailedPage] = useState<number | null>(null);
 
@@ -20,15 +47,15 @@ export function useDiscoveryCatalog(initial?: Catalog, enabled = true) {
     if (requestedPage === null) return;
     const controller = new AbortController();
     const page = requestedPage;
-    void getConcerts(page, pageSize, controller.signal).then((response) => {
+    void load(page, controller.signal).then((response) => {
       if (controller.signal.aborted) return;
-      setCatalog((current) => {
+      setFeed((current) => {
         const concerts = new Map(current.concerts.map((concert) => [concert.id, concert]));
         for (const concert of response.content) concerts.set(concert.id, concert);
+        const hasMore = response.last === false || (response.last == null && page + 1 < response.totalPages);
         return {
           concerts: [...concerts.values()],
-          nextPage: (response.number ?? page) + 1,
-          hasMore: response.last === false || (response.last == null && page + 1 < response.totalPages),
+          nextPage: hasMore ? (response.number ?? page) + 1 : null,
         };
       });
       setFailedPage(null);
@@ -39,15 +66,33 @@ export function useDiscoveryCatalog(initial?: Catalog, enabled = true) {
     });
 
     return () => controller.abort();
-  }, [requestedPage]);
+  }, [load, requestedPage]);
 
   function loadMore() {
-    if (requestedPage !== null || !catalog.hasMore) return;
+    if (requestedPage !== null || feed.nextPage === null) return;
     setFailedPage(null);
-    setRequestedPage(catalog.nextPage);
+    setRequestedPage(feed.nextPage);
   }
 
-  return { catalog, requestedPage, failedPage, loadMore };
+  return { feed, requestedPage, failedPage, loadMore };
 }
 
-export type DiscoveryCatalog = Catalog;
+export function useDiscoveryCatalog(initial?: DiscoveryCatalog, enabled = true) {
+  const legacy = useCatalogFeed(loadLegacy, initial?.legacy, enabled);
+  const native = useCatalogFeed(loadNative, initial?.native, enabled);
+  const requestedPage = native.requestedPage === 0 ? 0 : legacy.requestedPage ?? native.requestedPage;
+  const failedPage = native.failedPage === 0 ? 0 : legacy.failedPage ?? native.failedPage;
+
+  function loadMore() {
+    if (requestedPage !== null) return;
+    if (failedPage === null || legacy.failedPage !== null) legacy.loadMore();
+    if (failedPage === null || native.failedPage !== null) native.loadMore();
+  }
+
+  return {
+    catalog: { legacy: legacy.feed, native: native.feed },
+    concerts: [...legacy.feed.concerts, ...native.feed.concerts],
+    hasMore: legacy.feed.nextPage !== null || native.feed.nextPage !== null,
+    requestedPage, failedPage, loadMore,
+  };
+}

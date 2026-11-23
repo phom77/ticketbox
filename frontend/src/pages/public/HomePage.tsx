@@ -2,14 +2,15 @@ import { ArrowRight, Search, Ticket, X } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useLocation, useNavigationType, useSearchParams } from 'react-router-dom';
+import { eventPath } from '../../api/performances';
 import { EventCard, type EventCardItem } from '../../components/EventCard';
 import { RemoteImage } from '../../components/RemoteImage';
 import { currency, dateFormatter } from '../../data/formatters';
-import { concertSaleState, eventSaleLabels } from '../../features/concert/concertSale';
+import { eventSaleLabels } from '../../features/concert/concertSale';
 import { concertTitle } from '../../features/concert/concertText';
 import { DiscoveryFilterPanel, DiscoveryFilterTrigger } from '../../features/discovery/DiscoveryFilterPanel';
 import {
-  concertTimeZone, discoveryOptions, filterConcerts, readDiscoveryFilters, sortOptions, writeDiscoveryFilters,
+  concertTimeZone, discoveryOptions, discoverySaleState, filterConcerts, readDiscoveryFilters, sortOptions, writeDiscoveryFilters,
   type DiscoveryConcert, type DiscoveryFilters,
 } from '../../features/discovery/filters';
 import { useDiscoveryCatalog, type DiscoveryCatalog } from '../../features/discovery/useDiscoveryCatalog';
@@ -30,10 +31,11 @@ type BackSnapshot = {
 
 const recentLists = new Map<string, BackSnapshot>();
 
-function eventCard(concert: DiscoveryConcert, now: number): EventCardItem {
+function eventCard(concert: DiscoveryConcert, now: number): EventCardItem & { href: string } {
   return {
     id: concert.id, title: concertTitle(concert), venue: concert.venueName,
-    eventDate: concert.eventDate, image: concert.posterUrl, status: concertSaleState(concert, now),
+    href: concert.performance ? eventPath(concert.performance.eventId) : `/concerts/${encodeURIComponent(concert.id)}`,
+    eventDate: concert.eventDate, image: concert.posterUrl, status: discoverySaleState(concert, now),
   };
 }
 
@@ -46,24 +48,26 @@ export function HomePage({ previewConcerts }: { previewConcerts?: DiscoveryConce
   const [restored] = useState(() =>
     !isPreview && navigationType === 'POP' ? recentLists.get(location.key) : undefined,
   );
-  const { catalog, requestedPage, failedPage, loadMore } = useDiscoveryCatalog(restored?.catalog, !isPreview);
+  const { catalog, concerts, hasMore: morePages, requestedPage, failedPage, loadMore } =
+    useDiscoveryCatalog(restored?.catalog, !isPreview);
   const [now, setNow] = useState(Date.now);
   const heading = useRef<HTMLHeadingElement>(null);
   const filters = readDiscoveryFilters(params, isPreview);
-  const source = previewConcerts ?? catalog.concerts;
+  const source = previewConcerts ?? concerts;
+  const loadedCount = new Set(source.map((concert) => concert.performance?.eventId ?? concert.id)).size;
   const isInitialLoading = requestedPage === 0;
-  const hasMore = !isPreview && catalog.hasMore;
+  const hasMore = !isPreview && morePages;
   const matches = filterConcerts(source, filters, now);
   const hasFilters = Boolean(filters.q || chipKeys.some((key) => filters[key]));
   const showComingSoon = !hasFilters && !isPreview;
   const comingSoon = showComingSoon ? matches.filter((concert) => {
-    const state = concertSaleState(concert, now);
+    const state = discoverySaleState(concert, now);
     return state === 'upcoming' || state === 'waiting-room';
   }) : [];
   const comingSoonIds = new Set(comingSoon.map((concert) => concert.id));
   const availableEvents = matches.filter((concert) => !comingSoonIds.has(concert.id));
   const featureConcert = !hasFilters && !isPreview && matches.length > 1
-    ? availableEvents.find((concert) => concert.posterUrl && concertSaleState(concert, now) === 'on-sale')
+    ? availableEvents.find((concert) => concert.posterUrl && discoverySaleState(concert, now) === 'on-sale')
       ?? availableEvents.find((concert) => concert.posterUrl)
     : undefined;
   const feature = featureConcert ? eventCard(featureConcert, now) : null;
@@ -206,7 +210,7 @@ export function HomePage({ previewConcerts }: { previewConcerts?: DiscoveryConce
               <h2>{feature.title}</h2>
               {Number.isFinite(Date.parse(feature.eventDate)) ? <time dateTime={feature.eventDate}>{dateLabel.format(new Date(feature.eventDate))}</time> : null}
               {feature.venue ? <p>{feature.venue}</p> : null}
-              <Link className="discovery-feature-link" id="discovery-feature-link" onClick={savePosition} to={`/concerts/${encodeURIComponent(feature.id)}`}>
+              <Link className="discovery-feature-link" id="discovery-feature-link" onClick={savePosition} to={feature.href}>
                 {t('public:discovery_viewEvent')} <ArrowRight aria-hidden="true" />
               </Link>
             </div>
@@ -221,7 +225,7 @@ export function HomePage({ previewConcerts }: { previewConcerts?: DiscoveryConce
           </h2>
           {source.length > 0 ? (
             <p role="status">{t(hasMore ? 'public:discovery_loadedResults' : 'public:discovery_totalResults', {
-              count: matches.length, loaded: source.length,
+              count: matches.length, loaded: loadedCount,
             })}</p>
           ) : null}
         </div>

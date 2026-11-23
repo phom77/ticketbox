@@ -13,6 +13,15 @@ Open http://localhost:18091. Docker builds the images from source with its bundl
 
 Copy `.env.example` to `.env` only when overriding demo defaults. If changing the public address/port, also update `APP_PUBLIC_URL`, `APP_ALLOWED_ORIGINS` and the provider return URLs. `docker compose logs -f identity catalog ticketing checkin payment notification` shows application logs; `docker compose down` stops the deployment and retains volumes.
 
+To create private Organizer application links locally, configure Identity's signing key first. If there is no `.env` file yet, generate a key and start or recreate Identity.
+
+```sh
+(umask 077; set -C; printf 'PASSWORD_RESET_KEY=%s\n' "$(openssl rand -hex 32)" > .env)
+docker compose up -d --no-deps identity
+```
+
+For an existing `.env`, set its `PASSWORD_RESET_KEY` entry to a generated value and run the Identity command above. Keep that value on subsequent runs. An empty key prevents link creation. Organizer activation email is queued after the application is approved.
+
 The SMTP sink accepts email locally without forwarding it. Its private HTTP endpoint `http://smtp:8080/stats` reports accepted message/PDF counts. MoMo/VNPAY require merchant credentials and publicly reachable signed callbacks; local MOCK checkout requires neither.
 
 For a separate staging deployment, set `TICKETBOX_PAYMENT_PROFILE=staging` for the shared Payment and Ticketing profiles. Use the staging secret store for `VNPAY_TMN_CODE` and `VNPAY_HASH_SECRET`. Set `VNPAY_PAY_URL` and `VNPAY_QUERY_URL` to the merchant's sandbox endpoints. Set `VNPAY_RETURN_URL` and `VNPAY_IPN_URL` to the staging HTTPS origin at `/payment/result` and `/api/payments/webhooks/vnpay`, and register the IPN with the merchant. Confirm `GET /api/payments/providers` returns only `VNPAY` as a buyer before running the checkout. The provider list is empty until the VNPAY settings pass readiness checks.
@@ -159,6 +168,21 @@ node scripts/e2e/performance-seat-assignment.mjs
 python3 scripts/e2e/performance-arena.py
 node scripts/e2e/performance-arena-browser.mjs
 ```
+
+With the updated gateway and the same isolated fixture running, verify the Admin and Organizer workspaces.
+
+```sh
+export TICKETBOX_E2E_URL=http://127.0.0.1:18105
+node scripts/e2e/operations-appearance.mjs
+node scripts/e2e/performance-admin-navigation.mjs
+node scripts/e2e/performance-admin-operations.mjs
+node scripts/e2e/concert-directory.mjs
+node scripts/e2e/operations-reports.mjs
+TICKETBOX_DASHBOARD_URL="$TICKETBOX_E2E_URL" node scripts/e2e/operations-dashboard.mjs
+TICKETBOX_E2E_LIVE_URL="$TICKETBOX_E2E_URL" node scripts/e2e/operations-reports.mjs --live
+```
+
+The directory, report and dashboard browser fixtures intercept API responses to exercise paging, recovery and organization changes. The live report test checks Ticketing's finance read and export permissions with a fixture organization. The performance organizer journey above exercises creation, correction, approval and reporting against the running services.
 
 Use `E2E_COMPOSE_OVERRIDE` if the isolated project uses additional Compose files. Run the basic split journey before the restore rehearsal. If the report directory contains fresh output from `performance-sales.py`, restore also verifies the V2 write mode and paid-order replay against the copied databases. Recreate Catalog with an empty publication allowlist to close publication of new shows. Existing pilot shows can disable offers through a sale revision while confirmed quotes expire. A show released through scheduled review keeps its approved offer terms. Use the performance operations workspace for a disruption affecting an open sale.
 

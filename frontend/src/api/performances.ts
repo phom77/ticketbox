@@ -1,5 +1,5 @@
 import { api, publicGet } from './client';
-import type { Page } from './concerts';
+import type { ConcertStatus, Page } from './concerts';
 import type { Order } from './orders';
 
 export type Performance = {
@@ -9,7 +9,7 @@ export type Performance = {
   startsAt: string;
   endsAt: string;
   timezone: string;
-  status: string;
+  status: ConcertStatus;
   salesSuspended: boolean;
   saleStartAt: string;
   saleEndAt: string;
@@ -92,8 +92,8 @@ export const performancePath = (eventId: string, id: string) => eventPath(eventI
 const inventory = (id: string) => '/api/v2/performances/' + encodeURIComponent(id);
 const sectionPath = (id: string) => '/sections/' + encodeURIComponent(id);
 
-export function listEvents(page: number, signal: AbortSignal) {
-  return publicGet<Page<EventDetails>>('/api/v2/events?page=' + page + '&size=12', signal);
+export function listEvents(page: number, signal: AbortSignal, size = 12) {
+  return publicGet<Page<EventDetails>>('/api/v2/events?page=' + page + '&size=' + size, signal);
 }
 
 export function getEvent(id: string, signal?: AbortSignal) {

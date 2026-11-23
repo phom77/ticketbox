@@ -1,17 +1,17 @@
 import { WorkspaceSelect } from '../../components/WorkspaceSelect';
-import { Fragment, useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useBeforeUnload, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Check, Plus } from 'lucide-react';
+import { Link, useBeforeUnload, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, ArrowRight, CalendarClock, Check, FileCheck, Info, Plus, Armchair } from 'lucide-react';
 import {
-  createManagedEvent, getManagedEvent, listManagedEvents, listVenues, updateManagedEvent,
+  createManagedEvent, getManagedEvent, listVenues, updateManagedEvent,
   type EventInput, type ManagedEvent, type ManagedPerformance, type Venue,
 } from '../../api/performanceManagement';
 import { ApiClientError } from '../../api/client';
 import { performanceTime } from '../../features/performance/format';
-import { formatLanguage } from '../../i18n';
-import { formatPerformanceDateTime } from './performanceDateTime';
 import { performanceStatusKey } from './performanceSetup';
+import { useOperationsConcert } from '../../components/layout/operationsConcertNavigation';
+import { reportReturnPath } from '../../features/operations/reportReturn';
 import { useAuth } from '../../features/auth/AuthContext';
 import { RequireOrganizationGrant, useOrganization } from '../../features/organizations/OrganizationProvider';
 import { PerformanceScheduleForm } from './PerformanceScheduleForm';
@@ -27,6 +27,7 @@ const stepLabels: Record<Step, string> = {
   event: 'performances:step_event', schedule: 'performances:step_schedule',
   tickets: 'performances:step_tickets', review: 'performances:step_review',
 };
+const stepIcons = { event: Info, schedule: CalendarClock, tickets: Armchair, review: FileCheck };
 
 export function PerformanceEventAccess({ children }: { children: ReactNode }) {
   const organization = useOrganization();
@@ -61,99 +62,13 @@ function PerformanceEventAccessHelp() {
     </> : <>
       <p>{t('performances:organizationEventAccessHelp')}</p>
       <div className="forbidden-actions">
-        <Link className="admin-secondary-action" to="/organizer">{t('performances:acceptOrganizationInvitation')}</Link>
+        <Link className="admin-secondary-action" to="/organizer">{t('shared:organizationProvider_veTongQuanToChuc')}</Link>
         {user?.role === 'ADMIN' && <Link className="admin-secondary-action" to="/admin/organizations">
           {t('performances:manageOrganizations')}
         </Link>}
       </div>
     </>}
   </section>;
-}
-
-export function PerformanceEventsPage() {
-  const { t } = useTranslation('performances');
-  const [page, setPage] = useState(0);
-  const [retry, setRetry] = useState(0);
-  const [listing, setListing] = useState<{ content: ManagedEvent[]; last: boolean } | null>(null);
-  const [error, setError] = useState('');
-  useEffect(() => {
-    const controller = new AbortController();
-    listManagedEvents(page, controller.signal).then((result) => {
-      if (!controller.signal.aborted) setListing(result);
-    }).catch((failure) => {
-      if (!controller.signal.aborted) setError(failure.message);
-    });
-    return () => controller.abort();
-  }, [page, retry]);
-
-  function loadPage(next: number) {
-    setError('');
-    setListing(null);
-    if (next === page) setRetry((current) => current + 1);
-    else setPage(next);
-  }
-
-  return <div className="performance-admin performance-flow">
-    <header className="performance-flow-header">
-      <h1>{t('performances:eventList')}</h1>
-      <Link className="button button-primary" to={listPath + '/new'}><Plus size={18} aria-hidden />{t('performances:createConcert')}</Link>
-    </header>
-    {error && <section className="performance-panel">
-      <p role="alert">{error}</p>
-      <button type="button" className="button button-secondary" onClick={() => loadPage(page)}>{t('performances:refresh')}</button>
-    </section>}
-    {!listing && !error && <p role="status">{t('performances:loading')}</p>}
-    {listing && !listing.content.length && <section className="performance-panel">
-      <h2>{t('performances:noManagedEvents')}</h2>
-      <p>{t('performances:noManagedEventsHelp')}</p>
-    </section>}
-    {listing && listing.content.length > 0 && <div className="performance-directory">
-      <div aria-hidden="true" className="performance-directory-grid performance-directory-head">
-        <span>{t('performances:setupEventNameColumn')}</span><span>{t('performances:setupNextShowColumn')}</span>
-        <span>{t('performances:setupStatusColumn')}</span><span></span>
-      </div>
-      <ul className="performance-managed-list">
-        {listing.content.map((event) => {
-          const upcoming = event.performances.filter((performance) =>
-            performance.status !== 'CANCELLED' && performance.status !== 'COMPLETED' && Date.parse(performance.endsAt) > Date.now())
-            .sort((first, second) => Date.parse(first.startsAt) - Date.parse(second.startsAt))[0];
-          const hasDrafts = event.performances.some((performance) => performance.status === 'DRAFT');
-          const latest = !upcoming ? event.performances.reduce<ManagedPerformance | undefined>((previous, next) =>
-            !previous || Date.parse(next.startsAt) > Date.parse(previous.startsAt) ? next : previous, undefined) : undefined;
-          const target = upcoming ?? latest;
-          const state = target ? performanceStatusKey(target) : 'performances:draftStatus';
-          const path = target ? manageEventPath(event.id) + '?show=' + encodeURIComponent(target.id) : manageEventPath(event.id);
-          return <li key={event.id}>
-            <Link className="performance-managed-row performance-directory-grid" to={path}>
-              <div>
-                <strong>{event.title}</strong>
-                <span>{event.performances.length
-                  ? t('performances:performanceCount', { count: event.performances.length })
-                  : t('performances:setupAddFirstShow')}</span>
-              </div>
-              <div className="performance-directory-next">
-                {upcoming ? <>
-                  <strong>{formatPerformanceDateTime(upcoming.startsAt, upcoming.timezone, formatLanguage())}</strong>
-                  <span>{upcoming.venueName} · {upcoming.spaceName}</span>
-                </> : <span>{t('performances:setupNoUpcoming')}</span>}
-              </div>
-              <div className="performance-directory-state">
-                <span className="performance-flow-status" data-active={state === 'performances:setupStatusSelling'}>
-                  {t(state)}
-                </span>
-                {upcoming && upcoming.status !== 'DRAFT' && hasDrafts && <small>{t('performances:setupManageDrafts')}</small>}
-              </div>
-              <ArrowRight size={18} aria-hidden />
-            </Link>
-          </li>;
-        })}
-      </ul>
-    </div>}
-    {listing && (page > 0 || !listing.last) && <nav className="performance-options" aria-label={t('performances:eventList')}>
-      <button type="button" className="button button-secondary" disabled={!page} onClick={() => loadPage(page - 1)}>{t('performances:previous')}</button>
-      <button type="button" className="button button-secondary" disabled={listing.last} onClick={() => loadPage(page + 1)}>{t('performances:next')}</button>
-    </nav>}
-  </div>;
 }
 
 export function NewPerformanceEventPage() {
@@ -184,10 +99,12 @@ export function PerformanceEventPage() {
 
 function EventWorkspace({ id }: { id: string }) {
   const { t } = useTranslation('performances');
+  const location = useLocation();
   const [event, setEvent] = useState<ManagedEvent | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedId = searchParams.get('show');
-  const [step, setStep] = useState<Step>();
+  const stepValue = searchParams.get('step');
+  const step = steps.find((entry) => entry === stepValue);
   const [newSchedule, setNewSchedule] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -224,9 +141,9 @@ function EventWorkspace({ id }: { id: string }) {
   const isDraft = active?.status === 'DRAFT' && !active.legacyConcertId;
   const editableEvent = event?.performances.every((entry) => entry.status === 'DRAFT' && !entry.legacyConcertId);
   const requestedStep = step ?? (active ? 'tickets' : 'schedule');
-  const activeStep = active && ((requestedStep === 'schedule' && !isDraft) || (requestedStep === 'event' && !editableEvent))
-    ? 'tickets'
-    : requestedStep;
+  let activeStep = requestedStep;
+  if (active && ((requestedStep === 'schedule' && !isDraft) || (requestedStep === 'event' && !editableEvent))) activeStep = 'tickets';
+  if (!active && (requestedStep === 'tickets' || requestedStep === 'review')) activeStep = 'schedule';
 
   useEffect(() => {
     if (!step) return;
@@ -234,9 +151,17 @@ function EventWorkspace({ id }: { id: string }) {
     window.scrollTo({ top: 0, behavior: 'instant' });
   }, [step, selectedId, newSchedule]);
 
-  function confirmLeave() {
-    return !busy && (!dirty || window.confirm(t('performances:leaveUnsavedStep')));
-  }
+  const confirmLeave = useCallback(() => !busy && (!dirty || window.confirm(t('performances:leaveUnsavedStep'))), [busy, dirty, t]);
+
+  const queryForStep = useCallback((next: Step, show?: string) => {
+    const query = new URLSearchParams(searchParams);
+    query.set('step', next);
+    if (show) query.set('show', show);
+    return query;
+  }, [searchParams]);
+  const setStep = useCallback((next: Step, show?: string, replace = false) => {
+    setSearchParams(queryForStep(next, show), { replace, preventScrollReset: true, state: location.state });
+  }, [location.state, queryForStep, setSearchParams]);
 
   function reloadWorkspace() {
     if (!confirmLeave()) return;
@@ -246,19 +171,12 @@ function EventWorkspace({ id }: { id: string }) {
     setRetry((current) => current + 1);
   }
 
-  function selectShow(next: string) {
-    const query = new URLSearchParams(searchParams);
-    query.set('show', next);
-    setSearchParams(query, { replace: true, preventScrollReset: true });
-  }
-
   function switchSchedule(next: string) {
     if (!confirmLeave()) return;
     setDirty(false);
     setRevision((current) => current + 1);
-    selectShow(next);
     setNewSchedule(false);
-    setStep('tickets');
+    setStep('tickets', next);
   }
 
   function goTo(next: Step) {
@@ -269,10 +187,9 @@ function EventWorkspace({ id }: { id: string }) {
   }
 
   function openTickets(performance: ManagedPerformance) {
-    selectShow(performance.id);
     setNewSchedule(false);
     setDirty(false);
-    setStep('tickets');
+    setStep('tickets', performance.id, true);
     setEvent((previous) => {
       if (!previous) return null;
       const entries = previous.performances;
@@ -301,11 +218,42 @@ function EventWorkspace({ id }: { id: string }) {
       case 'review': return Boolean(active && !isDraft && !active.legacyConcertId);
     }
   }
+  const contextualNavigation = useMemo(() => {
+    if (!event) return null;
+    const sections: Step[] = [];
+    if (editableEvent) sections.push('event');
+    if (!active || isDraft) sections.push('schedule');
+    if (active) sections.push('tickets', 'review');
+    return {
+      title: event.title, eventId: id, performanceId: active?.id, canLeave: confirmLeave,
+      links: sections.map((entry) => ({
+        label: t(stepLabels[entry]),
+        icon: stepIcons[entry],
+        to: manageEventPath(id) + '?' + queryForStep(entry, active?.id),
+        state: location.state,
+        current: entry === activeStep,
+        onClick: (click: React.MouseEvent<HTMLAnchorElement>) => {
+          if (entry !== activeStep) {
+            if (!confirmLeave()) {
+              click.preventDefault();
+              return;
+            }
+            if (dirty) setRevision((current) => current + 1);
+            setDirty(false);
+          }
+        },
+      })),
+    };
+  }, [event, active, activeStep, confirmLeave, dirty, editableEvent, id, isDraft, location.state, queryForStep, t]);
+  useOperationsConcert(contextualNavigation);
 
+  const directory = location.state?.directorySearch;
+  const reportBack = reportReturnPath(searchParams.get('returnTo'), 'organizer');
+  const back = reportBack ?? (typeof directory === 'string' && directory ? listPath + '?' + directory : listPath);
   return <div className="performance-admin performance-flow">
-    <Link className="performance-flow-back" to={listPath} onClick={(click) => {
+    <Link className="performance-flow-back" to={back} onClick={(click) => {
       if (!confirmLeave()) click.preventDefault();
-    }}><ArrowLeft size={17} aria-hidden />{t('performances:eventList')}</Link>
+    }}><ArrowLeft size={17} aria-hidden />{t(reportBack ? 'shared:operationsReports' : 'performances:eventList')}</Link>
     {!event && (error ? <section className="performance-panel">
       <p role="alert">{error}</p><button type="button" className="button button-secondary"
         onClick={reloadWorkspace}>{t('performances:refresh')}</button>

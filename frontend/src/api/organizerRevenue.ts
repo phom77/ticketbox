@@ -63,10 +63,10 @@ export function getSalesTrend(
   );
 }
 
-export function exportRevenueReport(concertId: string, format: 'csv' | 'pdf') {
+export function exportRevenueReport(concertId: string, format: 'csv' | 'pdf', signal?: AbortSignal) {
   const params = new URLSearchParams({ format });
   return api.get<unknown, Blob>(
     `/api/organizer/concerts/${encodeURIComponent(concertId)}/revenue-report/export?${params}`,
-    { responseType: 'blob' },
+    { responseType: 'blob', signal },
   );
 }

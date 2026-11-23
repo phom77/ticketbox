@@ -112,20 +112,28 @@ try {
     await selectWorkspaceOption(selection, { label: firstName });
     await member.page.getByRole('heading', { name: firstName, exact: true }).waitFor();
     const navigation = member.page.locator('.operations-nav');
-    assert.equal(await navigation.getByRole('link', { name: 'Buổi diễn' }).count(), 0);
-    await navigation.getByRole('link', { name: 'Doanh thu' }).waitFor();
+    const concertNavigation = member.page.getByRole('button', { name: 'Concert', exact: true });
+    assert.equal(await concertNavigation.count(), 0);
+    await navigation.getByRole('link', { name: 'Báo cáo', exact: true }).waitFor();
     await member.page.goto('/organizer/concerts');
     await member.page.getByText('Tổ chức đang chọn chưa cấp quyền cho mục này.').waitFor();
     for (const width of [1440, 834, 390]) {
       await member.page.setViewportSize({ width, height: 900 });
       await selectWorkspaceOption(selection, { label: secondName });
       await member.page.getByRole('heading', { name: secondName, exact: true }).waitFor();
-      await navigation.getByRole('link', { name: 'Buổi diễn' }).waitFor({ state: 'attached' });
+      if (width <= 1150) await member.page.getByRole('button', { name: 'Mở điều hướng' }).click();
+      await concertNavigation.click();
+      const concerts = member.page.getByRole('navigation', { name: 'Điều hướng concert' });
+      await concerts.getByRole('link', { name: 'Tất cả concert', exact: true }).waitFor();
+      await concerts.getByRole('link', { name: 'Tạo concert', exact: true }).waitFor();
+      if (width <= 1150) await member.page.keyboard.press('Escape');
       await fits(member.page, `Organization workspace at ${width}px`);
       await member.page.screenshot({ path: `${output}/overview-${width}.png`, animations: 'disabled' });
       await selectWorkspaceOption(selection, { label: firstName });
       await member.page.getByRole('heading', { name: firstName, exact: true }).waitFor();
-      assert.equal(await navigation.getByRole('link', { name: 'Buổi diễn' }).count(), 0);
+      if (width <= 1150) await member.page.getByRole('button', { name: 'Mở điều hướng' }).click();
+      assert.equal(await concertNavigation.count(), 0);
+      if (width <= 1150) await member.page.keyboard.press('Escape');
     }
   } finally {
     compose('start', 'notification');
@@ -165,6 +173,20 @@ try {
   organizer.page.on('request', (request) => { if (request.url().includes('artist-bio')) aiRequests.push(request.url()); });
   await organizer.page.goto(workspace);
   await organizer.page.getByRole('heading', { name: title }).waitFor();
+  const concertLinks = organizer.page.getByRole('navigation', { name: 'Điều hướng concert' });
+  const guests = concertLinks.getByRole('link', { name: 'Khách mời', exact: true });
+  await concertLinks.getByRole('link', { name: 'Hạng vé', exact: true }).click();
+  await organizer.page.getByRole('link', { name: 'Quản lý hạng vé', exact: true }).click();
+  assert.equal(new URL(organizer.page.url()).searchParams.get('returnTo'), `${workspace}?tab=tickets`);
+  await organizer.page.goBack();
+  await guests.click();
+  await organizer.page.getByRole('link', { name: 'Lịch sử batch', exact: true }).click();
+  assert.equal(new URL(organizer.page.url()).searchParams.get('concertId'), concert.id);
+  await organizer.page.goBack();
+  await guests.and(concertLinks.locator('[aria-current="page"]')).waitFor();
+  await organizer.page.goForward();
+  await organizer.page.waitForURL((url) => url.pathname === '/organizer/guests');
+  assert.equal(new URL(organizer.page.url()).searchParams.get('returnTo'), `${workspace}?tab=guests`);
   await organizer.page.goto(`${workspace}?tab=details`);
   const englishFields = organizer.page.getByRole('group', { name: 'English' });
   const englishTitle = `English title ${suffix}`;

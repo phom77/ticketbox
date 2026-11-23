@@ -1,5 +1,9 @@
 import { PerformanceOperationsPage } from '../pages/admin/PerformanceOperationsPage';
-import { NewPerformanceEventPage, PerformanceEventAccess, PerformanceEventPage, PerformanceEventsPage } from '../pages/organizer/PerformanceEventsPage';
+import { NewPerformanceEventPage, PerformanceEventAccess, PerformanceEventPage } from '../pages/organizer/PerformanceEventsPage';
+import { ConcertDirectoryPage } from '../pages/operations/ConcertDirectoryPage';
+import { AdminEventWorkspacePage } from '../pages/admin/AdminEventWorkspacePage';
+import { AdminSettingsPage } from '../pages/admin/AdminSettingsPage';
+import { OperationsReportsPage } from '../pages/operations/OperationsReportsPage';
 import { EventPage, EventsPage } from '../pages/public/EventsPage';
 import { PerformanceSelectionPage } from '../pages/customer/PerformanceSelectionPage';
 import '../pages/public/Performances.css';
@@ -94,6 +98,8 @@ export function App() {
               }
             >
               <Route index element={<AdminOverviewPage />} />
+              <Route path="events" element={<ConcertDirectoryPage scope="admin" />} />
+              <Route path="events/:eventId" element={<AdminEventWorkspacePage />} />
               <Route path="performance-operations" element={<PerformanceOperationsPage />} />
               <Route path="concerts" element={<AdminConcertsPage />} />
               <Route path="event-review" element={<AdminPublicationQueuePage />} />
@@ -102,6 +108,8 @@ export function App() {
               <Route path="ticket-types" element={<AdminTicketTypesPage />} />
               <Route path="guests" element={<AdminGuestImportsPage />} />
               <Route path="orders" element={<AdminOrdersPage />} />
+              <Route path="reports" element={<OperationsReportsPage scope="admin" />} />
+              <Route path="settings" element={<AdminSettingsPage />} />
               <Route path="reconciliation" element={<ReconciliationPage scope="admin" />} />
               <Route path="notifications" element={<AdminNotificationsPage />} />
               <Route path="users" element={<AdminUsersPage />} />
@@ -119,7 +127,7 @@ export function App() {
               }
             >
               <Route index element={<OrganizerOverviewPage />} />
-              <Route path="events" element={<PerformanceEventAccess><PerformanceEventsPage /></PerformanceEventAccess>} />
+              <Route path="events" element={<PerformanceEventAccess><ConcertDirectoryPage scope="organizer" /></PerformanceEventAccess>} />
               <Route path="events/new" element={<PerformanceEventAccess><NewPerformanceEventPage /></PerformanceEventAccess>} />
               <Route path="events/:eventId" element={<PerformanceEventAccess><PerformanceEventPage /></PerformanceEventAccess>} />
               <Route path="concerts" element={<RequireOrganizationGrant grant="EVENTS"><AdminConcertsPage apiScope="organizer" /></RequireOrganizationGrant>} />
@@ -128,6 +136,7 @@ export function App() {
               <Route path="ticket-types" element={<RequireOrganizationGrant grant="EVENTS"><AdminTicketTypesPage apiScope="organizer" /></RequireOrganizationGrant>} />
               <Route path="guests" element={<RequireOrganizationGrant grant="EVENTS"><AdminGuestImportsPage apiScope="organizer" uploadMode="scheduled" /></RequireOrganizationGrant>} />
               <Route path="artist-bio" element={<RequireOrganizationGrant grant="EVENTS"><AdminArtistBioPage apiScope="organizer" /></RequireOrganizationGrant>} />
+              <Route path="reports" element={<OperationsReportsPage scope="organizer" />} />
               <Route path="reconciliation" element={<RequireOrganizationGrant grant="FINANCE"><ReconciliationPage scope="organizer" /></RequireOrganizationGrant>} />
               <Route path="revenue" element={<RequireOrganizationGrant grant="FINANCE"><OrganizerRevenuePage /></RequireOrganizationGrant>} />
               <Route path="orders" element={<RequireOrganizationGrant grant="FINANCE"><AdminOrdersPage apiScope="organizer" /></RequireOrganizationGrant>} />

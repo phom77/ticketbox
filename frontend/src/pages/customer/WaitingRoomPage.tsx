@@ -5,6 +5,7 @@ import SockJS from 'sockjs-client';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ApiClientError, apiBaseUrl, isRequestCanceled } from '../../api/client';
 import { getConcert, type ConcertDetail } from '../../api/concerts';
+import { eventPath, getEventPerformance, performancePath } from '../../api/performances';
 import { concertTitle } from '../../features/concert/concertText';
 import { getAuthToken } from '../../features/auth/tokenCookie';
 import {
@@ -21,6 +22,8 @@ import './WaitingRoomPage.css';
 
 const eventDateTime = dateFormatter({ dateStyle: 'medium', timeStyle: 'short' });
 const counts = numberFormatter({ maximumFractionDigits: 0 });
+type QueueEvent = Pick<ConcertDetail, 'title' | 'translations' | 'eventDate' | 'venueName' | 'saleStartAt'>;
+
 const queueTitles = {
   WAITING_ROOM: 'waitingRoomPage_banDaOTrongPhongChoAn',
   WAITING: 'waitingRoomPage_banDangXepHang',
@@ -43,10 +46,10 @@ function queueUnavailable(error: unknown) {
 
 export function WaitingRoomPage() {
   const { t } = useTranslation('customer');
-  const { id } = useParams();
+  const { id, eventId } = useParams();
   const navigate = useNavigate();
-  const [concert, setConcert] = useState<ConcertDetail | null>(null);
-  const [concertFailed, setConcertFailed] = useState(false);
+  const [eventDetails, setEventDetails] = useState<QueueEvent | null>(null);
+  const [detailsFailed, setDetailsFailed] = useState(false);
   const [queueStatus, setQueueStatus] = useState<QueueStatusResponse | null>(null);
   const [joining, setJoining] = useState(true);
   const [interrupted, setInterrupted] = useState(false);
@@ -56,19 +59,28 @@ export function WaitingRoomPage() {
   const leaving = leavingConcert === id;
   const leavingRef = useRef(false);
   const stopWaitingRef = useRef<(() => void) | null>(null);
-  const eventPath = id ? '/concerts/' + id : '/';
+  const detailsPath = eventId ? eventPath(eventId) : id ? '/concerts/' + encodeURIComponent(id) : '/';
+  const seatsPath = eventId && id ? performancePath(eventId, id) + '/seats' : detailsPath + '/seats';
 
   useEffect(() => {
     if (!id) return;
     const controller = new AbortController();
     const { signal } = controller;
-    void getConcert(id, signal).then((detail) => {
-      if (!signal.aborted) setConcert(detail);
+    const detail = eventId
+      ? getEventPerformance(eventId, id, signal).then(({ event, performance }) => ({
+        title: event.title,
+        eventDate: performance.startsAt,
+        venueName: performance.venueName,
+        saleStartAt: performance.saleStartAt,
+      }))
+      : getConcert(id, signal);
+    void detail.then((result) => {
+      if (!signal.aborted) setEventDetails(result);
     }).catch((error: unknown) => {
-      if (!signal.aborted && !isRequestCanceled(error)) setConcertFailed(true);
+      if (!signal.aborted && !isRequestCanceled(error)) setDetailsFailed(true);
     });
     return () => controller.abort();
-  }, [id]);
+  }, [eventId, id]);
 
   useEffect(() => {
     if (!id) return;
@@ -121,7 +133,7 @@ export function WaitingRoomPage() {
         stopWaiting();
         setQueueStatus(nextStatus);
         setProblem(null);
-        navigate('/concerts/' + concertId + '/seats', { replace: true });
+        navigate(seatsPath, { replace: true });
         return;
       }
 
@@ -236,7 +248,7 @@ export function WaitingRoomPage() {
       stopWaiting();
       if (stopWaitingRef.current === stopWaiting) stopWaitingRef.current = null;
     };
-  }, [id, navigate, retry]);
+  }, [id, navigate, retry, seatsPath]);
 
   async function leave() {
     const stopWaiting = stopWaitingRef.current;
@@ -251,7 +263,7 @@ export function WaitingRoomPage() {
     }
     if (stopWaitingRef.current !== stopWaiting) return;
     clearStoredQueueAdmission();
-    navigate(eventPath);
+    navigate(detailsPath);
   }
 
   const inRoom = queueStatus?.status === 'WAITING_ROOM';
@@ -260,7 +272,8 @@ export function WaitingRoomPage() {
   const expired = queueStatus?.status === 'EXPIRED' || queueStatus?.status === 'LEFT';
   const unavailable = problem === 'unavailable';
   const canRetry = problem === 'joinFailed' || problem === 'rateLimit';
-  const roomOpensAt = concert?.saleStartAt && Number.isFinite(Date.parse(concert.saleStartAt)) ? concert.saleStartAt : undefined;
+  const saleStartAt = eventDetails?.saleStartAt;
+  const roomOpensAt = saleStartAt && Number.isFinite(Date.parse(saleStartAt)) ? saleStartAt : undefined;
   const peopleAhead = queueStatus?.peopleAhead;
   const position = peopleAhead ?? queueStatus?.position;
   const estimate = queueStatus?.estimatedWaitSeconds;
@@ -273,10 +286,10 @@ export function WaitingRoomPage() {
     <div className="buyer-page purchase-page page-width waiting-purchase-page">
       <header className="purchase-header">
         <div>
-          <h1>{concert ? concertTitle(concert) : t('customer:waitingRoomPage_hangChoMuaVe')}</h1>
-          {concert ? (
-            <p><time dateTime={concert.eventDate}>{eventDateTime.format(new Date(concert.eventDate))}</time> · {concert.venueName}</p>
-          ) : concertFailed ? <p>{t('customer:waitingRoomPage_khongTheTaiThongTinBuoiBieu')}</p> : null}
+          <h1>{eventDetails ? concertTitle(eventDetails) : t('customer:waitingRoomPage_hangChoMuaVe')}</h1>
+          {eventDetails ? (
+            <p><time dateTime={eventDetails.eventDate}>{eventDateTime.format(new Date(eventDetails.eventDate))}</time> · {eventDetails.venueName}</p>
+          ) : detailsFailed ? <p>{t('customer:waitingRoomPage_khongTheTaiThongTinBuoiBieu')}</p> : null}
         </div>
         {(inRoom || inQueue) && !unavailable ? (
           <p className="purchase-step" aria-current="step">{t(inRoom ? 'waitingRoomPage_phongCho' : 'waitingRoomPage_hangCho')}</p>
@@ -291,7 +304,7 @@ export function WaitingRoomPage() {
         {expired || unavailable ? (
           <>
             <p>{t(expired ? 'waitingRoomPage_hayThamGiaLaiDeYeuCau' : 'waitingRoomPage_queueUnavailable')}</p>
-            <Link className="button button-primary" to={eventPath}>{t('customer:waitingRoomPage_backToEvent')}</Link>
+            <Link className="button button-primary" to={detailsPath}>{t('customer:waitingRoomPage_backToEvent')}</Link>
           </>
         ) : null}
 
@@ -340,7 +353,7 @@ export function WaitingRoomPage() {
       </section>
 
       {canRetry ? (
-        <Link className="button button-secondary waiting-leave-action" to={eventPath}>{t('customer:waitingRoomPage_backToEvent')}</Link>
+        <Link className="button button-secondary waiting-leave-action" to={detailsPath}>{t('customer:waitingRoomPage_backToEvent')}</Link>
       ) : !expired && !unavailable && !admitted ? (
         <button className="button button-secondary waiting-leave-action" type="button" disabled={leaving} onClick={() => void leave()}>
           {t(leaving ? 'waitingRoomPage_leaving' : 'waitingRoomPage_leaveQueue')}

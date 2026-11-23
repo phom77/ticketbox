@@ -250,7 +250,7 @@ try {
 
   const operator = await fixture('ADMIN');
   operator.queueState.loadUnavailable = true;
-  await operator.page.goto(`${origin}/admin`);
+  await operator.page.goto(`${origin}/admin/orders?support=UNKNOWN_PAYMENT`);
   const queue = operator.page.getByRole('region', { name: 'Việc cần xử lý' });
   await queue.getByRole('alert').waitFor();
   assert.deepEqual(operator.queueState.requests[0], { kind: 'UNKNOWN_PAYMENT', page: '0', size: '10' });

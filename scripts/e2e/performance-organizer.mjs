@@ -1,4 +1,4 @@
-import { submitPerformanceReview } from './performance-review-fixture.mjs';
+import { advanceApprovedPerformanceReview, submitPerformanceReview, submitReviewFromPage } from './performance-review-fixture.mjs';
 import { selectWorkspaceOption } from './select-workspace-option.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -92,8 +92,8 @@ try {
     sessionStorage.setItem('ticketbox.organization.' + user, organization);
   }, { user: organizer.user.id, organization });
 
-  await page.goto('/organizer/events');
-  await page.getByRole('link', { name: 'Create concert' }).click();
+  await page.goto('/organizer');
+  await page.locator('main').getByRole('link', { name: 'Create concert' }).click();
   if (screenshotDirectory) await mkdir(screenshotDirectory, { recursive: true });
   await page.getByLabel('Title', { exact: true }).fill(title);
   await inspectViewport('concert-information');
@@ -286,16 +286,59 @@ ${code},Z,2,365,125`) });
   await sale.getByRole('button', { name: 'Save and review' }).click();
   await review.getByText('General admission without a map', { exact: true }).waitFor();
   await inspectViewport('review-ga');
-  await submitPerformanceReview(review, context.request, admin.accessToken, { openSale: true });
+  const submission = await submitReviewFromPage(review);
+  const adminWorkspace = await browser.newContext({ baseURL, locale: 'en-US', viewport: { width: 1440, height: 900 } });
+  await adminWorkspace.addCookies([{ name: 'ticketbox_auth_token', value: admin.accessToken, url: baseURL }]);
+  const reviewer = await adminWorkspace.newPage();
+  reviewer.setDefaultTimeout(15_000);
+  const reviewPath = `/admin/event-review?performanceId=${submission.review.performanceId}&state=SUBMITTED`;
+  await reviewer.goto(`/admin/events/${event}?show=${submission.review.performanceId}`);
+  await reviewer.locator('main').getByRole('link', { name: 'Open review' }).click();
+  const reason = 'Set the account limit to three for the second show.';
+  await reviewer.getByLabel('Reason', { exact: true }).fill(reason);
+  const requestChanges = reviewer.waitForResponse(response =>
+    response.url().endsWith('/performance-reviews/' + submission.review.performanceId) && response.request().method() === 'POST');
+  await reviewer.getByRole('button', { name: 'Request changes', exact: true }).click();
+  const changed = await requestChanges;
+  assert.equal(changed.status(), 200, await changed.text());
+
+  await page.goto('/organizer/events?status=CHANGES_REQUESTED');
+  await page.getByText(reason, { exact: true }).waitFor();
+  await page.locator('main').getByRole('link', { name: title, exact: true }).click();
+  assert.equal(new URL(page.url()).searchParams.get('show'), submission.review.performanceId);
+  await review.getByText(reason, { exact: true }).waitFor();
+  await review.getByRole('button', { name: 'Edit schedule', exact: true }).click();
+  await page.getByLabel('Ticket limit per account').fill('3');
+  await page.getByRole('button', { name: 'Save and continue', exact: true }).click();
+  await sale.getByRole('button', { name: 'Save and review', exact: true }).click();
+  const resubmitted = await submitReviewFromPage(review);
+  assert.notEqual(resubmitted.review.id, submission.review.id);
+
+  await reviewer.goto(reviewPath);
+  const approve = reviewer.waitForResponse(response =>
+    response.url().endsWith('/performance-reviews/' + submission.review.performanceId) && response.request().method() === 'POST');
+  await reviewer.getByRole('button', { name: 'Approve schedule', exact: true }).click();
+  const approved = await approve;
+  assert.equal(approved.status(), 200, await approved.text());
+  advanceApprovedPerformanceReview(resubmitted.review, { openSale: true });
   await publication.getByText('Synchronized', { exact: true }).nth(1).waitFor();
   const ga = (await readEvent()).performances.find(entry => entry.id !== hybrid.id);
   assert.equal(ga.layoutVersion, null);
+  assert.equal(ga.maxPerAccount, 3);
   const availability = await context.request.get('/api/v2/performances/' + ga.id + '/availability');
   assert.equal(availability.status(), 200, await availability.text());
   const inventory = (await availability.json()).data.groups[0];
   assert.equal(inventory.available, 150);
   assert.equal(inventory.offers[0].price, 250000);
-  console.log('Organizer resumed and edited a saved concert, then published two performances with hybrid and mapless inventory.');
+  for (const [view, scope] of [[reviewer, 'admin'], [page, 'organizer']]) {
+    await view.goto(`/${scope}/events/${event}?show=${ga.id}`);
+    await view.getByRole('navigation', { name: 'Concert navigation' }).getByRole('link', { name: 'View report', exact: true }).click();
+    await view.getByRole('link', { name: new RegExp('Open performance for ' + title) }).waitFor();
+    assert.equal(new URL(view.url()).searchParams.get('performanceId'), ga.id);
+    await view.getByRole('link', { name: 'Back to concert', exact: true }).click();
+    assert.equal(new URL(view.url()).searchParams.get('show'), ga.id);
+  }
+  console.log('Organizer resumed a two-show concert, corrected the second submission, and both roles opened its report.');
 } finally {
   await browser.close();
 }

@@ -1,0 +1,113 @@
+.operations-reports .operations-reports-header {
+  min-height: 0;
+  padding-bottom: 0;
+}
+
+.operations-report-views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .25rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.operations-report-views a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: .5rem .85rem;
+  border-bottom: 3px solid transparent;
+  color: var(--muted);
+  font-weight: 650;
+}
+
+.operations-report-views a[aria-current="page"] {
+  border-bottom-color: var(--coral);
+  color: var(--cream);
+}
+
+.operations-report-views a:hover {
+  color: var(--cream);
+  background: var(--surface-2);
+}
+
+.operations-report-filter-panel,
+.operations-report-message {
+  padding: 1rem 1.15rem;
+}
+
+.operations-report-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12.5rem), 1fr));
+  align-items: end;
+  gap: .85rem;
+  margin-top: .85rem;
+}
+
+.operations-report-filters input {
+  width: 100%;
+  min-width: 0;
+}
+
+.operations-report-filters > button {
+  justify-self: start;
+}
+
+.operations-report-filter-panel p {
+  margin: .65rem 0 0;
+}
+
+.operations-report-context {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .6rem;
+  margin-top: .6rem;
+}
+
+.operations-report-context p,
+.operations-report-message p {
+  margin: 0;
+}
+
+.operations-report-message > :is(a, button) {
+  margin-top: .75rem;
+}
+
+.operations-report-table :is(th, td) {
+  text-align: start;
+}
+
+.operations-report-table th[scope="row"] {
+  max-width: 18rem;
+  min-width: 9rem;
+  overflow-wrap: anywhere;
+}
+
+.operations-report-table td:nth-child(3) {
+  white-space: nowrap;
+}
+
+.operations-report-table a {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  color: var(--violet);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: .18em;
+}
+
+.operations-report-table a > svg {
+  flex: none;
+}
+
+.operations-report-table small {
+  display: block;
+  margin-top: .16rem;
+  color: var(--muted);
+}
+
+.operations-report-results a[aria-disabled="true"] {
+  opacity: .6;
+  cursor: default;
+}

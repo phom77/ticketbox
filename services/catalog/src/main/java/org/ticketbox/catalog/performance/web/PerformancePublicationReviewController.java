@@ -20,16 +20,21 @@ import org.ticketbox.catalog.web.ApiResponse;
 
 @RestController
 @RequestMapping("/api/admin/v2/performance-reviews")
-class PerformancePublicationReviewController {
+public class PerformancePublicationReviewController {
     private final PerformancePublicationReview reviews;
 
-    PerformancePublicationReviewController(PerformancePublicationReview reviews) {
+    public PerformancePublicationReviewController(PerformancePublicationReview reviews) {
         this.reviews = reviews;
     }
 
     @GetMapping
     ResponseEntity<ApiResponse<List<Review>>> queue() {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(ApiResponse.success(reviews.queue()));
+    }
+
+    @GetMapping("/{id}")
+    ResponseEntity<ApiResponse<Review>> review(@PathVariable UUID id) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(ApiResponse.success(reviews.current(id)));
     }
 
     @PostMapping("/{id}")
