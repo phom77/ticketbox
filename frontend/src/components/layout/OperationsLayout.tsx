@@ -11,10 +11,14 @@ import {
   ChevronRight,
   ClipboardCheck,
   FileClock,
+  Gauge,
+  LayoutDashboard,
   ListMusic,
   LogOut,
   Menu,
   Moon,
+  PanelLeftClose,
+  PanelLeftOpen,
   Receipt,
   ScanLine,
   Settings,
@@ -31,6 +35,8 @@ import { WorkspaceSelect } from '../WorkspaceSelect';
 import type { OperationsConcertContext } from './operationsConcertNavigation';
 
 type WorkspaceTheme = 'light' | 'dark';
+type WorkspaceMode = 'admin' | 'organizer' | 'staff';
+type Sidebar = 'primary' | 'concert';
 const themePreferenceKey = 'ticketbox.workspace.theme';
 
 function initialTheme(): WorkspaceTheme {
@@ -41,6 +47,35 @@ function initialTheme(): WorkspaceTheme {
     // The workspace can still switch themes when storage is unavailable.
   }
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function sidebarPreferenceKey(mode: WorkspaceMode, sidebar: Sidebar) {
+  return `ticketbox.workspace.${mode}.${sidebar}.collapsed`;
+}
+
+function initialCollapsed(mode: WorkspaceMode, sidebar: Sidebar) {
+  try {
+    return window.localStorage.getItem(sidebarPreferenceKey(mode, sidebar)) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+function railLabel(label: string, collapsed: boolean) {
+  return collapsed ? { 'aria-label': label, title: label } : undefined;
+}
+
+function SidebarToggle({ sidebar, collapsed, controls, onClick }: {
+  sidebar: Sidebar; collapsed: boolean; controls: string; onClick: () => void;
+}) {
+  const label = sidebar === 'primary'
+    ? translate(collapsed ? 'shared:operationsExpandMainSidebar' : 'shared:operationsCollapseMainSidebar')
+    : translate(collapsed ? 'shared:operationsExpandConcertSidebar' : 'shared:operationsCollapseConcertSidebar');
+  const Icon = collapsed ? PanelLeftOpen : PanelLeftClose;
+  return <button type="button" className="operations-sidebar-toggle" aria-label={label} title={label}
+    aria-expanded={!collapsed} aria-controls={controls} onClick={onClick}>
+    <Icon size={18} aria-hidden />
+  </button>;
 }
 
 type NavigationItem = {
@@ -64,7 +99,7 @@ function usesDrawer() {
 }
 
 const adminNavigation: NavigationItem[] = [
-  { to: '/admin', get label() { return translate('shared:operationsLayout_tongQuan'); }, icon: BarChart3, end: true },
+  { to: '/admin', get label() { return translate('shared:operationsLayout_tongQuan'); }, icon: LayoutDashboard, end: true },
   { to: '/admin/orders', get label() { return translate('shared:operationsOrdersSupport'); }, icon: Receipt },
   { to: '/admin/reports', get label() { return translate('shared:operationsReports'); }, icon: BarChart3 },
   { to: '/admin/organizations', get label() { return translate("shared:operationsLayout_toChuc"); }, icon: Users },
@@ -79,7 +114,7 @@ const staffNavigation: NavigationItem[] = [
 ];
 
 const organizerNavigation: NavigationItem[] = [
-  { to: '/organizer', get label() { return translate('shared:operationsLayout_tongQuan'); }, icon: BarChart3, end: true },
+  { to: '/organizer', get label() { return translate('shared:operationsLayout_tongQuan'); }, icon: LayoutDashboard, end: true },
   { to: '/organizer/reports', get label() { return translate('shared:operationsReports'); }, icon: BarChart3 },
   { to: '/organizer/members', grant: 'MEMBERS', get label() { return translate("shared:operationsLayout_thanhVien"); }, icon: UserCog },
 ];
@@ -98,7 +133,7 @@ function roleLabel(role: UserSummary['role']) {
   return translate("shared:operationsLayout_nhanVienCong");
 }
 
-export function OperationsLayout({ mode }: { mode: 'admin' | 'organizer' | 'staff' }) {
+export function OperationsLayout({ mode }: { mode: WorkspaceMode }) {
   useTranslation();
   const { user, logout } = useAuth();
   const organization = useOrganization();
@@ -107,6 +142,8 @@ export function OperationsLayout({ mode }: { mode: 'admin' | 'organizer' | 'staf
   const narrow = useSyncExternalStore(subscribeToDrawerWidth, usesDrawer);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerConcert, setDrawerConcert] = useState(false);
+  const [primaryCollapsed, setPrimaryCollapsed] = useState(() => initialCollapsed(mode, 'primary'));
+  const [concertCollapsed, setConcertCollapsed] = useState(() => initialCollapsed(mode, 'concert'));
   const [disclosure, setDisclosure] = useState<{ locationKey: string; expanded: boolean }>();
   const [concert, setConcert] = useState<OperationsConcertContext | null>(null);
   const [accountOpen, setAccountOpen] = useState(false);
@@ -115,6 +152,9 @@ export function OperationsLayout({ mode }: { mode: 'admin' | 'organizer' | 'staf
   const drawerTrigger = useRef<HTMLButtonElement>(null);
   const concertTrigger = useRef<HTMLButtonElement>(null);
   const drawerBack = useRef<HTMLButtonElement>(null);
+  const canCollapse = !narrow && mode !== 'staff';
+  const primaryRail = canCollapse && primaryCollapsed;
+  const concertRail = canCollapse && concertCollapsed;
   const dark = theme === 'dark';
   const themeAction = translate(dark ? 'shared:workspaceSwitchToLight' : 'shared:workspaceSwitchToDark');
   const [home, ...navigation] =
@@ -143,6 +183,8 @@ export function OperationsLayout({ mode }: { mode: 'admin' | 'organizer' | 'staf
   const activeConcert = inConcert && concert?.pathname === location.pathname && concert.organizationId === organization?.selected?.id
     ? concert : null;
   const organizerId = organization?.selected?.id;
+  const concertLabel = translate('shared:operationsConcert');
+  const logoutLabel = translate('shared:operationsLayout_dangXuat');
 
   useEffect(() => {
     setDisclosure(undefined);
@@ -178,6 +220,17 @@ export function OperationsLayout({ mode }: { mode: 'admin' | 'organizer' | 'staf
     }
   }
 
+  function toggleSidebar(sidebar: Sidebar) {
+    const next = !(sidebar === 'primary' ? primaryCollapsed : concertCollapsed);
+    if (sidebar === 'primary') setPrimaryCollapsed(next);
+    else setConcertCollapsed(next);
+    try {
+      window.localStorage.setItem(sidebarPreferenceKey(mode, sidebar), String(next));
+    } catch {
+      // The current layout remains available in this session.
+    }
+  }
+
   function logOut() {
     logout();
     navigate('/');
@@ -187,42 +240,49 @@ export function OperationsLayout({ mode }: { mode: 'admin' | 'organizer' | 'staf
     if (isPlainLinkClick(event)) closeDrawer();
   }
 
-  function primaryLink(item: NavigationItem) {
+  function navigationLink(item: NavigationItem, collapsed: boolean) {
     const Icon = item.icon;
-    return <NavLink key={item.to} to={item.to} end={item.end} onClick={closeDrawerOnNavigation}>
+    const label = item.label;
+    return <NavLink key={item.to} to={item.to} end={item.end} onClick={closeDrawerOnNavigation} {...railLabel(label, collapsed)}>
       <Icon aria-hidden size={18} strokeWidth={1.8} />
-      <span>{item.label}</span>
+      <span className="operations-sidebar-label">{label}</span>
     </NavLink>;
   }
 
-  const primarySidebar = <aside className="operations-sidebar" hidden={narrow && drawerConcert}>
+  const primarySidebar = <aside id="operations-primary-navigation" className="operations-sidebar"
+    data-collapsed={primaryRail || undefined} hidden={narrow && drawerConcert}>
     <div className="operations-brand">
-      <Logo to={workspaceHome} label={workspaceLabel} />
-      <span>{workspaceLabel}</span>
+      <div className="operations-brand-copy" title={primaryRail ? workspaceLabel : undefined}>
+        <Logo to={workspaceHome} label={workspaceLabel} />
+        <span className="operations-sidebar-label">{workspaceLabel}</span>
+      </div>
+      {canCollapse && <SidebarToggle sidebar="primary" collapsed={primaryRail} controls="operations-primary-navigation"
+        onClick={() => toggleSidebar('primary')} />}
     </div>
     <nav className="operations-nav" aria-label={navigationLabel}>
-      {primaryLink(home)}
+      {navigationLink(home, primaryRail)}
       {canOpenConcert && <button
         ref={concertTrigger}
         className={inConcert ? 'active' : undefined}
         type="button"
         aria-expanded={narrow ? drawerConcert : concertOpen}
         aria-controls="operations-concert-navigation"
+        {...railLabel(concertLabel, primaryRail)}
         onClick={() => {
           if (narrow) setDrawerConcert(true);
           else setDisclosure({ locationKey: location.key, expanded: !concertOpen });
         }}
       >
         <ListMusic aria-hidden size={18} strokeWidth={1.8} />
-        <span>{translate('shared:operationsConcert')}</span>
-        <ChevronRight aria-hidden size={16} className="operations-concert-chevron" />
+        <span className="operations-sidebar-label">{concertLabel}</span>
+        <ChevronRight aria-hidden size={16} className="operations-concert-chevron operations-sidebar-label" />
       </button>}
-      {navigation.map(primaryLink)}
+      {navigation.map((item) => navigationLink(item, primaryRail))}
     </nav>
     <div className="operations-sidebar-footer">
-      <button type="button" onClick={logOut}>
+      <button type="button" onClick={logOut} {...railLabel(logoutLabel, primaryRail)}>
         <LogOut aria-hidden size={17} />
-        {translate('shared:operationsLayout_dangXuat')}
+        <span className="operations-sidebar-label">{logoutLabel}</span>
       </button>
     </div>
   </aside>;
@@ -236,6 +296,9 @@ export function OperationsLayout({ mode }: { mode: 'admin' | 'organizer' | 'staf
     : pathname === create;
   const review = '/admin/event-review';
   const performanceOperations = '/admin/performance-operations';
+  const allConcertsLabel = translate('shared:operationsAllConcerts');
+  const createLabel = translate(isAdmin ? 'shared:operationsCreateForOrganization' : 'performances:createConcert');
+  const reportLabel = translate('concert-directory:openReport');
   const reportParameters = new URLSearchParams(location.search);
   reportParameters.delete('returnTo');
   const reportQuery = activeConcert && new URLSearchParams({
@@ -247,38 +310,48 @@ export function OperationsLayout({ mode }: { mode: 'admin' | 'organizer' | 'staf
   const concertSidebar = canOpenConcert && <aside
     id="operations-concert-navigation"
     className="operations-concert-sidebar"
+    data-collapsed={concertRail || undefined}
     hidden={narrow ? !drawerConcert : !concertOpen}
   >
     {narrow
       ? <button className="operations-navigation-back" type="button" onClick={backToMainNavigation} ref={drawerBack}>
         <ArrowLeft aria-hidden size={18} />{translate('shared:operationsBackToNavigation')}
       </button>
-      : <p className="operations-concert-title">{translate('shared:operationsConcert')}</p>}
+      : <div className="operations-concert-title">
+        <span className="operations-sidebar-label">{concertLabel}</span>
+        <SidebarToggle sidebar="concert" collapsed={concertRail} controls="operations-concert-navigation"
+          onClick={() => toggleSidebar('concert')} />
+      </div>}
     <nav className="operations-nav" aria-label={translate('shared:operationsConcertNavigation')}>
       <Link to={allConcerts}
         aria-current={!creating && (pathname === allConcerts || (isAdmin && pathname === legacyConcerts)) ? 'page' : undefined}
-        onClick={closeDrawerOnNavigation}>
-        <CalendarDays aria-hidden size={18} /><span>{translate('shared:operationsAllConcerts')}</span>
+        onClick={closeDrawerOnNavigation} {...railLabel(allConcertsLabel, concertRail)}>
+        <CalendarDays aria-hidden size={18} /><span className="operations-sidebar-label">{allConcertsLabel}</span>
       </Link>
       {isAdmin && <>
-        {primaryLink({ to: review, label: translate('shared:releaseQueue'), icon: ClipboardCheck })}
-        {primaryLink({ to: performanceOperations, label: translate('performances:operations'), icon: CalendarDays })}
+        {navigationLink({ to: review, label: translate('shared:releaseQueue'), icon: ClipboardCheck }, concertRail)}
+        {navigationLink({ to: performanceOperations, label: translate('performances:operations'), icon: Gauge }, concertRail)}
       </>}
-      <Link to={create} aria-current={creating ? 'page' : undefined} onClick={closeDrawerOnNavigation}>
-        <Ticket aria-hidden size={18} /><span>{translate(isAdmin ? 'shared:operationsCreateForOrganization' : 'performances:createConcert')}</span>
+      <Link to={create} aria-current={creating ? 'page' : undefined} onClick={closeDrawerOnNavigation} {...railLabel(createLabel, concertRail)}>
+        <Ticket aria-hidden size={18} /><span className="operations-sidebar-label">{createLabel}</span>
       </Link>
       {activeConcert && <div className="operations-concert-context" role="group" aria-label={activeConcert.title}>
-        <p>{activeConcert.title}</p>
-        {activeConcert.links.map((link) => <Link key={link.to} to={link.to} state={link.state} aria-current={link.current ? 'page' : undefined}
+        <p className="operations-sidebar-label">{activeConcert.title}</p>
+        {activeConcert.links.map(({ icon: Icon, ...link }) => <Link key={link.to} to={link.to} state={link.state}
+          aria-current={link.current ? 'page' : undefined} {...railLabel(link.label, concertRail)}
           onClick={(event) => {
             if (isPlainLinkClick(event)) link.onClick?.(event);
             closeDrawerOnNavigation(event);
-          }}>{link.label}</Link>)}
-        {reportQuery && <Link to={workspaceHome + '/reports?' + reportQuery} onClick={(event) => {
+          }}>
+          {concertRail && <Icon aria-hidden size={18} />}
+          <span className="operations-sidebar-label">{link.label}</span>
+        </Link>)}
+        {reportQuery && <Link to={workspaceHome + '/reports?' + reportQuery} {...railLabel(reportLabel, concertRail)} onClick={(event) => {
           if (isPlainLinkClick(event) && activeConcert.canLeave && !activeConcert.canLeave()) event.preventDefault();
           closeDrawerOnNavigation(event);
         }}>
-          {translate('concert-directory:openReport')}
+          {concertRail && <BarChart3 aria-hidden size={18} />}
+          <span className="operations-sidebar-label">{reportLabel}</span>
         </Link>}
       </div>}
     </nav>

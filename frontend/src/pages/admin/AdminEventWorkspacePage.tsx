@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Activity, FileCheck, Info } from 'lucide-react';
 import { Link, Navigate, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { getOperationsEvent } from '../../api/operations';
 import { getApprovedOrganizations, type ApprovedOrganization } from '../../api/organizations';
@@ -54,9 +55,9 @@ function EventWorkspace({ id }: { id: string }) {
     eventId: event.id,
     performanceId: performance?.id,
     links: [
-      { to: overview, label: t('admin:concertWorkspacePage_tongQuan'), current: true, state: location.state },
-      ...(review ? [{ to: review, label: t('concert-directory:openReview') }] : []),
-      ...(operations ? [{ to: operations, label: t('concert-directory:openOperations') }] : []),
+      { to: overview, label: t('admin:concertWorkspacePage_tongQuan'), icon: Info, current: true, state: location.state },
+      ...(review ? [{ to: review, label: t('concert-directory:openReview'), icon: FileCheck }] : []),
+      ...(operations ? [{ to: operations, label: t('concert-directory:openOperations'), icon: Activity }] : []),
     ],
   } : null, [event, overview, location.state, performance?.id, review, operations, t]);
   useOperationsConcert(contextualNavigation);

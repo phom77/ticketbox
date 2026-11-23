@@ -2,7 +2,7 @@ import { WorkspaceSelect } from '../../components/WorkspaceSelect';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useBeforeUnload, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Check, Plus } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CalendarClock, Check, FileCheck, Info, Plus, Armchair } from 'lucide-react';
 import {
   createManagedEvent, getManagedEvent, listVenues, updateManagedEvent,
   type EventInput, type ManagedEvent, type ManagedPerformance, type Venue,
@@ -27,6 +27,7 @@ const stepLabels: Record<Step, string> = {
   event: 'performances:step_event', schedule: 'performances:step_schedule',
   tickets: 'performances:step_tickets', review: 'performances:step_review',
 };
+const stepIcons = { event: Info, schedule: CalendarClock, tickets: Armchair, review: FileCheck };
 
 export function PerformanceEventAccess({ children }: { children: ReactNode }) {
   const organization = useOrganization();
@@ -227,6 +228,7 @@ function EventWorkspace({ id }: { id: string }) {
       title: event.title, eventId: id, performanceId: active?.id, canLeave: confirmLeave,
       links: sections.map((entry) => ({
         label: t(stepLabels[entry]),
+        icon: stepIcons[entry],
         to: manageEventPath(id) + '?' + queryForStep(entry, active?.id),
         state: location.state,
         current: entry === activeStep,

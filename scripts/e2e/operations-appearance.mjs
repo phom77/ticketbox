@@ -128,6 +128,9 @@ try {
   await allConcerts.waitFor();
   await shell.locator('.operations-sidebar-footer button').focus();
   await page.keyboard.press('Tab');
+  assert.equal(await page.getByRole('button', { name: 'Collapse Concert sidebar' })
+    .evaluate((node) => document.activeElement === node), true);
+  await page.keyboard.press('Tab');
   assert.equal(await allConcerts.evaluate((node) => document.activeElement === node), true);
   await review.click();
   assert.equal(await review.getAttribute('aria-current'), 'page');

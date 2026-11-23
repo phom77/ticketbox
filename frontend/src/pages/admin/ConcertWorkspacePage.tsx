@@ -191,6 +191,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
         return {
           to: `${root}/concerts/${concert.id}${query.size ? `?${query}` : ''}`,
           get label() { return item.label; },
+          icon: item.icon,
           current: item.id === parseWorkspaceTab(searchParams.get('tab')),
         };
       }),

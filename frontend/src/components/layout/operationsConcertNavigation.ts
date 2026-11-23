@@ -1,4 +1,5 @@
 import { type Dispatch, type MouseEvent, type SetStateAction, useLayoutEffect } from 'react';
+import type { LucideIcon } from 'lucide-react';
 import { useLocation, useOutletContext } from 'react-router-dom';
 import { useOrganization } from '../../features/organizations/OrganizationProvider';
 
@@ -11,6 +12,7 @@ export type OperationsConcert = {
   links: readonly {
     to: string;
     label: string;
+    icon: LucideIcon;
     current?: boolean;
     state?: unknown;
     onClick?: (event: MouseEvent<HTMLAnchorElement>) => void;

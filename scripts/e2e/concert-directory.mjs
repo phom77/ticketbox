@@ -46,14 +46,94 @@ async function session(role, { empty = false } = {}) {
   return page;
 }
 
+async function verifyNavigationRails(page, workspace) {
+  await page.goto(`/${workspace}/events`);
+  const mainNav = page.getByRole('navigation', { name: 'Management navigation' });
+  const concertNav = page.getByRole('navigation', { name: 'Concert navigation' });
+  const mainCollapse = page.getByRole('button', { name: 'Collapse main sidebar' });
+  const mainExpand = page.getByRole('button', { name: 'Expand main sidebar' });
+  const concertCollapse = page.getByRole('button', { name: 'Collapse Concert sidebar' });
+  const concertExpand = page.getByRole('button', { name: 'Expand Concert sidebar' });
+  const concert = mainNav.getByRole('button', { name: 'Concert', exact: true });
+  const allConcerts = concertNav.getByRole('link', { name: 'All concerts' });
+
+  await mainCollapse.waitFor();
+  const { width: primaryWidth } = await mainNav.boundingBox();
+  const { width: concertWidth } = await concertNav.boundingBox();
+  const { width: contentWidth } = await page.getByRole('main').boundingBox();
+
+  await mainCollapse.focus();
+  await mainCollapse.press('Enter');
+  assert.equal(await mainExpand.getAttribute('aria-expanded'), 'false');
+  assert(await mainExpand.evaluate((node) => node === document.activeElement && node.matches(':focus-visible')));
+  assert((await mainNav.boundingBox()).width < primaryWidth / 2);
+  assert.equal((await concertNav.boundingBox()).width, concertWidth);
+  assert.equal(await concert.getAttribute('title'), 'Concert');
+  assert.equal(await concert.getByText('Concert', { exact: true }).isVisible(), false);
+
+  await concertCollapse.focus();
+  await concertCollapse.press('Space');
+  assert.equal(await concertExpand.getAttribute('aria-expanded'), 'false');
+  assert(await concertExpand.evaluate((node) => node === document.activeElement && node.matches(':focus-visible')));
+  assert((await concertNav.boundingBox()).width < concertWidth / 2);
+  assert((await page.getByRole('main').boundingBox()).width > contentWidth);
+  assert.equal(await allConcerts.getAttribute('aria-current'), 'page');
+  assert.equal(await allConcerts.getAttribute('title'), 'All concerts');
+  assert.equal(await allConcerts.getByText('All concerts', { exact: true }).isVisible(), false);
+
+  await concert.press('Enter');
+  assert.equal(await concert.getAttribute('aria-expanded'), 'false');
+  assert.equal(await concertNav.isVisible(), false);
+  await concert.press('Enter');
+  await concertExpand.waitFor();
+
+  await page.reload();
+  await mainExpand.waitFor();
+  await concertExpand.waitFor();
+  await mainExpand.click();
+  assert.equal((await mainNav.boundingBox()).width, primaryWidth);
+  assert((await concertNav.boundingBox()).width < concertWidth / 2);
+  await mainCollapse.click();
+
+  for (const width of [834, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    const menu = page.getByRole('button', { name: 'Open navigation' });
+    await menu.press('Enter');
+    const dialog = page.getByRole('dialog', { name: 'Management navigation' });
+    await allConcerts.getByText('All concerts', { exact: true }).waitFor();
+    assert.equal(await dialog.getByRole('button', { name: /sidebar/ }).count(), 0);
+    await dialog.getByRole('button', { name: 'Back to main navigation' }).press('Enter');
+    await concert.getByText('Concert', { exact: true }).waitFor();
+    await page.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'hidden' });
+    assert(await menu.evaluate((node) => document.activeElement === node));
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+  }
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await mainExpand.waitFor();
+  await concertExpand.click();
+  assert.equal((await concertNav.boundingBox()).width, concertWidth);
+  assert((await mainNav.boundingBox()).width < primaryWidth / 2);
+  await mainExpand.click();
+}
+
 try {
   const admin = await session('ADMIN');
+  await verifyNavigationRails(admin, 'admin');
   await admin.goto('/admin/events');
   await admin.locator('main').getByRole('link', { name: 'Arena Sessions', exact: true }).click();
   assert.equal(new URL(admin.url()).pathname, '/admin/events/' + event.id);
   await admin.getByRole('heading', { name: 'Arena Sessions', exact: true }).waitFor();
   await admin.getByText('Sunroom Live', { exact: true }).first().waitFor();
-  await admin.locator('main').getByRole('link', { name: 'Open review', exact: true }).click();
+  await admin.getByRole('button', { name: 'Collapse Concert sidebar' }).click();
+  const context = admin.getByRole('group', { name: 'Arena Sessions' });
+  const overview = context.getByRole('link', { name: 'Overview', exact: true });
+  assert.equal(await overview.getAttribute('aria-current'), 'page');
+  assert.equal(await overview.getByText('Overview', { exact: true }).isVisible(), false);
+  const openReview = context.getByRole('link', { name: 'Open review', exact: true });
+  assert.equal(await openReview.getAttribute('title'), 'Open review');
+  await openReview.press('Enter');
   const review = new URL(admin.url());
   assert.equal(review.pathname, '/admin/event-review');
   assert.equal(review.searchParams.get('performanceId'), row.id);
@@ -64,6 +144,7 @@ try {
     '/admin/concerts/' + legacy.legacyConcertId);
 
   const organizer = await session('ORGANIZER');
+  await verifyNavigationRails(organizer, 'organizer');
   await organizer.goto('/organizer/events?status=CHANGES_REQUESTED');
   await organizer.getByText(event.changeReason, { exact: true }).waitFor();
   assert.equal(await organizer.locator('main').getByRole('link', { name: 'Arena Sessions', exact: true }).getAttribute('href'),
@@ -81,7 +162,7 @@ try {
   await newOrganization.goto('/organizer/events');
   await newOrganization.getByRole('heading', { name: 'No concerts yet', exact: true }).waitFor();
   await newOrganization.locator('main').getByRole('link', { name: 'Create concert', exact: true }).waitFor();
-  console.log('Concert directory preserves workspace, owner, review and legacy destinations.');
+  console.log('Concert directory preserves workspace, owner, review and legacy destinations. Desktop rails, persistence and mobile navigation passed.');
 } finally {
   await browser.close();
 }
