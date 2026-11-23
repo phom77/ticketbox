@@ -7,8 +7,8 @@
 
 ## 2. Hợp đồng đọc theo phạm vi
 
-- [ ] 2.1 Bổ sung các truy vấn đọc Catalog cho danh sách và chi tiết Admin, bộ đếm trạng thái và báo cáo vận hành theo quyền và phạm vi đã định nghĩa. Áp dụng bộ lọc trước phân trang. Dùng kiểm thử dịch vụ để xác nhận tổng, thứ tự, trang cuối, cận giờ, trạng thái bán bị tạm dừng, hồ sơ đã bị thay thế, concert cũ, concert nhiều suất và concert chưa có suất.
-- [ ] 2.2 Xác nhận quyền nền tảng, `EVENTS` và quyền sở hữu trước truy vấn qua các bài kiểm tra endpoint. Kiểm tra người dùng không được cấp quyền hoặc lọc bằng ID tổ chức và concert của bên khác. Ghi hợp đồng đọc mới và chạy `./mvnw -B -ntp -f services/catalog/pom.xml clean verify` cùng `python3 scripts/ci/verify-service-boundaries.py --service catalog`. Giữ các hợp đồng ghi và kiểm các fixture dữ liệu cũ khi chạy bộ kiểm thử.
+- [x] 2.1 Bổ sung các truy vấn đọc Catalog cho danh sách và chi tiết Admin, bộ đếm trạng thái và báo cáo vận hành theo quyền và phạm vi đã định nghĩa. Áp dụng bộ lọc trước phân trang. Dùng kiểm thử dịch vụ để xác nhận tổng, thứ tự, trang cuối, cận giờ, trạng thái bán bị tạm dừng, hồ sơ đã bị thay thế, concert cũ, concert nhiều suất và concert chưa có suất.
+- [x] 2.2 Xác nhận quyền nền tảng, `EVENTS` và quyền sở hữu trước truy vấn qua các bài kiểm tra endpoint. Kiểm tra người dùng không được cấp quyền hoặc lọc bằng ID tổ chức và concert của bên khác. Ghi hợp đồng đọc mới và chạy `./mvnw -B -ntp -f services/catalog/pom.xml clean verify` cùng `python3 scripts/ci/verify-service-boundaries.py --service catalog`. Giữ các hợp đồng ghi và kiểm các fixture dữ liệu cũ khi chạy bộ kiểm thử.
 
 ## 3. Danh sách Concert và luồng tác nghiệp
 

@@ -43,6 +43,11 @@ public class PerformancePublicationReview {
         return reviews.queue();
     }
 
+    public Review current(UUID id) {
+        return reviews.current(id).filter(review -> review.state() != State.SUPERSEDED)
+                .orElseThrow(PerformancePublicationReview::missing);
+    }
+
     public List<UUID> due() {
         return reviews.due(OffsetDateTime.now());
     }
