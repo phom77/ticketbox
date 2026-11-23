@@ -1,85 +1,91 @@
-import { translate } from '../../i18n';
+import { useState } from 'react';
+import { ArrowUpRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { type OrganizationGrant } from '../../api/organizations';
-import { useOrganization } from '../../features/organizations/OrganizationProvider';
-import {
-  ArrowUpRight,
-  CalendarDays,
-  CircleDollarSign,
-  UserCog,
-  Receipt,
-} from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { getOperationsEvents } from '../../api/operations';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
+import { useOrganization } from '../../features/organizations/OrganizationProvider';
+import { DashboardMetric } from '../../features/operations-dashboard/DashboardMetric';
+import { PerformanceMetrics } from '../../features/operations-dashboard/PerformanceMetrics';
+import { dashboardConcertPath, dashboardTime } from '../../features/operations-dashboard/dashboardContext';
 
-const workspaces: {
-  to: string;
-  title: string;
-  icon: typeof CalendarDays;
-  grant: OrganizationGrant;
-}[] = [
-  {
-    to: '/organizer/concerts',
-    grant: 'EVENTS',
-    get title() { return translate("organizer:organizerOverviewPage_buoiDien"); },
+const loadDrafts = (signal: AbortSignal) => getOperationsEvents('organizer', { status: 'PREPARING', size: 3 }, signal);
+const loadChanges = (signal: AbortSignal) => getOperationsEvents('organizer', { status: 'CHANGES_REQUESTED', size: 3 }, signal);
 
-    icon: CalendarDays,
-  },
-  {
-    to: '/organizer/revenue',
-    grant: 'FINANCE',
-    get title() { return translate('organizer:organizerOverviewPage_revenue'); },
+function OrganizerConcertActivity({ name }: { name: string }) {
+  const { t } = useTranslation();
+  const [asOf] = useState(() => new Date().toISOString());
 
-    icon: CircleDollarSign,
-  },
-  {
-    to: '/organizer/orders', grant: 'FINANCE', get title() { return translate("organizer:organizerOverviewPage_donHangVaVe"); },
-    icon: Receipt,
-  },
-  {
-    to: '/organizer/members', grant: 'MEMBERS', get title() { return translate("organizer:organizerOverviewPage_thanhVien"); },
-    icon: UserCog,
-  },
-];
+  return <>
+    <AdminPageHeader
+      title={name}
+      description={t('operations-dashboard:asOf', { time: dashboardTime.format(new Date(asOf)) })}
+      actions={
+        <Link className="admin-primary-action" to="/organizer/events/new">
+          {t('operations-dashboard:createConcert')}
+          <ArrowUpRight aria-hidden="true" size={17} />
+        </Link>
+      }
+    />
+    <section className="operations-dashboard-group" aria-labelledby="organizer-dashboard-concerts">
+      <h2 id="organizer-dashboard-concerts">{t('operations-dashboard:concertActivity')}</h2>
+      <div className="operations-dashboard-grid">
+        <DashboardMetric
+          title={t('operations-dashboard:preparing')}
+          to="/organizer/events?status=PREPARING"
+          load={loadDrafts}
+          empty={t('operations-dashboard:noDrafts')}
+          renderItem={(item) => (
+            <li key={item.id}>
+              <Link to={dashboardConcertPath('organizer', item.id, item.legacyConcertId, item.actionPerformanceId)}>{item.title}</Link>
+              <p>{t('operations-dashboard:resumeDraft')}</p>
+            </li>
+          )}
+        />
+        <DashboardMetric
+          title={t('operations-dashboard:changesRequested')}
+          to="/organizer/events?status=CHANGES_REQUESTED"
+          load={loadChanges}
+          empty={t('operations-dashboard:noChanges')}
+          renderItem={(item) => (
+            <li key={item.id}>
+              <Link to={dashboardConcertPath('organizer', item.id, item.legacyConcertId, item.actionPerformanceId, 'review')}>{item.title}</Link>
+              {item.changeReason && <p>{item.changeReason}</p>}
+            </li>
+          )}
+        />
+        <PerformanceMetrics scope="organizer" asOf={asOf} />
+      </div>
+    </section>
+  </>;
+}
 
 export function OrganizerOverviewPage() {
-  useTranslation();
+  const { t } = useTranslation();
   const organization = useOrganization();
   const selected = organization?.selected;
+  const canManageEvents = selected?.grants.includes('EVENTS');
+  const canReadFinance = selected?.grants.includes('FINANCE');
+  const canManageMembers = selected?.grants.includes('MEMBERS');
 
   return (
     <>
-      <AdminPageHeader
-        title={selected?.name ?? translate("organizer:organizerOverviewPage_toChucCuaBan")}
-        actions={selected?.grants.includes('EVENTS') ? (
-          <Link className="admin-primary-action" to="/organizer/concerts?create=1">
-            {translate("organizer:organizerOverviewPage_taoConcert")}
-            <ArrowUpRight aria-hidden="true" size={17} />
-          </Link>
-        ) : null}
-      />
-
-      {organization?.loading ? <p role="status">{translate("organizer:organizerOverviewPage_dangTaiToChuc")}</p> : null}
-      {organization?.error ? (
-        <div className="admin-notice error" role="alert">
-          <p>{organization.error}</p>
-          <button className="admin-secondary-action" type="button" onClick={() => void organization.reload()}>{translate("organizer:organizerOverviewPage_thuLai")}</button>
-        </div>
-      ) : null}
-      {selected ? (
-        <section className="admin-workspace-grid" aria-label={translate("organizer:organizerOverviewPage_khuVucQuanLyCuaNhaTo")}>
-        {workspaces.filter((workspace) => selected.grants.includes(workspace.grant)).map((workspace) => {
-          const Icon = workspace.icon;
-          return (
-            <Link key={workspace.to} to={workspace.to} className="admin-workspace-link">
-              <Icon aria-hidden="true" size={22} strokeWidth={1.7} />
-              <h2>{workspace.title}</h2>
-              <ArrowUpRight aria-hidden="true" size={18} />
-            </Link>
-          );
-        })}
+      {canManageEvents && selected ? <OrganizerConcertActivity key={selected.id} name={selected.name} /> : (
+        <AdminPageHeader title={selected?.name ?? t('organizer:organizerOverviewPage_toChucCuaBan')}
+          description={selected && t('operations-dashboard:eventsGrantRequired')} />
+      )}
+      {(canReadFinance || canManageMembers) && (
+        <section className="operations-dashboard-group" aria-labelledby="organizer-dashboard-workspaces">
+          <h2 id="organizer-dashboard-workspaces">{t('operations-dashboard:organizationTools')}</h2>
+          <div className="operations-dashboard-links">
+            {canReadFinance && <>
+              <Link className="admin-secondary-action" to="/organizer/reports?view=reconciliation">{t('operations-dashboard:financialReports')}</Link>
+              <Link className="admin-secondary-action" to="/organizer/orders">{t('shared:operationsLayout_donHangVe')}</Link>
+            </>}
+            {canManageMembers && <Link className="admin-secondary-action" to="/organizer/members">{t('organizer:organizerOverviewPage_thanhVien')}</Link>}
+          </div>
         </section>
-      ) : null}
+      )}
     </>
   );
 }

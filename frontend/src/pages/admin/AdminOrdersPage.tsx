@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useOrganization } from '../../features/organizations/OrganizationProvider';
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { ChevronLeft, ChevronRight, Eye, Filter, RefreshCw, Receipt, Search, Ticket, X } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import {
   getAdminOrders,
@@ -22,6 +22,8 @@ import type { Ticket as TicketType } from '../../api/tickets';
 import type { ConcertDetail } from '../../api/concerts';
 import { ModalPortal } from '../../components/feedback/ModalPortal';
 import { OrderSupportSections } from './OrderSupportSections';
+import { OrderSupportQueue } from './OrderSupportQueue';
+import { isSupportQueueKind } from './orderSupportKind';
 
 // ---- Status badge helpers ----
 
@@ -394,6 +396,25 @@ function orderLoadMessage(error: unknown, lookup: OrderSupportLookup | null) {
 }
 
 export function AdminOrdersPage({ apiScope = 'admin' }: { apiScope?: ManagementApiScope }) {
+  const { t } = useTranslation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const support = searchParams.get('support');
+  if (apiScope === 'admin' && isSupportQueueKind(support) && !searchParams.has('orderId')) {
+    return <>
+      <AdminPageHeader title={t('operations-dashboard:support')} actions={
+        <Link className="admin-secondary-action" to="/admin/orders">{t('operations-dashboard:lookUpOrders')}</Link>
+      } />
+      <OrderSupportQueue initialKind={support} onFilterChange={(kind) => {
+        const next = new URLSearchParams(searchParams);
+        next.set('support', kind);
+        setSearchParams(next, { replace: true });
+      }} />
+    </>;
+  }
+  return <OrderDirectory apiScope={apiScope} />;
+}
+
+function OrderDirectory({ apiScope }: { apiScope: ManagementApiScope }) {
   useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialOrderId = apiScope === 'admin' ? searchParams.get('orderId')?.trim() : undefined;
@@ -498,7 +519,10 @@ export function AdminOrdersPage({ apiScope = 'admin' }: { apiScope?: ManagementA
   return (
     <>
       <AdminPageHeader
-        title={translate("admin:adminOrdersPage_donHangVe")}
+        title={apiScope === 'admin' ? translate('shared:operationsOrdersSupport') : translate('shared:operationsLayout_donHangVe')}
+        actions={apiScope === 'admin' && (
+          <Link className="admin-secondary-action" to="/admin/orders?support=UNKNOWN_PAYMENT">{translate('operations-dashboard:browseSupport')}</Link>
+        )}
       />
 
       {/* Tabs */}

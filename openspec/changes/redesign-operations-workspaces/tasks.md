@@ -22,8 +22,8 @@
 
 ## 5. Dashboard theo vai trò
 
-- [ ] 5.1 Dựng dashboard Admin với các chỉ số và hàng chờ trong design. Nối từng chỉ số với báo cáo hoặc danh sách theo cùng phạm vi và kỳ. Dùng dữ liệu vượt kích thước trang để kiểm tổng, mở đúng bản ghi và theo dõi dữ liệu tải một phần, lỗi, thử lại và tổng bằng 0.
-- [ ] 5.2 Dựng dashboard Organizer theo tổ chức và quyền, với nút Tạo concert và việc cần làm tiếp. Kiểm tra chỉ số, đích mở chi tiết, phản hồi khi chưa có dữ liệu, quyền `FINANCE` không kèm `EVENTS` và đổi tổ chức khi phản hồi cũ còn đang tải.
+- [x] 5.1 Dựng dashboard Admin với các chỉ số và hàng chờ trong design. Nối từng chỉ số với báo cáo hoặc danh sách theo cùng phạm vi và kỳ. Dùng dữ liệu vượt kích thước trang để kiểm tổng, mở đúng bản ghi và theo dõi dữ liệu tải một phần, lỗi, thử lại và tổng bằng 0.
+- [x] 5.2 Dựng dashboard Organizer theo tổ chức và quyền, với nút Tạo concert và việc cần làm tiếp. Kiểm tra chỉ số, đích mở chi tiết, phản hồi khi chưa có dữ liệu, quyền `FINANCE` không kèm `EVENTS` và đổi tổ chức khi phản hồi cũ còn đang tải.
 
 ## 6. Nghiệm thu tích hợp
 

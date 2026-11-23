@@ -7,14 +7,8 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ApiClientError } from '../../api/client';
 import { getSupportQueue, retrySupportItem, type SupportQueueItem, type SupportQueueKind, type SupportQueuePage } from '../../api/supportQueue';
+import { supportQueueLabels } from './orderSupportKind';
 import './OrderSupportQueue.css';
-
-const categories: Record<SupportQueueKind, string> = {
-  get UNKNOWN_PAYMENT() { return translate("admin:orderSupportQueue_giaoDichChuaRoKetQua"); },
-  get MISSING_TICKETS() { return translate("admin:orderSupportQueue_daThanhToanThieuVe"); },
-  get PENDING_REFUND() { return translate("admin:orderSupportQueue_choXuLyHoanTien"); },
-  get FAILED_EMAIL() { return translate("admin:orderSupportQueue_emailVeGuiLoi"); },
-};
 
 const states: Record<string, string> = {
   get UNKNOWN() { return translate("admin:orderSupportQueue_chuaXacDinh"); },
@@ -36,9 +30,13 @@ function retryLabel(kind: SupportQueueKind) {
   return null;
 }
 
-export function OrderSupportQueue() {
+export function OrderSupportQueue({ initialKind = 'UNKNOWN_PAYMENT', onFilterChange, onRetryAccepted }: {
+  initialKind?: SupportQueueKind;
+  onFilterChange?: (kind: SupportQueueKind) => void;
+  onRetryAccepted?: (kind: SupportQueueKind) => void;
+} = {}) {
   useTranslation();
-  const [kind, setKind] = useState<SupportQueueKind>('UNKNOWN_PAYMENT');
+  const [kind, setKind] = useState<SupportQueueKind>(initialKind);
   const [page, setPage] = useState(0);
   const [revision, setRevision] = useState(0);
   const [result, setResult] = useState<SupportQueuePage | null>(null);
@@ -81,6 +79,7 @@ export function OrderSupportQueue() {
     setError('');
     setPage(0);
     setKind(next);
+    onFilterChange?.(next);
   }
 
   function changePage(next: number) {
@@ -102,6 +101,7 @@ export function OrderSupportQueue() {
       await retrySupportItem(kind, item, actionId);
       actionIds.current.delete(identity);
       setFeedback({ kind, message: translate("admin:orderSupportQueue_daTiepNhanYeuCau"), failed: false });
+      onRetryAccepted?.(kind);
       if (category.current === kind) {
         if (button === document.activeElement) heading.current?.focus();
         setRevision((value) => value + 1);
@@ -126,7 +126,7 @@ export function OrderSupportQueue() {
         <h2 id="order-support-queue-title" ref={heading} tabIndex={-1}>{translate("admin:orderSupportQueue_viecCanXuLy")}</h2>
         <WorkspaceSelect className="order-support-queue-filter" label={translate('admin:orderSupportQueue_loaiNgoaiLe')}
           value={kind} onChange={(value) => selectCategory(value as SupportQueueKind)}
-          options={Object.entries(categories).map(([value, label]) => ({ value, label }))} />
+          options={Object.entries(supportQueueLabels).map(([value, label]) => ({ value, label }))} />
       </header>
       {activeFeedback && <p className={`admin-notice ${activeFeedback.failed ? 'error' : 'success'}`}
         role={activeFeedback.failed ? 'alert' : 'status'}>{activeFeedback.message}</p>}
