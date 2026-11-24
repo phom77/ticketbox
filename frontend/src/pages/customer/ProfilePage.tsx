@@ -9,7 +9,9 @@ import { useAuth, type UserSummary } from '../../features/auth/AuthContext';
 import './ProfilePage.css';
 
 type UserProfile = UserSummary & { phone: string | null };
-type ProfileFeedback = { kind: 'success'; message: string } | { kind: 'error'; message: string; field?: 'fullName' };
+type ProfileFeedback =
+  | { kind: 'success'; message: string }
+  | { kind: 'error'; message: string; field?: 'fullName' };
 
 const orderStatusKeys = {
   AWAITING_PAYMENT: 'customer:profilePage_choThanhToan',
@@ -26,7 +28,7 @@ const orderFilters = [
   ['paid', orderStatusKeys.PAID],
   ['closed', 'customer:profilePage_closedOrders'],
 ] as const;
-type OrderFilter = typeof orderFilters[number][0];
+type OrderFilter = (typeof orderFilters)[number][0];
 
 const dateTime = dateFormatter({ dateStyle: 'medium', timeStyle: 'short' });
 
@@ -40,11 +42,13 @@ function useAccountData<T>(load: (signal: AbortSignal) => Promise<T>) {
 
   useEffect(() => {
     const controller = new AbortController();
-    void load(controller.signal).then((data) => {
-      if (!controller.signal.aborted) setState({ data });
-    }).catch((error) => {
-      if (!controller.signal.aborted) setState({ error });
-    });
+    void load(controller.signal)
+      .then((data) => {
+        if (!controller.signal.aborted) setState({ data });
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted) setState({ error });
+      });
     return () => controller.abort();
   }, [load, attempt]);
 
@@ -100,14 +104,23 @@ function ProfilePanel() {
 
   return (
     <section className="buyer-account-panel" aria-labelledby={headingId}>
-      <h2 id={headingId} tabIndex={-1} ref={heading}>{t('customer:profilePage_personalDetails')}</h2>
-      {!state ? <p className="buyer-account-progress" role="status">{t('customer:profilePage_dangTaiHoSo')}</p> : null}
+      <h2 id={headingId} tabIndex={-1} ref={heading}>
+        {t('customer:profilePage_personalDetails')}
+      </h2>
+      {!state ? (
+        <p className="buyer-account-progress" role="status">
+          {t('customer:profilePage_dangTaiHoSo')}
+        </p>
+      ) : null}
       {state && 'error' in state ? (
         <AccountLoadError
           title={t('customer:profilePage_khongTheMoHoSo')}
           fallback={t('customer:profilePage_khongTheTaiHoSo')}
           error={state.error}
-          retry={() => { heading.current?.focus(); retry(); }}
+          retry={() => {
+            heading.current?.focus();
+            retry();
+          }}
         />
       ) : null}
       {profile ? <ProfileDetails initialProfile={profile} /> : null}
@@ -158,7 +171,11 @@ function ProfileDetails({ initialProfile }: { initialProfile: UserProfile }) {
     if (saving) return;
     const nextName = fullName.trim();
     if (!nextName) {
-      setFeedback({ kind: 'error', message: t('customer:profilePage_vuiLongNhapHoTen'), field: 'fullName' });
+      setFeedback({
+        kind: 'error',
+        message: t('customer:profilePage_vuiLongNhapHoTen'),
+        field: 'fullName',
+      });
       editor.current?.focus();
       return;
     }
@@ -168,20 +185,33 @@ function ProfileDetails({ initialProfile }: { initialProfile: UserProfile }) {
     setFeedback(undefined);
     setSaving(true);
     try {
-      const updated = await api.patch<unknown, UserProfile>('/api/users/me/profile', {
-        fullName: nextName,
-        phone: phone.trim() || null,
-      }, { signal: controller.signal });
+      const updated = await api.patch<unknown, UserProfile>(
+        '/api/users/me/profile',
+        {
+          fullName: nextName,
+          phone: phone.trim() || null,
+        },
+        { signal: controller.signal },
+      );
       if (controller.signal.aborted) return;
       setProfile(updated);
       closeEditor(updated);
-      updateUserSummary({ id: updated.id, email: updated.email, fullName: updated.fullName, role: updated.role }, token);
-      setFeedback({ kind: 'success', message: t('customer:profilePage_capNhatThongTinCaNhanThanh') });
+      updateUserSummary(
+        { id: updated.id, email: updated.email, fullName: updated.fullName, role: updated.role },
+        token,
+      );
+      setFeedback({
+        kind: 'success',
+        message: t('customer:profilePage_capNhatThongTinCaNhanThanh'),
+      });
     } catch (error) {
       if (controller.signal.aborted) return;
       setFeedback({
         kind: 'error',
-        message: error instanceof ApiClientError ? error.message : t('customer:profilePage_capNhatThatBaiVuiLongThu'),
+        message:
+          error instanceof ApiClientError
+            ? error.message
+            : t('customer:profilePage_capNhatThatBaiVuiLongThu'),
       });
     } finally {
       if (!controller.signal.aborted) setSaving(false);
@@ -191,36 +221,63 @@ function ProfileDetails({ initialProfile }: { initialProfile: UserProfile }) {
   return (
     <>
       {feedback ? (
-        <div id={feedbackId} className={`buyer-account-feedback is-${feedback.kind}`} role={feedback.kind === 'error' ? 'alert' : 'status'}>
+        <div
+          id={feedbackId}
+          className={`buyer-account-feedback is-${feedback.kind}`}
+          role={feedback.kind === 'error' ? 'alert' : 'status'}
+        >
           <span>{feedback.message}</span>
         </div>
       ) : null}
       {editing ? (
-        <form className="buyer-account-form" onSubmit={save} aria-busy={saving}
-          aria-describedby={feedback?.kind === 'error' ? feedbackId : undefined}>
+        <form
+          className="buyer-account-form"
+          onSubmit={save}
+          aria-busy={saving}
+          aria-describedby={feedback?.kind === 'error' ? feedbackId : undefined}
+        >
           <label>
             <span>{t('customer:profilePage_fullName')}</span>
-            <input autoComplete="name" ref={editor} required maxLength={255} value={fullName} readOnly={saving}
-              aria-invalid={invalidName || undefined} aria-describedby={invalidName ? feedbackId : undefined}
+            <input
+              autoComplete="name"
+              ref={editor}
+              required
+              maxLength={255}
+              value={fullName}
+              readOnly={saving}
+              aria-invalid={invalidName || undefined}
+              aria-describedby={invalidName ? feedbackId : undefined}
               onChange={(event) => {
                 setFullName(event.target.value);
                 if (invalidName) setFeedback(undefined);
-              }} />
+              }}
+            />
           </label>
           <label>
             <span>{t('customer:profilePage_phoneNumber')}</span>
-            <input type="tel" autoComplete="tel" maxLength={20} value={phone}
-              readOnly={saving} onChange={(event) => setPhone(event.target.value)} />
+            <input
+              type="tel"
+              autoComplete="tel"
+              maxLength={20}
+              value={phone}
+              readOnly={saving}
+              onChange={(event) => setPhone(event.target.value)}
+            />
           </label>
           <div className="buyer-account-actions">
             <button className="button button-primary" type="submit" aria-disabled={saving}>
               {t(saving ? 'customer:profilePage_saving' : 'customer:profilePage_saveChanges')}
             </button>
-            <button className="button button-secondary" type="button" aria-disabled={saving} onClick={() => {
-              if (saving) return;
-              setFeedback(undefined);
-              closeEditor(profile);
-            }}>
+            <button
+              className="button button-secondary"
+              type="button"
+              aria-disabled={saving}
+              onClick={() => {
+                if (saving) return;
+                setFeedback(undefined);
+                closeEditor(profile);
+              }}
+            >
               {t('customer:profilePage_cancel')}
             </button>
           </div>
@@ -228,9 +285,18 @@ function ProfileDetails({ initialProfile }: { initialProfile: UserProfile }) {
       ) : (
         <>
           <dl className="buyer-account-facts">
-            <div><dt>{t('customer:profilePage_fullName')}</dt><dd>{profile.fullName}</dd></div>
-            <div><dt>{t('customer:profilePage_diaChiEmail')}</dt><dd>{profile.email}</dd></div>
-            <div><dt>{t('customer:profilePage_phoneNumber')}</dt><dd>{profile.phone || t('customer:profilePage_chuaCapNhat')}</dd></div>
+            <div>
+              <dt>{t('customer:profilePage_fullName')}</dt>
+              <dd>{profile.fullName}</dd>
+            </div>
+            <div>
+              <dt>{t('customer:profilePage_diaChiEmail')}</dt>
+              <dd>{profile.email}</dd>
+            </div>
+            <div>
+              <dt>{t('customer:profilePage_phoneNumber')}</dt>
+              <dd>{profile.phone || t('customer:profilePage_chuaCapNhat')}</dd>
+            </div>
           </dl>
           <button className="button button-secondary" ref={editButton} type="button" onClick={edit}>
             {t('customer:profilePage_edit')}
@@ -241,14 +307,26 @@ function ProfileDetails({ initialProfile }: { initialProfile: UserProfile }) {
   );
 }
 
-function AccountLoadError({ title, fallback, error, retry }: { title: string; fallback: string; error: unknown; retry: () => void }) {
+function AccountLoadError({
+  title,
+  fallback,
+  error,
+  retry,
+}: {
+  title: string;
+  fallback: string;
+  error: unknown;
+  retry: () => void;
+}) {
   const { t } = useTranslation();
   const isForbidden = error instanceof ApiClientError && error.status === 403;
   return (
     <div className="buyer-state buyer-account-state" role="alert">
       <h3>{title}</h3>
       <p>{isForbidden ? t('customer:profilePage_taiKhoanHienTaiKhongCoQuyen') : fallback}</p>
-      <button className="button button-secondary" type="button" onClick={retry}>{t('customer:profilePage_thuLai')}</button>
+      <button className="button button-secondary" type="button" onClick={retry}>
+        {t('customer:profilePage_thuLai')}
+      </button>
     </div>
   );
 }
@@ -258,7 +336,9 @@ function orderDeadline(order: Order) {
 }
 
 function displayedOrderStatus(order: Order, now: number): OrderStatus {
-  return order.status === 'AWAITING_PAYMENT' && orderDeadline(order) <= now ? 'EXPIRED' : order.status;
+  return order.status === 'AWAITING_PAYMENT' && orderDeadline(order) <= now
+    ? 'EXPIRED'
+    : order.status;
 }
 
 function orderCategory(status: OrderStatus): Exclude<OrderFilter, 'all'> {
@@ -274,7 +354,10 @@ function useOrderTime(orders: Order[]) {
       return order.status === 'AWAITING_PAYMENT' && expiry > now ? Math.min(next, expiry) : next;
     }, Infinity);
     if (!Number.isFinite(nextExpiry)) return;
-    const timeout = window.setTimeout(() => setNow(Date.now()), Math.max(0, Math.min(nextExpiry - Date.now(), 2_147_483_647)));
+    const timeout = window.setTimeout(
+      () => setNow(Date.now()),
+      Math.max(0, Math.min(nextExpiry - Date.now(), 2_147_483_647)),
+    );
     return () => window.clearTimeout(timeout);
   }, [now, orders]);
   return now;
@@ -289,21 +372,32 @@ function OrderHistory() {
 
   return (
     <section className="buyer-order-history" aria-labelledby={headingId}>
-      <h2 id={headingId} tabIndex={-1} ref={heading}>{t('customer:profilePage_lichSuDonHang')}</h2>
-      {!state ? <p className="buyer-account-progress" role="status">{t('customer:profilePage_loadingOrders')}</p> : null}
+      <h2 id={headingId} tabIndex={-1} ref={heading}>
+        {t('customer:profilePage_lichSuDonHang')}
+      </h2>
+      {!state ? (
+        <p className="buyer-account-progress" role="status">
+          {t('customer:profilePage_loadingOrders')}
+        </p>
+      ) : null}
       {state && 'error' in state ? (
         <AccountLoadError
           title={t('customer:profilePage_ordersUnavailable')}
           fallback={t('customer:profilePage_ordersRetryDetails')}
           error={state.error}
-          retry={() => { heading.current?.focus(); retry(); }}
+          retry={() => {
+            heading.current?.focus();
+            retry();
+          }}
         />
       ) : null}
       {orders?.length === 0 ? (
         <div className="buyer-state buyer-account-state">
           <h3>{t('customer:profilePage_chuaCoDonHang')}</h3>
           <p>{t('customer:profilePage_cacDonMuaVeSeXuatHien')}</p>
-          <Link className="button button-primary" to="/">{t('customer:myTicketsPage_browseEvents')}</Link>
+          <Link className="button button-primary" to="/">
+            {t('customer:myTicketsPage_browseEvents')}
+          </Link>
         </div>
       ) : null}
       {orders?.length ? <OrderList orders={orders} /> : null}
@@ -317,29 +411,45 @@ function OrderList({ orders }: { orders: Order[] }) {
   const allOrders = useRef<HTMLButtonElement>(null);
   const now = useOrderTime(orders);
   const rows = orders.map((order) => ({ order, status: displayedOrderStatus(order, now) }));
-  const visible = filter === 'all' ? rows : rows.filter(({ status }) => orderCategory(status) === filter);
+  const visible =
+    filter === 'all' ? rows : rows.filter(({ status }) => orderCategory(status) === filter);
 
   return (
     <>
-      <div className="buyer-filters" role="group" aria-label={t('customer:profilePage_orderStatus')}>
+      <div
+        className="buyer-filters"
+        role="group"
+        aria-label={t('customer:profilePage_orderStatus')}
+      >
         {orderFilters.map(([value, key]) => (
-          <button key={value} type="button" ref={value === 'all' ? allOrders : undefined}
-            aria-pressed={filter === value} onClick={() => setFilter(value)}>
+          <button
+            key={value}
+            type="button"
+            ref={value === 'all' ? allOrders : undefined}
+            aria-pressed={filter === value}
+            onClick={() => setFilter(value)}
+          >
             {t(key)}
           </button>
         ))}
       </div>
       {visible.length > 0 ? (
         <div className="buyer-order-list">
-          {visible.map(({ order, status }) => <OrderCard key={order.id} order={order} status={status} />)}
+          {visible.map(({ order, status }) => (
+            <OrderCard key={order.id} order={order} status={status} />
+          ))}
         </div>
       ) : (
         <div className="buyer-state buyer-account-state">
           <h3>{t('customer:profilePage_noMatchingOrders')}</h3>
-          <button className="button button-secondary" type="button" onClick={() => {
-            setFilter('all');
-            allOrders.current?.focus();
-          }}>
+          <button
+            className="button button-secondary"
+            type="button"
+            onClick={() => {
+              setFilter('all');
+              allOrders.current?.focus();
+            }}
+          >
             {t('customer:myTicketsPage_clearFilter')}
           </button>
         </div>
@@ -361,19 +471,38 @@ function OrderCard({ order, status }: { order: Order; status: OrderStatus }) {
     <article className="buyer-order-card" aria-labelledby={headingId}>
       <header className="buyer-order-header">
         <h3 id={headingId}>{order.concertTitle}</h3>
-        <span className={`buyer-order-status status-${status.toLowerCase()}`}>{t(orderStatusKeys[status])}</span>
+        <span className={`buyer-order-status status-${status.toLowerCase()}`}>
+          {t(orderStatusKeys[status])}
+        </span>
       </header>
       <dl className="buyer-order-facts">
-        {order.referenceCode && <div><dt>{t('customer:profilePage_order')}</dt><dd>{order.referenceCode}</dd></div>}
-        <div><dt>{t('customer:profilePage_orderDate')}</dt><dd><time dateTime={order.createdAt}>{dateTime.format(new Date(order.createdAt))}</time></dd></div>
+        {order.referenceCode && (
+          <div>
+            <dt>{t('customer:profilePage_order')}</dt>
+            <dd>{order.referenceCode}</dd>
+          </div>
+        )}
+        <div>
+          <dt>{t('customer:profilePage_orderDate')}</dt>
+          <dd>
+            <time dateTime={order.createdAt}>{dateTime.format(new Date(order.createdAt))}</time>
+          </dd>
+        </div>
         {canResume ? (
-          <div><dt>{t('customer:profilePage_reservedUntil')}</dt><dd><time dateTime={order.expiresAt}>{dateTime.format(deadline)}</time></dd></div>
+          <div>
+            <dt>{t('customer:profilePage_reservedUntil')}</dt>
+            <dd>
+              <time dateTime={order.expiresAt}>{dateTime.format(deadline)}</time>
+            </dd>
+          </div>
         ) : null}
       </dl>
       <ul className="buyer-order-items">
         {order.items.map((item) => (
           <li key={item.id ?? item.ticketTypeId}>
-            <span>{item.ticketTypeName} × {item.quantity}</span>
+            <span>
+              {item.ticketTypeName} × {item.quantity}
+            </span>
             <span>{currency.format(item.subtotal ?? item.unitPrice * item.quantity)}</span>
           </li>
         ))}
@@ -394,8 +523,15 @@ function OrderCard({ order, status }: { order: Order; status: OrderStatus }) {
           </Link>
         ) : null}
         {status === 'PAID' ? (
-          <Link className="button button-secondary" to={concertId ? `/my-tickets?concertId=${concertId}` : '/my-tickets'}>
-            {t(concertId ? 'customer:profilePage_viewEventTickets' : 'customer:myTicketsPage_myTickets')}
+          <Link
+            className="button button-secondary"
+            to={concertId ? `/my-tickets?concertId=${concertId}` : '/my-tickets'}
+          >
+            {t(
+              concertId
+                ? 'customer:profilePage_viewEventTickets'
+                : 'customer:myTicketsPage_myTickets',
+            )}
             <ArrowUpRight size={17} aria-hidden="true" />
           </Link>
         ) : null}

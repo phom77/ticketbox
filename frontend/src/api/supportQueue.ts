@@ -1,6 +1,10 @@
 import { api, apiGet } from './client';
 
-export type SupportQueueKind = 'UNKNOWN_PAYMENT' | 'MISSING_TICKETS' | 'PENDING_REFUND' | 'FAILED_EMAIL';
+export type SupportQueueKind =
+  | 'UNKNOWN_PAYMENT'
+  | 'MISSING_TICKETS'
+  | 'PENDING_REFUND'
+  | 'FAILED_EMAIL';
 
 export type SupportQueueItem = {
   orderId: string;
@@ -24,7 +28,11 @@ export function getSupportQueue(kind: SupportQueueKind, page: number, signal: Ab
   return apiGet<SupportQueuePage>(`/api/admin/orders/support/queue?${query}`, signal);
 }
 
-export function retrySupportItem(kind: 'UNKNOWN_PAYMENT' | 'FAILED_EMAIL', item: SupportQueueItem, actionId: string) {
+export function retrySupportItem(
+  kind: 'UNKNOWN_PAYMENT' | 'FAILED_EMAIL',
+  item: SupportQueueItem,
+  actionId: string,
+) {
   if (kind === 'UNKNOWN_PAYMENT') {
     return api.post(`/api/admin/payment-workflows/${encodeURIComponent(item.orderId)}/review`, {
       actionId,
@@ -32,7 +40,11 @@ export function retrySupportItem(kind: 'UNKNOWN_PAYMENT' | 'FAILED_EMAIL', item:
       detail: 'Recheck payment from the support queue',
     });
   }
-  return api.post(`/api/admin/notifications/${encodeURIComponent(item.sourceId)}/retry`, undefined, {
-    headers: { 'Idempotency-Key': actionId },
-  });
+  return api.post(
+    `/api/admin/notifications/${encodeURIComponent(item.sourceId)}/retry`,
+    undefined,
+    {
+      headers: { 'Idempotency-Key': actionId },
+    },
+  );
 }

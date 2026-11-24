@@ -6,12 +6,14 @@ export type TicketHold = {
   expiresAt?: string | null;
 };
 
-type ReservationResponse = TicketHold | {
-  holds?: TicketHold[];
-  ticketTypeId?: string;
-  quantity?: number;
-  expiresAt?: string | null;
-};
+type ReservationResponse =
+  | TicketHold
+  | {
+      holds?: TicketHold[];
+      ticketTypeId?: string;
+      quantity?: number;
+      expiresAt?: string | null;
+    };
 
 function queueHeaders(queueAccessToken?: string) {
   return queueAccessToken ? { 'Queue-Access-Token': queueAccessToken } : undefined;
@@ -43,7 +45,11 @@ export function releaseTicket(
   );
 }
 
-export function getCurrentHolds(concertId: string, queueAccessToken?: string, signal?: AbortSignal) {
+export function getCurrentHolds(
+  concertId: string,
+  queueAccessToken?: string,
+  signal?: AbortSignal,
+) {
   return api.get<unknown, TicketHold[]>(
     `/api/reservations/concerts/${encodeURIComponent(concertId)}/holds`,
     { headers: queueHeaders(queueAccessToken), signal },

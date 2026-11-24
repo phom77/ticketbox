@@ -10,7 +10,11 @@ interface ProtectedRouteProps {
   redirectUnauthorized?: boolean;
 }
 
-export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles, redirectUnauthorized = false }) => {
+export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
+  children,
+  allowedRoles,
+  redirectUnauthorized = false,
+}) => {
   const { t } = useTranslation();
   const { user, loading } = useAuth();
   const location = useLocation();
@@ -39,15 +43,25 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
     return (
       <main className="route-forbidden page-width">
         <div className="state-panel" role="alert">
-          <span className="state-icon" aria-hidden="true">!</span>
+          <span className="state-icon" aria-hidden="true">
+            !
+          </span>
           <h1>{t('accessLimited')}</h1>
-          <p>{t('accessRoleRequired', {
-            allowedRoles: allowedRoles.map((role) => t(`role_${role}`)).join(' / '),
-            currentRole: t(`role_${user.role}`),
-          })}</p>
+          <p>
+            {t('accessRoleRequired', {
+              allowedRoles: allowedRoles.map((role) => t(`role_${role}`)).join(' / '),
+              currentRole: t(`role_${user.role}`),
+            })}
+          </p>
           <div className="forbidden-actions">
-            <Link className="button button-primary" to={homePath}>{homeLabel}</Link>
-            {user.role === 'AUDIENCE' ? <Link className="button button-secondary" to="/profile">{t('viewProfile')}</Link> : null}
+            <Link className="button button-primary" to={homePath}>
+              {homeLabel}
+            </Link>
+            {user.role === 'AUDIENCE' ? (
+              <Link className="button button-secondary" to="/profile">
+                {t('viewProfile')}
+              </Link>
+            ) : null}
           </div>
         </div>
       </main>

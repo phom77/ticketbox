@@ -53,7 +53,7 @@ export function AdminNotificationsPage() {
         setError(
           requestError instanceof Error
             ? requestError.message
-            : translate("admin:adminNotificationsPage_khongTheTaiVanHanhThongBao"),
+            : translate('admin:adminNotificationsPage_khongTheTaiVanHanhThongBao'),
         );
       }
     } finally {
@@ -77,10 +77,12 @@ export function AdminNotificationsPage() {
       setNotifications((current) =>
         current.map((existing) => (existing.id === item.id ? result.data : existing)),
       );
-      setNotice(translate("admin:adminNotificationsPage_daDuaThongBaoVaoHangCho"));
+      setNotice(translate('admin:adminNotificationsPage_daDuaThongBaoVaoHangCho'));
     } catch (requestError) {
       setError(
-        requestError instanceof Error ? requestError.message : translate("admin:adminNotificationsPage_khongTheThuGuiLaiThongBao"),
+        requestError instanceof Error
+          ? requestError.message
+          : translate('admin:adminNotificationsPage_khongTheThuGuiLaiThongBao'),
       );
     } finally {
       setSavingId(null);
@@ -94,11 +96,17 @@ export function AdminNotificationsPage() {
     setNotice('');
     try {
       const result = await sendAdminConcertReminder(selectedConcertId);
-      setNotice(translate("admin:adminNotificationsPage_daTaoNhacLichChoNguoiGiu", { arg1: result.data.recipients }));
+      setNotice(
+        translate('admin:adminNotificationsPage_daTaoNhacLichChoNguoiGiu', {
+          arg1: result.data.recipients,
+        }),
+      );
       await load();
     } catch (requestError) {
       setError(
-        requestError instanceof Error ? requestError.message : translate("admin:adminNotificationsPage_khongTheGuiNhacLichThuCong"),
+        requestError instanceof Error
+          ? requestError.message
+          : translate('admin:adminNotificationsPage_khongTheGuiNhacLichThuCong'),
       );
     } finally {
       setSendingReminder(false);
@@ -108,7 +116,7 @@ export function AdminNotificationsPage() {
   return (
     <>
       <AdminPageHeader
-        title={translate("admin:adminNotificationsPage_vanHanhThongBao")}
+        title={translate('admin:adminNotificationsPage_vanHanhThongBao')}
         actions={
           <button
             className="admin-secondary-action"
@@ -117,7 +125,7 @@ export function AdminNotificationsPage() {
             disabled={loading}
           >
             <RefreshCw aria-hidden="true" size={16} className={loading ? 'spin' : ''} />
-            {translate("admin:adminNotificationsPage_lamMoi")}
+            {translate('admin:adminNotificationsPage_lamMoi')}
           </button>
         }
       />
@@ -135,15 +143,15 @@ export function AdminNotificationsPage() {
 
       <div className="admin-toolbar admin-reminder-toolbar">
         <div className="admin-reminder-copy">
-          <span>{translate("admin:adminNotificationsPage_nhacLichThuCong")}</span>
-          <small>{translate("admin:adminNotificationsPage_chonConcertVaGuiEmailNhacLich")}</small>
+          <span>{translate('admin:adminNotificationsPage_nhacLichThuCong')}</span>
+          <small>{translate('admin:adminNotificationsPage_chonConcertVaGuiEmailNhacLich')}</small>
         </div>
         <ConcertPicker
           concerts={concerts}
           value={selectedConcertId}
           onChange={setSelectedConcertId}
-          label={translate("admin:adminNotificationsPage_concertGuiNhacLich")}
-          placeholder={translate("admin:adminNotificationsPage_chonConcert")}
+          label={translate('admin:adminNotificationsPage_concertGuiNhacLich')}
+          placeholder={translate('admin:adminNotificationsPage_chonConcert')}
           disabled={loading || !concerts.length}
         />
         <button
@@ -153,7 +161,9 @@ export function AdminNotificationsPage() {
           disabled={!selectedConcertId || sendingReminder}
         >
           <Send aria-hidden="true" size={16} />
-          {sendingReminder ? translate("admin:adminNotificationsPage_dangGui") : translate("admin:adminNotificationsPage_guiNhacLich")}
+          {sendingReminder
+            ? translate('admin:adminNotificationsPage_dangGui')
+            : translate('admin:adminNotificationsPage_guiNhacLich')}
         </button>
       </div>
 
@@ -161,7 +171,7 @@ export function AdminNotificationsPage() {
         {loading ? (
           <div
             className="admin-row-skeleton"
-            aria-label={translate("admin:adminNotificationsPage_dangTaiVanHanhThongBao")}
+            aria-label={translate('admin:adminNotificationsPage_dangTaiVanHanhThongBao')}
             aria-live="polite"
           >
             {[1, 2, 3].map((item) => (
@@ -173,12 +183,14 @@ export function AdminNotificationsPage() {
             <table className="admin-table">
               <thead>
                 <tr>
-                  <th>{translate("admin:adminNotificationsPage_thongBao")}</th>
-                  <th>{translate("admin:adminNotificationsPage_kenh")}</th>
-                  <th>{translate("admin:adminNotificationsPage_trangThai")}</th>
-                  <th>{translate("admin:adminNotificationsPage_thoiGian")}</th>
+                  <th>{translate('admin:adminNotificationsPage_thongBao')}</th>
+                  <th>{translate('admin:adminNotificationsPage_kenh')}</th>
+                  <th>{translate('admin:adminNotificationsPage_trangThai')}</th>
+                  <th>{translate('admin:adminNotificationsPage_thoiGian')}</th>
                   <th>
-                    <span className="sr-only">{translate("admin:adminNotificationsPage_thaoTac")}</span>
+                    <span className="sr-only">
+                      {translate('admin:adminNotificationsPage_thaoTac')}
+                    </span>
                   </th>
                 </tr>
               </thead>
@@ -187,9 +199,7 @@ export function AdminNotificationsPage() {
                   <tr key={item.id}>
                     <td>
                       <strong className="admin-table-primary">{item.subject}</strong>
-                      <span className="admin-table-secondary">
-                        {item.eventType}
-                      </span>
+                      <span className="admin-table-secondary">{item.eventType}</span>
                     </td>
                     <td>
                       <strong className="admin-table-primary">{item.channel}</strong>
@@ -198,7 +208,11 @@ export function AdminNotificationsPage() {
                       <span
                         className={`status-badge ${item.status === 'FAILED' ? 'badge-error' : item.status === 'SENT' ? 'badge-success' : 'badge-warning'}`}
                       >
-                        {item.status === 'SENT' ? translate("admin:adminNotificationsPage_daGui") : item.status === 'FAILED' ? translate("admin:adminNotificationsPage_thatBai") : translate("admin:adminNotificationsPage_dangCho")}
+                        {item.status === 'SENT'
+                          ? translate('admin:adminNotificationsPage_daGui')
+                          : item.status === 'FAILED'
+                            ? translate('admin:adminNotificationsPage_thatBai')
+                            : translate('admin:adminNotificationsPage_dangCho')}
                       </span>
                     </td>
                     <td>
@@ -207,8 +221,10 @@ export function AdminNotificationsPage() {
                       </strong>
                       <span className="admin-table-secondary">
                         {item.sentAt
-                          ? translate("admin:adminNotificationsPage_daGuiLuc", { arg1: dateTime.format(new Date(item.sentAt)) })
-                          : translate("admin:adminNotificationsPage_chuaGui")}
+                          ? translate('admin:adminNotificationsPage_daGuiLuc', {
+                              arg1: dateTime.format(new Date(item.sentAt)),
+                            })
+                          : translate('admin:adminNotificationsPage_chuaGui')}
                       </span>
                     </td>
                     <td>
@@ -224,7 +240,7 @@ export function AdminNotificationsPage() {
                             size={15}
                             className={savingId === item.id ? 'spin' : ''}
                           />
-                          {translate("admin:adminNotificationsPage_thuLai")}
+                          {translate('admin:adminNotificationsPage_thuLai')}
                         </button>
                       ) : null}
                     </td>
@@ -236,16 +252,20 @@ export function AdminNotificationsPage() {
         ) : (
           <div className="admin-empty-state">
             <Bell aria-hidden="true" size={28} />
-            <h2>{translate("admin:adminNotificationsPage_chuaCoThongBao")}</h2>
-            <p>{translate("admin:adminNotificationsPage_thongBaoSeXuatHienSauKhi")}</p>
+            <h2>{translate('admin:adminNotificationsPage_chuaCoThongBao')}</h2>
+            <p>{translate('admin:adminNotificationsPage_thongBaoSeXuatHienSauKhi')}</p>
           </div>
         )}
       </section>
 
       <div className="admin-toolbar">
         <div>
-          <strong className="admin-table-primary">{notifications.length} {translate("admin:adminNotificationsPage_thongBaoGanNhat")}</strong>
-          <span className="admin-table-secondary">{failedEmailCount} {translate("admin:adminNotificationsPage_emailLoiCoTheThuLai")}</span>
+          <strong className="admin-table-primary">
+            {notifications.length} {translate('admin:adminNotificationsPage_thongBaoGanNhat')}
+          </strong>
+          <span className="admin-table-secondary">
+            {failedEmailCount} {translate('admin:adminNotificationsPage_emailLoiCoTheThuLai')}
+          </span>
         </div>
       </div>
     </>

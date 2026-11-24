@@ -1,8 +1,15 @@
 import { useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { OperationsPerformance, PerformanceDisruptionInput, PerformanceSchedule } from '../../api/performanceOperations';
+import type {
+  OperationsPerformance,
+  PerformanceDisruptionInput,
+  PerformanceSchedule,
+} from '../../api/performanceOperations';
 import { PerformanceDateTimeField } from '../organizer/PerformanceDateTimeField';
-import { resolvePerformanceDateTime, toPerformanceLocalDateTime } from '../organizer/performanceDateTime';
+import {
+  resolvePerformanceDateTime,
+  toPerformanceLocalDateTime,
+} from '../organizer/performanceDateTime';
 
 const scheduleFields = [
   ['startsAt', 'performances:scheduleStart'],
@@ -14,16 +21,27 @@ const scheduleFields = [
 type ScheduleField = keyof PerformanceSchedule;
 type Errors = Partial<Record<ScheduleField, string>>;
 
-export function PerformanceOperationForm({ performance, kind, onReview, onCancel }: {
+export function PerformanceOperationForm({
+  performance,
+  kind,
+  onReview,
+  onCancel,
+}: {
   performance: OperationsPerformance;
   kind: PerformanceDisruptionInput['kind'];
   onReview: (input: PerformanceDisruptionInput) => void;
   onCancel: () => void;
 }) {
   const { t } = useTranslation('performance-operations');
-  const [dates, setDates] = useState(() => Object.fromEntries(scheduleFields.map(([field]) => [
-    field, toPerformanceLocalDateTime(performance[field], performance.timezone),
-  ])) as Record<ScheduleField, string>);
+  const [dates, setDates] = useState(
+    () =>
+      Object.fromEntries(
+        scheduleFields.map(([field]) => [
+          field,
+          toPerformanceLocalDateTime(performance[field], performance.timezone),
+        ]),
+      ) as Record<ScheduleField, string>,
+  );
   const [errors, setErrors] = useState<Errors>({});
   const [reasonError, setReasonError] = useState(false);
 
@@ -43,9 +61,14 @@ export function PerformanceOperationForm({ performance, kind, onReview, onCancel
     const localErrors: Errors = {};
     const instants = {} as Record<ScheduleField, string | null>;
     for (const [field] of scheduleFields) {
-      const result = resolvePerformanceDateTime(dates[field], performance.timezone, performance[field]);
+      const result = resolvePerformanceDateTime(
+        dates[field],
+        performance.timezone,
+        performance[field],
+      );
       if (!result.ok) localErrors[field] = t(`performances:dateTime_${result.reason}`);
-      else if (!result.instant && field !== 'doorsOpenAt') localErrors[field] = t('performances:scheduleDateTimeRequired');
+      else if (!result.instant && field !== 'doorsOpenAt')
+        localErrors[field] = t('performances:scheduleDateTimeRequired');
       else instants[field] = result.instant;
     }
     const { startsAt, endsAt, doorsOpenAt, saleStartAt, saleEndAt } = instants;
@@ -63,7 +86,11 @@ export function PerformanceOperationForm({ performance, kind, onReview, onCancel
     } else if (saleEndAt && Date.parse(saleEndAt) <= Date.now()) {
       localErrors.saleEndAt = t('performance-operations:futureSaleEnd');
     }
-    if (startsAt === performance.startsAt && endsAt === performance.endsAt && doorsOpenAt === performance.doorsOpenAt) {
+    if (
+      startsAt === performance.startsAt &&
+      endsAt === performance.endsAt &&
+      doorsOpenAt === performance.doorsOpenAt
+    ) {
       localErrors.startsAt = t('performance-operations:changeDates');
     }
     setErrors(localErrors);
@@ -74,25 +101,58 @@ export function PerformanceOperationForm({ performance, kind, onReview, onCancel
     }
   }
 
-  return <form className="performance-ops-form" onSubmit={submit}>
-    <h3>{t(`action_${kind}`)}</h3>
-    {kind === 'POSTPONE' && <fieldset className="performance-ops-dates">
-      <legend>{t('performance-operations:localSchedule', { zone: performance.timezone.replace(/_/g, ' ') })}</legend>
-      {scheduleFields.map(([field, label]) => <PerformanceDateTimeField key={field} name={field} label={t(label)}
-        value={dates[field]} required={field !== 'doorsOpenAt'} error={errors[field]} onChange={value => {
-          setDates(current => ({ ...current, [field]: value }));
-          setErrors(current => ({ ...current, [field]: undefined }));
-        }} />)}
-      <p>{t('performance-operations:offerWindowHelp')}</p>
-    </fieldset>}
-    <label>{t('performances:reason')}
-      <textarea name="reason" rows={3} required maxLength={1000} aria-invalid={reasonError || undefined}
-        aria-describedby={reasonError ? 'operation-reason-error' : undefined} onChange={() => setReasonError(false)} />
-      {reasonError && <small id="operation-reason-error" className="performance-field-error">{t('performance-operations:reasonRequired')}</small>}
-    </label>
-    <div className="performance-ops-form-actions">
-      <button type="button" className="button button-secondary" onClick={onCancel}>{t('performance-operations:dismissForm')}</button>
-      <button type="submit" className="button button-primary">{t('performance-operations:reviewChange')}</button>
-    </div>
-  </form>;
+  return (
+    <form className="performance-ops-form" onSubmit={submit}>
+      <h3>{t(`action_${kind}`)}</h3>
+      {kind === 'POSTPONE' && (
+        <fieldset className="performance-ops-dates">
+          <legend>
+            {t('performance-operations:localSchedule', {
+              zone: performance.timezone.replace(/_/g, ' '),
+            })}
+          </legend>
+          {scheduleFields.map(([field, label]) => (
+            <PerformanceDateTimeField
+              key={field}
+              name={field}
+              label={t(label)}
+              value={dates[field]}
+              required={field !== 'doorsOpenAt'}
+              error={errors[field]}
+              onChange={(value) => {
+                setDates((current) => ({ ...current, [field]: value }));
+                setErrors((current) => ({ ...current, [field]: undefined }));
+              }}
+            />
+          ))}
+          <p>{t('performance-operations:offerWindowHelp')}</p>
+        </fieldset>
+      )}
+      <label>
+        {t('performances:reason')}
+        <textarea
+          name="reason"
+          rows={3}
+          required
+          maxLength={1000}
+          aria-invalid={reasonError || undefined}
+          aria-describedby={reasonError ? 'operation-reason-error' : undefined}
+          onChange={() => setReasonError(false)}
+        />
+        {reasonError && (
+          <small id="operation-reason-error" className="performance-field-error">
+            {t('performance-operations:reasonRequired')}
+          </small>
+        )}
+      </label>
+      <div className="performance-ops-form-actions">
+        <button type="button" className="button button-secondary" onClick={onCancel}>
+          {t('performance-operations:dismissForm')}
+        </button>
+        <button type="submit" className="button button-primary">
+          {t('performance-operations:reviewChange')}
+        </button>
+      </div>
+    </form>
+  );
 }

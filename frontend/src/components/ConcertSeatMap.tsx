@@ -38,9 +38,13 @@ export function ConcertSeatMap({
     const zones = container?.querySelectorAll<SVGGraphicsElement>('[data-ticket-type-id]');
     zones?.forEach((zone) => {
       const ticketTypeId = zone.dataset.ticketTypeId ?? '';
-      const isDisabled = disabledTicketTypeIds.has(ticketTypeId) || ticketTypeLabels?.has(ticketTypeId) === false;
+      const isDisabled =
+        disabledTicketTypeIds.has(ticketTypeId) || ticketTypeLabels?.has(ticketTypeId) === false;
       const isSelected = ticketTypeId === selectedTicketTypeId;
-      const label = ticketTypeLabels?.get(ticketTypeId) || zone.getAttribute('aria-label') || zone.dataset.zoneName;
+      const label =
+        ticketTypeLabels?.get(ticketTypeId) ||
+        zone.getAttribute('aria-label') ||
+        zone.dataset.zoneName;
       if (label) zone.setAttribute('aria-label', label);
       zone.setAttribute('role', 'button');
       zone.classList.toggle('is-selected', isSelected);
@@ -54,16 +58,22 @@ export function ConcertSeatMap({
   if (!/^<svg(?:\s|>)/.test(sanitizedSvg.trimStart())) {
     return (
       <div className="seat-map-fallback">
-        <h3>{translate("shared:concertSeatMap_soDoChoKhongKhaDung")}</h3>
-        <p>{translate("shared:concertSeatMap_banVanCoTheChonKhuVe")}</p>
+        <h3>{translate('shared:concertSeatMap_soDoChoKhongKhaDung')}</h3>
+        <p>{translate('shared:concertSeatMap_banVanCoTheChonKhuVe')}</p>
       </div>
     );
   }
 
   function selectFromTarget(target: EventTarget | null) {
-    const zone = target instanceof Element ? target.closest<SVGElement>('[data-ticket-type-id]') : null;
+    const zone =
+      target instanceof Element ? target.closest<SVGElement>('[data-ticket-type-id]') : null;
     const ticketTypeId = zone?.dataset.ticketTypeId;
-    if (!ticketTypeId || disabledTicketTypeIds.has(ticketTypeId) || (ticketTypeLabels && !ticketTypeLabels.has(ticketTypeId))) return false;
+    if (
+      !ticketTypeId ||
+      disabledTicketTypeIds.has(ticketTypeId) ||
+      (ticketTypeLabels && !ticketTypeLabels.has(ticketTypeId))
+    )
+      return false;
     onZoneSelect(ticketTypeId);
     return true;
   }

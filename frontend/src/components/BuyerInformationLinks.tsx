@@ -6,9 +6,14 @@ export function BuyerInformationLinks() {
   useTranslation();
   if (!buyerInformationLinks.length) return null;
   return (
-    <nav className="buyer-information-links" aria-label={translate("shared:buyerInformationLinks_hoTroVaDieuKienMuaVe")}>
+    <nav
+      className="buyer-information-links"
+      aria-label={translate('shared:buyerInformationLinks_hoTroVaDieuKienMuaVe')}
+    >
       {buyerInformationLinks.map(({ label, url }) => (
-        <a key={label} href={url} target="_blank" rel="noreferrer">{translate(label)}</a>
+        <a key={label} href={url} target="_blank" rel="noreferrer">
+          {translate(label)}
+        </a>
       ))}
     </nav>
   );

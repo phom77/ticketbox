@@ -1,5 +1,10 @@
-.public-shell { display: flex; flex-direction: column; }
-.public-shell > main { min-width: 0; }
+.public-shell {
+  display: flex;
+  flex-direction: column;
+}
+.public-shell > main {
+  min-width: 0;
+}
 
 .public-header {
   --public-header-gutter: clamp(1rem, 3vw, 3.5rem);
@@ -8,7 +13,11 @@
   z-index: 180;
   border-bottom: 1px solid var(--line);
   background: var(--surface);
-  font: 600 .9375rem/1.4 "Manrope", ui-sans-serif, system-ui, sans-serif;
+  font:
+    600 0.9375rem/1.4 'Manrope',
+    ui-sans-serif,
+    system-ui,
+    sans-serif;
 }
 
 .public-topbar.page-width {
@@ -20,7 +29,10 @@
   gap: 24px;
 }
 
-.public-topbar .logo { min-height: 44px; flex-shrink: 0; }
+.public-topbar .logo {
+  min-height: 44px;
+  flex-shrink: 0;
+}
 
 .public-header-actions {
   display: flex;
@@ -43,7 +55,8 @@
   white-space: nowrap;
 }
 
-.public-main-nav a:hover, .public-main-nav a.active {
+.public-main-nav a:hover,
+.public-main-nav a.active {
   background: var(--surface-2);
   color: var(--violet);
 }
@@ -68,12 +81,15 @@
   background: var(--surface-2);
 }
 
-.public-header-action[aria-expanded="true"] {
+.public-header-action[aria-expanded='true'] {
   border-color: var(--coral);
   color: var(--violet);
 }
 
-.public-search-trigger, .public-wallet-short-label { display: none; }
+.public-search-trigger,
+.public-wallet-short-label {
+  display: none;
+}
 
 .public-search-panel {
   flex: 1;
@@ -93,7 +109,9 @@
   background: var(--surface);
 }
 
-.public-header-search:focus-within { border-color: var(--coral); }
+.public-header-search:focus-within {
+  border-color: var(--coral);
+}
 
 .public-header-search input {
   width: 100%;
@@ -109,7 +127,9 @@
   font-weight: 400;
 }
 
-.public-header-search input::placeholder { color: var(--muted); }
+.public-header-search input::placeholder {
+  color: var(--muted);
+}
 
 .public-header-search button {
   flex: 0 0 44px;
@@ -122,11 +142,20 @@
   background: transparent;
 }
 
-.public-header-search button:hover { background: var(--surface-2); }
+.public-header-search button:hover {
+  background: var(--surface-2);
+}
 
-.public-account { position: relative; flex-shrink: 0; }
-.public-account-trigger { max-width: 12rem; }
-.public-account-trigger > svg { flex-shrink: 0; }
+.public-account {
+  position: relative;
+  flex-shrink: 0;
+}
+.public-account-trigger {
+  max-width: 12rem;
+}
+.public-account-trigger > svg {
+  flex-shrink: 0;
+}
 
 .public-account-trigger > .notification-badge {
   position: absolute;
@@ -143,7 +172,7 @@
   border-radius: 50%;
   color: var(--violet);
   background: var(--surface-2);
-  font-size: .75rem;
+  font-size: 0.75rem;
   font-weight: 800;
 }
 
@@ -171,7 +200,8 @@
   gap: 2px;
 }
 
-.public-menu-links a, .public-menu-links button {
+.public-menu-links a,
+.public-menu-links button {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -187,8 +217,10 @@
   overflow-wrap: anywhere;
 }
 
-.public-menu-links a:hover, .public-menu-links button:hover,
-.public-menu-links a.active, .public-menu-links a[aria-current="page"] {
+.public-menu-links a:hover,
+.public-menu-links button:hover,
+.public-menu-links a.active,
+.public-menu-links a[aria-current='page'] {
   color: var(--violet);
   background: var(--surface-2);
 }
@@ -204,7 +236,7 @@
 
 .public-account-profile small {
   color: var(--muted);
-  font-size: .875rem;
+  font-size: 0.875rem;
   font-weight: 500;
 }
 
@@ -218,14 +250,21 @@
   border-top: 1px solid var(--line);
 }
 
-.public-account-language .language-select { min-height: 44px; font: inherit; }
+.public-account-language .language-select {
+  min-height: 44px;
+  font: inherit;
+}
 
 .public-footer {
   margin-block-start: auto;
   padding-block: 22px;
   border-top: 1px solid var(--line);
   background: var(--surface);
-  font: 600 .875rem/1.4 "Manrope", ui-sans-serif, system-ui, sans-serif;
+  font:
+    600 0.875rem/1.4 'Manrope',
+    ui-sans-serif,
+    system-ui,
+    sans-serif;
 }
 
 .public-footer-inner {
@@ -243,24 +282,42 @@
   gap: 0 16px;
 }
 
-.public-footer-brand .logo { min-height: 44px; }
-.public-footer-brand small { color: var(--muted); font-size: .8125rem; }
+.public-footer-brand .logo {
+  min-height: 44px;
+}
+.public-footer-brand small {
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
 
 .public-footer .footer-links a {
   color: var(--cream);
-  font: 600 .875rem/1.4 "Manrope", ui-sans-serif, system-ui, sans-serif;
+  font:
+    600 0.875rem/1.4 'Manrope',
+    ui-sans-serif,
+    system-ui,
+    sans-serif;
 }
 
-.public-footer .footer-links a:hover { color: var(--violet); }
+.public-footer .footer-links a:hover {
+  color: var(--violet);
+}
 
-.public-header :focus-visible, .public-footer :focus-visible {
+.public-header :focus-visible,
+.public-footer :focus-visible {
   outline: 2px solid var(--coral);
   outline-offset: 2px;
 }
 
 @media (max-width: 760px) {
-  .public-search-trigger { display: inline-flex; }
-  .public-workspace-nav, .public-account-name, .public-account-chevron { display: none; }
+  .public-search-trigger {
+    display: inline-flex;
+  }
+  .public-workspace-nav,
+  .public-account-name,
+  .public-account-chevron {
+    display: none;
+  }
 
   .public-search-panel {
     display: none;
@@ -273,24 +330,45 @@
     background: var(--surface);
   }
 
-  .public-search-panel[data-open="true"] { display: block; }
+  .public-search-panel[data-open='true'] {
+    display: block;
+  }
   .public-main-nav a {
     justify-content: center;
     padding-inline: 6px;
     gap: 6px;
   }
-  .public-header-actions { gap: 8px; }
-  .public-topbar.page-width { min-height: 60px; gap: 8px; }
+  .public-header-actions {
+    gap: 8px;
+  }
+  .public-topbar.page-width {
+    min-height: 60px;
+    gap: 8px;
+  }
 }
 
 @media (max-width: 430px) {
-  .public-topbar .logo { gap: 5px; font-size: 1.125rem; }
-  .public-topbar .logo-mark { width: 25px; height: 25px; }
-  .public-header-actions { gap: 4px; }
-  .public-wallet-label { display: none; }
-  .public-wallet-short-label { display: inline; }
+  .public-topbar .logo {
+    gap: 5px;
+    font-size: 1.125rem;
+  }
+  .public-topbar .logo-mark {
+    width: 25px;
+    height: 25px;
+  }
+  .public-header-actions {
+    gap: 4px;
+  }
+  .public-wallet-label {
+    display: none;
+  }
+  .public-wallet-short-label {
+    display: inline;
+  }
 }
 
 @media (max-width: 360px) {
-  .public-main-nav a svg { display: none; }
+  .public-main-nav a svg {
+    display: none;
+  }
 }

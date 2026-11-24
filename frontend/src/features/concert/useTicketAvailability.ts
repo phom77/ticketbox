@@ -39,7 +39,10 @@ export function useTicketAvailability(concertId?: string, refreshKey = 0) {
     function scheduleNextRefresh() {
       window.clearTimeout(timeoutId);
       if (document.visibilityState === 'visible' && !controller.signal.aborted) {
-        timeoutId = window.setTimeout(runRefresh, AVAILABILITY_POLL_INTERVAL_MS + Math.random() * 500);
+        timeoutId = window.setTimeout(
+          runRefresh,
+          AVAILABILITY_POLL_INTERVAL_MS + Math.random() * 500,
+        );
       }
     }
 
@@ -59,9 +62,13 @@ export function useTicketAvailability(concertId?: string, refreshKey = 0) {
         const availability = await getTicketAvailability(activeConcertId, controller.signal);
         if (!active) return;
         const quantities = new Map(availability.items.map((item) => [item.ticketTypeId, item]));
-        const activeTypes = metadata.filter((item) => item.isActive && quantities.has(item.id))
-          .map((item) => ({ ...item, availableQty: quantities.get(item.id)!.availableQty,
-            totalQuantity: quantities.get(item.id)!.totalQuantity }));
+        const activeTypes = metadata
+          .filter((item) => item.isActive && quantities.has(item.id))
+          .map((item) => ({
+            ...item,
+            availableQty: quantities.get(item.id)!.availableQty,
+            totalQuantity: quantities.get(item.id)!.totalQuantity,
+          }));
         if (ticketTypeOrderRef.current.length === 0) {
           ticketTypeOrderRef.current = activeTypes.map((item) => item.id);
         } else {
@@ -71,7 +78,11 @@ export function useTicketAvailability(concertId?: string, refreshKey = 0) {
           );
         }
         const orderById = new Map(ticketTypeOrderRef.current.map((id, index) => [id, index]));
-        setTicketTypes([...activeTypes].sort((left, right) => orderById.get(left.id)! - orderById.get(right.id)!));
+        setTicketTypes(
+          [...activeTypes].sort(
+            (left, right) => orderById.get(left.id)! - orderById.get(right.id)!,
+          ),
+        );
         setLastUpdatedAt(new Date(availability.refreshedAt));
         setUpdatesDelayed(false);
         setInitialLoadFailed(false);

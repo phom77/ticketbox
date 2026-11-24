@@ -57,10 +57,13 @@ export function OrganizerRevenuePage({ embedded = false }: { embedded?: boolean 
   const from = searchParams.get('from') ?? '';
   const to = searchParams.get('to') ?? '';
 
-  useLayoutEffect(() => () => {
-    exportRequest.current?.abort();
-    exportRequest.current = null;
-  }, [selectedConcertId]);
+  useLayoutEffect(
+    () => () => {
+      exportRequest.current?.abort();
+      exportRequest.current = null;
+    },
+    [selectedConcertId],
+  );
 
   useEffect(() => setExporting(null), [selectedConcertId]);
   const selectedConcert = useMemo(
@@ -73,14 +76,17 @@ export function OrganizerRevenuePage({ embedded = false }: { embedded?: boolean 
     setLoadingConcerts(true);
     setConcertsError('');
     getOrganizerRevenueConcerts(controller.signal)
-      .then((page) => { if (!controller.signal.aborted) setConcerts(page.content); })
+      .then((page) => {
+        if (!controller.signal.aborted) setConcerts(page.content);
+      })
       .catch((requestError: unknown) => {
         if (!controller.signal.aborted && !isRequestCanceled(requestError)) {
-          if (requestError instanceof ApiClientError && requestError.status === 403) setAccessDenied(true);
+          if (requestError instanceof ApiClientError && requestError.status === 403)
+            setAccessDenied(true);
           setConcertsError(
             requestError instanceof Error
               ? requestError.message
-              : translate("organizer:organizerRevenuePage_khongTheTaiDanhSachConcertDa"),
+              : translate('organizer:organizerRevenuePage_khongTheTaiDanhSachConcertDa'),
           );
         }
       })
@@ -100,11 +106,16 @@ export function OrganizerRevenuePage({ embedded = false }: { embedded?: boolean 
     const nextFrom = validRange ? from : defaults.from;
     const nextTo = validRange ? to : defaults.to;
     if (concert.id !== selectedConcertId || from !== nextFrom || to !== nextTo) {
-      setSearchParams((current) => ({
-        ...(embedded ? { view: 'revenue' } : {}),
-        concertId: concert.id, from: nextFrom, to: nextTo,
-        ...(current.has('returnTo') ? { returnTo: current.get('returnTo') ?? '' } : {}),
-      }), { replace: true });
+      setSearchParams(
+        (current) => ({
+          ...(embedded ? { view: 'revenue' } : {}),
+          concertId: concert.id,
+          from: nextFrom,
+          to: nextTo,
+          ...(current.has('returnTo') ? { returnTo: current.get('returnTo') ?? '' } : {}),
+        }),
+        { replace: true },
+      );
     }
   }, [concerts, embedded, from, selectedConcertId, setSearchParams, to]);
 
@@ -132,14 +143,15 @@ export function OrganizerRevenuePage({ embedded = false }: { embedded?: boolean 
       })
       .catch((requestError: unknown) => {
         if (!controller.signal.aborted && !isRequestCanceled(requestError)) {
-          if (requestError instanceof ApiClientError && requestError.status === 403) setAccessDenied(true);
+          if (requestError instanceof ApiClientError && requestError.status === 403)
+            setAccessDenied(true);
           setSummary(null);
           setZones([]);
           setTrend([]);
           setReportError(
             requestError instanceof Error
               ? requestError.message
-              : translate("organizer:organizerRevenuePage_khongTheTaiBaoCaoDoanhThu"),
+              : translate('organizer:organizerRevenuePage_khongTheTaiBaoCaoDoanhThu'),
           );
         }
       })
@@ -159,11 +171,11 @@ export function OrganizerRevenuePage({ embedded = false }: { embedded?: boolean 
   function applyDateRange(event: React.FormEvent) {
     event.preventDefault();
     if (!isValidDate(draftFrom) || !isValidDate(draftTo)) {
-      setDateError(translate("organizer:organizerRevenuePage_chonDayDuNgayBatDauVa"));
+      setDateError(translate('organizer:organizerRevenuePage_chonDayDuNgayBatDauVa'));
       return;
     }
     if (draftFrom > draftTo) {
-      setDateError(translate("organizer:organizerRevenuePage_ngayBatDauPhaiTruocHoacBang"));
+      setDateError(translate('organizer:organizerRevenuePage_ngayBatDauPhaiTruocHoacBang'));
       return;
     }
     setDateError('');
@@ -201,18 +213,25 @@ export function OrganizerRevenuePage({ embedded = false }: { embedded?: boolean 
         setAccessDenied(true);
         return;
       }
-      toast.error(requestError instanceof Error ? requestError.message : translate("organizer:organizerRevenuePage_khongTheTaiBaoCao"));
+      toast.error(
+        requestError instanceof Error
+          ? requestError.message
+          : translate('organizer:organizerRevenuePage_khongTheTaiBaoCao'),
+      );
     } finally {
       if (!controller.signal.aborted) setExporting(null);
     }
   }
 
-  if (accessDenied) return (
-    <div className="workspace-records-panel operations-report-message">
-      <p role="alert">{translate('operations-reports:financeAccess')}</p>
-      <Link to="/organizer" className="admin-secondary-action">{translate('operations-reports:backToDashboard')}</Link>
-    </div>
-  );
+  if (accessDenied)
+    return (
+      <div className="workspace-records-panel operations-report-message">
+        <p role="alert">{translate('operations-reports:financeAccess')}</p>
+        <Link to="/organizer" className="admin-secondary-action">
+          {translate('operations-reports:backToDashboard')}
+        </Link>
+      </div>
+    );
 
   if (loadingConcerts) return <RevenuePageSkeleton />;
 
@@ -220,14 +239,14 @@ export function OrganizerRevenuePage({ embedded = false }: { embedded?: boolean 
     return (
       <div className="state-panel organizer-revenue-state" role="alert">
         <TrendingUp aria-hidden="true" size={30} />
-        <h3>{translate("organizer:organizerRevenuePage_chuaTheMoBaoCao")}</h3>
+        <h3>{translate('organizer:organizerRevenuePage_chuaTheMoBaoCao')}</h3>
         <p>{concertsError}</p>
         <button
           className="button button-secondary"
           type="button"
           onClick={() => setReloadKey((value) => value + 1)}
         >
-          {translate("organizer:organizerRevenuePage_thuLai")}
+          {translate('organizer:organizerRevenuePage_thuLai')}
         </button>
       </div>
     );
@@ -237,10 +256,17 @@ export function OrganizerRevenuePage({ embedded = false }: { embedded?: boolean 
     return (
       <div className="state-panel organizer-revenue-state">
         <TrendingUp aria-hidden="true" size={30} />
-        <h3>{translate("organizer:organizerRevenuePage_chuaCoConcertHoanThanh")}</h3>
-        <p>{translate("organizer:organizerRevenuePage_baoCaoDoanhThuChiKhaDung")}</p>
-        <Link className="button button-secondary" to={embedded ? "/organizer" : "/organizer/concerts"}>
-          {translate(embedded ? "operations-reports:backToDashboard" : "organizer:organizerRevenuePage_quanLyConcert")}
+        <h3>{translate('organizer:organizerRevenuePage_chuaCoConcertHoanThanh')}</h3>
+        <p>{translate('organizer:organizerRevenuePage_baoCaoDoanhThuChiKhaDung')}</p>
+        <Link
+          className="button button-secondary"
+          to={embedded ? '/organizer' : '/organizer/concerts'}
+        >
+          {translate(
+            embedded
+              ? 'operations-reports:backToDashboard'
+              : 'organizer:organizerRevenuePage_quanLyConcert',
+          )}
         </Link>
       </div>
     );
@@ -249,35 +275,57 @@ export function OrganizerRevenuePage({ embedded = false }: { embedded?: boolean 
   const title = translate('organizer:organizerRevenuePage_baoCaoDoanhThu');
   const actions = (
     <div className="revenue-export-actions">
-      <button className="admin-secondary-action" type="button" disabled={summary?.concertId !== selectedConcertId || exporting !== null}
-        onClick={() => void download('csv')}>
+      <button
+        className="admin-secondary-action"
+        type="button"
+        disabled={summary?.concertId !== selectedConcertId || exporting !== null}
+        onClick={() => void download('csv')}
+      >
         <FileSpreadsheet aria-hidden size={16} />
-        {exporting === 'csv' ? translate('organizer:organizerRevenuePage_dangXuat') : translate('organizer:organizerRevenuePage_xuatCsv')}
+        {exporting === 'csv'
+          ? translate('organizer:organizerRevenuePage_dangXuat')
+          : translate('organizer:organizerRevenuePage_xuatCsv')}
       </button>
-      <button className="admin-primary-action" type="button" disabled={summary?.concertId !== selectedConcertId || exporting !== null}
-        onClick={() => void download('pdf')}>
+      <button
+        className="admin-primary-action"
+        type="button"
+        disabled={summary?.concertId !== selectedConcertId || exporting !== null}
+        onClick={() => void download('pdf')}
+      >
         <Download aria-hidden size={16} />
-        {exporting === 'pdf' ? translate('organizer:organizerRevenuePage_dangXuat') : translate('organizer:organizerRevenuePage_xuatPdf')}
+        {exporting === 'pdf'
+          ? translate('organizer:organizerRevenuePage_dangXuat')
+          : translate('organizer:organizerRevenuePage_xuatPdf')}
       </button>
     </div>
   );
   return (
     <>
-      {embedded
-        ? <header className="workspace-records-header"><h2>{title}</h2>{actions}</header>
-        : <AdminPageHeader title={title} actions={actions} />}
-      <section className="revenue-filter-panel" aria-label={translate("organizer:organizerRevenuePage_boLocBaoCao")}>
-        <p className="workspace-records-field-note">{translate('operations-reports:revenuePeriod')}</p>
+      {embedded ? (
+        <header className="workspace-records-header">
+          <h2>{title}</h2>
+          {actions}
+        </header>
+      ) : (
+        <AdminPageHeader title={title} actions={actions} />
+      )}
+      <section
+        className="revenue-filter-panel"
+        aria-label={translate('organizer:organizerRevenuePage_boLocBaoCao')}
+      >
+        <p className="workspace-records-field-note">
+          {translate('operations-reports:revenuePeriod')}
+        </p>
         <ConcertPicker
           concerts={concerts}
           value={selectedConcertId}
           onChange={chooseConcert}
-          label={translate("organizer:organizerRevenuePage_concertDaHoanThanh")}
-          placeholder={translate("organizer:organizerRevenuePage_chonConcertDeXemBaoCao")}
+          label={translate('organizer:organizerRevenuePage_concertDaHoanThanh')}
+          placeholder={translate('organizer:organizerRevenuePage_chonConcertDeXemBaoCao')}
         />
         <form className="revenue-date-form" onSubmit={applyDateRange}>
           <label className="admin-field">
-            <span>{translate("organizer:organizerRevenuePage_tuNgay")}</span>
+            <span>{translate('organizer:organizerRevenuePage_tuNgay')}</span>
             <input
               type="date"
               value={draftFrom}
@@ -285,7 +333,7 @@ export function OrganizerRevenuePage({ embedded = false }: { embedded?: boolean 
             />
           </label>
           <label className="admin-field">
-            <span>{translate("organizer:organizerRevenuePage_denNgay")}</span>
+            <span>{translate('organizer:organizerRevenuePage_denNgay')}</span>
             <input
               type="date"
               value={draftTo}
@@ -297,7 +345,7 @@ export function OrganizerRevenuePage({ embedded = false }: { embedded?: boolean 
             type="submit"
             disabled={!selectedConcert || !draftFrom || !draftTo || loadingReport}
           >
-            {translate("organizer:organizerRevenuePage_apDung")}
+            {translate('organizer:organizerRevenuePage_apDung')}
           </button>
         </form>
         {dateError ? (
@@ -307,24 +355,27 @@ export function OrganizerRevenuePage({ embedded = false }: { embedded?: boolean 
         ) : null}
         {selectedConcert ? (
           <p className="revenue-concert-date">
-            {translate("organizer:organizerRevenuePage_demDien")} <strong>{displayDate.format(new Date(selectedConcert.eventDate))}</strong>
+            {translate('organizer:organizerRevenuePage_demDien')}{' '}
+            <strong>{displayDate.format(new Date(selectedConcert.eventDate))}</strong>
           </p>
         ) : null}
       </section>
 
       {selectedConcertId && !selectedConcert ? (
-        <p className="workspace-records-field-note" role="status">{translate('operations-reports:revenueUnavailableConcert')}</p>
+        <p className="workspace-records-field-note" role="status">
+          {translate('operations-reports:revenueUnavailableConcert')}
+        </p>
       ) : reportError ? (
         <div className="state-panel organizer-revenue-state" role="alert">
           <TrendingUp aria-hidden="true" size={30} />
-          <h3>{translate("organizer:organizerRevenuePage_khongTheTaiDuLieuDoanhThu")}</h3>
+          <h3>{translate('organizer:organizerRevenuePage_khongTheTaiDuLieuDoanhThu')}</h3>
           <p>{reportError}</p>
           <button
             className="button button-secondary"
             type="button"
             onClick={() => setReloadKey((value) => value + 1)}
           >
-            <RefreshCw size={16} /> {translate("organizer:organizerRevenuePage_thuLai")}
+            <RefreshCw size={16} /> {translate('organizer:organizerRevenuePage_thuLai')}
           </button>
         </div>
       ) : loadingReport || !summary || summary.concertId !== selectedConcertId ? (
@@ -349,31 +400,41 @@ function RevenueReport({
   const remaining = Math.max(0, summary.totalTicketsAvailable - summary.totalTicketsSold);
   return (
     <>
-      <section className="revenue-summary-grid" aria-label={translate("organizer:organizerRevenuePage_tongQuanDoanhThu")}>
+      <section
+        className="revenue-summary-grid"
+        aria-label={translate('organizer:organizerRevenuePage_tongQuanDoanhThu')}
+      >
         <RevenueMetric
-          label={translate("organizer:organizerRevenuePage_tongDoanhThu")}
+          label={translate('organizer:organizerRevenuePage_tongDoanhThu')}
           value={currency.format(summary.totalRevenue)}
           emphasis
         />
         <RevenueMetric
-          label={translate("organizer:organizerRevenuePage_veDaBan")}
+          label={translate('organizer:organizerRevenuePage_veDaBan')}
           value={integer.format(summary.totalTicketsSold)}
-          note={translate("organizer:organizerRevenuePage_sucChua", { arg1: formatPercent(summary.soldRate) })}
+          note={translate('organizer:organizerRevenuePage_sucChua', {
+            arg1: formatPercent(summary.soldRate),
+          })}
         />
         <RevenueMetric
-          label={translate("organizer:organizerRevenuePage_tongSucChua")}
+          label={translate('organizer:organizerRevenuePage_tongSucChua')}
           value={integer.format(summary.totalTicketsAvailable)}
         />
-        <RevenueMetric label={translate("organizer:organizerRevenuePage_veConLai")} value={integer.format(remaining)} />
+        <RevenueMetric
+          label={translate('organizer:organizerRevenuePage_veConLai')}
+          value={integer.format(remaining)}
+        />
       </section>
 
       <section className="revenue-section">
         <div className="revenue-section-heading">
           <div>
-            <span>{translate("organizer:organizerRevenuePage_salesTimeline")}</span>
-            <h2>{translate("organizer:organizerRevenuePage_doanhThuTheoNgay")}</h2>
+            <span>{translate('organizer:organizerRevenuePage_salesTimeline')}</span>
+            <h2>{translate('organizer:organizerRevenuePage_doanhThuTheoNgay')}</h2>
           </div>
-          <p>{trend.length} {translate("organizer:organizerRevenuePage_ngayTrongKhoangDaChon")}</p>
+          <p>
+            {trend.length} {translate('organizer:organizerRevenuePage_ngayTrongKhoangDaChon')}
+          </p>
         </div>
         <RevenueTrendChart data={trend} />
       </section>
@@ -381,10 +442,12 @@ function RevenueReport({
       <section className="revenue-section">
         <div className="revenue-section-heading">
           <div>
-            <span>{translate("organizer:organizerRevenuePage_ticketZones")}</span>
-            <h2>{translate("organizer:organizerRevenuePage_hieuSuatTheoHangVe")}</h2>
+            <span>{translate('organizer:organizerRevenuePage_ticketZones')}</span>
+            <h2>{translate('organizer:organizerRevenuePage_hieuSuatTheoHangVe')}</h2>
           </div>
-          <p>{zones.length} {translate("organizer:organizerRevenuePage_hangVe")}</p>
+          <p>
+            {zones.length} {translate('organizer:organizerRevenuePage_hangVe')}
+          </p>
         </div>
         <div className="admin-data-panel">
           {zones.length ? (
@@ -392,12 +455,12 @@ function RevenueReport({
               <table className="admin-table revenue-zone-table">
                 <thead>
                   <tr>
-                    <th>{translate("organizer:organizerRevenuePage_hangVe_2")}</th>
-                    <th>{translate("organizer:organizerRevenuePage_gia")}</th>
-                    <th>{translate("organizer:organizerRevenuePage_daBan")}</th>
-                    <th>{translate("organizer:organizerRevenuePage_conLai")}</th>
-                    <th>{translate("organizer:organizerRevenuePage_tong")}</th>
-                    <th>{translate("organizer:organizerRevenuePage_tyLe")}</th>
+                    <th>{translate('organizer:organizerRevenuePage_hangVe_2')}</th>
+                    <th>{translate('organizer:organizerRevenuePage_gia')}</th>
+                    <th>{translate('organizer:organizerRevenuePage_daBan')}</th>
+                    <th>{translate('organizer:organizerRevenuePage_conLai')}</th>
+                    <th>{translate('organizer:organizerRevenuePage_tong')}</th>
+                    <th>{translate('organizer:organizerRevenuePage_tyLe')}</th>
                     <th>{translate('revenue')}</th>
                   </tr>
                 </thead>
@@ -427,8 +490,8 @@ function RevenueReport({
           ) : (
             <div className="admin-empty-state">
               <TrendingUp aria-hidden="true" size={28} />
-              <h2>{translate("organizer:organizerRevenuePage_chuaCoHangVe")}</h2>
-              <p>{translate("organizer:organizerRevenuePage_concertNayChuaCoDuLieuHang")}</p>
+              <h2>{translate('organizer:organizerRevenuePage_chuaCoHangVe')}</h2>
+              <p>{translate('organizer:organizerRevenuePage_concertNayChuaCoDuLieuHang')}</p>
             </div>
           )}
         </div>
@@ -483,7 +546,7 @@ function RevenueTrendChart({ data }: { data: SalesTrend[] }) {
   if (!data.length)
     return (
       <div className="revenue-chart-empty">
-        <p>{translate("organizer:organizerRevenuePage_khongCoDuLieuTrongKhoangNgay")}</p>
+        <p>{translate('organizer:organizerRevenuePage_khongCoDuLieuTrongKhoangNgay')}</p>
       </div>
     );
 
@@ -492,9 +555,14 @@ function RevenueTrendChart({ data }: { data: SalesTrend[] }) {
       <div className="revenue-chart-summary" aria-live="polite">
         <span>{active ? formatDateOnly(active.date) : ''}</span>
         <strong>{active ? currency.format(active.revenue) : currency.format(0)}</strong>
-        <small>{active ? translate("organizer:organizerRevenuePage_veDaBan_2", {
-          count: active.ticketsSold, formattedCount: integer.format(active.ticketsSold),
-        }) : ''}</small>
+        <small>
+          {active
+            ? translate('organizer:organizerRevenuePage_veDaBan_2', {
+                count: active.ticketsSold,
+                formattedCount: integer.format(active.ticketsSold),
+              })
+            : ''}
+        </small>
       </div>
       <div className="revenue-chart-scroll">
         <svg
@@ -503,9 +571,11 @@ function RevenueTrendChart({ data }: { data: SalesTrend[] }) {
           role="img"
           aria-labelledby="revenue-chart-title revenue-chart-description"
         >
-          <title id="revenue-chart-title">{translate("organizer:organizerRevenuePage_bieuDoDoanhThuTheoNgay")}</title>
+          <title id="revenue-chart-title">
+            {translate('organizer:organizerRevenuePage_bieuDoDoanhThuTheoNgay')}
+          </title>
           <desc id="revenue-chart-description">
-            {translate("organizer:organizerRevenuePage_doanhThuVaSoVeDaBan")}
+            {translate('organizer:organizerRevenuePage_doanhThuVaSoVeDaBan')}
           </desc>
           {[0, 0.5, 1].map((ratio) => {
             const y = padding.top + chartHeight - ratio * chartHeight;
@@ -539,7 +609,11 @@ function RevenueTrendChart({ data }: { data: SalesTrend[] }) {
               className={index === activeIndex ? 'revenue-point is-active' : 'revenue-point'}
               tabIndex={0}
               role="img"
-              aria-label={translate("organizer:organizerRevenuePage_ve", { arg1: formatDateOnly(point.date), arg2: currency.format(point.revenue), arg3: point.ticketsSold })}
+              aria-label={translate('organizer:organizerRevenuePage_ve', {
+                arg1: formatDateOnly(point.date),
+                arg2: currency.format(point.revenue),
+                arg3: point.ticketsSold,
+              })}
               onMouseEnter={() => setActiveIndex(index)}
               onFocus={() => setActiveIndex(index)}
             />
@@ -566,7 +640,11 @@ function RevenueTrendChart({ data }: { data: SalesTrend[] }) {
 function RevenuePageSkeleton() {
   useTranslation();
   return (
-    <div className="revenue-page-skeleton" aria-label={translate("organizer:organizerRevenuePage_dangTaiBaoCao")} aria-live="polite">
+    <div
+      className="revenue-page-skeleton"
+      aria-label={translate('organizer:organizerRevenuePage_dangTaiBaoCao')}
+      aria-live="polite"
+    >
       <span />
       <span />
       <span />
@@ -579,7 +657,7 @@ function ReportSkeleton() {
   return (
     <div
       className="revenue-report-skeleton"
-      aria-label={translate("organizer:organizerRevenuePage_dangTaiDuLieuDoanhThu")}
+      aria-label={translate('organizer:organizerRevenuePage_dangTaiDuLieuDoanhThu')}
       aria-live="polite"
     >
       <div>
@@ -637,9 +715,7 @@ function shortDate(value: string) {
 }
 
 function compactCurrency(value: number) {
-  return numberFormatter({ notation: 'compact', maximumFractionDigits: 1 }).format(
-    value,
-  );
+  return numberFormatter({ notation: 'compact', maximumFractionDigits: 1 }).format(value);
 }
 
 function fileSlug(value: string) {

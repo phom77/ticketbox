@@ -25,8 +25,11 @@ python3 scripts/ci/verify-service-boundaries.py --service ticketing         # in
 # Web (Node 24)
 npm --prefix frontend ci
 npm --prefix frontend run dev        # set VITE_API_BASE_URL=http://localhost:18091 in frontend/.env.local
-npm --prefix frontend run lint       # eslint + i18n catalog check (scripts/check-translations.mjs)
-npm --prefix frontend run build      # tsc -b + vite build
+npm --prefix frontend run lint       # eslint + prettier --check + i18n catalog check (scripts/check-translations.mjs)
+npm --prefix frontend run format     # apply Prettier
+npm --prefix frontend test           # Vitest unit/component tests (jsdom, English catalogs)
+npm --prefix frontend test -- src/features/discovery/filters.test.ts   # one file; add -t "name" for one test
+npm --prefix frontend run build      # tsc -b (app + tests) + vite build
 
 # Scanner
 npm --prefix mobile-scanner ci && npm --prefix mobile-scanner run typecheck
@@ -50,7 +53,7 @@ Demo accounts (local only): `audience@`, `organizer@`, `staff@`, `admin@ticketbo
 - **Cross-service communication** uses versioned JSON schemas in `contracts/` with outbox/inbox and ACK messages (Catalog → Ticketing/Check-in snapshots, Ticketing → Check-in tickets, Ticketing ↔ Payment intents/results). Never share code or tables across services. Legacy event class names and listener IDs are pinned by `scripts/ci/verify-service-boundaries.py`.
 - **Per-service layering** is enforced by `src/test/java/.../architecture/ArchitectureTest.java` in each service. Update it when moving packages. `scripts/ci/java-suites.json` lists the test suites CI requires per service.
 - **Gateway:** Nginx config in `infra/` routes `/api/...` to the services; the web app is served from the same origin.
-- **Frontend** (`frontend/src`): React 18 + TypeScript + Vite + Tailwind 4. API clients live in `src/api/`, routes in `src/app/App.tsx`, pages in `src/pages/{public,...}`, feature logic in `src/features/`, design tokens in `src/app/app.css` (see `frontend/DESIGN_SYSTEM.md`). All user-facing text goes through i18next catalogs in `src/i18n/{en,vi}/`. Lint fails on missing keys or mismatched interpolation/plurals.
+- **Frontend** (`frontend/src`): React 18 + TypeScript + Vite + Tailwind 4. API clients live in `src/api/`, routes in `src/app/App.tsx`, pages in `src/pages/{public,...}`, feature logic in `src/features/`, design tokens in `src/app/app.css` (see `frontend/DESIGN_SYSTEM.md`). All user-facing text goes through i18next catalogs in `src/i18n/{en,vi}/`. Lint fails on missing keys or mismatched interpolation/plurals. Unit tests are colocated `*.test.ts(x)` files run by Vitest; the setup in `src/test/setup.ts` loads the English catalogs.
 - **`backend/` and `legacy/core/`** are the retired Core monolith. Don't put new work there. Apply changes to the owning service.
 - **Design records:** ADRs in `docs/adr/`, durable specs in `openspec/specs/`, in-flight changes in `openspec/changes/`, older plans in `docs/superpowers/`. `docs/architecture.md` and `docs/api.md` describe consistency guarantees and HTTP APIs.
 

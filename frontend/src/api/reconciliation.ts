@@ -52,12 +52,24 @@ function query(scope: ManagementApiScope, filter: ReconciliationFilters) {
   return params;
 }
 
-export function getReconciliation(scope: ManagementApiScope, filter: ReconciliationFilters, page: number, signal?: AbortSignal) {
+export function getReconciliation(
+  scope: ManagementApiScope,
+  filter: ReconciliationFilters,
+  page: number,
+  signal?: AbortSignal,
+) {
   const params = query(scope, filter);
   params.set('page', String(page));
   return apiGet<ReconciliationReport>(`/api/${scope}/reconciliation?${params}`, signal);
 }
 
-export function downloadReconciliation(scope: ManagementApiScope, filter: ReconciliationFilters, signal?: AbortSignal) {
-  return api.get<unknown, Blob>(`/api/${scope}/reconciliation/export?${query(scope, filter)}`, { responseType: 'blob', signal });
+export function downloadReconciliation(
+  scope: ManagementApiScope,
+  filter: ReconciliationFilters,
+  signal?: AbortSignal,
+) {
+  return api.get<unknown, Blob>(`/api/${scope}/reconciliation/export?${query(scope, filter)}`, {
+    responseType: 'blob',
+    signal,
+  });
 }

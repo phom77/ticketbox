@@ -65,7 +65,11 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: number)
     >
       <Icon aria-hidden="true" size={19} />
       <p>{toast.message}</p>
-      <button type="button" aria-label={translate("shared:toastProvider_dongThongBao")} onClick={() => onDismiss(toast.id)}>
+      <button
+        type="button"
+        aria-label={translate('shared:toastProvider_dongThongBao')}
+        onClick={() => onDismiss(toast.id)}
+      >
         <X aria-hidden="true" size={17} />
       </button>
     </div>

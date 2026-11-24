@@ -74,9 +74,14 @@ export type OperationsReportFilters = PageFilters & {
   status?: string;
   asOf?: string;
 };
-type ReviewFilters = EventFilters & Pick<OperationsReportFilters, 'eventId' | 'performanceId' | 'concertId'>;
+type ReviewFilters = EventFilters &
+  Pick<OperationsReportFilters, 'eventId' | 'performanceId' | 'concertId'>;
 
-function readPage<T>(path: string, filters: Record<string, string | number | undefined>, signal?: AbortSignal) {
+function readPage<T>(
+  path: string,
+  filters: Record<string, string | number | undefined>,
+  signal?: AbortSignal,
+) {
   const params = new URLSearchParams();
   for (const [name, value] of Object.entries(filters)) {
     if (value !== undefined && value !== '') params.set(name, String(value));
@@ -84,18 +89,28 @@ function readPage<T>(path: string, filters: Record<string, string | number | und
   return apiGet<OperationsPage<T>>(params.size ? `${path}?${params}` : path, signal);
 }
 
-export function getOperationsEvents(scope: ManagementApiScope, filters: EventFilters, signal?: AbortSignal) {
-  const path = scope === 'admin' ? '/api/admin/v2/events' : '/api/organizer/manage/v2/event-directory';
+export function getOperationsEvents(
+  scope: ManagementApiScope,
+  filters: EventFilters,
+  signal?: AbortSignal,
+) {
+  const path =
+    scope === 'admin' ? '/api/admin/v2/events' : '/api/organizer/manage/v2/event-directory';
   return readPage<OperationsEventRow>(path, filters, signal);
 }
 
 export function getOperationsEvent(id: string, signal?: AbortSignal) {
   return apiGet<OperationsEventRow & { performances: OperationsPerformanceRow[] }>(
-    '/api/admin/v2/events/' + encodeURIComponent(id), signal,
+    '/api/admin/v2/events/' + encodeURIComponent(id),
+    signal,
   );
 }
 
-export function getOperationsReport(scope: ManagementApiScope, filters: OperationsReportFilters, signal?: AbortSignal) {
+export function getOperationsReport(
+  scope: ManagementApiScope,
+  filters: OperationsReportFilters,
+  signal?: AbortSignal,
+) {
   const root = scope === 'admin' ? '/api/admin/v2' : '/api/organizer/manage/v2';
   return readPage<OperationsPerformanceRow>(root + '/operations-report', filters, signal);
 }
@@ -105,5 +120,8 @@ export function getOperationsReviews(filters: ReviewFilters, signal?: AbortSigna
 }
 
 export function getOperationsPerformanceReview(id: string, signal?: AbortSignal) {
-  return apiGet<PerformanceReview>('/api/admin/v2/performance-reviews/' + encodeURIComponent(id), signal);
+  return apiGet<PerformanceReview>(
+    '/api/admin/v2/performance-reviews/' + encodeURIComponent(id),
+    signal,
+  );
 }

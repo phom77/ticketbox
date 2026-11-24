@@ -12,7 +12,12 @@ export function concertSaleState(
   if (concert.status === 'CANCELLED') return 'cancelled';
   if (concert.status === 'COMPLETED' || (saleEnd !== null && saleEnd <= now)) return 'closed';
   if (concert.status === 'SOLD_OUT') return 'sold-out';
-  if (concert.status !== 'ON_SALE' || !Number.isFinite(saleStart) || saleStart - waitingRoomLeadMs > now) return 'upcoming';
+  if (
+    concert.status !== 'ON_SALE' ||
+    !Number.isFinite(saleStart) ||
+    saleStart - waitingRoomLeadMs > now
+  )
+    return 'upcoming';
   return saleStart > now ? 'waiting-room' : 'on-sale';
 }
 

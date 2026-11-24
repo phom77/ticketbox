@@ -49,7 +49,9 @@ export type Section = {
   kind: SectionKind;
   points: Point[];
 };
-export type MapSection = Section & { rows: Array<{ id: string; code: string; label: string; seats: Seat[] }> };
+export type MapSection = Section & {
+  rows: Array<{ id: string; code: string; label: string; seats: Seat[] }>;
+};
 export type Layout = {
   version: number;
   width: number;
@@ -90,10 +92,16 @@ export type HeldItem = {
   rowLabel: string | null;
   seatLabel: string | null;
 };
-export type PerformanceHold = { version: number; expiresAt: string | null; items: HeldItem[]; totalAmount: number };
+export type PerformanceHold = {
+  version: number;
+  expiresAt: string | null;
+  items: HeldItem[];
+  totalAmount: number;
+};
 
 export const eventPath = (id: string) => '/events/' + encodeURIComponent(id);
-export const performancePath = (eventId: string, id: string) => eventPath(eventId) + '/performances/' + encodeURIComponent(id);
+export const performancePath = (eventId: string, id: string) =>
+  eventPath(eventId) + '/performances/' + encodeURIComponent(id);
 const inventory = (id: string) => '/api/v2/performances/' + encodeURIComponent(id);
 const sectionPath = (id: string) => '/sections/' + encodeURIComponent(id);
 
@@ -101,8 +109,15 @@ export async function getDiscoveryEvents(search: string, page: number, signal: A
   const params = new URLSearchParams(search);
   params.set('page', String(page));
   params.set('size', '24');
-  const response = await publicGet<Page<DiscoveryEvent>>(`/api/v2/events/discovery?${params}`, signal);
-  if (!Array.isArray(response?.content) || !Number.isInteger(response.totalElements) || typeof response.last !== 'boolean') {
+  const response = await publicGet<Page<DiscoveryEvent>>(
+    `/api/v2/events/discovery?${params}`,
+    signal,
+  );
+  if (
+    !Array.isArray(response?.content) ||
+    !Number.isInteger(response.totalElements) ||
+    typeof response.last !== 'boolean'
+  ) {
     throw new Error('Invalid event discovery response');
   }
   return response;
@@ -124,7 +139,10 @@ export function getLayout(id: string, signal: AbortSignal) {
 }
 
 export function getMapSection(id: string, sectionId: string, signal: AbortSignal) {
-  return publicGet<{ version: number; section: MapSection }>(inventory(id) + '/layout' + sectionPath(sectionId), signal);
+  return publicGet<{ version: number; section: MapSection }>(
+    inventory(id) + '/layout' + sectionPath(sectionId),
+    signal,
+  );
 }
 
 export function getAvailability(id: string, signal?: AbortSignal) {
@@ -132,27 +150,42 @@ export function getAvailability(id: string, signal?: AbortSignal) {
 }
 
 export function getSectionAvailability(id: string, sectionId: string, signal: AbortSignal) {
-  return publicGet<SectionAvailability>(inventory(id) + '/availability' + sectionPath(sectionId), signal);
+  return publicGet<SectionAvailability>(
+    inventory(id) + '/availability' + sectionPath(sectionId),
+    signal,
+  );
 }
 
 export function getHold(id: string, token: string, signal?: AbortSignal) {
   return api.get<unknown, PerformanceHold>(inventory(id) + '/hold', {
-    signal, headers: { 'Queue-Access-Token': token },
+    signal,
+    headers: { 'Queue-Access-Token': token },
   });
 }
 
-export function replaceHold(id: string, token: string, key: string, body: {
-  layoutVersion: number | null;
-  holdVersion: number;
-  items: Selection[];
-}) {
+export function replaceHold(
+  id: string,
+  token: string,
+  key: string,
+  body: {
+    layoutVersion: number | null;
+    holdVersion: number;
+    items: Selection[];
+  },
+) {
   return api.put<unknown, PerformanceHold>(inventory(id) + '/hold', body, {
-    timeout: 12_000, headers: { 'Queue-Access-Token': token, 'Idempotency-Key': key },
+    timeout: 12_000,
+    headers: { 'Queue-Access-Token': token, 'Idempotency-Key': key },
   });
 }
 
 export function checkoutPerformance(id: string, token: string, key: string, holdVersion: number) {
-  return api.post<unknown, Order>(inventory(id) + '/orders', { holdVersion }, {
-    timeout: 15_000, headers: { 'Queue-Access-Token': token, 'Idempotency-Key': key },
-  });
+  return api.post<unknown, Order>(
+    inventory(id) + '/orders',
+    { holdVersion },
+    {
+      timeout: 15_000,
+      headers: { 'Queue-Access-Token': token, 'Idempotency-Key': key },
+    },
+  );
 }

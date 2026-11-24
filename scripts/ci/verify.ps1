@@ -69,6 +69,7 @@ try {
     Invoke-Check 'compose-lab' $repoPath 'docker' @('compose', '-f', 'compose.yaml', '-f', 'compose.lab.yaml', '--profile', 'lab', 'config', '--quiet')
     Invoke-Check 'frontend-install' (Join-Path $repoPath 'frontend') 'npm' @('ci', '--no-audit', '--no-fund')
     Invoke-Check 'frontend-lint' (Join-Path $repoPath 'frontend') 'npm' @('run', 'lint')
+    Invoke-Check 'frontend-test' (Join-Path $repoPath 'frontend') 'npm' @('test')
     Invoke-Check 'frontend-build' (Join-Path $repoPath 'frontend') 'npm' @('run', 'build')
     Invoke-Check 'mobile-install' (Join-Path $repoPath 'mobile-scanner') 'npm' @('ci', '--no-audit', '--no-fund')
     Invoke-Check 'mobile-typecheck' (Join-Path $repoPath 'mobile-scanner') 'npm' @('run', 'typecheck')

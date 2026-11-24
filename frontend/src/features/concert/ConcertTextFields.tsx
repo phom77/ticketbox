@@ -14,19 +14,35 @@ export function ConcertTextFields({
 }) {
   const { t } = useTranslation();
 
-  function fields(label: string, text: ConcertText, update: (next: ConcertText) => void, lang?: string) {
+  function fields(
+    label: string,
+    text: ConcertText,
+    update: (next: ConcertText) => void,
+    lang?: string,
+  ) {
     return (
-      <fieldset className="admin-field admin-field-wide concert-text-fields" key={lang ?? 'original'}>
+      <fieldset
+        className="admin-field admin-field-wide concert-text-fields"
+        key={lang ?? 'original'}
+      >
         <legend>{label}</legend>
         <label className="admin-field">
           <span>{t('concertTitle')}</span>
-          <input lang={lang} maxLength={500} value={text.title ?? ''}
-            onChange={(event) => update({ ...text, title: event.target.value })} />
+          <input
+            lang={lang}
+            maxLength={500}
+            value={text.title ?? ''}
+            onChange={(event) => update({ ...text, title: event.target.value })}
+          />
         </label>
         <label className="admin-field">
           <span>{t('concertDescription')}</span>
-          <textarea lang={lang} rows={3} value={text.description ?? ''}
-            onChange={(event) => update({ ...text, description: event.target.value })} />
+          <textarea
+            lang={lang}
+            rows={3}
+            value={text.description ?? ''}
+            onChange={(event) => update({ ...text, description: event.target.value })}
+          />
         </label>
       </fieldset>
     );
@@ -35,10 +51,18 @@ export function ConcertTextFields({
   return (
     <div className="admin-field-wide concert-text-editor">
       <p>{t('concertLanguageHelp')}</p>
-      {original && fields(t('concertOriginal'), original,
-        (next) => onChange({ original: next, translations: translations ?? {} }))}
-      {languages.map(({ code, name }) => fields(name, translations?.[code] ?? emptyConcertText,
-        (next) => onChange({ original, translations: { ...translations, [code]: next } }), code))}
+      {original &&
+        fields(t('concertOriginal'), original, (next) =>
+          onChange({ original: next, translations: translations ?? {} }),
+        )}
+      {languages.map(({ code, name }) =>
+        fields(
+          name,
+          translations?.[code] ?? emptyConcertText,
+          (next) => onChange({ original, translations: { ...translations, [code]: next } }),
+          code,
+        ),
+      )}
     </div>
   );
 }

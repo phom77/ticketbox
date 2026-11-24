@@ -35,19 +35,69 @@ import { useToast } from '../../components/feedback/toast-context';
 import { ModalPortal } from '../../components/feedback/ModalPortal';
 
 const statuses: Array<{ value: '' | BatchLogStatus; label: string }> = [
-  { value: '', get label() { return translate("admin:adminGuestImportsPage_tatCaTrangThai"); } },
-  { value: 'PENDING', get label() { return translate("admin:adminGuestImportsPage_choScheduler"); } },
-  { value: 'RUNNING', get label() { return translate("admin:adminGuestImportsPage_dangXuLy"); } },
-  { value: 'SUCCESS', get label() { return translate("admin:adminGuestImportsPage_thanhCong"); } },
-  { value: 'PARTIAL', get label() { return translate("admin:adminGuestImportsPage_motPhan"); } },
-  { value: 'FAILED', get label() { return translate("admin:adminGuestImportsPage_thatBai"); } },
-  { value: 'SKIPPED', get label() { return translate("admin:adminGuestImportsPage_daBoQua"); } },
+  {
+    value: '',
+    get label() {
+      return translate('admin:adminGuestImportsPage_tatCaTrangThai');
+    },
+  },
+  {
+    value: 'PENDING',
+    get label() {
+      return translate('admin:adminGuestImportsPage_choScheduler');
+    },
+  },
+  {
+    value: 'RUNNING',
+    get label() {
+      return translate('admin:adminGuestImportsPage_dangXuLy');
+    },
+  },
+  {
+    value: 'SUCCESS',
+    get label() {
+      return translate('admin:adminGuestImportsPage_thanhCong');
+    },
+  },
+  {
+    value: 'PARTIAL',
+    get label() {
+      return translate('admin:adminGuestImportsPage_motPhan');
+    },
+  },
+  {
+    value: 'FAILED',
+    get label() {
+      return translate('admin:adminGuestImportsPage_thatBai');
+    },
+  },
+  {
+    value: 'SKIPPED',
+    get label() {
+      return translate('admin:adminGuestImportsPage_daBoQua');
+    },
+  },
 ];
 
 const sources: Array<{ value: '' | BatchLogSource; label: string }> = [
-  { value: '', get label() { return translate("admin:adminGuestImportsPage_tatCaNguon"); } },
-  { value: 'UPLOAD', get label() { return translate("admin:adminGuestImportsPage_taiLenThuCong"); } },
-  { value: 'SCHEDULED', get label() { return translate("admin:adminGuestImportsPage_theoLich"); } },
+  {
+    value: '',
+    get label() {
+      return translate('admin:adminGuestImportsPage_tatCaNguon');
+    },
+  },
+  {
+    value: 'UPLOAD',
+    get label() {
+      return translate('admin:adminGuestImportsPage_taiLenThuCong');
+    },
+  },
+  {
+    value: 'SCHEDULED',
+    get label() {
+      return translate('admin:adminGuestImportsPage_theoLich');
+    },
+  },
 ];
 
 const dateTime = dateFormatter({
@@ -60,17 +110,26 @@ function statusLabel(status: BatchLogStatus) {
 }
 
 function sourceLabel(source: BatchLogSource | null) {
-  return sources.find((item) => item.value === source)?.label ?? translate("admin:adminGuestImportsPage_khongXacDinh");
+  return (
+    sources.find((item) => item.value === source)?.label ??
+    translate('admin:adminGuestImportsPage_khongXacDinh')
+  );
 }
 
 function duration(log: BatchLog) {
-  if (!log.completedAt) return log.status === 'PENDING' ? translate("admin:adminGuestImportsPage_dangChoLichQuet") : translate("admin:adminGuestImportsPage_dangChay");
+  if (!log.completedAt)
+    return log.status === 'PENDING'
+      ? translate('admin:adminGuestImportsPage_dangChoLichQuet')
+      : translate('admin:adminGuestImportsPage_dangChay');
   const seconds = Math.max(
     0,
     Math.round((new Date(log.completedAt).getTime() - new Date(log.startedAt).getTime()) / 1000),
   );
-  if (seconds < 60) return translate("admin:adminGuestImportsPage_giay", { arg1: seconds });
-  return translate("admin:adminGuestImportsPage_phutGiay", { arg1: Math.floor(seconds / 60), arg2: seconds % 60 });
+  if (seconds < 60) return translate('admin:adminGuestImportsPage_giay', { arg1: seconds });
+  return translate('admin:adminGuestImportsPage_phutGiay', {
+    arg1: Math.floor(seconds / 60),
+    arg2: seconds % 60,
+  });
 }
 
 function isActiveBatch(status: BatchLogStatus) {
@@ -133,7 +192,7 @@ export function AdminGuestImportsPage({
           toast.error(
             requestError instanceof Error
               ? requestError.message
-              : translate("admin:adminGuestImportsPage_khongTheTaiDanhSachConcert"),
+              : translate('admin:adminGuestImportsPage_khongTheTaiDanhSachConcert'),
           );
         }
       } finally {
@@ -165,7 +224,9 @@ export function AdminGuestImportsPage({
       } catch (requestError) {
         if (!isRequestCanceled(requestError)) {
           setLogsError(
-            requestError instanceof Error ? requestError.message : translate("admin:adminGuestImportsPage_khongTheTaiLichSuImport"),
+            requestError instanceof Error
+              ? requestError.message
+              : translate('admin:adminGuestImportsPage_khongTheTaiLichSuImport'),
           );
         }
       } finally {
@@ -217,7 +278,7 @@ export function AdminGuestImportsPage({
                   toast.error(
                     requestError instanceof Error
                       ? requestError.message
-                      : translate("admin:adminGuestImportsPage_guestListUpdateFailed"),
+                      : translate('admin:adminGuestImportsPage_guestListUpdateFailed'),
                   );
                 }
               })
@@ -231,7 +292,7 @@ export function AdminGuestImportsPage({
           toast.error(
             requestError instanceof Error
               ? requestError.message
-              : translate("admin:adminGuestImportsPage_khongTheCapNhatTrangThaiImport"),
+              : translate('admin:adminGuestImportsPage_khongTheCapNhatTrangThaiImport'),
           );
         }
       } finally {
@@ -261,7 +322,7 @@ export function AdminGuestImportsPage({
           toast.error(
             requestError instanceof Error
               ? requestError.message
-              : translate("admin:adminGuestImportsPage_khongTheCapNhatBatchGanNhat"),
+              : translate('admin:adminGuestImportsPage_khongTheCapNhatBatchGanNhat'),
           );
         }
       } finally {
@@ -295,19 +356,19 @@ export function AdminGuestImportsPage({
     }
     if (!nextFile.name.toLowerCase().endsWith('.csv')) {
       setFile(null);
-      toast.error(translate("admin:adminGuestImportsPage_chiChapNhanFileCoDinhDang"));
+      toast.error(translate('admin:adminGuestImportsPage_chiChapNhanFileCoDinhDang'));
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
     if (nextFile.size === 0) {
       setFile(null);
-      toast.error(translate("admin:adminGuestImportsPage_fileCsvKhongDuocDeTrong"));
+      toast.error(translate('admin:adminGuestImportsPage_fileCsvKhongDuocDeTrong'));
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
     if (nextFile.size > 10 * 1024 * 1024) {
       setFile(null);
-      toast.error(translate("admin:adminGuestImportsPage_fileCsvKhongDuocVuotQua10"));
+      toast.error(translate('admin:adminGuestImportsPage_fileCsvKhongDuocVuotQua10'));
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
@@ -322,7 +383,9 @@ export function AdminGuestImportsPage({
       const scheduled = uploadMode === 'scheduled';
       const result = await importGuestList(uploadConcertId, file, apiScope, scheduled);
       toast.success(
-        scheduled ? translate("admin:adminGuestImportsPage_daXepFileCsvVaoHangCho") : translate("admin:adminGuestImportsPage_daTiepNhanFileCsvDeXu"),
+        scheduled
+          ? translate('admin:adminGuestImportsPage_daXepFileCsvVaoHangCho')
+          : translate('admin:adminGuestImportsPage_daTiepNhanFileCsvDeXu'),
       );
       setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -345,7 +408,7 @@ export function AdminGuestImportsPage({
                 toast.error(
                   requestError instanceof Error
                     ? requestError.message
-                    : translate("admin:adminGuestImportsPage_guestListLoadFailed"),
+                    : translate('admin:adminGuestImportsPage_guestListLoadFailed'),
                 );
               }
             })
@@ -356,14 +419,18 @@ export function AdminGuestImportsPage({
       } catch (detailError) {
         toast.error(
           detailError instanceof Error
-            ? translate("admin:adminGuestImportsPage_fileDaDuocTiepNhanNhungChua", { arg1: detailError.message })
-            : translate("admin:adminGuestImportsPage_fileDaDuocTiepNhanNhungChua_2"),
+            ? translate('admin:adminGuestImportsPage_fileDaDuocTiepNhanNhungChua', {
+                arg1: detailError.message,
+              })
+            : translate('admin:adminGuestImportsPage_fileDaDuocTiepNhanNhungChua_2'),
         );
       }
       await loadLogs(undefined, true);
     } catch (requestError) {
       toast.error(
-        requestError instanceof Error ? requestError.message : translate("admin:adminGuestImportsPage_khongTheTaiFileCsvLen"),
+        requestError instanceof Error
+          ? requestError.message
+          : translate('admin:adminGuestImportsPage_khongTheTaiFileCsvLen'),
       );
     } finally {
       setUploading(false);
@@ -385,7 +452,9 @@ export function AdminGuestImportsPage({
       setSelectedLogGuests(guestPage?.content ?? []);
     } catch (requestError) {
       toast.error(
-        requestError instanceof Error ? requestError.message : translate("admin:adminGuestImportsPage_khongTheTaiChiTietBatch"),
+        requestError instanceof Error
+          ? requestError.message
+          : translate('admin:adminGuestImportsPage_khongTheTaiChiTietBatch'),
       );
     } finally {
       setDetailLoading(false);
@@ -395,11 +464,11 @@ export function AdminGuestImportsPage({
   return (
     <>
       <AdminPageHeader
-        title={translate("admin:adminGuestImportsPage_importKhachMoi")}
+        title={translate('admin:adminGuestImportsPage_importKhachMoi')}
         actions={
           safeReturnTo ? (
             <Link className="admin-secondary-action" to={safeReturnTo}>
-              {translate("admin:adminGuestImportsPage_quayVeConcert")}
+              {translate('admin:adminGuestImportsPage_quayVeConcert')}
             </Link>
           ) : undefined
         }
@@ -409,8 +478,12 @@ export function AdminGuestImportsPage({
         <form className="guest-upload-panel" onSubmit={submitUpload}>
           <div className="guest-section-heading">
             <div>
-              <span>{uploadMode === 'scheduled' ? translate("admin:adminGuestImportsPage_importTheoLich") : translate("admin:adminGuestImportsPage_importThuCong")}</span>
-              <h2>{translate("admin:adminGuestImportsPage_taiDanhSachMoi")}</h2>
+              <span>
+                {uploadMode === 'scheduled'
+                  ? translate('admin:adminGuestImportsPage_importTheoLich')
+                  : translate('admin:adminGuestImportsPage_importThuCong')}
+              </span>
+              <h2>{translate('admin:adminGuestImportsPage_taiDanhSachMoi')}</h2>
             </div>
             <UploadCloud aria-hidden="true" size={22} />
           </div>
@@ -418,14 +491,22 @@ export function AdminGuestImportsPage({
             concerts={concerts}
             value={uploadConcertId}
             onChange={setUploadConcertId}
-            label={translate("admin:adminGuestImportsPage_concertNhanKhachMoi")}
-            placeholder={loadingConcerts ? translate("admin:adminGuestImportsPage_dangTaiConcert") : translate("admin:adminGuestImportsPage_chonConcertNhanDanhSach")}
+            label={translate('admin:adminGuestImportsPage_concertNhanKhachMoi')}
+            placeholder={
+              loadingConcerts
+                ? translate('admin:adminGuestImportsPage_dangTaiConcert')
+                : translate('admin:adminGuestImportsPage_chonConcertNhanDanhSach')
+            }
             disabled={loadingConcerts || uploading || !concerts.length}
           />
           <label className={`guest-file-picker ${file ? 'has-file' : ''}`}>
             <FileText aria-hidden="true" size={24} />
-            <span>{file ? file.name : translate("admin:adminGuestImportsPage_chonFileCsv")}</span>
-            <small>{file ? `${(file.size / 1024).toFixed(1)} KB` : translate("admin:adminGuestImportsPage_toiDa10Mb")}</small>
+            <span>{file ? file.name : translate('admin:adminGuestImportsPage_chonFileCsv')}</span>
+            <small>
+              {file
+                ? `${(file.size / 1024).toFixed(1)} KB`
+                : translate('admin:adminGuestImportsPage_toiDa10Mb')}
+            </small>
             <input
               ref={fileInputRef}
               type="file"
@@ -441,18 +522,18 @@ export function AdminGuestImportsPage({
           >
             <UploadCloud aria-hidden="true" size={17} />
             {uploading
-              ? translate("admin:adminGuestImportsPage_dangGuiFile")
+              ? translate('admin:adminGuestImportsPage_dangGuiFile')
               : uploadMode === 'scheduled'
-                ? translate("admin:adminGuestImportsPage_duaVaoHangCho")
-                : translate("admin:adminGuestImportsPage_batDauImport")}
+                ? translate('admin:adminGuestImportsPage_duaVaoHangCho')
+                : translate('admin:adminGuestImportsPage_batDauImport')}
           </button>
         </form>
 
         <div className="guest-latest-panel">
           <div className="guest-section-heading">
             <div>
-              <span>{translate("admin:adminGuestImportsPage_tienTrinhGanNhat")}</span>
-              <h2>{translate("admin:adminGuestImportsPage_trangThaiXuLy")}</h2>
+              <span>{translate('admin:adminGuestImportsPage_tienTrinhGanNhat')}</span>
+              <h2>{translate('admin:adminGuestImportsPage_trangThaiXuLy')}</h2>
             </div>
             <FileClock aria-hidden="true" size={22} />
           </div>
@@ -464,7 +545,7 @@ export function AdminGuestImportsPage({
             />
           ) : (
             <div className="guest-latest-empty">
-              <p>{translate("admin:adminGuestImportsPage_batchVuaTaiLenSeXuatHien")}</p>
+              <p>{translate('admin:adminGuestImportsPage_batchVuaTaiLenSeXuatHien')}</p>
             </div>
           )}
         </div>
@@ -473,32 +554,44 @@ export function AdminGuestImportsPage({
       <section className="guest-log-section">
         <div className="guest-log-header">
           <div>
-            <span>{translate("admin:adminGuestImportsPage_lichSuXuLy")}</span>
+            <span>{translate('admin:adminGuestImportsPage_lichSuXuLy')}</span>
             <h2>{translate('batchImport')}</h2>
           </div>
           <button type="button" onClick={() => void loadLogs()} disabled={loadingLogs}>
             <RefreshCw aria-hidden="true" size={16} />
-            {translate("admin:adminGuestImportsPage_lamMoi")}
+            {translate('admin:adminGuestImportsPage_lamMoi')}
           </button>
         </div>
         <div className="guest-log-filters">
           <label>
             <span>{translate('event')}</span>
-            <WorkspaceSelect label={translate('event')} value={concertFilter}
-              onChange={(concertId) => updateFilters({ concertId })} options={[
+            <WorkspaceSelect
+              label={translate('event')}
+              value={concertFilter}
+              onChange={(concertId) => updateFilters({ concertId })}
+              options={[
                 { value: '', label: translate('admin:adminGuestImportsPage_tatCaConcert') },
                 ...concerts.map(({ id, title }) => ({ value: id, label: title })),
-              ]} />
+              ]}
+            />
           </label>
           <label>
-            <span>{translate("admin:adminGuestImportsPage_trangThai")}</span>
-            <WorkspaceSelect label={translate('admin:adminGuestImportsPage_trangThai')} value={statusFilter}
-              options={statuses} onChange={(status) => updateFilters({ status })} />
+            <span>{translate('admin:adminGuestImportsPage_trangThai')}</span>
+            <WorkspaceSelect
+              label={translate('admin:adminGuestImportsPage_trangThai')}
+              value={statusFilter}
+              options={statuses}
+              onChange={(status) => updateFilters({ status })}
+            />
           </label>
           <label>
-            <span>{translate("admin:adminGuestImportsPage_nguon")}</span>
-            <WorkspaceSelect label={translate('admin:adminGuestImportsPage_nguon')} value={sourceFilter}
-              options={sources} onChange={(source) => updateFilters({ source })} />
+            <span>{translate('admin:adminGuestImportsPage_nguon')}</span>
+            <WorkspaceSelect
+              label={translate('admin:adminGuestImportsPage_nguon')}
+              value={sourceFilter}
+              options={sources}
+              onChange={(source) => updateFilters({ source })}
+            />
           </label>
           <button
             type="button"
@@ -506,7 +599,7 @@ export function AdminGuestImportsPage({
             disabled={!concertFilter && !statusFilter && !sourceFilter && page === 0}
           >
             <RotateCcw aria-hidden="true" size={15} />
-            {translate("admin:adminGuestImportsPage_xoaBoLoc")}
+            {translate('admin:adminGuestImportsPage_xoaBoLoc')}
           </button>
         </div>
 
@@ -519,7 +612,7 @@ export function AdminGuestImportsPage({
           {loadingLogs ? (
             <div
               className="admin-row-skeleton"
-              aria-label={translate("admin:adminGuestImportsPage_dangTaiLichSuImport")}
+              aria-label={translate('admin:adminGuestImportsPage_dangTaiLichSuImport')}
               aria-live="polite"
             >
               {[1, 2, 3, 4].map((item) => (
@@ -533,11 +626,13 @@ export function AdminGuestImportsPage({
                   <tr>
                     <th>{translate('file')}</th>
                     <th>{translate('event')}</th>
-                    <th>{translate("admin:adminGuestImportsPage_nguon")}</th>
-                    <th>{translate("admin:adminGuestImportsPage_ketQua")}</th>
-                    <th>{translate("admin:adminGuestImportsPage_batDau")}</th>
+                    <th>{translate('admin:adminGuestImportsPage_nguon')}</th>
+                    <th>{translate('admin:adminGuestImportsPage_ketQua')}</th>
+                    <th>{translate('admin:adminGuestImportsPage_batDau')}</th>
                     <th>
-                      <span className="sr-only">{translate("admin:adminGuestImportsPage_thaoTac")}</span>
+                      <span className="sr-only">
+                        {translate('admin:adminGuestImportsPage_thaoTac')}
+                      </span>
                     </th>
                   </tr>
                 </thead>
@@ -546,12 +641,13 @@ export function AdminGuestImportsPage({
                     <tr key={log.id}>
                       <td>
                         <strong className="admin-table-primary">
-                          {log.fileName ?? translate("admin:adminGuestImportsPage_khongCoTenFile")}
+                          {log.fileName ?? translate('admin:adminGuestImportsPage_khongCoTenFile')}
                         </strong>
                       </td>
                       <td>
                         <strong className="admin-table-primary">
-                          {concertNames.get(log.concertId ?? '') ?? translate("admin:adminGuestImportsPage_concertKhongXacDinh")}
+                          {concertNames.get(log.concertId ?? '') ??
+                            translate('admin:adminGuestImportsPage_concertKhongXacDinh')}
                         </strong>
                       </td>
                       <td>
@@ -560,7 +656,8 @@ export function AdminGuestImportsPage({
                       <td>
                         <BatchStatus status={log.status} />
                         <span className="admin-table-secondary">
-                          {log.successRows} {translate("admin:adminGuestImportsPage_thanhCong_2")} {log.errorRows} {translate("admin:adminGuestImportsPage_loi")}
+                          {log.successRows} {translate('admin:adminGuestImportsPage_thanhCong_2')}{' '}
+                          {log.errorRows} {translate('admin:adminGuestImportsPage_loi')}
                         </span>
                       </td>
                       <td>
@@ -573,8 +670,10 @@ export function AdminGuestImportsPage({
                         <div className="admin-row-actions">
                           <button
                             type="button"
-                            aria-label={translate("admin:adminGuestImportsPage_xemChiTiet", {
-                              arg1: log.fileName ?? translate('admin:adminGuestImportsPage_khongCoTenFile'),
+                            aria-label={translate('admin:adminGuestImportsPage_xemChiTiet', {
+                              arg1:
+                                log.fileName ??
+                                translate('admin:adminGuestImportsPage_khongCoTenFile'),
                             })}
                             onClick={() => void openDetail(log)}
                           >
@@ -590,8 +689,8 @@ export function AdminGuestImportsPage({
           ) : (
             <div className="admin-empty-state">
               <FileClock aria-hidden="true" size={28} />
-              <h2>{translate("admin:adminGuestImportsPage_chuaCoBatchPhuHop")}</h2>
-              <p>{translate("admin:adminGuestImportsPage_thayDoiBoLocHoacTaiLen")}</p>
+              <h2>{translate('admin:adminGuestImportsPage_chuaCoBatchPhuHop')}</h2>
+              <p>{translate('admin:adminGuestImportsPage_thayDoiBoLocHoacTaiLen')}</p>
             </div>
           )}
         </div>
@@ -604,7 +703,7 @@ export function AdminGuestImportsPage({
             <div>
               <button
                 type="button"
-                aria-label={translate("admin:adminGuestImportsPage_trangTruoc")}
+                aria-label={translate('admin:adminGuestImportsPage_trangTruoc')}
                 disabled={logs.first}
                 onClick={() => updateFilters({ page: String(page - 1) })}
               >
@@ -666,26 +765,33 @@ function BatchSnapshot({
       {isActiveBatch(log.status) ? (
         <div
           className="guest-indeterminate"
-          aria-label={log.status === 'PENDING' ? translate("admin:adminGuestImportsPage_dangChoScheduler") : translate("admin:adminGuestImportsPage_dangXuLy")}
+          aria-label={
+            log.status === 'PENDING'
+              ? translate('admin:adminGuestImportsPage_dangChoScheduler')
+              : translate('admin:adminGuestImportsPage_dangXuLy')
+          }
         >
           <span />
         </div>
       ) : null}
-      <h3>{log.fileName ?? translate("admin:adminGuestImportsPage_danhSachKhachMoi")}</h3>
-      <p>{concertName ?? translate("admin:adminGuestImportsPage_concertKhongXacDinh")}</p>
+      <h3>{log.fileName ?? translate('admin:adminGuestImportsPage_danhSachKhachMoi')}</h3>
+      <p>{concertName ?? translate('admin:adminGuestImportsPage_concertKhongXacDinh')}</p>
       <div className="guest-batch-counts">
         <span>
-          <strong>{log.totalRows}</strong>{translate("admin:adminGuestImportsPage_tongDong")}
+          <strong>{log.totalRows}</strong>
+          {translate('admin:adminGuestImportsPage_tongDong')}
         </span>
         <span>
-          <strong>{log.successRows}</strong>{translate("admin:adminGuestImportsPage_thanhCong")}
+          <strong>{log.successRows}</strong>
+          {translate('admin:adminGuestImportsPage_thanhCong')}
         </span>
         <span>
-          <strong>{log.errorRows}</strong>{translate("admin:adminGuestImportsPage_loi_2")}
+          <strong>{log.errorRows}</strong>
+          {translate('admin:adminGuestImportsPage_loi_2')}
         </span>
       </div>
       <button type="button" onClick={onOpen}>
-        {translate("admin:adminGuestImportsPage_xemChiTiet_2")} <Eye aria-hidden="true" size={15} />
+        {translate('admin:adminGuestImportsPage_xemChiTiet_2')} <Eye aria-hidden="true" size={15} />
       </button>
     </div>
   );
@@ -724,154 +830,179 @@ function BatchDetailDialog({
           if (event.target === event.currentTarget) onClose();
         }}
       >
-      <section
-        className="admin-dialog admin-dialog-compact batch-detail-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="batch-detail-title"
-      >
-        <header>
-          <div>
-            <span>{translate("admin:adminGuestImportsPage_chiTietBatch")}</span>
-            <h2 id="batch-detail-title">{log.fileName ?? translate("admin:adminGuestImportsPage_chiTietImport")}</h2>
-          </div>
-          <button type="button" aria-label={translate("admin:adminGuestImportsPage_dong")} onClick={onClose} autoFocus>
-            <X size={20} />
-          </button>
-        </header>
-        <div className="batch-detail-body">
-          {loading ? (
-            <div className="batch-detail-loading">{translate("admin:adminGuestImportsPage_dangTaiDuLieuMoiNhat")}</div>
-          ) : null}
-          <div className="batch-detail-lead">
-            <BatchStatus status={log.status} />
-            <strong>{concertName ?? translate("admin:adminGuestImportsPage_concertKhongXacDinh")}</strong>
-            <span>{sourceLabel(log.source)}</span>
-          </div>
-          {isActiveBatch(log.status) ? (
-            <div
-              className="guest-indeterminate"
-              aria-label={log.status === 'PENDING' ? translate("admin:adminGuestImportsPage_dangChoScheduler") : translate("admin:adminGuestImportsPage_dangXuLy")}
+        <section
+          className="admin-dialog admin-dialog-compact batch-detail-dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="batch-detail-title"
+        >
+          <header>
+            <div>
+              <span>{translate('admin:adminGuestImportsPage_chiTietBatch')}</span>
+              <h2 id="batch-detail-title">
+                {log.fileName ?? translate('admin:adminGuestImportsPage_chiTietImport')}
+              </h2>
+            </div>
+            <button
+              type="button"
+              aria-label={translate('admin:adminGuestImportsPage_dong')}
+              onClick={onClose}
+              autoFocus
             >
-              <span />
-            </div>
-          ) : null}
-          <dl className="batch-detail-counts">
-            <div>
-              <dt>{translate("admin:adminGuestImportsPage_tongDong")}</dt>
-              <dd>{log.totalRows}</dd>
-            </div>
-            <div>
-              <dt>{translate("admin:adminGuestImportsPage_thanhCong")}</dt>
-              <dd>{log.successRows}</dd>
-            </div>
-            <div>
-              <dt>{translate("admin:adminGuestImportsPage_loi_2")}</dt>
-              <dd>{log.errorRows}</dd>
-            </div>
-          </dl>
-          <dl className="batch-detail-meta">
-            <div>
-              <dt>{translate("admin:adminGuestImportsPage_batDau")}</dt>
-              <dd>{dateTime.format(new Date(log.startedAt))}</dd>
-            </div>
-            <div>
-              <dt>{translate("admin:adminGuestImportsPage_hoanTat")}</dt>
-              <dd>{log.completedAt ? dateTime.format(new Date(log.completedAt)) : translate("admin:adminGuestImportsPage_dangXuLy")}</dd>
-            </div>
-            <div>
-              <dt>{translate("admin:adminGuestImportsPage_thoiLuong")}</dt>
-              <dd>{duration(log)}</dd>
-            </div>
-            {showTechnicalDetails ? (
-              <div>
-                <dt>{translate('checksum')}</dt>
-                <dd>
-                  <code>{log.checksum ?? translate("admin:adminGuestImportsPage_khongCo")}</code>
-                </dd>
+              <X size={20} />
+            </button>
+          </header>
+          <div className="batch-detail-body">
+            {loading ? (
+              <div className="batch-detail-loading">
+                {translate('admin:adminGuestImportsPage_dangTaiDuLieuMoiNhat')}
               </div>
             ) : null}
-            {showTechnicalDetails ? (
-              <div>
-                <dt>{translate("admin:adminGuestImportsPage_fileLuuTru")}</dt>
-                <dd>
-                  <code>{log.filePath ?? translate("admin:adminGuestImportsPage_khongCo")}</code>
-                </dd>
+            <div className="batch-detail-lead">
+              <BatchStatus status={log.status} />
+              <strong>
+                {concertName ?? translate('admin:adminGuestImportsPage_concertKhongXacDinh')}
+              </strong>
+              <span>{sourceLabel(log.source)}</span>
+            </div>
+            {isActiveBatch(log.status) ? (
+              <div
+                className="guest-indeterminate"
+                aria-label={
+                  log.status === 'PENDING'
+                    ? translate('admin:adminGuestImportsPage_dangChoScheduler')
+                    : translate('admin:adminGuestImportsPage_dangXuLy')
+                }
+              >
+                <span />
               </div>
             ) : null}
-            <div>
-              <dt>{translate("admin:adminGuestImportsPage_baoCaoLoi")}</dt>
-              <dd>
-                <code>{log.errorReportPath ?? translate("admin:adminGuestImportsPage_khongCo")}</code>
-              </dd>
-            </div>
-          </dl>
-          {log.errorDetail ? (
-            <div className="batch-error-detail">
-              <span>{translate("admin:adminGuestImportsPage_chiTietLoi")}</span>
-              <p>{log.errorDetail}</p>
-            </div>
-          ) : null}
-          <section className="batch-guest-preview">
-            <div className="batch-guest-preview-heading">
+            <dl className="batch-detail-counts">
               <div>
-                <span>{translate("admin:adminGuestImportsPage_danhSachKhachMoi")}</span>
-                <h3>{translate("admin:adminGuestImportsPage_danhSachKhachMoiCuaConcert")}</h3>
+                <dt>{translate('admin:adminGuestImportsPage_tongDong')}</dt>
+                <dd>{log.totalRows}</dd>
               </div>
-              <strong>{guests.length} {translate("admin:adminGuestImportsPage_khach")}</strong>
-            </div>
-            {guests.length ? (
-              <div className="admin-table-wrap">
-                <table className="admin-table">
-                  <thead>
-                    <tr>
-                      <th>{translate("admin:adminGuestImportsPage_khachMoi")}</th>
-                      <th>{translate("admin:adminGuestImportsPage_hang")}</th>
-                      <th>{translate('sponsor')}</th>
-                      <th>{translate("admin:adminGuestImportsPage_trangThai")}</th>
-                      <th>{translate("admin:adminGuestImportsPage_checkIn")}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {guests.map((guest) => (
-                      <tr key={guest.id}>
-                        <td>
-                          <strong className="admin-table-primary">{guest.fullName}</strong>
-                          <span className="admin-table-secondary">{guest.phone}</span>
-                        </td>
-                        <td>{guest.category ?? '—'}</td>
-                        <td>{guest.sponsorName ?? '—'}</td>
-                        <td>
-                          <span
-                            className={
-                              guest.active
-                                ? 'status-badge badge-success'
-                                : 'status-badge badge-muted'
-                            }
-                          >
-                            {guest.active ? translate("admin:adminGuestImportsPage_hieuLuc") : translate("admin:adminGuestImportsPage_daHuy")}
-                          </span>
-                        </td>
-                        <td>
-                          {guest.checkedInAt
-                            ? dateTime.format(new Date(guest.checkedInAt))
-                            : translate("admin:adminGuestImportsPage_chuaVao")}
-                        </td>
+              <div>
+                <dt>{translate('admin:adminGuestImportsPage_thanhCong')}</dt>
+                <dd>{log.successRows}</dd>
+              </div>
+              <div>
+                <dt>{translate('admin:adminGuestImportsPage_loi_2')}</dt>
+                <dd>{log.errorRows}</dd>
+              </div>
+            </dl>
+            <dl className="batch-detail-meta">
+              <div>
+                <dt>{translate('admin:adminGuestImportsPage_batDau')}</dt>
+                <dd>{dateTime.format(new Date(log.startedAt))}</dd>
+              </div>
+              <div>
+                <dt>{translate('admin:adminGuestImportsPage_hoanTat')}</dt>
+                <dd>
+                  {log.completedAt
+                    ? dateTime.format(new Date(log.completedAt))
+                    : translate('admin:adminGuestImportsPage_dangXuLy')}
+                </dd>
+              </div>
+              <div>
+                <dt>{translate('admin:adminGuestImportsPage_thoiLuong')}</dt>
+                <dd>{duration(log)}</dd>
+              </div>
+              {showTechnicalDetails ? (
+                <div>
+                  <dt>{translate('checksum')}</dt>
+                  <dd>
+                    <code>{log.checksum ?? translate('admin:adminGuestImportsPage_khongCo')}</code>
+                  </dd>
+                </div>
+              ) : null}
+              {showTechnicalDetails ? (
+                <div>
+                  <dt>{translate('admin:adminGuestImportsPage_fileLuuTru')}</dt>
+                  <dd>
+                    <code>{log.filePath ?? translate('admin:adminGuestImportsPage_khongCo')}</code>
+                  </dd>
+                </div>
+              ) : null}
+              <div>
+                <dt>{translate('admin:adminGuestImportsPage_baoCaoLoi')}</dt>
+                <dd>
+                  <code>
+                    {log.errorReportPath ?? translate('admin:adminGuestImportsPage_khongCo')}
+                  </code>
+                </dd>
+              </div>
+            </dl>
+            {log.errorDetail ? (
+              <div className="batch-error-detail">
+                <span>{translate('admin:adminGuestImportsPage_chiTietLoi')}</span>
+                <p>{log.errorDetail}</p>
+              </div>
+            ) : null}
+            <section className="batch-guest-preview">
+              <div className="batch-guest-preview-heading">
+                <div>
+                  <span>{translate('admin:adminGuestImportsPage_danhSachKhachMoi')}</span>
+                  <h3>{translate('admin:adminGuestImportsPage_danhSachKhachMoiCuaConcert')}</h3>
+                </div>
+                <strong>
+                  {guests.length} {translate('admin:adminGuestImportsPage_khach')}
+                </strong>
+              </div>
+              {guests.length ? (
+                <div className="admin-table-wrap">
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th>{translate('admin:adminGuestImportsPage_khachMoi')}</th>
+                        <th>{translate('admin:adminGuestImportsPage_hang')}</th>
+                        <th>{translate('sponsor')}</th>
+                        <th>{translate('admin:adminGuestImportsPage_trangThai')}</th>
+                        <th>{translate('admin:adminGuestImportsPage_checkIn')}</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="admin-empty-state compact">
-                <FileText aria-hidden="true" size={22} />
-                <h2>{translate("admin:adminGuestImportsPage_chuaCoKhachMoi")}</h2>
-                <p>{translate("admin:adminGuestImportsPage_batchCoTheDangXuLyHoac")}</p>
-              </div>
-            )}
-          </section>
-        </div>
-      </section>
+                    </thead>
+                    <tbody>
+                      {guests.map((guest) => (
+                        <tr key={guest.id}>
+                          <td>
+                            <strong className="admin-table-primary">{guest.fullName}</strong>
+                            <span className="admin-table-secondary">{guest.phone}</span>
+                          </td>
+                          <td>{guest.category ?? '—'}</td>
+                          <td>{guest.sponsorName ?? '—'}</td>
+                          <td>
+                            <span
+                              className={
+                                guest.active
+                                  ? 'status-badge badge-success'
+                                  : 'status-badge badge-muted'
+                              }
+                            >
+                              {guest.active
+                                ? translate('admin:adminGuestImportsPage_hieuLuc')
+                                : translate('admin:adminGuestImportsPage_daHuy')}
+                            </span>
+                          </td>
+                          <td>
+                            {guest.checkedInAt
+                              ? dateTime.format(new Date(guest.checkedInAt))
+                              : translate('admin:adminGuestImportsPage_chuaVao')}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="admin-empty-state compact">
+                  <FileText aria-hidden="true" size={22} />
+                  <h2>{translate('admin:adminGuestImportsPage_chuaCoKhachMoi')}</h2>
+                  <p>{translate('admin:adminGuestImportsPage_batchCoTheDangXuLyHoac')}</p>
+                </div>
+              )}
+            </section>
+          </div>
+        </section>
       </div>
     </ModalPortal>
   );

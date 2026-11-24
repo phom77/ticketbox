@@ -1,5 +1,9 @@
 import { PerformanceOperationsPage } from '../pages/admin/PerformanceOperationsPage';
-import { NewPerformanceEventPage, PerformanceEventAccess, PerformanceEventPage } from '../pages/organizer/PerformanceEventsPage';
+import {
+  NewPerformanceEventPage,
+  PerformanceEventAccess,
+  PerformanceEventPage,
+} from '../pages/organizer/PerformanceEventsPage';
 import { ConcertDirectoryPage } from '../pages/operations/ConcertDirectoryPage';
 import { AdminEventWorkspacePage } from '../pages/admin/AdminEventWorkspacePage';
 import { AdminSettingsPage } from '../pages/admin/AdminSettingsPage';
@@ -10,7 +14,11 @@ import '../pages/public/Performances.css';
 import { translate } from '../i18n';
 import { useTranslation } from 'react-i18next';
 import { ReconciliationPage } from '../pages/organizer/ReconciliationPage';
-import { OrganizationProvider, RequireOrganizationGrant, RequireOrganizationMembership } from '../features/organizations/OrganizationProvider';
+import {
+  OrganizationProvider,
+  RequireOrganizationGrant,
+  RequireOrganizationMembership,
+} from '../features/organizations/OrganizationProvider';
 import { AdminOrganizationsPage } from '../pages/admin/AdminOrganizationsPage';
 import { OrganizationMembersPage } from '../pages/organizer/OrganizationMembersPage';
 import { lazy, Suspense, useLayoutEffect } from 'react';
@@ -45,14 +53,21 @@ import { EventCataloguePage, HomePage } from '../pages/public/HomePage';
 import { LoginPage } from '../pages/public/LoginPage';
 import { RequestPasswordResetPage, ResetPasswordPage } from '../pages/public/PasswordRecoveryPage';
 import { RegisterPage } from '../pages/public/RegisterPage';
-import { OrganizerApplicationPage, OrganizerActivationPage } from '../pages/public/OrganizerAccessPages';
+import {
+  OrganizerApplicationPage,
+  OrganizerActivationPage,
+} from '../pages/public/OrganizerAccessPages';
 
 const audiencePage = (page: React.ReactNode) => (
-  <ProtectedRoute allowedRoles={['AUDIENCE']} redirectUnauthorized>{page}</ProtectedRoute>
+  <ProtectedRoute allowedRoles={['AUDIENCE']} redirectUnauthorized>
+    {page}
+  </ProtectedRoute>
 );
 
 const cataloguePage = (page: React.ReactNode) => <CatalogueRoute>{page}</CatalogueRoute>;
-const DiscoveryPreviewPage = import.meta.env.DEV ? lazy(() => import('../pages/public/DiscoveryPreviewPage')) : null;
+const DiscoveryPreviewPage = import.meta.env.DEV
+  ? lazy(() => import('../pages/public/DiscoveryPreviewPage'))
+  : null;
 
 export function App() {
   useTranslation();
@@ -66,18 +81,35 @@ export function App() {
               <Route path="/" element={cataloguePage(<HomePage />)} />
               <Route path="/events" element={cataloguePage(<EventCataloguePage />)} />
               <Route path="/events/:eventId" element={cataloguePage(<EventPage />)} />
-              <Route path="/events/:eventId/performances/:id/waiting-room" element={audiencePage(<WaitingRoomPage />)} />
-              <Route path="/events/:eventId/performances/:id/seats" element={audiencePage(<PerformanceSelectionPage />)} />
+              <Route
+                path="/events/:eventId/performances/:id/waiting-room"
+                element={audiencePage(<WaitingRoomPage />)}
+              />
+              <Route
+                path="/events/:eventId/performances/:id/seats"
+                element={audiencePage(<PerformanceSelectionPage />)}
+              />
               {DiscoveryPreviewPage ? (
-                <Route path="/discover-preview" element={cataloguePage(
-                  <Suspense fallback={null}><DiscoveryPreviewPage /></Suspense>,
-                )} />
+                <Route
+                  path="/discover-preview"
+                  element={cataloguePage(
+                    <Suspense fallback={null}>
+                      <DiscoveryPreviewPage />
+                    </Suspense>,
+                  )}
+                />
               ) : null}
               <Route path="/concerts/:id" element={<ConcertDetailPage />} />
-              <Route path="/concerts/:id/waiting-room" element={audiencePage(<WaitingRoomPage />)} />
+              <Route
+                path="/concerts/:id/waiting-room"
+                element={audiencePage(<WaitingRoomPage />)}
+              />
               <Route path="/concerts/:id/seats" element={audiencePage(<SeatSelectionPage />)} />
               <Route path="/checkout" element={audiencePage(<CheckoutPage />)} />
-              <Route path="/booking-confirmation" element={audiencePage(<BookingConfirmationPage />)} />
+              <Route
+                path="/booking-confirmation"
+                element={audiencePage(<BookingConfirmationPage />)}
+              />
               <Route path="/payment/result" element={audiencePage(<PaymentResultPage />)} />
               <Route path="/my-tickets" element={audiencePage(<MyTicketsPage />)} />
               <Route path="/notifications" element={audiencePage(<NotificationsPage />)} />
@@ -121,37 +153,133 @@ export function App() {
               element={
                 <ProtectedRoute allowedRoles={['ORGANIZER', 'ADMIN']} redirectUnauthorized>
                   <OrganizationProvider>
-                    <RequireOrganizationMembership><OperationsLayout mode="organizer" /></RequireOrganizationMembership>
+                    <RequireOrganizationMembership>
+                      <OperationsLayout mode="organizer" />
+                    </RequireOrganizationMembership>
                   </OrganizationProvider>
                 </ProtectedRoute>
               }
             >
               <Route index element={<OrganizerOverviewPage />} />
-              <Route path="events" element={<PerformanceEventAccess><ConcertDirectoryPage scope="organizer" /></PerformanceEventAccess>} />
-              <Route path="events/new" element={<PerformanceEventAccess><NewPerformanceEventPage /></PerformanceEventAccess>} />
-              <Route path="events/:eventId" element={<PerformanceEventAccess><PerformanceEventPage /></PerformanceEventAccess>} />
-              <Route path="concerts" element={<RequireOrganizationGrant grant="EVENTS"><AdminConcertsPage apiScope="organizer" /></RequireOrganizationGrant>} />
-              <Route path="concerts/:id/preview" element={<RequireOrganizationGrant grant="EVENTS"><ConcertDetailPage preview /></RequireOrganizationGrant>} />
-              <Route path="concerts/:id" element={<RequireOrganizationGrant grant="EVENTS"><ConcertWorkspacePage apiScope="organizer" /></RequireOrganizationGrant>} />
-              <Route path="ticket-types" element={<RequireOrganizationGrant grant="EVENTS"><AdminTicketTypesPage apiScope="organizer" /></RequireOrganizationGrant>} />
-              <Route path="guests" element={<RequireOrganizationGrant grant="EVENTS"><AdminGuestImportsPage apiScope="organizer" uploadMode="scheduled" /></RequireOrganizationGrant>} />
-              <Route path="artist-bio" element={<RequireOrganizationGrant grant="EVENTS"><AdminArtistBioPage apiScope="organizer" /></RequireOrganizationGrant>} />
+              <Route
+                path="events"
+                element={
+                  <PerformanceEventAccess>
+                    <ConcertDirectoryPage scope="organizer" />
+                  </PerformanceEventAccess>
+                }
+              />
+              <Route
+                path="events/new"
+                element={
+                  <PerformanceEventAccess>
+                    <NewPerformanceEventPage />
+                  </PerformanceEventAccess>
+                }
+              />
+              <Route
+                path="events/:eventId"
+                element={
+                  <PerformanceEventAccess>
+                    <PerformanceEventPage />
+                  </PerformanceEventAccess>
+                }
+              />
+              <Route
+                path="concerts"
+                element={
+                  <RequireOrganizationGrant grant="EVENTS">
+                    <AdminConcertsPage apiScope="organizer" />
+                  </RequireOrganizationGrant>
+                }
+              />
+              <Route
+                path="concerts/:id/preview"
+                element={
+                  <RequireOrganizationGrant grant="EVENTS">
+                    <ConcertDetailPage preview />
+                  </RequireOrganizationGrant>
+                }
+              />
+              <Route
+                path="concerts/:id"
+                element={
+                  <RequireOrganizationGrant grant="EVENTS">
+                    <ConcertWorkspacePage apiScope="organizer" />
+                  </RequireOrganizationGrant>
+                }
+              />
+              <Route
+                path="ticket-types"
+                element={
+                  <RequireOrganizationGrant grant="EVENTS">
+                    <AdminTicketTypesPage apiScope="organizer" />
+                  </RequireOrganizationGrant>
+                }
+              />
+              <Route
+                path="guests"
+                element={
+                  <RequireOrganizationGrant grant="EVENTS">
+                    <AdminGuestImportsPage apiScope="organizer" uploadMode="scheduled" />
+                  </RequireOrganizationGrant>
+                }
+              />
+              <Route
+                path="artist-bio"
+                element={
+                  <RequireOrganizationGrant grant="EVENTS">
+                    <AdminArtistBioPage apiScope="organizer" />
+                  </RequireOrganizationGrant>
+                }
+              />
               <Route path="reports" element={<OperationsReportsPage scope="organizer" />} />
-              <Route path="reconciliation" element={<RequireOrganizationGrant grant="FINANCE"><ReconciliationPage scope="organizer" /></RequireOrganizationGrant>} />
-              <Route path="revenue" element={<RequireOrganizationGrant grant="FINANCE"><OrganizerRevenuePage /></RequireOrganizationGrant>} />
-              <Route path="orders" element={<RequireOrganizationGrant grant="FINANCE"><AdminOrdersPage apiScope="organizer" /></RequireOrganizationGrant>} />
-              <Route path="members" element={<RequireOrganizationGrant grant="MEMBERS"><OrganizationMembersPage /></RequireOrganizationGrant>} />
+              <Route
+                path="reconciliation"
+                element={
+                  <RequireOrganizationGrant grant="FINANCE">
+                    <ReconciliationPage scope="organizer" />
+                  </RequireOrganizationGrant>
+                }
+              />
+              <Route
+                path="revenue"
+                element={
+                  <RequireOrganizationGrant grant="FINANCE">
+                    <OrganizerRevenuePage />
+                  </RequireOrganizationGrant>
+                }
+              />
+              <Route
+                path="orders"
+                element={
+                  <RequireOrganizationGrant grant="FINANCE">
+                    <AdminOrdersPage apiScope="organizer" />
+                  </RequireOrganizationGrant>
+                }
+              />
+              <Route
+                path="members"
+                element={
+                  <RequireOrganizationGrant grant="MEMBERS">
+                    <OrganizationMembersPage />
+                  </RequireOrganizationGrant>
+                }
+              />
             </Route>
-            <Route path="/staff/*" element={
-              <ProtectedRoute allowedRoles={['STAFF']}>
-                <main className="route-forbidden page-width">
-                  <div className="state-panel" role="status">
-                    <h1>{translate("shared:app_soatVeChuaMo")}</h1>
-                    <p>{translate("shared:app_tinhNangSeMoCungPhienBan")}</p>
-                  </div>
-                </main>
-              </ProtectedRoute>
-            } />
+            <Route
+              path="/staff/*"
+              element={
+                <ProtectedRoute allowedRoles={['STAFF']}>
+                  <main className="route-forbidden page-width">
+                    <div className="state-panel" role="status">
+                      <h1>{translate('shared:app_soatVeChuaMo')}</h1>
+                      <p>{translate('shared:app_tinhNangSeMoCungPhienBan')}</p>
+                    </div>
+                  </main>
+                </ProtectedRoute>
+              }
+            />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>

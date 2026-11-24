@@ -8,8 +8,14 @@ export type AuthPageState = {
 export function authReturnPath(state: AuthPageState | null): Path | undefined {
   const from = state?.from;
   const pathname = from?.pathname;
-  if (!from || typeof pathname !== 'string' || !pathname.startsWith('/') ||
-      pathname.startsWith('//') || /[\\?#\r\n\t]/.test(pathname)) return undefined;
+  if (
+    !from ||
+    typeof pathname !== 'string' ||
+    !pathname.startsWith('/') ||
+    pathname.startsWith('//') ||
+    /[\\?#\r\n\t]/.test(pathname)
+  )
+    return undefined;
 
   return {
     pathname,

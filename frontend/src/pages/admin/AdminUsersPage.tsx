@@ -40,7 +40,7 @@ export function AdminUsersPage() {
         setError(
           requestError instanceof Error
             ? requestError.message
-            : translate("admin:adminUsersPage_khongTheTaiDanhSachNguoiDung"),
+            : translate('admin:adminUsersPage_khongTheTaiDanhSachNguoiDung'),
         );
       }
     } finally {
@@ -62,10 +62,12 @@ export function AdminUsersPage() {
     try {
       const result = await updateAdminUserRole(user.id, role);
       setUsers((current) => current.map((item) => (item.id === user.id ? result.data : item)));
-      setNotice(translate("admin:adminUsersPage_daCapNhatVaiTroCho", { arg1: user.fullName }));
+      setNotice(translate('admin:adminUsersPage_daCapNhatVaiTroCho', { arg1: user.fullName }));
     } catch (requestError) {
       setError(
-        requestError instanceof Error ? requestError.message : translate("admin:adminUsersPage_khongTheCapNhatVaiTro"),
+        requestError instanceof Error
+          ? requestError.message
+          : translate('admin:adminUsersPage_khongTheCapNhatVaiTro'),
       );
     } finally {
       setSavingId(null);
@@ -81,11 +83,18 @@ export function AdminUsersPage() {
       const result = await updateAdminUserStatus(user.id, !isUserActive(user));
       setUsers((current) => current.map((item) => (item.id === user.id ? result.data : item)));
       setNotice(
-        translate("admin:adminUsersPage_hien", { arg1: result.data.fullName, arg2: isUserActive(result.data) ? translate("admin:adminUsersPage_dangHoatDong") : translate("admin:adminUsersPage_daBiKhoa") }),
+        translate('admin:adminUsersPage_hien', {
+          arg1: result.data.fullName,
+          arg2: isUserActive(result.data)
+            ? translate('admin:adminUsersPage_dangHoatDong')
+            : translate('admin:adminUsersPage_daBiKhoa'),
+        }),
       );
     } catch (requestError) {
       setError(
-        requestError instanceof Error ? requestError.message : translate("admin:adminUsersPage_khongTheCapNhatTrangThai"),
+        requestError instanceof Error
+          ? requestError.message
+          : translate('admin:adminUsersPage_khongTheCapNhatTrangThai'),
       );
     } finally {
       setSavingId(null);
@@ -95,7 +104,7 @@ export function AdminUsersPage() {
   return (
     <>
       <AdminPageHeader
-        title={translate("shared:partnerInternalAccounts")}
+        title={translate('shared:partnerInternalAccounts')}
         actions={
           <button
             className="admin-secondary-action"
@@ -104,7 +113,7 @@ export function AdminUsersPage() {
             disabled={loading}
           >
             <RefreshCw aria-hidden="true" size={16} className={loading ? 'spin' : ''} />
-            {translate("admin:adminUsersPage_lamMoi")}
+            {translate('admin:adminUsersPage_lamMoi')}
           </button>
         }
       />
@@ -122,14 +131,22 @@ export function AdminUsersPage() {
 
       <div className="admin-toolbar">
         <div>
-          <strong className="admin-table-primary">{users.length} {translate("admin:adminUsersPage_taiKhoan")}</strong>
-          <span className="admin-table-secondary">{activeCount} {translate("admin:adminUsersPage_dangHoatDong")}</span>
+          <strong className="admin-table-primary">
+            {users.length} {translate('admin:adminUsersPage_taiKhoan')}
+          </strong>
+          <span className="admin-table-secondary">
+            {activeCount} {translate('admin:adminUsersPage_dangHoatDong')}
+          </span>
         </div>
       </div>
 
       <section className="admin-data-panel">
         {loading ? (
-          <div className="admin-row-skeleton" aria-label={translate("admin:adminUsersPage_dangTaiNguoiDung")} aria-live="polite">
+          <div
+            className="admin-row-skeleton"
+            aria-label={translate('admin:adminUsersPage_dangTaiNguoiDung')}
+            aria-live="polite"
+          >
             {[1, 2, 3].map((item) => (
               <span key={item} />
             ))}
@@ -139,11 +156,11 @@ export function AdminUsersPage() {
             <table className="admin-table">
               <thead>
                 <tr>
-                  <th>{translate("admin:adminUsersPage_nguoiDung")}</th>
-                  <th>{translate("admin:adminUsersPage_vaiTro")}</th>
-                  <th>{translate("admin:adminUsersPage_trangThai")}</th>
+                  <th>{translate('admin:adminUsersPage_nguoiDung')}</th>
+                  <th>{translate('admin:adminUsersPage_vaiTro')}</th>
+                  <th>{translate('admin:adminUsersPage_trangThai')}</th>
                   <th>
-                    <span className="sr-only">{translate("admin:adminUsersPage_thaoTac")}</span>
+                    <span className="sr-only">{translate('admin:adminUsersPage_thaoTac')}</span>
                   </th>
                 </tr>
               </thead>
@@ -156,21 +173,24 @@ export function AdminUsersPage() {
                       <td>
                         <strong className="admin-table-primary">{user.fullName}</strong>
                         <span className="admin-table-secondary">{user.email}</span>
-                        <span className="admin-table-secondary">
-                          {user.phone}
-                        </span>
+                        <span className="admin-table-secondary">{user.phone}</span>
                       </td>
                       <td>
-                        <WorkspaceSelect label={`${translate('admin:adminUsersPage_vaiTro')} · ${user.fullName}`}
-                          value={user.role} disabled={savingId !== null}
+                        <WorkspaceSelect
+                          label={`${translate('admin:adminUsersPage_vaiTro')} · ${user.fullName}`}
+                          value={user.role}
+                          disabled={savingId !== null}
                           onChange={(role) => void changeRole(user, role as UserRole)}
-                          options={roles.map((role) => ({ value: role, label: role }))} />
+                          options={roles.map((role) => ({ value: role, label: role }))}
+                        />
                       </td>
                       <td>
                         <span
                           className={`status-badge ${active ? 'badge-success' : 'badge-muted'}`}
                         >
-                          {active ? translate("admin:adminUsersPage_hoatDong") : translate("admin:adminUsersPage_daKhoa")}
+                          {active
+                            ? translate('admin:adminUsersPage_hoatDong')
+                            : translate('admin:adminUsersPage_daKhoa')}
                         </span>
                       </td>
                       <td>
@@ -187,7 +207,9 @@ export function AdminUsersPage() {
                           ) : (
                             <ShieldCheck aria-hidden="true" size={15} />
                           )}
-                          {active ? translate("admin:adminUsersPage_khoa") : translate("admin:adminUsersPage_moKhoa")}
+                          {active
+                            ? translate('admin:adminUsersPage_khoa')
+                            : translate('admin:adminUsersPage_moKhoa')}
                         </button>
                       </td>
                     </tr>
@@ -199,8 +221,8 @@ export function AdminUsersPage() {
         ) : (
           <div className="admin-empty-state">
             <UserCog aria-hidden="true" size={28} />
-            <h2>{translate("admin:adminUsersPage_chuaCoNguoiDung")}</h2>
-            <p>{translate("admin:adminUsersPage_taiKhoanSeXuatHienSauKhi")}</p>
+            <h2>{translate('admin:adminUsersPage_chuaCoNguoiDung')}</h2>
+            <p>{translate('admin:adminUsersPage_taiKhoanSeXuatHienSauKhi')}</p>
           </div>
         )}
       </section>

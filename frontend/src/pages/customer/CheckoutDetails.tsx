@@ -12,29 +12,35 @@ type OrderLinesProps = {
 };
 
 export function CheckoutOrderLines({ order, selection = [] }: OrderLinesProps) {
-  const lines = order ? order.items : selection.map((item) => ({
-    id: item.id,
-    ticketTypeName: item.name,
-    quantity: item.quantity,
-    unitPrice: item.price,
-    subtotal: item.quantity * item.price,
-    sectionLabel: item.sectionLabel,
-    rowLabel: item.rowLabel,
-    seatLabel: item.seatLabel,
-  }));
+  const lines = order
+    ? order.items
+    : selection.map((item) => ({
+        id: item.id,
+        ticketTypeName: item.name,
+        quantity: item.quantity,
+        unitPrice: item.price,
+        subtotal: item.quantity * item.price,
+        sectionLabel: item.sectionLabel,
+        rowLabel: item.rowLabel,
+        seatLabel: item.seatLabel,
+      }));
 
   return (
     <dl className="purchase-order-lines">
       {lines.map((item) => {
         const location = seatDescription(item);
-        return <div key={item.id}>
-          <dt>
-            {item.ticketTypeName}
-            {location && <span>{location}</span>}
-            <span>{item.quantity} × {currency.format(item.unitPrice)}</span>
-          </dt>
-          <dd>{currency.format(item.subtotal)}</dd>
-        </div>;
+        return (
+          <div key={item.id}>
+            <dt>
+              {item.ticketTypeName}
+              {location && <span>{location}</span>}
+              <span>
+                {item.quantity} × {currency.format(item.unitPrice)}
+              </span>
+            </dt>
+            <dd>{currency.format(item.subtotal)}</dd>
+          </div>
+        );
       })}
     </dl>
   );
@@ -65,7 +71,13 @@ export function CheckoutOrderReference({ code }: { code?: string | null }) {
   );
 }
 
-export function CheckoutStatusPanel({ title, body, referenceCode, announce, children }: {
+export function CheckoutStatusPanel({
+  title,
+  body,
+  referenceCode,
+  announce,
+  children,
+}: {
   title: string;
   body: string;
   referenceCode?: string | null;
@@ -73,7 +85,10 @@ export function CheckoutStatusPanel({ title, body, referenceCode, announce, chil
   children?: ReactNode;
 }) {
   return (
-    <section className="buyer-page purchase-page page-width purchase-feedback" aria-labelledby="purchase-status-title">
+    <section
+      className="buyer-page purchase-page page-width purchase-feedback"
+      aria-labelledby="purchase-status-title"
+    >
       <div className="purchase-panel purchase-status-panel">
         <div role={announce ? 'status' : undefined}>
           <h1 id="purchase-status-title">{title}</h1>

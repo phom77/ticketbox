@@ -12,7 +12,13 @@ const accountTermsUrl = configuredHttpsUrl(import.meta.env.VITE_ACCOUNT_TERMS_UR
 const privacyUrl = configuredHttpsUrl(import.meta.env.VITE_PRIVACY_URL);
 
 function PolicyLink({ href, label }: { href: string | null; label: string }) {
-  return href ? <a href={href} target="_blank" rel="noreferrer">{label}</a> : label;
+  return href ? (
+    <a href={href} target="_blank" rel="noreferrer">
+      {label}
+    </a>
+  ) : (
+    label
+  );
 }
 
 export function RegisterPage() {
@@ -45,11 +51,21 @@ export function RegisterPage() {
     setSubmitting(true);
     try {
       const email = String(data.get('email')).trim();
-      await register(email, password, String(data.get('fullName')).trim(), String(data.get('phone')).trim() || null);
-      navigate('/login', { state: { from: authReturnPath(state), registeredEmail: email }, replace: true });
+      await register(
+        email,
+        password,
+        String(data.get('fullName')).trim(),
+        String(data.get('phone')).trim() || null,
+      );
+      navigate('/login', {
+        state: { from: authReturnPath(state), registeredEmail: email },
+        replace: true,
+      });
     } catch (requestError) {
       setError(
-        requestError instanceof Error ? requestError.message : translate("public:registerPage_khongTheTaoTaiKhoanCuaBan"),
+        requestError instanceof Error
+          ? requestError.message
+          : translate('public:registerPage_khongTheTaoTaiKhoanCuaBan'),
       );
     } finally {
       setSubmitting(false);
@@ -58,25 +74,25 @@ export function RegisterPage() {
 
   return (
     <AuthLayout
-      title={translate("public:registerPage_taoTaiKhoan")}
-      description={<p>{translate("public:registerPage_taoTaiKhoanDeDatSuKien")}</p>}
+      title={translate('public:registerPage_taoTaiKhoan')}
+      description={<p>{translate('public:registerPage_taoTaiKhoanDeDatSuKien')}</p>}
     >
       <form className="auth-form" onSubmit={submit}>
         <AuthError message={error} />
         <label className="field">
-          <span>{translate("public:registerPage_hoVaTen")}</span>
+          <span>{translate('public:registerPage_hoVaTen')}</span>
           <input name="fullName" autoComplete="name" required />
         </label>
         <label className="field">
-          <span>{translate("public:registerPage_diaChiEmail")}</span>
+          <span>{translate('public:registerPage_diaChiEmail')}</span>
           <input type="email" name="email" autoComplete="email" spellCheck={false} required />
         </label>
         <label className="field">
-          <span>{translate("public:registerPage_soDienThoaiTuyChon")}</span>
+          <span>{translate('public:registerPage_soDienThoaiTuyChon')}</span>
           <input type="tel" name="phone" autoComplete="tel" />
         </label>
         <div className="field">
-          <label htmlFor="new-account-password">{translate("public:registerPage_matKhau")}</label>
+          <label htmlFor="new-account-password">{translate('public:registerPage_matKhau')}</label>
           <input
             id="new-account-password"
             type="password"
@@ -87,10 +103,14 @@ export function RegisterPage() {
             onChange={() => setPasswordMismatch(false)}
             required
           />
-          <span className="field-hint" id="new-account-password-hint">{translate("public:registerPage_itNhat8KyTu")}</span>
+          <span className="field-hint" id="new-account-password-hint">
+            {translate('public:registerPage_itNhat8KyTu')}
+          </span>
         </div>
         <div className="field">
-          <label htmlFor="new-account-confirmation">{translate("public:registerPage_xacNhanMatKhau")}</label>
+          <label htmlFor="new-account-confirmation">
+            {translate('public:registerPage_xacNhanMatKhau')}
+          </label>
           <input
             ref={confirmPassword}
             id="new-account-confirmation"
@@ -105,26 +125,43 @@ export function RegisterPage() {
           />
           {passwordMismatch ? (
             <span className="buyer-auth-field-error" id="new-account-password-error" role="alert">
-              {translate("public:registerPage_matKhauXacNhanKhongKhop")}
+              {translate('public:registerPage_matKhauXacNhanKhongKhop')}
             </span>
           ) : null}
         </div>
         <div className="buyer-auth-checkbox">
-          <input id="account-terms" type="checkbox" aria-labelledby="account-terms-label" required />
+          <input
+            id="account-terms"
+            type="checkbox"
+            aria-labelledby="account-terms-label"
+            required
+          />
           <div id="account-terms-label">
-            <label htmlFor="account-terms">{translate("public:registerPage_toiDongYVoi")}</label>{' '}
-            <PolicyLink href={accountTermsUrl} label={translate("public:registerPage_dieuKhoan")} />{' '}
-            {translate("public:registerPage_va")}{' '}
-            <PolicyLink href={privacyUrl} label={translate("public:registerPage_chinhSachQuyenRiengTu")} />.
+            <label htmlFor="account-terms">{translate('public:registerPage_toiDongYVoi')}</label>{' '}
+            <PolicyLink href={accountTermsUrl} label={translate('public:registerPage_dieuKhoan')} />{' '}
+            {translate('public:registerPage_va')}{' '}
+            <PolicyLink
+              href={privacyUrl}
+              label={translate('public:registerPage_chinhSachQuyenRiengTu')}
+            />
+            .
           </div>
         </div>
-        <button className="button button-primary button-block" type="submit" disabled={loading || submitting}>
-          {submitting ? translate("public:registerPage_dangTaoTaiKhoan") : translate("public:registerPage_taoTaiKhoan")}
+        <button
+          className="button button-primary button-block"
+          type="submit"
+          disabled={loading || submitting}
+        >
+          {submitting
+            ? translate('public:registerPage_dangTaoTaiKhoan')
+            : translate('public:registerPage_taoTaiKhoan')}
         </button>
       </form>
       <p className="buyer-auth-alternate">
-        {translate("public:registerPage_daCoTaiKhoan")}{' '}
-        <Link to="/login" state={{ from: authReturnPath(state) }}>{translate("public:registerPage_dangNhap")}</Link>
+        {translate('public:registerPage_daCoTaiKhoan')}{' '}
+        <Link to="/login" state={{ from: authReturnPath(state) }}>
+          {translate('public:registerPage_dangNhap')}
+        </Link>
       </p>
     </AuthLayout>
   );

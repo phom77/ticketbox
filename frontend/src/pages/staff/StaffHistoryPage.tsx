@@ -182,8 +182,12 @@ export function StaffHistoryPage() {
                       </span>
                     </td>
                     <td>
-                      <strong className="admin-table-primary">{item.referenceCode ?? 'Vé đã quét'}</strong>
-                      {item.ticketTypeName ? <span className="admin-table-secondary">{item.ticketTypeName}</span> : null}
+                      <strong className="admin-table-primary">
+                        {item.referenceCode ?? 'Vé đã quét'}
+                      </strong>
+                      {item.ticketTypeName ? (
+                        <span className="admin-table-secondary">{item.ticketTypeName}</span>
+                      ) : null}
                     </td>
                     <td>
                       <span

@@ -30,9 +30,13 @@ export type PerformanceDisruption = {
   reason: string;
 };
 
-export type PerformanceSchedule = Pick<OperationsPerformance, 'startsAt' | 'endsAt' | 'doorsOpenAt' | 'saleStartAt' | 'saleEndAt'>;
-export type PerformanceDisruptionInput = { kind: 'CANCEL'; reason: string } |
-  ({ kind: 'POSTPONE'; reason: string } & PerformanceSchedule);
+export type PerformanceSchedule = Pick<
+  OperationsPerformance,
+  'startsAt' | 'endsAt' | 'doorsOpenAt' | 'saleStartAt' | 'saleEndAt'
+>;
+export type PerformanceDisruptionInput =
+  | { kind: 'CANCEL'; reason: string }
+  | ({ kind: 'POSTPONE'; reason: string } & PerformanceSchedule);
 
 export function findOperatingPerformances(query: string, page: number, signal: AbortSignal) {
   const params = new URLSearchParams({ query, page: String(page), size: '15' });
@@ -51,10 +55,15 @@ export async function getPerformanceDisruption(id: string, signal: AbortSignal) 
 export const getPerformanceDisruptionImpact = (id: string, page: number, signal: AbortSignal) =>
   apiGet<DisruptionImpactPage>(disruption(id) + '/impact?page=' + page + '&size=10', signal);
 
-export const startPerformanceDisruption = (id: string, input: PerformanceDisruptionInput, actionId: string) =>
-  api.post<unknown, PerformanceDisruption>(disruption(id), { ...input, actionId });
+export const startPerformanceDisruption = (
+  id: string,
+  input: PerformanceDisruptionInput,
+  actionId: string,
+) => api.post<unknown, PerformanceDisruption>(disruption(id), { ...input, actionId });
 
 export const resumePerformanceSales = (id: string, operationId: string) =>
-  api.post<unknown, PerformanceDisruption>(disruption(id) + '/' + encodeURIComponent(operationId) + '/resume');
+  api.post<unknown, PerformanceDisruption>(
+    disruption(id) + '/' + encodeURIComponent(operationId) + '/resume',
+  );
 
 export const completePerformance = (id: string) => api.post(disruption(id) + '/complete');

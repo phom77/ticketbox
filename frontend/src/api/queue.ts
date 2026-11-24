@@ -61,7 +61,11 @@ export function getStoredQueueAdmission(concertId: string): QueueAdmission | nul
 
   try {
     const admission = JSON.parse(raw) as QueueAdmission;
-    if (admission.concertId !== concertId || !admission.queueAccessToken || !admission.sessionExpiresAt) {
+    if (
+      admission.concertId !== concertId ||
+      !admission.queueAccessToken ||
+      !admission.sessionExpiresAt
+    ) {
       return null;
     }
 

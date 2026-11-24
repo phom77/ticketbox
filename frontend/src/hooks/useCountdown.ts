@@ -31,10 +31,11 @@ export function useCountdown(expiresAt?: string | null, warningThresholdSeconds 
 
   useEffect(() => {
     const activeExpiry = expiresAt ?? null;
-    const tick = () => setCountdownState({
-      expiresAt: activeExpiry,
-      remainingMs: remainingUntil(expiresAt) ?? 0,
-    });
+    const tick = () =>
+      setCountdownState({
+        expiresAt: activeExpiry,
+        remainingMs: remainingUntil(expiresAt) ?? 0,
+      });
     tick();
     if (!expiresAt) return undefined;
 

@@ -47,7 +47,15 @@ export type PaymentInitiation = {
   providerRef: string;
   paymentUrl: string | null;
   attemptId: string;
-  attemptState: 'CREATED' | 'PROCESSING' | 'READY' | 'UNKNOWN' | 'FAILED' | 'SUCCEEDED' | 'RECONCILIATION_REQUIRED' | 'REVIEW_REQUIRED';
+  attemptState:
+    | 'CREATED'
+    | 'PROCESSING'
+    | 'READY'
+    | 'UNKNOWN'
+    | 'FAILED'
+    | 'SUCCEEDED'
+    | 'RECONCILIATION_REQUIRED'
+    | 'REVIEW_REQUIRED';
 };
 
 export function createOrder(
@@ -117,5 +125,7 @@ export type PaymentStatus = {
   paymentUrl: string | null;
 };
 export function getPaymentStatus(orderId: string, signal?: AbortSignal) {
-  return api.get<unknown, PaymentStatus>(`/api/payments/${encodeURIComponent(orderId)}/status`, { signal });
+  return api.get<unknown, PaymentStatus>(`/api/payments/${encodeURIComponent(orderId)}/status`, {
+    signal,
+  });
 }

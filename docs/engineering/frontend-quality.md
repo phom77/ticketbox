@@ -4,8 +4,9 @@
   when access rules change. Include loading, empty, error and recovery states
   as applicable. Exercise navigation, refresh and a slow or stale response if
   they can alter the outcome.
-- For web changes, run `npm run lint` and `npm run build` in `frontend/`.
-  Check visible changes at desktop, tablet and mobile sizes. Apply the
+- For web changes, run `npm run lint`, `npm test` and `npm run build` in
+  `frontend/`. Add Vitest tests next to the module for isolated rules and
+  component states. Check visible changes at desktop, tablet and mobile sizes. Apply the
   [accessibility checks](frontend-accessibility.md) on changed interactions.
 - For checkout changes, use the documented
   [Chromium recovery checks](../development.md#distributed-and-browser-regression)

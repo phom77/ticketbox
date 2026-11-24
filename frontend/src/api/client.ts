@@ -12,7 +12,10 @@ declare module 'axios' {
   }
 }
 
-export const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080').replace(/\/+$/, '');
+export const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080').replace(
+  /\/+$/,
+  '',
+);
 
 type ApiEnvelope<T> = {
   code: number;
@@ -37,8 +40,7 @@ export class ApiClientError extends Error {
 }
 
 export function isRequestCanceled(error: unknown): boolean {
-  return axios.isCancel(error) ||
-    (error instanceof DOMException && error.name === 'AbortError');
+  return axios.isCancel(error) || (error instanceof DOMException && error.name === 'AbortError');
 }
 
 export const api = axios.create({
@@ -61,14 +63,18 @@ export function setRequestOrganization(id: string | null) {
   requestOrganization = id;
 }
 
-api.interceptors.request.use((config) => {
-  const token = getAuthToken();
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  if (requestOrganization && config.url?.startsWith('/api/organizer/')) {
-    config.headers['X-Organization-Id'] = requestOrganization;
-  }
-  return setRequestLanguage(config);
-}, undefined, { synchronous: true });
+api.interceptors.request.use(
+  (config) => {
+    const token = getAuthToken();
+    if (token) config.headers.Authorization = `Bearer ${token}`;
+    if (requestOrganization && config.url?.startsWith('/api/organizer/')) {
+      config.headers['X-Organization-Id'] = requestOrganization;
+    }
+    return setRequestLanguage(config);
+  },
+  undefined,
+  { synchronous: true },
+);
 
 api.interceptors.response.use(
   (response) => {
@@ -78,7 +84,9 @@ api.interceptors.response.use(
       if (response.config.preserveEnvelope) {
         return {
           data: envelope.data,
-          message: isCurrentLanguage(response.config) ? envelope.message : translate('requestSucceeded'),
+          message: isCurrentLanguage(response.config)
+            ? envelope.message
+            : translate('requestSucceeded'),
         };
       }
       return envelope.data;
@@ -121,7 +129,8 @@ publicApi.interceptors.response.use(
     const current = isCurrentLanguage(error.config);
     throw new ApiClientError(
       (current ? error.response?.data?.message : undefined) ?? translate('publicLoadFailed'),
-      error.response?.status ?? 503, error.response?.data?.details,
+      error.response?.status ?? 503,
+      error.response?.data?.details,
     );
   },
 );

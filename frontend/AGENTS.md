@@ -9,5 +9,5 @@
 - Reuse layouts, feedback components and API clients before adding alternatives.
 - Preserve keyboard access, visible focus, semantic labels and loading/error/empty states.
 - Keep role and ownership restrictions consistent with the backend.
-- Run `npm run lint` and `npm run build` after frontend changes.
+- Run `npm run lint`, `npm test` and `npm run build` after frontend changes.
 - Check desktop, tablet and mobile layouts when changing visible UI.

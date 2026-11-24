@@ -21,7 +21,7 @@ type PendingPayment = {
 export function readPendingPayment(): PendingPayment | null {
   try {
     const value = sessionStorage.getItem(pendingPaymentKey);
-    return value ? JSON.parse(value) as PendingPayment : null;
+    return value ? (JSON.parse(value) as PendingPayment) : null;
   } catch {
     return null;
   }
@@ -36,8 +36,10 @@ export function clearPendingPayment(orderId: string) {
 }
 
 export function orderWindowExpired(order: Order) {
-  return order.status === 'EXPIRED' ||
-    (order.status === 'AWAITING_PAYMENT' && new Date(order.expiresAt).getTime() <= Date.now());
+  return (
+    order.status === 'EXPIRED' ||
+    (order.status === 'AWAITING_PAYMENT' && new Date(order.expiresAt).getTime() <= Date.now())
+  );
 }
 
 export function paymentNeedsReview(state: PaymentStatus['attemptState']) {
@@ -45,5 +47,10 @@ export function paymentNeedsReview(state: PaymentStatus['attemptState']) {
 }
 
 export function paymentStillVerifying(state: PaymentStatus['attemptState']) {
-  return state === 'UNKNOWN' || state === 'PROCESSING' || state === 'SUCCEEDED' || paymentNeedsReview(state);
+  return (
+    state === 'UNKNOWN' ||
+    state === 'PROCESSING' ||
+    state === 'SUCCEEDED' ||
+    paymentNeedsReview(state)
+  );
 }
