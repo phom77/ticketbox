@@ -21,7 +21,9 @@ import { CheckoutPage } from '../pages/customer/CheckoutPage';
 import { MyTicketsPage } from '../pages/customer/MyTicketsPage';
 import { NotificationsPage } from '../pages/customer/NotificationsPage';
 import { PaymentResultPage } from '../pages/customer/PaymentResultPage';
-import { ProfilePage } from '../pages/customer/ProfilePage';
+import { LegacyProfileRedirect, ProfilePage } from '../pages/customer/ProfilePage';
+import { OrderDetailPage } from '../pages/customer/OrderDetailPage';
+import { TicketDetailPage } from '../pages/customer/TicketDetailPage';
 import { SeatSelectionPage } from '../pages/customer/SeatSelectionPage';
 import { WaitingRoomPage } from '../pages/customer/WaitingRoomPage';
 import { ConcertDetailPage } from '../pages/public/ConcertDetailPage';
@@ -182,7 +184,22 @@ export function App() {
               <Route path="/payment/result" element={audiencePage(<PaymentResultPage />)} />
               <Route path="/my-tickets" element={audiencePage(<MyTicketsPage />)} />
               <Route path="/notifications" element={audiencePage(<NotificationsPage />)} />
-              <Route path="/profile" element={audiencePage(<ProfilePage />)} />
+              <Route path="/my-tickets/:ticketId" element={audiencePage(<TicketDetailPage />)} />
+              <Route path="/profile" element={<LegacyProfileRedirect />} />
+              <Route path="/account" element={audiencePage(<ProfilePage />)} />
+              <Route
+                path="/account/orders"
+                element={audiencePage(<ProfilePage section="orders" />)}
+              />
+              <Route path="/account/orders/:orderId" element={audiencePage(<OrderDetailPage />)} />
+              <Route
+                path="/account/security"
+                element={audiencePage(<ProfilePage section="security" />)}
+              />
+              <Route
+                path="/account/preferences"
+                element={audiencePage(<ProfilePage section="preferences" />)}
+              />
               <Route path="*" element={<NotFoundPage />} />
             </Route>
             <Route path="/login" element={<LoginPage />} />

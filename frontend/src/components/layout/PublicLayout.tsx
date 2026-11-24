@@ -89,8 +89,8 @@ function AccountMenuLinks({
   unreadNotifications: number;
 }) {
   const location = useLocation();
-  const onProfile = location.pathname === '/profile';
-  const onOrders = onProfile && new URLSearchParams(location.search).get('tab') === 'orders';
+  const onOrders = location.pathname.startsWith('/account/orders');
+  const onProfile = location.pathname === '/account';
 
   return (
     <>
@@ -100,18 +100,10 @@ function AccountMenuLinks({
       </div>
       {user.role === 'AUDIENCE' ? (
         <>
-          <Link
-            to="/profile"
-            aria-current={onProfile && !onOrders ? 'page' : undefined}
-            onClick={close}
-          >
+          <Link to="/account" aria-current={onProfile ? 'page' : undefined} onClick={close}>
             {translate('shared:publicLayout_hoSo')}
           </Link>
-          <Link
-            to="/profile?tab=orders"
-            aria-current={onOrders ? 'page' : undefined}
-            onClick={close}
-          >
+          <Link to="/account/orders" aria-current={onOrders ? 'page' : undefined} onClick={close}>
             {translate('shared:publicLayout_lichSuDonHang')}
           </Link>
           <NavLink to="/notifications" onClick={close}>
@@ -540,7 +532,7 @@ function Footer({ user }: { user: UserSummary | null }) {
               {user?.role === 'AUDIENCE' ? (
                 <>
                   <li>
-                    <Link to="/profile?tab=orders">
+                    <Link to="/account/orders">
                       {translate('shared:publicLayout_lichSuDonHang')}
                     </Link>
                   </li>

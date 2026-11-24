@@ -1,26 +1,34 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ArrowUpRight, ClipboardList, Ticket, UserRound } from 'lucide-react';
-import { Link, Navigate, useSearchParams } from 'react-router-dom';
+import {
+  ArrowUpRight,
+  CalendarDays,
+  ClipboardList,
+  MapPin,
+  Settings2,
+  ShieldCheck,
+  Ticket,
+  UserRound,
+} from 'lucide-react';
+import { Link, Navigate, NavLink, useSearchParams } from 'react-router-dom';
 import { api, ApiClientError } from '../../api/client';
 import { getMyOrders, type Order, type OrderStatus } from '../../api/orders';
 import { currency, dateFormatter } from '../../data/formatters';
 import { useAuth, type UserSummary } from '../../features/auth/AuthContext';
+import {
+  displayedOrderStatus,
+  orderDeadline,
+  orderStatusKeys,
+  seatSummary,
+} from '../../features/account/orders';
+import { orderView } from '../../features/event/eventView';
+import { AccountPreferences, AccountSecurity } from './AccountSettings';
 import './ProfilePage.css';
 
 type UserProfile = UserSummary & { phone: string | null };
 type ProfileFeedback =
   | { kind: 'success'; message: string }
   | { kind: 'error'; message: string; field?: 'fullName' };
-
-const orderStatusKeys = {
-  AWAITING_PAYMENT: 'customer:profilePage_choThanhToan',
-  PAID: 'customer:profilePage_daThanhToan',
-  CANCELLED: 'customer:profilePage_daHuy',
-  EXPIRED: 'customer:profilePage_hetHan',
-  PAYMENT_FAILED: 'customer:profilePage_thanhToanLoi',
-  REFUNDED: 'customer:profilePage_refunded',
-} satisfies Record<OrderStatus, string>;
 
 const orderFilters = [
   ['all', 'customer:profilePage_allOrders'],
@@ -61,14 +69,44 @@ function useAccountData<T>(load: (signal: AbortSignal) => Promise<T>) {
   };
 }
 
-export function ProfilePage() {
-  const { t } = useTranslation();
-  const { user, token } = useAuth();
+export type AccountSection = 'profile' | 'orders' | 'security' | 'preferences';
+
+/** The old /profile address: send the buyer to the matching account section. */
+export function LegacyProfileRedirect() {
   const [searchParams] = useSearchParams();
   const tab = searchParams.get('tab');
-  if (tab === 'tickets') return <Navigate to="/my-tickets" replace />;
+  return (
+    <Navigate
+      to={tab === 'tickets' ? '/my-tickets' : tab === 'orders' ? '/account/orders' : '/account'}
+      replace
+    />
+  );
+}
 
-  const showOrders = tab === 'orders';
+const accountSections = [
+  ['profile', '/account', UserRound, 'customer:profilePage_hoSo'],
+  ['orders', '/account/orders', ClipboardList, 'customer:profilePage_lichSuDonHang'],
+  ['security', '/account/security', ShieldCheck, 'customer:account_security'],
+  ['preferences', '/account/preferences', Settings2, 'customer:account_preferences'],
+] as const;
+
+export function AccountNav() {
+  const { t } = useTranslation();
+  return (
+    <nav className="buyer-account-nav" aria-label={t('customer:profilePage_cacMucHoSo')}>
+      {accountSections.map(([key, to, Icon, label]) => (
+        <NavLink key={key} to={to} end>
+          <Icon size={18} aria-hidden="true" />
+          {t(label)}
+        </NavLink>
+      ))}
+    </nav>
+  );
+}
+
+export function ProfilePage({ section = 'profile' }: { section?: AccountSection }) {
+  const { t } = useTranslation();
+  const { user, token } = useAuth();
   const sessionKey = JSON.stringify([user?.id, token]);
 
   return (
@@ -80,17 +118,20 @@ export function ProfilePage() {
           {t('customer:myTicketsPage_myTickets')}
         </Link>
       </header>
-      <nav className="buyer-account-nav" aria-label={t('customer:profilePage_cacMucHoSo')}>
-        <Link to="/profile" aria-current={showOrders ? undefined : 'page'}>
-          <UserRound size={18} aria-hidden="true" />
-          {t('customer:profilePage_hoSo')}
-        </Link>
-        <Link to="/profile?tab=orders" aria-current={showOrders ? 'page' : undefined}>
-          <ClipboardList size={18} aria-hidden="true" />
-          {t('customer:profilePage_lichSuDonHang')}
-        </Link>
-      </nav>
-      {showOrders ? <OrderHistory key={sessionKey} /> : <ProfilePanel key={sessionKey} />}
+      <div className="buyer-account-shell">
+        <AccountNav />
+        <div className="buyer-account-content">
+          {section === 'orders' ? (
+            <OrderHistory key={sessionKey} />
+          ) : section === 'security' ? (
+            <AccountSecurity />
+          ) : section === 'preferences' ? (
+            <AccountPreferences />
+          ) : (
+            <ProfilePanel key={sessionKey} />
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -307,7 +348,7 @@ function ProfileDetails({ initialProfile }: { initialProfile: UserProfile }) {
   );
 }
 
-function AccountLoadError({
+export function AccountLoadError({
   title,
   fallback,
   error,
@@ -329,16 +370,6 @@ function AccountLoadError({
       </button>
     </div>
   );
-}
-
-function orderDeadline(order: Order) {
-  return Date.parse(order.expiresAt || '');
-}
-
-function displayedOrderStatus(order: Order, now: number): OrderStatus {
-  return order.status === 'AWAITING_PAYMENT' && orderDeadline(order) <= now
-    ? 'EXPIRED'
-    : order.status;
 }
 
 function orderCategory(status: OrderStatus): Exclude<OrderFilter, 'all'> {
@@ -465,12 +496,17 @@ function OrderCard({ order, status }: { order: Order; status: OrderStatus }) {
   const concertId = order.concertId ? encodeURIComponent(order.concertId) : '';
   const deadline = orderDeadline(order);
   const canResume = status === 'AWAITING_PAYMENT' && Number.isFinite(deadline);
+  const view = orderView(order);
+  const dateTimestamp = Date.parse(view.date);
+  const { seats, quantity } = seatSummary(order);
   const canCheck = !canResume && (status === 'AWAITING_PAYMENT' || status === 'EXPIRED');
 
   return (
     <article className="buyer-order-card" aria-labelledby={headingId}>
       <header className="buyer-order-header">
-        <h3 id={headingId}>{order.concertTitle}</h3>
+        <h3 id={headingId}>
+          <Link to={`/account/orders/${orderId}`}>{view.title}</Link>
+        </h3>
         <span className={`buyer-order-status status-${status.toLowerCase()}`}>
           {t(orderStatusKeys[status])}
         </span>
@@ -486,6 +522,32 @@ function OrderCard({ order, status }: { order: Order; status: OrderStatus }) {
           <dt>{t('customer:profilePage_orderDate')}</dt>
           <dd>
             <time dateTime={order.createdAt}>{dateTime.format(new Date(order.createdAt))}</time>
+          </dd>
+        </div>
+        {Number.isFinite(dateTimestamp) ? (
+          <div>
+            <dt>
+              <CalendarDays size={14} aria-hidden="true" /> {t('customer:account_eventDate')}
+            </dt>
+            <dd>
+              <time dateTime={view.date}>{dateTime.format(dateTimestamp)}</time>
+            </dd>
+          </div>
+        ) : null}
+        {view.venue ? (
+          <div>
+            <dt>
+              <MapPin size={14} aria-hidden="true" /> {t('customer:account_venue')}
+            </dt>
+            <dd>{view.venue}</dd>
+          </div>
+        ) : null}
+        <div>
+          <dt>{t('customer:account_seats')}</dt>
+          <dd>
+            {seats.length
+              ? seats.join(', ')
+              : t('customer:account_ticketQuantity', { count: quantity })}
           </dd>
         </div>
         {canResume ? (
@@ -512,6 +574,9 @@ function OrderCard({ order, status }: { order: Order; status: OrderStatus }) {
           <span>{t('customer:profilePage_orderTotal')}</span>
           <strong>{currency.format(order.totalAmount)}</strong>
         </div>
+        <Link className="button button-secondary" to={`/account/orders/${orderId}`}>
+          {t('customer:account_viewOrder')}
+        </Link>
         {canResume ? (
           <Link className="button button-primary" to={`/checkout?orderId=${orderId}`}>
             {t('customer:profilePage_tiepTucThanhToan')}
