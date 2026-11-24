@@ -448,6 +448,7 @@ export function PublicLayout() {
   const path = location.pathname.replace(/\/$/, '');
   const isBookingFlow =
     /^\/(?:concerts\/[^/]+|events\/[^/]+\/performances\/[^/]+)\/(waiting-room|seats)$/.test(path) ||
+    /^\/orders\/[^/]+\/confirmation$/.test(path) ||
     ['/checkout', '/booking-confirmation', '/payment/result'].includes(path);
 
   const audienceId = user?.role === 'AUDIENCE' && !loading ? user.id : null;

@@ -8,6 +8,7 @@ type AdminConfirmDialogProps = {
   title: string;
   description: string;
   confirmLabel?: string;
+  cancelLabel?: string;
   loading?: boolean;
   destructive?: boolean;
   onConfirm: () => void;
@@ -18,6 +19,7 @@ export function AdminConfirmDialog({
   title,
   description,
   confirmLabel = translate('shared:adminConfirmDialog_xoa'),
+  cancelLabel,
   loading = false,
   destructive = true,
   onConfirm,
@@ -82,7 +84,7 @@ export function AdminConfirmDialog({
               onClick={onClose}
               disabled={loading}
             >
-              {translate('shared:adminConfirmDialog_huy')}
+              {cancelLabel ?? translate('shared:adminConfirmDialog_huy')}
             </button>
             <button
               className={destructive ? 'admin-danger-action' : 'admin-primary-action'}
