@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "lint": "eslint . && node scripts/check-translations.mjs",
+    "lint": "eslint . && prettier --check . && node scripts/check-translations.mjs",
     "preview": "vite preview --host 0.0.0.0",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
