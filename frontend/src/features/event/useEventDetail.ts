@@ -169,7 +169,9 @@ export function useTicketRows(
   preview: boolean,
 ) {
   const legacyId = date?.legacyConcertId ?? undefined;
-  const live = useTicketAvailability(!preview && legacyId ? legacyId : undefined);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const retry = useCallback(() => setRefreshKey((key) => key + 1), []);
+  const live = useTicketAvailability(!preview && legacyId ? legacyId : undefined, refreshKey);
   const [perf, setPerf] = useState<{
     id: string;
     availability: Availability | null;
@@ -180,7 +182,10 @@ export function useTicketRows(
     if (!performanceId) return;
     const controller = new AbortController();
     let timer: number | undefined;
+    let inFlight = false;
     const poll = () => {
+      if (inFlight) return;
+      inFlight = true;
       getAvailability(performanceId, controller.signal)
         .then((availability) => {
           if (!controller.signal.aborted)
@@ -195,6 +200,7 @@ export function useTicketRows(
           }));
         })
         .finally(() => {
+          inFlight = false;
           if (!controller.signal.aborted && document.visibilityState === 'visible')
             timer = window.setTimeout(poll, PERFORMANCE_POLL_MS);
         });
@@ -212,7 +218,7 @@ export function useTicketRows(
       window.clearTimeout(timer);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [performanceId]);
+  }, [performanceId, refreshKey]);
 
   return useMemo(() => {
     if (preview)
@@ -221,6 +227,7 @@ export function useTicketRows(
         loading: false,
         failed: false,
         soldOut: false,
+        retry,
       };
     if (legacyId) {
       const rows = live.ticketTypes.filter((type) => type.isActive).map(typeRow);
@@ -229,6 +236,7 @@ export function useTicketRows(
         loading: live.loading && !rows.length,
         failed: live.initialLoadFailed && !rows.length,
         soldOut: isSoldOut(rows),
+        retry,
       };
     }
     const current = perf && perf.id === performanceId ? perf : null;
@@ -238,8 +246,9 @@ export function useTicketRows(
       loading: Boolean(performanceId) && !current,
       failed: Boolean(current?.failed) && !current?.availability,
       soldOut: isSoldOut(rows),
+      retry,
     };
-  }, [preview, source, legacyId, live, perf, performanceId]);
+  }, [preview, source, legacyId, live, perf, performanceId, retry]);
 }
 
 export type DateInfo = { minPrice: number | null; soldOut: boolean };

@@ -317,7 +317,7 @@ function EventDetailView({ id, preview }: { id: string; preview: boolean }) {
                 loading={live.loading}
                 failed={live.failed}
                 state={state}
-                onRetry={retry}
+                onRetry={live.retry}
               />
             </section>
           ) : null}
