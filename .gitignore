@@ -22,7 +22,6 @@ application-staging.yml
 # Generated data, reports, test fixtures and caches
 .artifacts/
 /data/
-/backend/data/
 coverage/
 playwright-report/
 test-results/

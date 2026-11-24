@@ -253,13 +253,11 @@ Open `/discover-preview` on the Vite server to try city, genre and price filters
 
 ## Database changes
 
-Add new Flyway migrations to the owning application's migration directory. Keep existing migrations intact: their checksums are part of already initialized databases. The six services and Core legacy each have their own Flyway history. Generated reports, credentials, database dumps and local datasets must stay out of Git.
+Add new Flyway migrations to the owning application's migration directory. Keep existing migrations intact: their checksums are part of already initialized databases. Each of the six services has its own Flyway history. Generated reports, credentials, database dumps and local datasets must stay out of Git.
 
 
 ## Split-service verification
 
 Python acceptance scripts under `scripts/e2e/` exercise the six-service topology. Use an isolated `E2E_PROJECT` and `E2E_PORT`, or use the PowerShell E2E entry point.
-
-Core deployment, verification and cutover are documented in the [manual legacy runbook](../legacy/core/README.md).
 
 Phase 5–6: see [replication and partitioning lab](lab-replication-partitioning.md) for the `compose.lab.yaml` override, acceptance commands, switchover and benchmark evidence.

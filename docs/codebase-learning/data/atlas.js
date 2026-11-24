@@ -86,9 +86,6 @@ const atlasData = (() => {
       payment('infrastructure/provider/PaymentGatewayResolver', 22, 40, 'Provider resolution')),
     node('catalog-integrations', 'Catalog integrations', 'External systems', 'Artist bio generation and poster storage', 'External model service and image storage.', 'OpenAI-compatible API and Cloudinary uploader.',
       'Catalog contains an OpenAI-compatible biography generator and a Cloudinary poster adapter.', bio, poster),
-    node('legacy', 'Legacy Core', 'Separate legacy deployment', 'Historical monolith', 'Separate legacy stack and database.', 'Legacy-specific deployment and gateway.',
-      'Legacy Core has its own Compose file and a manual runbook.',
-      source('legacy/core/compose.yaml', 4, 20, 'Legacy service'), source('legacy/core/README.md', 1, 16, 'Legacy runbook')),
   ];
 
   const api = (id, to, summary, ...evidence) => edge(id, 'gateway', to, 'HTTP reverse proxy', summary, ...evidence);
@@ -157,7 +154,7 @@ const atlasData = (() => {
       { title: 'Current backend', connector: 'Gateway routes HTTP and WebSocket traffic by path', nodes: ['identity', 'catalog', 'ticketing', 'payment', 'checkin', 'notification'] },
       { title: 'Data and delivery infrastructure', connector: 'Service-specific connections · inspect a node for exact links', nodes: ['postgres', 'redis', 'rabbit', 'smtp'] },
       { title: 'External integrations', nodes: ['provider', 'catalog-integrations'] },
-      { title: 'Optional and separate deployments', nodes: ['observability', 'legacy'] },
+      { title: 'Optional and separate deployments', nodes: ['observability'] },
     ],
     capabilities: [
       { title: 'Set up a sale', nodes: ['identity', 'catalog'] },
@@ -194,9 +191,9 @@ const atlasData = (() => {
   ];
 
   const scope = [
-    confirmed('baseline', 'The base deployment has six Java service modules. Optional monitoring, lab replicas and legacy Core have separate configuration scopes.',
+    confirmed('baseline', 'The base deployment has six Java service modules. Optional monitoring and lab replicas have separate configuration scopes.',
       source('pom.xml', 1, 4, 'Root Maven reactor'), compose(142, 167, 'Optional monitoring'),
-      source('compose.lab.yaml', 33, 69, 'Lab replicas'), source('legacy/core/compose.yaml', 4, 20, 'Legacy stack')),
+      source('compose.lab.yaml', 33, 69, 'Lab replicas')),
     { id: 'glossary-scope', status: 'docs-only', summary: 'The repository glossary names six business contexts. Use the deployment map separately when asking which processes or databases are involved.',
       evidence: [source('GLOSSARY-MAP.md', 3, 18, 'Business contexts and relationships')] },
     { id: 'scanner-doc-conflict', status: 'docs-only', summary: 'The scanner guide’s offline section still says online scans consume tickets in Core. The current split gateway routes staff requests to Check-in, and the scanner supports a direct Check-in base.',
