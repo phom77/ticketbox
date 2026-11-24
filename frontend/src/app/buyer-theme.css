@@ -101,7 +101,6 @@
   :is(
     .buyer-account-nav a[aria-current],
     .purchase-payment-option[data-selected],
-    .purchase-zone[data-selected='true'],
     .performance-options button[aria-pressed='true'],
     .inbox-read-state[data-unread='true'],
     .discovery-main .discovery-preview-label,
@@ -115,16 +114,10 @@
 
 /* Status text that is dark red, amber or green on light surfaces. */
 :root[data-theme='dark']
-  :is(
-    .purchase-checkout-notice p,
-    .inbox-read-error,
-    .purchase-zone-availability[data-sold-out='true'],
-    .purchase-zone-feedback[data-error='true'],
-    .buyer-auth .buyer-auth-field-error
-  ) {
+  :is(.purchase-checkout-notice p, .inbox-read-error, .buyer-auth .buyer-auth-field-error) {
   color: var(--buyer-danger-text);
 }
-:root[data-theme='dark'] :is(.purchase-zone-availability, .purchase-confirmed-header > svg) {
+:root[data-theme='dark'] .purchase-confirmed-header > svg {
   color: var(--buyer-success-text);
 }
 :root[data-theme='dark'] .purchase-seat-time p {
