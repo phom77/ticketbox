@@ -69,7 +69,7 @@ A0, kiểm tra cấu hình vận hành và các chỉnh sửa UI nhỏ có thể
 
 ## A1. Tổ chức, thành viên và quyền theo sự kiện
 
-**OpenSpec.** [`organizer-identity-and-access`](../../../openspec/changes/organizer-identity-and-access/proposal.md). Phạm vi đã duyệt dùng tổ chức và sự kiện mới. Phân công theo ca, scanner mobile và soát vé offline chuyển sang đợt phát triển scanner.
+**OpenSpec.** [`organizer-identity-and-access`](../../../openspec/changes/archive/2026-11-24-organizer-identity-and-access/proposal.md). Phạm vi đã duyệt dùng tổ chức và sự kiện mới. Phân công theo ca, scanner mobile và soát vé offline chuyển sang đợt phát triển scanner.
 
 **Điểm chạm.** [Identity account](../../../services/identity/src/main/java/org/ticketbox/identity/account), [Catalog organizer API](../../../services/catalog/src/main/java/org/ticketbox/catalog/concert/web/OrganizerConcertController.java), [Ticketing organizer order API](../../../services/ticketing/src/main/java/org/ticketbox/ticketing/order/web/OrganizerOrderController.java), [Check-in dataset và lịch sử](../../../services/checkin/src/main/java/org/ticketbox/checkin/admission/web/StaffCheckinDatasetController.java), [hợp đồng đồng bộ](../../../contracts/) và [route web](../../../frontend/src/app/App.tsx).
 
@@ -141,7 +141,7 @@ Phí cần nguồn dữ liệu xác thực trước khi hiển thị. Kế toán
 
 ## A6. Diễn tập vận hành cục bộ
 
-**OpenSpec.** [`staging-pilot-readiness`](../../../openspec/changes/staging-pilot-readiness/proposal.md). Chủ dự án chốt thực hiện A6 hoàn toàn cục bộ.
+**OpenSpec.** [`staging-pilot-readiness`](../../../openspec/changes/archive/2026-11-24-staging-pilot-readiness/proposal.md). Chủ dự án chốt thực hiện A6 hoàn toàn cục bộ.
 
 **Điểm chạm.** [Compose](../../../compose.yaml), [gateway](../../../infra/nginx/gateway.conf), [monitoring](../../../infra/monitoring/prometheus.yml), [workflow CI](../../../.github/workflows/verify.yml), [restore rehearsal](../../../scripts/e2e/split-restore.py) và [hướng dẫn verification](../../development.md#verification).
 
@@ -176,7 +176,7 @@ Phí cần nguồn dữ liệu xác thực trước khi hiển thị. Kế toán
 
 ### Review A1 và rà soát song song · 11/11/2026
 
-- [x] Soạn [proposal A1](../../../openspec/changes/organizer-identity-and-access/proposal.md), [design](../../../openspec/changes/organizer-identity-and-access/design.md), [spec quyền tổ chức](../../../openspec/changes/organizer-identity-and-access/specs/organizer-access/spec.md), [spec quyền soát vé](../../../openspec/changes/organizer-identity-and-access/specs/scoped-admission-access/spec.md) và [tasks](../../../openspec/changes/organizer-identity-and-access/tasks.md). OpenSpec báo đủ 4/4 loại artifact. `openspec validate organizer-identity-and-access --type change --strict` pass.
+- [x] Soạn [proposal A1](../../../openspec/changes/archive/2026-11-24-organizer-identity-and-access/proposal.md), [design](../../../openspec/changes/archive/2026-11-24-organizer-identity-and-access/design.md), [spec quyền tổ chức](../../../openspec/changes/archive/2026-11-24-organizer-identity-and-access/specs/organizer-access/spec.md), [spec quyền soát vé](../../../openspec/changes/archive/2026-11-24-organizer-identity-and-access/specs/scoped-admission-access/spec.md) và [tasks](../../../openspec/changes/archive/2026-11-24-organizer-identity-and-access/tasks.md). OpenSpec báo đủ 4/4 loại artifact. `openspec validate organizer-identity-and-access --type change --strict` pass.
 - [x] Chủ dự án duyệt quyền sở hữu Identity/Catalog và yêu cầu triển khai A1. A1 dùng tổ chức và sự kiện mới, bỏ migration và tương thích phiên cũ. Dời scanner mobile, quyền scan theo ca, offline và quy trình tại cổng sang đợt phát triển scanner. Chặn tuyến staff toàn cục trong A1.
 - [x] Rà VNPAY sandbox. Có test giao thức từ lần chạy 07/11 (PaymentGatewayProtocolTest 3/3, PaymentIntegrationTest 10/10, OrderConcurrencyIntegrationTest 14/14) và bằng chứng checkout phân tán qua MOCK từ lần chạy trước. Chưa thử merchant sandbox trong đợt này. [Cấu hình Payment](../../../compose.yaml#L30) · [Luồng checkout phân tán](../../../scripts/e2e/split.py#L195)
 - [ ] Cấu hình merchant sandbox qua kho bí mật, URL trả về và IPN HTTPS, đăng ký IPN với VNPAY và cấu hình URL truy vấn. Thử callback, truy vấn khi mất IPN, callback lặp, tiền đến muộn và đối soát hai tổ chức. A0 vẫn cần xác nhận merchant cho bán thật.
@@ -196,7 +196,7 @@ Phí cần nguồn dữ liệu xác thực trước khi hiển thị. Kế toán
 ### Review A2 và A3 · 12/11/2026
 
 - [x] Soạn và chạy `openspec validate --strict` cho hai change tiếp theo. A2 và A3 có thể triển khai song song sau khi review và dùng chung hợp đồng tổ chức của A1.
-- [x] Duyệt A2. Dùng vé theo hạng hoặc khu vực, chỉ công khai khi Ticketing xác nhận cấu hình, hiển thị đồng bộ Check-in riêng và đưa hoãn/hủy ảnh hưởng đến đơn sang A4. [OpenSpec A2](../../../openspec/changes/organizer-event-publishing/proposal.md)
+- [x] Duyệt A2. Dùng vé theo hạng hoặc khu vực, chỉ công khai khi Ticketing xác nhận cấu hình, hiển thị đồng bộ Check-in riêng và đưa hoãn/hủy ảnh hưởng đến đơn sang A4. [OpenSpec A2](../../../openspec/changes/archive/2026-11-24-organizer-event-publishing/proposal.md)
 - [x] Duyệt A3. Dùng một merchant VNPAY sandbox, lưu tổ chức tại thời điểm tạo đơn, đối soát theo mã giao dịch và theo kỳ đã chọn. Luồng hoàn tiền và tham chiếu hoàn tiền đến từ A4. [OpenSpec A3](../../../openspec/changes/vnpay-merchant-and-sales-reconciliation/proposal.md)
 - [ ] Cung cấp đích staging HTTPS, quyền cấu hình merchant sandbox qua kho bí mật, đăng ký IPN và URL truy vấn. Những đầu vào này cần cho bài chạy với VNPAY sandbox. CI vẫn dùng MOCK.
 
@@ -229,8 +229,8 @@ Phí cần nguồn dữ liệu xác thực trước khi hiển thị. Kế toán
 
 ### Review A6 · 12/11/2026
 
-- [x] Soạn 4 artifact và chạy OpenSpec strict cho [A6](../../../openspec/changes/staging-pilot-readiness/proposal.md). Đề xuất staging độc lập, khởi tạo pilot, cảnh báo, phục hồi và checklist nghiệm thu.
-- [x] Chốt A6 hoàn toàn cục bộ. [Design cập nhật](../../../openspec/changes/staging-pilot-readiness/design.md) dùng Compose cô lập, MOCK, SMTP sink và fixture hai tổ chức. Các mục staging ở A1–A5 là đầu việc của đợt triển khai sau.
+- [x] Soạn 4 artifact và chạy OpenSpec strict cho [A6](../../../openspec/changes/archive/2026-11-24-staging-pilot-readiness/proposal.md). Đề xuất staging độc lập, khởi tạo pilot, cảnh báo, phục hồi và checklist nghiệm thu.
+- [x] Chốt A6 hoàn toàn cục bộ. [Design cập nhật](../../../openspec/changes/archive/2026-11-24-staging-pilot-readiness/design.md) dùng Compose cô lập, MOCK, SMTP sink và fixture hai tổ chức. Các mục staging ở A1–A5 là đầu việc của đợt triển khai sau.
 
 ### Diễn tập A6 · 13/11/2026
 
