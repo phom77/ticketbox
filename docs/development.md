@@ -98,11 +98,16 @@ python3 scripts/ci/verify-service-boundaries.py --service ticketing
 ```sh
 cd frontend
 npm run lint
+npm test
 npm run build
 cd ../mobile-scanner
 npm ci
 npm run typecheck
 ```
+
+`npm run lint` runs ESLint, the Prettier check and the translation check. Run `npm run format` to apply Prettier formatting. `npm test` runs the Vitest unit and component tests once in jsdom with the English catalogs; `npm run test:watch` reruns them on change. Put tests next to their module as `*.test.ts` or `*.test.tsx`; `npm run build` type-checks them through `tsconfig.test.json`. Run one file with `npm test -- src/features/discovery/filters.test.ts` or one test with `npm test -- -t "time zone"`. The browser fixtures under `scripts/e2e/` cover full journeys.
+
+To skip the formatting commit in `git blame`, run `git config blame.ignoreRevsFile .git-blame-ignore-revs`.
 
 ## Adaptive concert admission
 
