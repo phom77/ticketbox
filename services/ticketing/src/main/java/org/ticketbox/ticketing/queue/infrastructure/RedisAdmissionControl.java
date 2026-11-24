@@ -7,6 +7,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Component;
 import org.ticketbox.ticketing.config.RateLimitProperties;
+import org.ticketbox.ticketing.queue.application.port.AdaptiveAdmissionPolicy;
 import org.ticketbox.ticketing.queue.application.port.AdmissionHealth;
 import org.ticketbox.ticketing.queue.application.port.DispatchBacklog;
 import org.ticketbox.ticketing.queue.domain.AdmissionPolicy;
@@ -21,7 +22,7 @@ import java.util.UUID;
 
 @Component
 @Slf4j
-public class RedisAdmissionControl implements AdmissionHealth {
+public class RedisAdmissionControl implements AdmissionHealth, AdaptiveAdmissionPolicy {
     private static final String PREFIX = "queue:adaptive:";
     static final String SHARED_POLICY = PREFIX + "policy:shared";
     private static final RedisScript<Long> COMPLETED_WINDOW = RedisScript.of(
@@ -98,8 +99,15 @@ public class RedisAdmissionControl implements AdmissionHealth {
         }
     }
 
-    long completedWindow() {
+    @Override
+    public long completedWindow() {
         return redis.execute(COMPLETED_WINDOW, List.of());
+    }
+
+    @Override
+    public void refreshConcert(UUID concert, long window) {
+        refreshConcert(concert, RedisWaitingRoomStore.queueKey(concert),
+                RedisWaitingRoomStore.presenceKey(concert), window);
     }
 
     void refreshConcert(UUID concert, String queueKey, String presenceKey, long window) {
@@ -122,7 +130,8 @@ public class RedisAdmissionControl implements AdmissionHealth {
         }
     }
 
-    void refreshShared(long window) {
+    @Override
+    public void refreshShared(long window) {
         var old = redis.opsForHash().entries(SHARED_POLICY);
         long previousWindow = field(old, "window", window - 1);
         if (previousWindow >= window) return;

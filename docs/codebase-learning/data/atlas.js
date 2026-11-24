@@ -71,7 +71,7 @@ const atlasData = (() => {
       compose(75, 102, 'Payment and Notification stores'), compose(194, 208, 'Identity store'), compose(239, 253, 'Catalog store'), compose(284, 298, 'Ticketing store'), compose(329, 343, 'Check-in store')),
     node('redis', 'Redis', 'Infrastructure process', 'Shopping sessions and queue coordination', 'Ticketing session keys and their TTLs among other Redis state.', 'Private Redis connection.',
       'Ticketing validates a session token and reads its remaining TTL during a hold.',
-      compose(103, 119, 'Redis container'), ticket('queue/infrastructure/WaitingRoomService', 418, 424, 'WaitingRoomService.validateAccess'),
+      compose(103, 119, 'Redis container'), ticket('queue/application/WaitingRoomService', 302, 306, 'WaitingRoomService.validateAccess'),
       ticket('infrastructure/redis/RedisPurchaseSessions', 35, 38, 'RedisPurchaseSessions.remainingSeconds')),
     node('rabbit', 'RabbitMQ', 'Broker process', 'Notification command transport', 'Notification queue and exchange configured by application code.', 'Notification command exchange and routing.',
       'Ticketing publishes commands and Notification consumes them through the broker.',
@@ -146,7 +146,7 @@ const atlasData = (() => {
     edge('provider-callback', 'provider', 'gateway', 'Provider callback · HTTP', 'Configured providers can call the public MoMo/VNPAY webhook routes, which the gateway forwards to Payment.', paymentApi, gateway(26, 29, 'Provider webhook routes')),
     edge('catalog-external', 'catalog', 'catalog-integrations', 'External HTTP and SDK calls', 'Catalog can generate an artist biography via chat completions and upload a poster via the Cloudinary adapter.', bio, poster),
     edge('queue-redis', 'ticketing', 'redis', 'Synchronous Redis commands', 'Ticketing coordinates its waiting room and reads shopping-session state in Redis.',
-      ticket('queue/infrastructure/WaitingRoomService', 373, 424, 'Admit and validate a shopping session'),
+      ticket('queue/application/WaitingRoomService', 287, 306, 'Admit and validate a shopping session'),
       ticket('infrastructure/redis/RedisPurchaseSessions', 35, 38, 'Session TTL')),
   ];
 
@@ -186,8 +186,8 @@ const atlasData = (() => {
       catalog('concert/web/OrganizerConcertController', 58, 93, 'Organizer concert changes'),
       catalog('sales/web/OrganizerTicketTypeController', 45, 75, 'Organizer ticket-type changes'), salePublisher, browse),
     path('learn-waiting-room', 'Enter the waiting room and get admitted', 'Follow queue entry and the Redis-backed handoff to a shopping session.', wait,
-      ticket('queue/infrastructure/WaitingRoomService', 225, 263, 'Queue join'),
-      ticket('queue/infrastructure/WaitingRoomService', 373, 424, 'Admission and access check')),
+      ticket('queue/application/WaitingRoomService', 116, 138, 'Queue join'),
+      ticket('queue/application/WaitingRoomService', 287, 306, 'Admission and access check')),
     path('learn-delivery', 'Deliver a confirmation or reminder', 'Follow the broker command through the Notification inbox and delivery worker.',
       ticket('infrastructure/integration/notification/PaymentNotificationPublisher', 18, 40, 'Confirmation command'),
       ticket('infrastructure/integration/notification/RemoteReminderListener', 19, 25, 'Reminder command'), receiveCommand, delivery),

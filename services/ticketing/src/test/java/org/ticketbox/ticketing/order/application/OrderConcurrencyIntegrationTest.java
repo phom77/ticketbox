@@ -22,7 +22,7 @@ import org.ticketbox.ticketing.order.application.dto.OrderItemRequest;
 import org.ticketbox.ticketing.order.application.port.OrderItemRepository;
 import org.ticketbox.ticketing.order.application.port.OrderRepository;
 import org.ticketbox.ticketing.order.domain.Order;
-import org.ticketbox.ticketing.queue.infrastructure.WaitingRoomService;
+import org.ticketbox.ticketing.queue.application.WaitingRoomService;
 import org.ticketbox.ticketing.performance.application.PerformanceHolds;
 import org.ticketbox.ticketing.performance.application.PerformanceHolds.Pick;
 import org.ticketbox.ticketing.performance.application.port.PerformanceCatalog;
