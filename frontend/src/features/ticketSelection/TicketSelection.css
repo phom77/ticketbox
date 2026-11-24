@@ -9,10 +9,15 @@
 .ts-page p {
   margin: 0;
 }
-.ts-header {
+.ts-page .ts-header {
   display: grid;
   gap: 0.5rem;
   justify-items: start;
+  align-items: start;
+}
+.ts-event-title {
+  font-size: 1.125rem;
+  font-weight: 700;
 }
 .ts-subtitle {
   color: var(--muted);
@@ -20,8 +25,8 @@
 
 /* Filters */
 .ts-filters {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
   align-items: end;
   gap: 0.75rem;
   padding: 0.75rem;
@@ -37,8 +42,8 @@
 }
 .ts-filters :is(select, input[type='number']) {
   min-block-size: 2.75rem;
-  min-inline-size: 7rem;
-  max-inline-size: 11rem;
+  inline-size: 100%;
+  min-inline-size: 0;
 }
 .ts-filters .ts-check {
   display: flex;
@@ -156,6 +161,7 @@
   max-block-size: 34rem;
 }
 .ts-viewport .concert-seat-map {
+  min-block-size: 0;
   padding: 0.5rem;
 }
 .ts-viewport .concert-seat-map [data-ticket-type-id] text {
@@ -245,7 +251,7 @@
 }
 .ts-tip {
   position: absolute;
-  inset-block-start: 0.5rem;
+  inset-block-end: 0.5rem;
   inset-inline: 0.5rem 4rem;
   inline-size: fit-content;
   max-inline-size: calc(100% - 4.5rem);

@@ -276,7 +276,7 @@ try {
   console.log('Draft preview, independent retries, publication, buyer gate and finance workspace passed.');
 
   await audience.page.getByRole('link', { name: /Mua ngay|Vào phòng chờ/ }).click();
-  await audience.page.waitForURL(`**/concerts/${concert.id}/seats`, { timeout: 45_000 });
+  await audience.page.waitForURL(`**/events/${concert.id}/tickets`, { timeout: 45_000 });
   await audience.page.getByRole('button', { name: 'Thêm một vé GA' }).click();
   await audience.page.getByRole('button', { name: 'Tiếp tục thanh toán' }).click();
   await audience.page.waitForURL('**/checkout?orderId=*');

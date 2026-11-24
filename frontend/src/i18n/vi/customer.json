@@ -360,7 +360,7 @@
   "ticketSelection_legendSold": "Hết vé hoặc không khả dụng",
   "ticketSelection_legendAccessible": "Chỗ cho người khuyết tật",
   "ticketSelection_legendRestricted": "Tầm nhìn hạn chế",
-  "ticketSelection_reasonSoldOut": "Hết vé",
+  "ticketSelection_reasonSoldOut": "Không thể thêm vé: đã hết",
   "ticketSelection_reasonLimit_other": "Đã đạt giới hạn: tối đa {{count}} vé mỗi tài khoản",
   "ticketSelection_maxPerAccount_other": "Tối đa {{count}} vé mỗi tài khoản",
   "ticketSelection_soldOut": "Hết vé",

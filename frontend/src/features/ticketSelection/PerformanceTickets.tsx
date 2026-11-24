@@ -730,7 +730,8 @@ export function PerformanceTickets({ id, eventId }: { id: string; eventId: strin
 
   return (
     <TicketSelectionShell
-      title={context?.event.title ?? t('customer:ticketSelection_title')}
+      defaultTab={performance?.layoutVersion == null && performance ? 'list' : 'map'}
+      eventTitle={context?.event.title ?? t('performances:schedule')}
       subtitle={
         performance ? (
           <>

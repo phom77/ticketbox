@@ -236,7 +236,7 @@ try {
   assert.equal(new URL(queue.page.url()).pathname, eventPath + '/waiting-room');
   queue.state.queue = status('ADMITTED', { queueAccessToken: 'fixture-queue-token', sessionExpiresAt: timestamp(15) });
   await queue.page.clock.fastForward(16_000);
-  await queue.page.waitForURL('**' + eventPath + '/seats');
+  await queue.page.waitForURL('**/events/' + eventId + '/tickets');
   assert(queue.state.polls > 1);
   const admission = await queue.page.evaluate(() => JSON.parse(sessionStorage.getItem('ticketbox.queue-admission')));
   assert.equal(admission.concertId, eventId);
@@ -264,7 +264,7 @@ try {
   await waitForQueueSocket(adaptive);
   adaptive.state.queue = status('ADMITTED', { queueAccessToken: 'adaptive-token', sessionExpiresAt: timestamp(15) });
   await adaptive.page.clock.fastForward(7_000);
-  await adaptive.page.waitForURL('**' + eventPath + '/seats');
+  await adaptive.page.waitForURL('**/events/' + eventId + '/tickets');
   await adaptive.page.clock.fastForward(20_000);
   assert.equal(adaptive.state.polls, 3);
   assert.equal(adaptive.state.socketCloses, 1);

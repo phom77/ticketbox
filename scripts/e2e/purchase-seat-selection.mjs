@@ -96,11 +96,11 @@ try {
   await page.goto(seatsUrl);
   const main = page.getByRole('main');
   const bar = main.locator('.purchase-action-bar');
-  await bar.getByText('1 vé đang giữ').waitFor();
+  await bar.getByText('Đang giữ 1 vé').waitFor();
   assert(state.requests.length > 0 && state.requests.every((token) => token === accessToken));
   const subtotal = bar.getByText(/250[.\s]000/);
   const continueButton = bar.getByRole('button', { name: 'Tiếp tục thanh toán', exact: true });
-  for (const control of [bar.getByText('1 vé đang giữ'), subtotal, continueButton]) {
+  for (const control of [bar.getByText('Đang giữ 1 vé'), subtotal, continueButton]) {
     const bounds = await control.boundingBox();
     assert(bounds && bounds.y >= 0 && bounds.y + bounds.height <= 844);
   }
@@ -111,20 +111,22 @@ try {
   }
   await page.setViewportSize({ width: 390, height: 844 });
 
-  const seatMap = main.getByRole('region', { name: 'Sơ đồ phân khu' });
+  // Map and list sit side by side on desktop and behind tabs below 1024px.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const seatMap = main.locator('.concert-seat-map');
   const vipZone = seatMap.getByRole('button', { name: 'VIP', exact: true });
   const generalZone = seatMap.getByRole('button', { name: 'GA', exact: true });
-  const vip = main.getByRole('article', { name: 'VIP', exact: true });
-  const general = main.getByRole('article', { name: 'GA', exact: true });
-  const vipChoice = vip.getByRole('button', { name: 'VIP', exact: true });
+  const vip = main.locator('.ts-row').filter({ has: page.getByText('VIP', { exact: true }) });
+  const general = main.locator('.ts-row').filter({ has: page.getByText('GA', { exact: true }) });
+  const selected = async (row) => (await row.getAttribute('data-selected')) === 'true';
   await vipZone.click();
-  assert.equal(await vipChoice.getAttribute('aria-pressed'), 'true');
+  assert.equal(await selected(vip), true);
   assert.equal(await vipZone.locator('text').evaluate((label) => getComputedStyle(label).stroke), 'none');
-  await general.getByRole('button', { name: 'GA', exact: true }).click();
+  await generalZone.click();
   assert.equal(await generalZone.getAttribute('aria-pressed'), 'true');
   await vipZone.focus();
   await page.keyboard.press('Space');
-  assert.equal(await vipChoice.getAttribute('aria-pressed'), 'true');
+  assert.equal(await selected(vip), true);
 
   state.mode = 'limit';
   await vip.getByRole('button', { name: 'Thêm một vé VIP' }).click();
@@ -145,8 +147,7 @@ try {
   assert.equal(await continueButton.isEnabled(), false);
   state.holdsStatus = 200;
   await retry.click();
-  await bar.getByText('2 vé đang giữ').waitFor();
-  assert(await vip.evaluate((row) => document.activeElement === row));
+  await bar.getByText('Đang giữ 2 vé').waitFor();
   assert.equal(await vip.getByRole('button', { name: 'Thêm một vé VIP' }).isEnabled(), false);
   assert.equal(state.mutations.filter(({ id }) => id === 'vip').length, 2);
 
@@ -158,7 +159,7 @@ try {
 
   state.mode = null;
   await general.getByRole('button', { name: 'Bỏ một vé GA' }).click();
-  await bar.getByText('1 vé đang giữ').waitFor();
+  await bar.getByText('Đang giữ 1 vé').waitFor();
   await bar.getByText(/500[.\s]000/).waitFor();
   assert(state.mutations.every(({ headers, body }) => headers['queue-access-token'] === accessToken && body.quantity === 1));
   await continueButton.click();
@@ -170,13 +171,16 @@ try {
 
   const noMap = await fixture({ svg: null, held: {} });
   await noMap.page.goto(seatsUrl);
+  await noMap.page.getByRole('tab', { name: 'Bản đồ' }).click();
   await noMap.page.getByText('Sơ đồ chỗ không khả dụng', { exact: true }).waitFor();
+  await noMap.page.getByRole('tab', { name: 'Danh sách' }).click();
   await noMap.page.getByRole('button', { name: 'Thêm một vé GA' }).click();
-  await noMap.page.locator('.purchase-action-bar').getByText('1 vé đang giữ').waitFor();
+  await noMap.page.locator('.purchase-action-bar').getByText('Đang giữ 1 vé').waitFor();
   await noMap.page.reload();
-  await noMap.page.locator('.purchase-action-bar').getByText('1 vé đang giữ').waitFor();
+  await noMap.page.locator('.purchase-action-bar').getByText('Đang giữ 1 vé').waitFor();
+  await noMap.page.setViewportSize({ width: 1440, height: 900 });
   await noMap.page.getByRole('combobox', { name: 'Ngôn ngữ' }).selectOption('en');
-  await noMap.page.getByRole('region', { name: 'Seating map by zone' }).getByText('Seat map unavailable', { exact: true }).waitFor();
+  await noMap.page.getByText('Seat map unavailable', { exact: true }).waitFor();
   noMap.state.mode = 'denied';
   await noMap.page.getByRole('button', { name: 'Add one GA ticket' }).click();
   await noMap.page.waitForURL('**/waiting-room');

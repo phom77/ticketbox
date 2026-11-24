@@ -435,7 +435,8 @@ export function ConcertTickets({ id }: { id: string }) {
 
   return (
     <TicketSelectionShell
-      title={concertTitle(concert)}
+      defaultTab={concert.seatMapSvg ? 'map' : 'list'}
+      eventTitle={concertTitle(concert)}
       subtitle={
         <>
           <time dateTime={concert.eventDate}>
@@ -499,6 +500,12 @@ export function ConcertTickets({ id }: { id: string }) {
                       row={row}
                       quantity={heldQuantities[row.key] ?? 0}
                       busy={locked}
+                      addLabel={translate('customer:seatSelectionPage_themMotVe', {
+                        arg1: type.name,
+                      })}
+                      removeLabel={translate('customer:seatSelectionPage_boMotVe', {
+                        arg1: type.name,
+                      })}
                       onAdd={() => void updateQuantity(type, 'reserve')}
                       onRemove={() => void updateQuantity(type, 'release')}
                     />

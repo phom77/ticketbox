@@ -364,7 +364,7 @@
   "ticketSelection_legendSold": "Sold or unavailable",
   "ticketSelection_legendAccessible": "Accessible",
   "ticketSelection_legendRestricted": "Restricted view",
-  "ticketSelection_reasonSoldOut": "Sold out",
+  "ticketSelection_reasonSoldOut": "Cannot add more: sold out",
   "ticketSelection_reasonLimit_one": "Limit reached: {{count}} ticket per account",
   "ticketSelection_reasonLimit_other": "Limit reached: {{count}} tickets per account",
   "ticketSelection_maxPerAccount_one": "Max {{count}} per account",

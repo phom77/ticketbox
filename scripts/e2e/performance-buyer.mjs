@@ -120,7 +120,7 @@ try {
     await page.waitForURL('**' + eventUrl);
     admit = true;
     await buy.click();
-    await page.waitForURL('**' + performanceUrl + '/seats');
+    await page.waitForURL('**' + performanceUrl + '/tickets');
     await page.getByRole('heading', { name: 'Choose tickets', exact: true }).waitFor();
     assert.deepEqual(legacyPerformanceReads, [], 'Native performances never load legacy concert data.');
     assert.equal(detailReads, 0, 'Initial load must avoid seat detail requests');

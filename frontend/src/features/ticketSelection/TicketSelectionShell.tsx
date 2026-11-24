@@ -6,7 +6,7 @@ import './TicketSelection.css';
 
 /** The shared frame of the unified Choose tickets page. */
 export function TicketSelectionShell({
-  title,
+  eventTitle,
   subtitle,
   backLabel,
   onBack,
@@ -16,8 +16,9 @@ export function TicketSelectionShell({
   list,
   summary,
   banner,
+  defaultTab = 'map',
 }: {
-  title: ReactNode;
+  eventTitle: ReactNode;
   subtitle?: ReactNode;
   backLabel: string;
   onBack: () => void;
@@ -27,9 +28,11 @@ export function TicketSelectionShell({
   list: ReactNode;
   summary: ReactNode;
   banner?: ReactNode;
+  defaultTab?: 'map' | 'list';
 }) {
   const { t } = useTranslation('customer');
-  const [tab, setTab] = useState<'map' | 'list'>('map');
+  const [chosenTab, setTab] = useState<'map' | 'list' | null>(null);
+  const tab = chosenTab ?? defaultTab;
   return (
     <div className="buyer-page purchase-page page-width ts-page" data-tab={tab}>
       <header className="purchase-header ts-header">
@@ -38,7 +41,8 @@ export function TicketSelectionShell({
           {backLabel}
         </button>
         <PurchaseProgress current="tickets" />
-        <h1>{title}</h1>
+        <h1>{t('customer:ticketSelection_title')}</h1>
+        <p className="ts-event-title">{eventTitle}</p>
         {subtitle ? <p className="ts-subtitle">{subtitle}</p> : null}
       </header>
       {banner}

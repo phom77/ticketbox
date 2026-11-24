@@ -149,8 +149,12 @@ export function Stepper({
   busy,
   onAdd,
   onRemove,
+  addLabel,
+  removeLabel,
 }: {
   row: Pick<OfferRow, 'offerName' | 'available' | 'maxPerAccount'>;
+  addLabel?: string;
+  removeLabel?: string;
   quantity: number;
   busy: boolean;
   onAdd: () => void;
@@ -171,7 +175,7 @@ export function Stepper({
       <div className="ts-stepper-controls" aria-busy={busy}>
         <button
           type="button"
-          aria-label={t('performances:removeOne', { offer: row.offerName })}
+          aria-label={removeLabel ?? t('performances:removeOne', { offer: row.offerName })}
           aria-disabled={!canRemove}
           onClick={() => canRemove && onRemove()}
         >
@@ -180,7 +184,7 @@ export function Stepper({
         <output aria-live="polite">{quantity}</output>
         <button
           type="button"
-          aria-label={t('performances:addOne', { offer: row.offerName })}
+          aria-label={addLabel ?? t('performances:addOne', { offer: row.offerName })}
           aria-disabled={!canAdd}
           onClick={() => canAdd && onAdd()}
         >
