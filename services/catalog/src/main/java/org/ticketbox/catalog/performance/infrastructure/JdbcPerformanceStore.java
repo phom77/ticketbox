@@ -43,7 +43,7 @@ public class JdbcPerformanceStore implements PerformanceStore {
     // Best-effort city: the last comma-separated part of the venue address, without a trailing country.
     private static final String CITY = """
             CASE WHEN position(',' IN p.venue_address) > 0 THEN NULLIF(btrim(substring(
-                regexp_replace(p.venue_address, '\\s*,\\s*vi[eệ]t\\s*nam\\s*$', '', 'i') FROM '([^,]+)$')), '') END
+                regexp_replace(p.venue_address, '\\s*,\\s*vi.t\\s*nam\\s*$', '', 'i') FROM '([^,]+)$')), '') END
             """;
     private static final String MIN_PRICE = """
             COALESCE((SELECT min(o.price) FROM performance_sale_offers o WHERE o.performance_id=p.id AND o.active),
