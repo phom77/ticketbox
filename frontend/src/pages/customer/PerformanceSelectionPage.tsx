@@ -12,7 +12,6 @@ import {
   getLayout,
   getMapSection,
   getSectionAvailability,
-  performancePath,
   replaceHold,
   type Availability,
   type Layout,
@@ -24,7 +23,12 @@ import {
   type Selection,
 } from '../../api/performances';
 import { clearStoredQueueAdmission, getStoredQueueAdmission } from '../../api/queue';
-import { currency } from '../../data/formatters';
+import { HoldTimer } from '../../components/purchase/HoldTimer';
+import { PurchaseProgress } from '../../components/purchase/PurchaseProgress';
+import { purchasePaths } from '../../features/event/eventView';
+import { PanelSkeleton } from '../../components/feedback/Skeleton';
+import { AllInPriceNote } from '../../features/price/AllInPrice';
+import { formatPrice } from '../../features/price/price';
 import { performanceTime } from '../../features/performance/format';
 import { mapBounds, mapSeatRadius, sectionViewBox } from '../../features/performance/layoutTools';
 
@@ -134,7 +138,7 @@ function PerformanceSelection({ id, eventId }: { id: string; eventId: string }) 
         if (!signal.aborted && !isRequestCanceled(requestError)) {
           if (requestError instanceof ApiClientError && [401, 403].includes(requestError.status)) {
             clearStoredQueueAdmission();
-            navigate(performancePath(eventId, id) + '/waiting-room', { replace: true });
+            navigate(purchasePaths({ id, eventId }).waitingRoom, { replace: true });
           } else setError(t('performances:loadFailed'));
         }
       })
@@ -203,7 +207,7 @@ function PerformanceSelection({ id, eventId }: { id: string; eventId: string }) 
   }, [id, selectedSection, assigned, refresh, t]);
 
   if (!admission && !pendingOrderKey)
-    return <Navigate to={performancePath(eventId, id) + '/waiting-room'} replace />;
+    return <Navigate to={purchasePaths({ id, eventId }).waitingRoom} replace />;
 
   const selectedMapSection =
     sectionLayout?.section.id === selectedSection &&
@@ -246,12 +250,12 @@ function PerformanceSelection({ id, eventId }: { id: string; eventId: string }) 
 
   function seatOfferDescription(seatId: string) {
     const held = hold.items.find((item) => item.seatId === seatId);
-    if (held) return `${held.offerName} · ${currency.format(held.unitPrice)}`;
+    if (held) return `${held.offerName} · ${formatPrice(held.unitPrice)}`;
     const current = stock.get(seatId);
     const offer = current && offerByGroup.get(current.groupId);
     if (!offer) return t('performances:seatNotOnSale');
     if (!current.available) return t('performances:seatUnavailable');
-    return `${offer.name} · ${currency.format(offer.price)}`;
+    return `${offer.name} · ${formatPrice(offer.price)}`;
   }
 
   function selectSection(sectionId: string | null) {
@@ -359,18 +363,24 @@ function PerformanceSelection({ id, eventId }: { id: string; eventId: string }) 
       : 1;
   return (
     <section className="performance-page page-width">
-      <Link to={eventPath(eventId)}>{context?.event.title ?? t('performances:schedule')}</Link>
-      <h1>{t('performances:choose')}</h1>
-      {context && (
-        <p>
-          <time dateTime={context.performance.startsAt}>
-            {performanceTime(context.performance)}
-          </time>{' '}
-          · {context.performance.venueName}
-        </p>
-      )}
+      <header className="purchase-header performance-purchase-header">
+        <div>
+          <PurchaseProgress current="tickets" />
+          <Link to={eventPath(eventId)}>{context?.event.title ?? t('performances:schedule')}</Link>
+          <h1>{t('performances:choose')}</h1>
+          {context && (
+            <p>
+              <time dateTime={context.performance.startsAt}>
+                {performanceTime(context.performance)}
+              </time>{' '}
+              · {context.performance.venueName}
+            </p>
+          )}
+        </div>
+        <HoldTimer expiresAt={hold.expiresAt} label={t('performances:holdExpiresIn')} />
+      </header>
       {error && <p role="alert">{error}</p>}
-      {!availability && !error && <p role="status">{t('performances:loading')}</p>}
+      {!availability && !error && <PanelSkeleton label={t('performances:loading')} />}
       {availability && (
         <div className="performance-purchase">
           <div className="performance-panel">
@@ -481,7 +491,7 @@ function PerformanceSelection({ id, eventId }: { id: string; eventId: string }) 
                       <div className="performance-line" key={offer.id}>
                         <div>
                           <strong>{offer.name}</strong>
-                          <p>{currency.format(offer.price)}</p>
+                          <p>{formatPrice(offer.price)}</p>
                         </div>
                         <div className="performance-options">
                           <button
@@ -524,7 +534,7 @@ function PerformanceSelection({ id, eventId }: { id: string; eventId: string }) 
                   if (offers.length === 1)
                     return (
                       <p key={group.id}>
-                        {offers[0].name} · {currency.format(offers[0].price)}
+                        {offers[0].name} · {formatPrice(offers[0].price)}
                       </p>
                     );
                   return (
@@ -538,7 +548,7 @@ function PerformanceSelection({ id, eventId }: { id: string; eventId: string }) 
                       >
                         {offers.map((offer) => (
                           <option key={offer.id} value={offer.id}>
-                            {offer.name} · {currency.format(offer.price)}
+                            {offer.name} · {formatPrice(offer.price)}
                           </option>
                         ))}
                       </select>
@@ -673,14 +683,8 @@ function PerformanceSelection({ id, eventId }: { id: string; eventId: string }) 
             ) : (
               <p>{t('performances:noSelection')}</p>
             )}
-            <strong aria-live="polite">{currency.format(hold.totalAmount)}</strong>
-            {hold.expiresAt && (
-              <p>
-                {t('performances:heldUntil', {
-                  time: new Date(hold.expiresAt).toLocaleTimeString(),
-                })}
-              </p>
-            )}
+            <strong aria-live="polite">{formatPrice(hold.totalAmount)}</strong>
+            <AllInPriceNote />
             <button
               className="button button-primary"
               type="button"

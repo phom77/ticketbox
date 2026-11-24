@@ -1,5 +1,5 @@
-import { getConcert } from '../../api/concerts';
 import type { Order } from '../../api/orders';
+import { hasPerformanceDetails, loadConcertView, orderView } from '../event/eventView';
 import { translate } from '../../i18n';
 import type { CheckoutEvent } from '../ticket/checkoutPayment';
 import type { CheckoutSelection } from '../../pages/customer/SeatSelectionPage';
@@ -23,27 +23,10 @@ export async function checkoutPresentation(
   event: CheckoutEvent;
   selection: CheckoutSelection[];
 }> {
-  let event: CheckoutEvent;
-  if (order.performanceId && order.performanceStartsAt) {
-    event = {
-      id: order.performanceId,
-      eventId: order.eventId,
-      title: order.performanceTitle ?? order.concertTitle,
-      venue: order.performanceVenueName ?? '',
-      date: order.performanceStartsAt,
-      image: null,
-    };
-  } else {
-    const concert = await getConcert(order.concertId, signal).catch(() => null);
-    event = {
-      id: order.concertId,
-      title: concert?.title ?? order.concertTitle,
-      translations: concert?.translations,
-      venue: concert?.venueName ?? '',
-      date: concert?.eventDate ?? '',
-      image: concert?.posterUrl ?? null,
-    };
-  }
+  const concert = hasPerformanceDetails(order)
+    ? null
+    : await loadConcertView(order.concertId, signal);
+  const event: CheckoutEvent = orderView(order, concert);
   return {
     event,
     selection: order.items.map((item) => ({

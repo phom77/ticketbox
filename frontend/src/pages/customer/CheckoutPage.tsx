@@ -4,13 +4,10 @@ import { concertTitle } from '../../features/concert/concertText';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { ApiClientError } from '../../api/client';
-import { eventPath, performancePath } from '../../api/performances';
 import { checkoutPresentation } from '../../features/performance/checkoutPresentation';
 import {
   cancelOrder,
   completeMockPayment,
-  getOrder,
-  getPaymentStatus,
   getPaymentProviders,
   initiatePayment,
   type Order,
@@ -21,7 +18,6 @@ import { BuyerInformationLinks } from '../../components/BuyerInformationLinks';
 import {
   clearPendingPayment,
   orderWindowExpired,
-  paymentStillVerifying,
   readPendingPayment,
   rememberPendingPayment,
   type CheckoutEvent,
@@ -31,8 +27,17 @@ import {
   clearCheckoutRequest,
   createOrRecoverOrder,
 } from '../../features/ticket/checkoutRecovery';
-import { currency } from '../../data/formatters';
 import { useCountdown } from '../../hooks/useCountdown';
+import { HoldTimer } from '../../components/purchase/HoldTimer';
+import { PurchaseProgress } from '../../components/purchase/PurchaseProgress';
+import { purchasePaths } from '../../features/event/eventView';
+import { AllInPriceNote } from '../../features/price/AllInPrice';
+import { formatPrice } from '../../features/price/price';
+import {
+  pollOrderOutcome,
+  readOrderSnapshot,
+  type OrderOutcomeKind,
+} from '../../features/ticket/orderOutcome';
 import {
   CheckoutEventTime,
   CheckoutOrderLines,
@@ -49,6 +54,18 @@ type CheckoutState = {
 };
 
 type ResumeProblem = 'pending' | 'expiredPending' | 'closed' | 'missing' | 'unavailable';
+
+/** Checkout resume screens for each shared order outcome; `null` means the order can be paid. */
+const resumeProblems: Record<Exclude<OrderOutcomeKind, 'paid'>, ResumeProblem | null> = {
+  unavailable: 'unavailable',
+  expiredPending: 'expiredPending',
+  expired: 'closed',
+  closed: 'closed',
+  review: 'pending',
+  verifying: 'pending',
+  failed: null,
+  payable: null,
+};
 
 const paymentOptions: Array<{
   value: PaymentProvider;
@@ -152,37 +169,30 @@ export function CheckoutPage() {
 
     async function restorePendingOrder() {
       try {
-        const order = await getOrder(activeResumeOrderId, controller.signal);
+        const {
+          order,
+          payment: paymentStatus,
+          outcome,
+        } = await readOrderSnapshot(activeResumeOrderId, { signal: controller.signal });
         if (!active) return;
-        if (order.status === 'PAID') {
-          clearPendingPayment(order.id);
+        if (outcome.settled) clearPendingPayment(order.id);
+        if (outcome.kind === 'paid') {
           navigate('/booking-confirmation', { replace: true, state: { orderId: order.id } });
           return;
         }
 
-        const [presentation, paymentStatus] = await Promise.all([
-          checkoutPresentation(order, controller.signal),
-          getPaymentStatus(order.id, controller.signal).catch(() => null),
-        ]);
+        const presentation = await checkoutPresentation(order, controller.signal);
         if (!active) return;
         const { event: restoredEvent, selection: restoredSelection } = presentation;
 
         setEvent(restoredEvent);
         setCreatedOrder(order);
-        if (!paymentStatus) {
-          setResumeUnavailable(orderWindowExpired(order) ? 'expiredPending' : 'unavailable');
+        const problem = resumeProblems[outcome.kind];
+        if (problem || !paymentStatus) {
+          setResumeUnavailable(problem ?? 'unavailable');
           return;
         }
-        if (paymentStillVerifying(paymentStatus.attemptState)) {
-          setResumeUnavailable(orderWindowExpired(order) ? 'expiredPending' : 'pending');
-          return;
-        }
-        if (order.status !== 'AWAITING_PAYMENT' || orderWindowExpired(order)) {
-          clearPendingPayment(order.id);
-          setResumeUnavailable('closed');
-          return;
-        }
-        setPaymentFailed(paymentStatus.attemptState === 'FAILED');
+        setPaymentFailed(outcome.kind === 'failed');
         setLockedProvider(null);
         const pendingPayment = readPendingPayment();
         if (paymentStatus.provider) {
@@ -232,15 +242,7 @@ export function CheckoutPage() {
     if (!queueAccessToken) {
       clearStoredQueueAdmission();
       setError(translate('customer:checkoutPage_phienMuaVeDaHetHanDang'));
-      window.setTimeout(
-        () =>
-          navigate(
-            (event.eventId ? performancePath(event.eventId, event.id) : `/concerts/${event.id}`) +
-              '/waiting-room',
-            { replace: true },
-          ),
-        900,
-      );
+      window.setTimeout(() => navigate(purchasePaths(event).waitingRoom, { replace: true }), 900);
       return;
     }
 
@@ -279,13 +281,7 @@ export function CheckoutPage() {
             clearStoredQueueAdmission();
             setError(translate('customer:checkoutPage_phienMuaVeDaHetHanDang'));
             window.setTimeout(
-              () =>
-                navigate(
-                  (event.eventId
-                    ? performancePath(event.eventId, event.id)
-                    : `/concerts/${event.id}`) + '/waiting-room',
-                  { replace: true },
-                ),
+              () => navigate(purchasePaths(event).waitingRoom, { replace: true }),
               900,
             );
             return;
@@ -321,6 +317,7 @@ export function CheckoutPage() {
   if (restoringOrder) {
     return (
       <CheckoutStatusPanel
+        step="checkout"
         announce
         title={translate('customer:checkoutPage_dangKhoiPhucDonThanhToan')}
         body={translate('customer:checkoutPage_ticketboxDangKiemTraTrangThaiMoi')}
@@ -334,27 +331,32 @@ export function CheckoutPage() {
       resumeUnavailable === 'expiredPending' ||
       (resumeUnavailable === 'closed' && createdOrder && orderWindowExpired(createdOrder));
     const title = expired
-      ? translate('customer:paymentResultPage_deadlinePassed')
+      ? translate('customer:orderOutcome_deadlinePassedTitle')
       : pending
-        ? translate('customer:paymentResultPage_confirming')
-        : translate('customer:checkoutPage_khongTheTiepTucThanhToan');
+        ? translate('customer:orderOutcome_confirmingTitle')
+        : translate('customer:orderOutcome_cannotContinueTitle');
     const body = {
-      pending: translate('customer:checkoutPage_paymentPending'),
-      expiredPending: translate('customer:paymentResultPage_expiredPending'),
-      closed: translate('customer:checkoutPage_donHangNayDaHetHanHoac'),
-      missing: translate('customer:checkoutPage_khongTimThayDonThanhToanNay'),
-      unavailable: translate('customer:checkoutPage_khongTheKhoiPhucDonChoThanh'),
+      pending: translate('customer:orderOutcome_pendingBody'),
+      expiredPending: translate('customer:orderOutcome_expiredPendingBody'),
+      closed: translate('customer:orderOutcome_closedBody'),
+      missing: translate('customer:orderOutcome_resumeMissingBody'),
+      unavailable: translate('customer:orderOutcome_resumeUnavailableBody'),
     }[resumeUnavailable];
 
     return (
-      <CheckoutStatusPanel title={title} body={body} referenceCode={createdOrder?.referenceCode}>
+      <CheckoutStatusPanel
+        step="checkout"
+        title={title}
+        body={body}
+        referenceCode={createdOrder?.referenceCode}
+      >
         <div className="purchase-status-actions">
           {resumeUnavailable === 'pending' && (
             <Link
               className="button button-primary"
               to={`/payment/result?orderId=${encodeURIComponent(resumeOrderId ?? '')}`}
             >
-              {translate('customer:checkoutPage_kiemTraTrangThaiDon')}
+              {translate('customer:orderOutcome_checkStatus')}
             </Link>
           )}
           {resumeUnavailable === 'unavailable' && (
@@ -363,14 +365,14 @@ export function CheckoutPage() {
               type="button"
               onClick={() => setResumeRefreshKey((value) => value + 1)}
             >
-              {translate('customer:checkoutPage_kiemTraTrangThaiDon')}
+              {translate('customer:orderOutcome_checkStatus')}
             </button>
           )}
           <Link
             className={`button ${pending && !expired ? 'button-secondary' : 'button-primary'}`}
             to="/profile?tab=orders"
           >
-            {translate('customer:checkoutPage_xemLichSuDonHang')}
+            {translate('customer:orderOutcome_viewOrderHistory')}
           </Link>
         </div>
       </CheckoutStatusPanel>
@@ -380,6 +382,7 @@ export function CheckoutPage() {
   if (!event || !selection.length) {
     return (
       <CheckoutStatusPanel
+        step="tickets"
         title={translate('customer:checkoutPage_chuaChonVe')}
         body={translate('customer:checkoutPage_chonKhuVeVaSoLuongTruoc')}
       >
@@ -395,6 +398,7 @@ export function CheckoutPage() {
   if (paymentFailed && createdOrder) {
     return (
       <CheckoutStatusPanel
+        step="checkout"
         title={translate('customer:checkoutPage_phienThanhToanDaThatBai')}
         body={translate('customer:checkoutPage_congThanhToanDaBaoGiaoDich')}
         referenceCode={createdOrder.referenceCode}
@@ -421,10 +425,10 @@ export function CheckoutPage() {
             disabled={cancelling}
             onClick={() => setResumeRefreshKey((value) => value + 1)}
           >
-            {translate('customer:checkoutPage_kiemTraTrangThaiDon')}
+            {translate('customer:orderOutcome_checkStatus')}
           </button>
           <Link className="button button-secondary" to="/profile?tab=orders">
-            {translate('customer:checkoutPage_xemLichSuDonHang')}
+            {translate('customer:orderOutcome_viewOrderHistory')}
           </Link>
         </div>
       </CheckoutStatusPanel>
@@ -449,11 +453,7 @@ export function CheckoutPage() {
       }
       clearPendingPayment(order.id);
       clearStoredQueueAdmission();
-      navigate(
-        (event.eventId ? performancePath(event.eventId, event.id) : `/concerts/${event.id}`) +
-          '/waiting-room',
-        { replace: true },
-      );
+      navigate(purchasePaths(event).waitingRoom, { replace: true });
     } catch {
       // A late success can win the race with cancellation. Re-read before buying again.
       setError(translate('customer:checkoutPage_chuaTheHuyDonHayKiemTra'));
@@ -462,13 +462,14 @@ export function CheckoutPage() {
   }
 
   async function waitForPaidOrder(orderId: string): Promise<Order> {
-    for (let attempt = 0; attempt < 12; attempt += 1) {
-      const order = await getOrder(orderId);
-      if (order.status === 'PAID') return order;
-      if (['EXPIRED', 'CANCELLED', 'PAYMENT_FAILED'].includes(order.status)) return order;
-      await new Promise((resolve) => window.setTimeout(resolve, 750));
-    }
-    return getOrder(orderId);
+    const settled = await pollOrderOutcome(orderId, {
+      attempts: 12,
+      intervalMs: 750,
+      includePayment: false,
+      isFinal: ({ order }) =>
+        ['PAID', 'EXPIRED', 'CANCELLED', 'PAYMENT_FAILED'].includes(order.status),
+    });
+    return (settled ?? (await readOrderSnapshot(orderId, { includePayment: false }))).order;
   }
 
   async function submitPayment(formEvent: React.FormEvent<HTMLFormElement>) {
@@ -590,9 +591,7 @@ export function CheckoutPage() {
         // Queue session has a backend TTL fallback.
       }
       clearStoredQueueAdmission();
-      navigate(event.eventId ? eventPath(event.eventId) : `/concerts/${event.id}`, {
-        replace: true,
-      });
+      navigate(purchasePaths(event).details, { replace: true });
     } catch {
       setError(translate('customer:checkoutPage_khongTheRoiTrangThanhToanAn'));
       setCancelling(false);
@@ -638,33 +637,18 @@ export function CheckoutPage() {
     >
       <header className="purchase-header">
         <div>
+          <PurchaseProgress current="checkout" />
           <h1 id="checkout-title">{translate('customer:checkoutPage_thanhToan')}</h1>
-          <p className="purchase-step" aria-current="step">
-            {translate('customer:checkoutPage_paymentStep')}
-          </p>
           <p className="purchase-checkout-event">{concertTitle(event)}</p>
           <CheckoutEventTime date={event.date} venue={event.venue} />
         </div>
         {createdOrder && (
-          <div
-            className="purchase-deadline"
-            data-state={
-              paymentCountdown.isExpired
-                ? 'expired'
-                : paymentCountdown.isWarning
-                  ? 'warning'
-                  : undefined
-            }
-          >
-            <span>{translate('customer:checkoutPage_thoiGianThanhToan')}</span>
-            {paymentCountdown.isExpired ? (
-              <strong>{translate('customer:checkoutPage_deadlinePassed')}</strong>
-            ) : (
-              <strong role="timer" aria-live="off">
-                {paymentCountdown.formatted}
-              </strong>
-            )}
-          </div>
+          <HoldTimer
+            expiresAt={createdOrder.expiresAt}
+            label={translate('customer:checkoutPage_thoiGianThanhToan')}
+            // The page announces expiry with its own alert and next action.
+            expiredMessage=""
+          />
         )}
       </header>
 
@@ -672,7 +656,7 @@ export function CheckoutPage() {
         <div className="purchase-panel purchase-checkout-notice">
           <p role="alert">{translate('customer:checkoutPage_thoiGianThanhToanDaHetVui')}</p>
           <Link className="button button-secondary" to="/profile?tab=orders">
-            {translate('customer:checkoutPage_xemLichSuDonHang')}
+            {translate('customer:orderOutcome_viewOrderHistory')}
           </Link>
         </div>
       )}
@@ -690,7 +674,7 @@ export function CheckoutPage() {
                 {translate('customer:checkoutPage_kiemTraLaiDon')}
               </button>
               <Link className="button button-secondary" to="/profile?tab=orders">
-                {translate('customer:checkoutPage_xemLichSuDonHang')}
+                {translate('customer:orderOutcome_viewOrderHistory')}
               </Link>
             </div>
           )}
@@ -789,8 +773,9 @@ export function CheckoutPage() {
                     : 'customer:checkoutPage_tongTamTinh',
                 )}
               </span>
-              <strong>{currency.format(displayedTotal)}</strong>
+              <strong>{formatPrice(displayedTotal)}</strong>
             </div>
+            <AllInPriceNote />
             <button className="button button-primary" type="submit" disabled={paymentDisabled}>
               {actionLabel}
             </button>

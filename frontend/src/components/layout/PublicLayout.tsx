@@ -1,13 +1,22 @@
 import { translate } from '../../i18n';
 import { useTranslation } from 'react-i18next';
-import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, CircleUserRound, LogOut, Search, Ticket } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { ChevronDown, CircleUserRound, LogOut, Moon, Search, Sun, Ticket } from 'lucide-react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { getUnreadNotificationCount, isNotificationAccessDenied } from '../../api/notifications';
 import { useAuth, type UserSummary } from '../../features/auth/AuthContext';
 import { getRoleHome, getRoleHomeLabel } from '../../features/auth/roleRoutes';
 import { buyerInformationLinks } from '../../features/ticket/buyerInformation';
+import {
+  combineQuery,
+  rememberSearchSplit,
+  splitQuery,
+  type HeaderSearchValues,
+} from '../../features/discovery/headerSearch';
+import { readDiscoveryFilters, writeDiscoveryFilters } from '../../features/discovery/filters';
+import { useDocumentTheme, useThemePreference } from '../../hooks/useThemePreference';
 import { LanguageSelect } from '../LanguageSelect';
+import { HeaderSearch } from './HeaderSearch';
 import './PublicLayout.css';
 
 export function Logo({
@@ -119,32 +128,85 @@ function AccountMenuLinks({
   );
 }
 
-function HeaderSearch({
-  onSubmit,
-  query,
-  inputRef,
-}: {
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
-  query: string;
-  inputRef?: React.RefObject<HTMLInputElement>;
-}) {
-  const label = translate('shared:publicLayout_timSuKien');
+const compactHeaderQuery = '(max-width: 760px)';
+
+const canMatchMedia = () => typeof window.matchMedia === 'function';
+
+function subscribeToCompactHeader(onChange: () => void) {
+  if (!canMatchMedia()) return () => undefined;
+  const query = window.matchMedia(compactHeaderQuery);
+  query.addEventListener('change', onChange);
+  return () => query.removeEventListener('change', onChange);
+}
+
+/** Narrow headers keep language and theme in the account menu; wider ones show them directly. */
+function useCompactHeader() {
+  return useSyncExternalStore(
+    subscribeToCompactHeader,
+    () => canMatchMedia() && window.matchMedia(compactHeaderQuery).matches,
+    () => false,
+  );
+}
+
+function ThemeToggle({ className }: { className?: string }) {
+  const { dark, toggleTheme } = useThemePreference();
+  const label = translate(dark ? 'shared:workspaceSwitchToLight' : 'shared:workspaceSwitchToDark');
   return (
-    <form className="public-header-search" role="search" aria-label={label} onSubmit={onSubmit}>
-      <input
-        ref={inputRef}
-        defaultValue={query}
-        type="search"
-        name="q"
-        maxLength={160}
-        aria-label={label}
-        autoComplete="off"
-        placeholder={label}
-      />
-      <button type="submit" aria-label={translate('shared:publicLayout_timKiem')}>
-        <Search aria-hidden="true" size={20} />
-      </button>
-    </form>
+    <button
+      type="button"
+      className={['public-header-action public-theme-toggle', className].filter(Boolean).join(' ')}
+      aria-label={label}
+      title={label}
+      onClick={toggleTheme}
+    >
+      {dark ? <Sun size={19} aria-hidden="true" /> : <Moon size={19} aria-hidden="true" />}
+    </button>
+  );
+}
+
+function ThemeMenuItem() {
+  const { dark, toggleTheme } = useThemePreference();
+  return (
+    <button type="button" className="public-account-theme" onClick={toggleTheme}>
+      {dark ? <Sun size={17} aria-hidden="true" /> : <Moon size={17} aria-hidden="true" />}
+      {translate(dark ? 'shared:workspaceSwitchToLight' : 'shared:workspaceSwitchToDark')}
+    </button>
+  );
+}
+
+/** Catalogue views Catalog filters today. City and category entries need new discovery filters. */
+const browseLinks = [
+  { id: 'all', label: 'shared:browse_allEvents', params: {} },
+  { id: 'on-sale', label: 'shared:browse_onSale', params: { status: 'on-sale' } },
+  { id: 'today', label: 'shared:browse_today', params: { date: 'today' } },
+  { id: 'weekend', label: 'shared:browse_weekend', params: { date: 'weekend' } },
+  { id: 'next-30', label: 'shared:browse_next30', params: { date: 'next-30' } },
+  { id: 'upcoming', label: 'shared:browse_upcoming', params: { status: 'upcoming' } },
+] as const;
+const browseKeys = ['q', 'date', 'from', 'to', 'status'] as const;
+
+function BrowseRow({ current }: { current: URLSearchParams | null }) {
+  return (
+    <nav className="public-browse page-width" aria-label={translate('shared:browse_label')}>
+      <ul>
+        {browseLinks.map((link) => {
+          const params = new URLSearchParams(link.params);
+          const active =
+            current !== null &&
+            browseKeys.every((key) => (current.get(key) ?? '') === (params.get(key) ?? ''));
+          return (
+            <li key={link.id}>
+              <Link
+                to={{ pathname: '/events', search: params.toString() }}
+                aria-current={active ? 'page' : undefined}
+              >
+                {translate(link.label)}
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
   );
 }
 
@@ -163,6 +225,7 @@ function PublicHeader({
 }) {
   useTranslation();
   const [open, setOpen] = useState<Disclosure | null>(null);
+  const compact = useCompactHeader();
   const header = useRef<HTMLElement>(null);
   const trigger = useRef<HTMLButtonElement>();
   const searchInput = useRef<HTMLInputElement>(null);
@@ -172,7 +235,13 @@ function PublicHeader({
   const isAudience = user?.role === 'AUDIENCE';
   const onCatalogue = location.pathname === '/events' || location.pathname === '/events/';
   const catalogParams = new URLSearchParams(onCatalogue ? location.search : '');
-  const searchQuery = catalogParams.get('q') ?? '';
+  const catalogFilters = readDiscoveryFilters(catalogParams, false);
+  const initialSearch: HeaderSearchValues = {
+    ...splitQuery(catalogFilters.q),
+    date: catalogFilters.date,
+    from: catalogFilters.from,
+    to: catalogFilters.to,
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -206,41 +275,63 @@ function PublicHeader({
     setOpen(null);
   }
 
-  function submitSearch(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const query = String(new FormData(event.currentTarget).get('q')).trim();
-    if (query) catalogParams.set('q', query);
-    else catalogParams.delete('q');
+  function search(values: HeaderSearchValues) {
+    const q = combineQuery(values.what, values.where);
+    rememberSearchSplit({ what: values.what, where: values.where });
+    const params = writeDiscoveryFilters(catalogParams, {
+      q,
+      date: values.date,
+      from: values.from,
+      to: values.to,
+    });
     close();
-    navigate({ pathname: '/events', search: catalogParams.toString(), hash: '#discover-concerts' });
+    navigate({ pathname: '/events', search: params.toString(), hash: '#discover-concerts' });
+  }
+
+  function openEvent(href: string) {
+    close();
+    navigate(href);
   }
 
   return (
     <header className="public-header" ref={header}>
       <div className="public-topbar page-width">
         <Logo to={getRoleHome(user?.role)} label={getRoleHomeLabel(user?.role)} />
+        {canBrowseCatalogue ? (
+          <div
+            id="public-header-search"
+            className="public-search-panel"
+            data-open={open === 'search'}
+          >
+            <HeaderSearch
+              initial={initialSearch}
+              inputRef={searchInput}
+              onSearch={search}
+              onOpenEvent={openEvent}
+            />
+          </div>
+        ) : null}
         <div className="public-header-actions">
           {canBrowseCatalogue ? (
-            <>
-              <button
-                className="public-header-action public-search-trigger"
-                type="button"
-                aria-label={translate('shared:publicLayout_timSuKien')}
-                aria-expanded={open === 'search'}
-                aria-controls="public-header-search"
-                onClick={(event) => toggle('search', event.currentTarget)}
-              >
-                <Search size={20} aria-hidden="true" />
-              </button>
-              <div
-                id="public-header-search"
-                className="public-search-panel"
-                data-open={open === 'search'}
-              >
-                <HeaderSearch onSubmit={submitSearch} query={searchQuery} inputRef={searchInput} />
-              </div>
-            </>
+            <button
+              className="public-header-action public-search-trigger"
+              type="button"
+              aria-label={translate('shared:publicLayout_timSuKien')}
+              aria-expanded={open === 'search'}
+              aria-controls="public-header-search"
+              onClick={(event) => toggle('search', event.currentTarget)}
+            >
+              <Search size={20} aria-hidden="true" />
+            </button>
           ) : null}
+          {compact ? null : (
+            <>
+              <div className="public-header-language">
+                <LanguageSelect compact />
+              </div>
+              <ThemeToggle className="public-header-theme" />
+            </>
+          )}
           {user ? (
             <nav
               className={isAudience ? 'public-main-nav' : 'public-main-nav public-workspace-nav'}
@@ -314,15 +405,21 @@ function PublicHeader({
                     </Link>
                   </>
                 ) : null}
-                <label className="public-account-language">
-                  {translate('common:language')}
-                  <LanguageSelect />
-                </label>
+                {compact ? (
+                  <div className="public-account-preferences">
+                    <label className="public-account-language">
+                      {translate('common:language')}
+                      <LanguageSelect />
+                    </label>
+                    <ThemeMenuItem />
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </div>
         </div>
       </div>
+      {canBrowseCatalogue ? <BrowseRow current={onCatalogue ? catalogParams : null} /> : null}
     </header>
   );
 }
@@ -334,6 +431,7 @@ export type PublicLayoutContext = {
 
 export function PublicLayout() {
   useTranslation();
+  useDocumentTheme();
   const { user, token, loading, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -396,6 +494,7 @@ export function PublicLayout() {
       {isBookingFlow ? (
         <div className="page-width booking-language">
           <LanguageSelect />
+          <ThemeToggle />
         </div>
       ) : (
         <PublicHeader

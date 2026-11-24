@@ -31,9 +31,22 @@ The token names are historical. The stylesheet loads Manrope, DM Sans and Playfa
 
 ## Buyer discovery and account
 
-- Use `PublicLayout` for buyer navigation and `AuthLayout` for sign-in, registration and recovery. Use the same header gutter and search across public pages. Keep search and wallet access reachable on narrow screens. Place language and notifications in the account disclosure and return focus after Escape.
+- Use `PublicLayout` for buyer navigation and `AuthLayout` for sign-in, registration and recovery. Use the same header gutter and search across public pages. Keep search and wallet access reachable on narrow screens. Show language and the theme toggle in the header from 761 CSS px; below that, place them in the account disclosure with notifications. Return focus after Escape.
 - Use the homepage for featured and upcoming events. Use `/events` for the searchable catalogue. Show the featured event once, use text labels for sale status and applied filters, and use the total from Catalog for paginated results.
 - Use `.buyer-page` for account typography and status feedback. Keep profile details and order history independently usable. Pair order status with a visible next action when the buyer can continue, verify payment or open tickets.
+
+## Buyer shell and shared building blocks
+
+- **Header search.** `HeaderSearch` has three parts: Where (city or venue), When (date presets or a calendar range in a disclosure) and What (the `Find events` combobox). Where and What join into `q`; When writes `date`, `from` and `to`. Suggestions use the ARIA combobox pattern with grouped options (recent searches, events, venues); Escape closes the list before it closes the mobile panel. Do not add filters to the header that Catalog does not apply.
+- **Browse row.** `.public-browse` links to catalogue views Catalog supports. Mark the current view with `aria-current="page"`. It scrolls horizontally on narrow screens.
+- **Theme.** `useThemePreference` holds the device-wide light/dark choice for both layouts; `PublicLayout` sets `data-theme` on `<html>` so portals follow it. Buyer dark tokens live in `src/app/buyer-theme.css`. Use tokens (`--surface`, `--surface-2`, `--line`, `--muted`, `--cream`, `--violet`, `--coral`, `--buyer-selected-bg`, `--buyer-warning-*`, `--buyer-danger-*`, `--buyer-success-text`) instead of hex values in new buyer styles. When an older rule hard-codes a light colour, add a scoped `:root[data-theme='dark']` override there.
+- **Purchase progress.** Put `PurchaseProgress` at the top of each purchase step's `.purchase-header` (Choose date → Tickets → Checkout → Done). It renders the `.purchase-step` label "Step n of 4" and marks the current step with `aria-current="step"`. Status pages pass `step` to `CheckoutStatusPanel`.
+- **Hold timer.** Use `HoldTimer` for the one deadline of a step. It formats `h:mm:ss` from one hour, keeps the `role="timer"` silent and announces the warning (2 minutes by default) and expiry once through its status message. Pass `expiredMessage=""` when the page already announces expiry with its own alert and next action.
+- **All-in price.** TicketBox charges no service fees. Format amounts with `formatPrice`, show the lowest price as `PriceFrom` ("From ₫X"), and place `AllInPriceNote` ("Price includes all fees") next to totals. Do not add a fee breakdown.
+- **Loading and states.** Use `CardGridSkeleton`, `DetailSkeleton` or `PanelSkeleton` for first loads; each has one status label and stops animating with reduced motion. Use `BuyerState` (`tone` = `loading`, `empty`, `error`) for messages with an optional next action; errors are alerts.
+- **Event data.** Use `EventView` (`features/event/eventView.ts`) for event context in buyer pages, `purchasePaths` for detail, waiting-room and selection routes, and `loadConcertView` when a legacy order or ticket needs Catalog details. Performance orders and tickets carry their own date and venue.
+- **Order outcome.** Decide what a buyer can do with an order through `resolveOrderOutcome` and poll with `pollOrderOutcome`. Map outcomes to page screens in the page; keep the copy in `customer:orderOutcome_*`.
+- **Not found.** Unknown URLs render `NotFoundPage` inside `PublicLayout`; keep the address and offer the role home and the catalogue.
 
 ## Maintenance
 

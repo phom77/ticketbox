@@ -1,0 +1,149 @@
+/* Shared purchase progress and hold timer (see DESIGN_SYSTEM.md). */
+
+.purchase-progress {
+  display: grid;
+  gap: 0.5rem;
+  min-inline-size: 0;
+}
+
+.purchase-progress > .purchase-step {
+  margin: 0;
+}
+
+.purchase-header .purchase-progress,
+.performance-purchase-header .purchase-progress {
+  margin-block-end: 0.75rem;
+}
+
+.purchase-progress ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.purchase-progress li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  color: var(--muted);
+  font-size: var(--buyer-meta-size, 0.875rem);
+  font-weight: 650;
+}
+
+.purchase-progress li + li::before {
+  content: '';
+  inline-size: 1rem;
+  block-size: 1px;
+  margin-inline-end: 0.375rem;
+  background: var(--line);
+}
+
+.purchase-progress-marker {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface);
+  font-size: 0.75rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.purchase-progress li[data-state='complete'] {
+  color: var(--cream);
+}
+.purchase-progress li[data-state='complete'] .purchase-progress-marker {
+  border-color: var(--coral);
+  background: var(--coral);
+  color: var(--surface);
+}
+.purchase-progress li[data-state='current'] {
+  color: var(--violet);
+  font-weight: 800;
+}
+.purchase-progress li[data-state='current'] .purchase-progress-marker {
+  border: 2px solid var(--coral);
+  color: var(--violet);
+}
+
+@media (max-width: 520px) {
+  /* The "Step n of 4" label carries the progress; keep only the markers visible. */
+  .purchase-progress li:not([data-state='current']) .purchase-progress-label {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+  .purchase-progress li + li::before {
+    inline-size: 0.5rem;
+  }
+}
+
+.purchase-hold-timer {
+  display: grid;
+  justify-items: start;
+  gap: 0.375rem;
+  min-inline-size: 0;
+}
+
+.purchase-hold-timer .purchase-deadline {
+  border: 1px solid transparent;
+}
+
+.purchase-hold-timer .purchase-deadline strong {
+  font-size: 1.125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.purchase-hold-timer .purchase-deadline[data-state='warning'] {
+  border-color: var(--buyer-warning-line);
+  background: var(--buyer-warning-bg);
+  color: var(--buyer-warning-text);
+}
+
+.purchase-hold-timer .purchase-deadline[data-state='expired'] {
+  border-color: var(--buyer-danger-line);
+  background: var(--buyer-danger-bg);
+  color: var(--buyer-danger-text);
+}
+
+.purchase-hold-timer-message {
+  margin: 0;
+  max-inline-size: 32ch;
+  font-size: var(--buyer-meta-size, 0.875rem);
+}
+.purchase-hold-timer-message:empty {
+  display: none;
+}
+.purchase-hold-timer[data-state='warning'] .purchase-hold-timer-message {
+  color: var(--buyer-warning-text);
+}
+.purchase-hold-timer[data-state='expired'] .purchase-hold-timer-message {
+  color: var(--buyer-danger-text);
+}
+
+.all-in-price-note {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+  font-size: var(--buyer-meta-size, 0.875rem);
+  font-weight: 600;
+}
+
+.price-from {
+  font-variant-numeric: tabular-nums;
+}
+
+.purchase-status-progress {
+  margin-block-end: 1rem;
+}
+
+.performance-purchase-header {
+  margin-block-end: 1.25rem;
+}

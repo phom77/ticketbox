@@ -73,7 +73,7 @@ const cases = [
   ['Header search opens the catalogue, preserves active filters and mirrors reload', async () => {
     await fixture({}, async (page) => {
       await page.goto('/');
-      const search = page.getByRole('banner').getByRole('searchbox', { name: 'Find events' });
+      const search = page.getByRole('banner').getByRole('combobox', { name: 'Find events' });
       await search.fill(' Hanoi ');
       await search.press('Enter');
       await page.waitForURL((url) => url.searchParams.get('q') === 'Hanoi');
@@ -103,7 +103,7 @@ const cases = [
         await page.goto('/');
         const header = page.getByRole('banner');
         const logo = header.getByRole('link', { name: 'Back to events' });
-        const search = header.getByRole('searchbox', { name: 'Find events' });
+        const search = header.getByRole('combobox', { name: 'Find events' });
         const searchButton = header.getByRole('button', { name: 'Find events' });
         const wallet = header.getByRole('link', { name: 'My tickets' });
         const account = header.getByRole('button', { name: 'Open account menu' });
@@ -146,7 +146,7 @@ const cases = [
       await header.getByRole('link', { name: 'My tickets' }).waitFor();
       const searchButton = header.getByRole('button', { name: 'Find events' });
       await searchButton.press('Enter');
-      const search = header.getByRole('searchbox', { name: 'Find events' });
+      const search = header.getByRole('combobox', { name: 'Find events' });
       await search.waitFor();
       await assertFocused(search);
       await search.press('Escape');
@@ -179,7 +179,7 @@ const cases = [
       assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
     });
   }],
-  ['Desktop account holds notifications, language and order history', async () => {
+  ['Desktop header offers language and theme; account holds notifications and order history', async () => {
     await fixture({ authenticated: true }, async (page) => {
       await page.goto('/');
       const header = page.getByRole('banner');
@@ -187,7 +187,14 @@ const cases = [
       await main.getByRole('link', { name: 'My tickets' }).waitFor();
       assert.equal(await main.getByRole('link', { name: 'Events', exact: true }).count(), 0, 'Events is available through catalogue search.');
       assert.equal(await header.getByRole('link', { name: /Notifications/ }).count(), 0, 'Notifications stays in the closed account menu.');
-      assert.equal(await header.getByRole('combobox', { name: 'Language' }).count(), 0, 'Language stays in the closed account menu.');
+      const language = header.getByRole('combobox', { name: 'Language' });
+      assert(await language.isVisible(), 'Language is reachable directly in the desktop header.');
+      const theme = header.getByRole('button', { name: 'Switch to dark mode' });
+      await theme.click();
+      await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+      await page.reload();
+      await header.getByRole('button', { name: 'Switch to light mode' }).click();
+      await page.waitForFunction(() => document.documentElement.dataset.theme === 'light');
       const account = header.getByRole('button', { name: 'Open account menu' });
       await account.getByText('7 unread notifications', { exact: true }).waitFor();
       assert(await account.getAttribute('aria-describedby'));
@@ -195,8 +202,7 @@ const cases = [
       const notifications = header.getByRole('link', { name: /Notifications.*7 unread/ });
       await notifications.waitFor();
       assert.equal(await notifications.getAttribute('href'), '/notifications');
-      const language = header.getByRole('combobox', { name: 'Language' });
-      await language.waitFor();
+      assert.equal(await language.count(), 1, 'The account menu does not repeat the desktop language control.');
       const orders = header.getByRole('link', { name: 'Order history' });
       await orders.focus();
       await page.keyboard.press('Escape');
@@ -232,6 +238,63 @@ const cases = [
       });
     }
   }],
+  ['3-part search sends place and dates, offers recent searches and the browse row marks the view', async () => {
+    await fixture({ authenticated: true }, async (page) => {
+      await page.goto('/');
+      const header = page.getByRole('banner');
+      const where = header.getByRole('textbox', { name: 'Where: city or venue' });
+      const what = header.getByRole('combobox', { name: 'Find events' });
+      await where.fill('Hà Nội');
+      await what.fill('jazz');
+      await header.getByRole('button', { name: 'When: Any date' }).click();
+      await header.getByRole('radio', { name: 'Choose dates' }).check();
+      await header.getByLabel('From date').fill('2027-01-10');
+      await header.getByLabel('To date').fill('2027-01-12');
+      await header.getByRole('button', { name: 'Done' }).click();
+      await assertFocused(header.getByRole('button', { name: /^When: / }));
+      await header.getByRole('button', { name: 'Search', exact: true }).click();
+      await page.waitForURL((url) => url.searchParams.get('q') === 'jazz Hà Nội');
+      const url = new URL(page.url());
+      assert.equal(url.pathname, '/events');
+      assert.deepEqual(['date', 'from', 'to'].map((key) => url.searchParams.get(key)), ['custom', '2027-01-10', '2027-01-12']);
+      await page.reload();
+      assert.equal(await what.inputValue(), 'jazz');
+      assert.equal(await where.inputValue(), 'Hà Nội');
+
+      await page.goto('/');
+      await what.focus();
+      const recent = header.getByRole('option', { name: 'jazz · Hà Nội' });
+      await recent.waitFor();
+      await what.press('ArrowDown');
+      assert.equal(await what.getAttribute('aria-activedescendant'), await recent.getAttribute('id'));
+      await what.press('Escape');
+      assert.equal(await what.getAttribute('aria-expanded'), 'false');
+      await what.press('ArrowDown');
+      await what.press('Enter');
+      await page.waitForURL((value) => value.searchParams.get('q') === 'jazz Hà Nội');
+
+      const browse = header.getByRole('navigation', { name: 'Browse events' });
+      await browse.getByRole('link', { name: 'On sale now' }).click();
+      await page.waitForURL((value) => value.pathname === '/events' && value.searchParams.get('status') === 'on-sale');
+      assert.equal(await browse.getByRole('link', { name: 'On sale now' }).getAttribute('aria-current'), 'page');
+      assert.equal(await browse.getByRole('link', { name: 'All events' }).getAttribute('aria-current'), null);
+    });
+  }],
+  ['Unknown addresses show a not-found page instead of redirecting', async () => {
+    for (const width of [320, 1440]) {
+      await fixture({ width }, async (page) => {
+        await page.goto('/no-such/page?from=email');
+        const heading = page.getByRole('heading', { level: 1, name: 'We can’t find that page' });
+        await heading.waitFor();
+        await assertFocused(heading);
+        assert.equal(new URL(page.url()).pathname, '/no-such/page');
+        assert.equal(await page.getByRole('main').getByRole('link', { name: 'Browse events' }).getAttribute('href'), '/events');
+        await page.getByRole('banner').waitFor();
+        assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+        await page.screenshot({ path: resolve(output, `not-found-en-${width}.png`) });
+      });
+    }
+  }],
   ['Legacy and native purchase routes keep the compact language header', async () => {
     await fixture({ authenticated: true, width: 390 }, async (page) => {
       await page.addInitScript(() => {
@@ -246,6 +309,7 @@ const cases = [
       ]) {
         await page.goto(path);
         await page.getByRole('combobox', { name: 'Language' }).waitFor();
+        assert(await page.getByRole('button', { name: 'Switch to dark mode' }).isVisible(), `${path} keeps the theme choice.`);
         assert.equal(new URL(page.url()).pathname, path);
         assert.equal(await page.getByRole('banner').count(), 0, `${path} omits full buyer navigation.`);
       }

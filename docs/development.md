@@ -247,7 +247,7 @@ node scripts/e2e/buyer-navigation-auth.mjs
 node scripts/e2e/buyer-account-orders.mjs
 ```
 
-The fixtures cover responsive behavior, keyboard interaction and recovery using mocked API responses. Use `organization-workspace.mjs` with the isolated gateway to verify that a MOCK purchase results in a ticket the buyer can reopen after reload.
+The fixtures cover responsive behavior, keyboard interaction and recovery using mocked API responses. The header search field is the `Find events` combobox; `buyer-navigation-auth.mjs` also covers the header language and theme controls. Use `organization-workspace.mjs` with the isolated gateway to verify that a MOCK purchase results in a ticket the buyer can reopen after reload.
 
 Open `/discover-preview` on the Vite server to try city, genre and price filters with sample data. The route is available in development. The public `/events` page queries Catalog by title, venue, event date and sale status. Catalog applies these conditions before pagination.
 

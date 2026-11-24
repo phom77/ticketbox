@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from 'react';
 export type Countdown = {
   remainingMs: number;
   remainingSeconds: number;
+  hours: number;
+  /** Minutes within the current hour when hours > 0, otherwise the total minutes. */
   minutes: number;
   seconds: number;
   formatted: string;
@@ -17,10 +19,15 @@ function remainingUntil(expiresAt?: string | null) {
   return Math.max(0, target - Date.now());
 }
 
-function formatCountdown(totalSeconds: number) {
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+const pad = (value: number) => value.toString().padStart(2, '0');
+
+/** mm:ss below one hour, h:mm:ss from one hour. */
+export function formatCountdown(totalSeconds: number) {
+  const safe = Math.max(0, Math.floor(totalSeconds));
+  const hours = Math.floor(safe / 3_600);
+  const minutes = Math.floor((safe % 3_600) / 60);
+  const seconds = safe % 60;
+  return hours > 0 ? `${hours}:${pad(minutes)}:${pad(seconds)}` : `${pad(minutes)}:${pad(seconds)}`;
 }
 
 export function useCountdown(expiresAt?: string | null, warningThresholdSeconds = 120): Countdown {
@@ -49,12 +56,14 @@ export function useCountdown(expiresAt?: string | null, warningThresholdSeconds 
     const hasExpiry = Boolean(expiresAt) && countdownState.expiresAt === expiresAt;
     const remainingMs = hasExpiry ? countdownState.remainingMs : 0;
     const remainingSeconds = hasExpiry ? Math.ceil(remainingMs / 1_000) : 0;
-    const minutes = Math.floor(remainingSeconds / 60);
+    const hours = Math.floor(remainingSeconds / 3_600);
+    const minutes = Math.floor((remainingSeconds % 3_600) / 60);
     const seconds = remainingSeconds % 60;
 
     return {
       remainingMs,
       remainingSeconds,
+      hours,
       minutes,
       seconds,
       formatted: formatCountdown(remainingSeconds),

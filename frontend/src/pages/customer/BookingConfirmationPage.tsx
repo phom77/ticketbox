@@ -2,12 +2,20 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CircleCheck } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
-import { getConcert, type ConcertDetail } from '../../api/concerts';
 import { getOrder, type Order } from '../../api/orders';
-import { currency } from '../../data/formatters';
+import { PurchaseProgress } from '../../components/purchase/PurchaseProgress';
 import { useAuth } from '../../features/auth/AuthContext';
 import { concertTitle } from '../../features/concert/concertText';
-import { orderWindowExpired, type CheckoutEvent } from '../../features/ticket/checkoutPayment';
+import {
+  hasPerformanceDetails,
+  loadConcertView,
+  orderView,
+  type EventView,
+} from '../../features/event/eventView';
+import { AllInPriceNote } from '../../features/price/AllInPrice';
+import { formatPrice } from '../../features/price/price';
+import type { CheckoutEvent } from '../../features/ticket/checkoutPayment';
+import { resolveOrderOutcome } from '../../features/ticket/orderOutcome';
 import {
   CheckoutEventTime,
   CheckoutOrderLines,
@@ -52,20 +60,23 @@ function VerifyConfirmation({ orderId, event }: { orderId: string; event?: Check
     return (
       <CheckoutStatusPanel
         announce
-        title={t('customer:bookingConfirmationPage_verifying')}
-        body={t('customer:bookingConfirmationPage_verifyingDetail')}
+        step="done"
+        title={t('customer:orderOutcome_verifyingOrderTitle')}
+        body={t('customer:orderOutcome_verifyingOrderBody')}
       >
         <div className="purchase-status-actions">
           <Link className="button button-secondary" to="/profile?tab=orders">
-            {t('customer:bookingConfirmationPage_xemLichSuDonHang')}
+            {t('customer:orderOutcome_viewOrderHistory')}
           </Link>
         </div>
       </CheckoutStatusPanel>
     );
   }
 
-  if (order?.status !== 'PAID' || order.id !== orderId)
-    return <UnconfirmedOrder expired={order !== null && orderWindowExpired(order)} />;
+  // The confirmation reads no payment status: an unpaid order is unconfirmed here.
+  const outcome = order?.id === orderId ? resolveOrderOutcome(order, null).kind : null;
+  if (!order || outcome !== 'paid')
+    return <UnconfirmedOrder expired={outcome === 'expired' || outcome === 'expiredPending'} />;
   return <ConfirmedOrder order={order} event={event} />;
 }
 
@@ -73,16 +84,15 @@ function UnconfirmedOrder({ expired }: { expired?: boolean }) {
   const { t } = useTranslation();
   return (
     <CheckoutStatusPanel
+      step="done"
       title={t(
-        expired
-          ? 'customer:bookingConfirmationPage_donHangDaHetHan'
-          : 'customer:bookingConfirmationPage_chuaTheXacNhanDonHang',
+        expired ? 'customer:orderOutcome_expiredTitle' : 'customer:orderOutcome_unconfirmedTitle',
       )}
-      body={t('customer:bookingConfirmationPage_kiemTraTrangThaiMoiNhatTrong')}
+      body={t('customer:orderOutcome_checkHistoryBody')}
     >
       <div className="purchase-status-actions">
         <Link className="button button-primary" to="/profile?tab=orders">
-          {t('customer:bookingConfirmationPage_xemLichSuDonHang')}
+          {t('customer:orderOutcome_viewOrderHistory')}
         </Link>
       </div>
     </CheckoutStatusPanel>
@@ -91,33 +101,32 @@ function UnconfirmedOrder({ expired }: { expired?: boolean }) {
 
 function ConfirmedOrder({ order, event }: { order: Order; event?: CheckoutEvent }) {
   const { t } = useTranslation();
-  const [concert, setConcert] = useState<ConcertDetail>();
+  const [concert, setConcert] = useState<EventView | null>(null);
   const knownEvent = event?.id === order.concertId ? event : undefined;
+  const needsCatalog = !hasPerformanceDetails(order) && !(knownEvent?.date && knownEvent?.venue);
 
   useEffect(() => {
-    if (knownEvent?.date && knownEvent?.venue) return;
+    if (!needsCatalog) return;
     const controller = new AbortController();
-    void getConcert(order.concertId, controller.signal)
-      .then((data) => {
-        if (!controller.signal.aborted) setConcert(data);
+    void loadConcertView(order.concertId, controller.signal)
+      .then((view) => {
+        if (!controller.signal.aborted) setConcert(view);
       })
       .catch(() => {
         // The order summary is available without Catalog enrichment.
       });
     return () => controller.abort();
-  }, [knownEvent?.date, knownEvent?.venue, order.concertId]);
+  }, [needsCatalog, order.concertId]);
 
-  const eventTitle = concert
-    ? concertTitle(concert)
-    : knownEvent
-      ? concertTitle(knownEvent)
-      : order.concertTitle;
+  const view = orderView(order, concert ?? knownEvent);
+  const eventTitle = concertTitle(view);
 
   return (
     <section
       className="buyer-page purchase-page page-width purchase-feedback"
       aria-labelledby="booking-confirmation-title"
     >
+      <PurchaseProgress current="done" />
       <header className="purchase-header purchase-confirmed-header">
         <CircleCheck size={32} aria-hidden="true" />
         <div>
@@ -133,16 +142,14 @@ function ConfirmedOrder({ order, event }: { order: Order; event?: CheckoutEvent 
         aria-labelledby="confirmed-event-title"
       >
         <h2 id="confirmed-event-title">{eventTitle}</h2>
-        <CheckoutEventTime
-          date={concert?.eventDate ?? knownEvent?.date}
-          venue={concert?.venueName ?? knownEvent?.venue}
-        />
+        <CheckoutEventTime date={view.date || undefined} venue={view.venue || undefined} />
         <CheckoutOrderReference code={order.referenceCode} />
         <CheckoutOrderLines order={order} />
         <div className="purchase-order-total">
           <span>{t('customer:bookingConfirmationPage_paidAmount')}</span>
-          <strong>{currency.format(order.totalAmount)}</strong>
+          <strong>{formatPrice(order.totalAmount)}</strong>
         </div>
+        <AllInPriceNote />
       </section>
 
       <div className="purchase-status-actions">
@@ -150,7 +157,7 @@ function ConfirmedOrder({ order, event }: { order: Order; event?: CheckoutEvent 
           {t('customer:bookingConfirmationPage_xemVeCuaToi')}
         </Link>
         <Link className="button button-secondary" to="/profile?tab=orders">
-          {t('customer:bookingConfirmationPage_xemLichSuDonHang')}
+          {t('customer:orderOutcome_viewOrderHistory')}
         </Link>
       </div>
     </section>

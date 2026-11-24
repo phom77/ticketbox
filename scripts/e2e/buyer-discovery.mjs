@@ -106,10 +106,10 @@ try {
   assert.equal(await results().getByText('64 events', { exact: true }).count(), 1);
   assert.equal(await main.getByText('City', { exact: true }).count(), 0, 'Fixture filters stay in preview.');
   const search = async (query) => {
-    if (!(await page.getByRole('banner').getByRole('searchbox').isVisible())) {
+    if (!(await page.getByRole('banner').getByRole('combobox', { name: 'Find events' }).isVisible())) {
       await page.getByRole('banner').getByRole('button', { name: 'Find events', exact: true }).click();
     }
-    const input = page.getByRole('banner').getByRole('searchbox');
+    const input = page.getByRole('banner').getByRole('combobox', { name: 'Find events' });
     await input.fill(query);
     await input.press('Enter');
     await page.waitForURL((url) => url.pathname === '/events' && (url.searchParams.get('q') ?? '') === query);
@@ -230,7 +230,7 @@ try {
   let releaseCatalog;
   catalogDelay = new Promise((release) => { releaseCatalog = release; });
   await page.goto('/events?q=not-in-catalog#discover-concerts', { waitUntil: 'domcontentloaded' });
-  const headerSearch = page.getByRole('banner').getByRole('searchbox');
+  const headerSearch = page.getByRole('banner').getByRole('combobox', { name: 'Find events' });
   await headerSearch.fill('a new search in progress');
   releaseCatalog();
   catalogDelay = undefined;

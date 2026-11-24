@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useLocation, useParams } from 'react-router-dom';
-import { isRequestCanceled } from '../../api/client';
+import { ApiClientError, isRequestCanceled } from '../../api/client';
+import { BuyerState } from '../../components/feedback/BuyerState';
+import { DetailSkeleton } from '../../components/feedback/Skeleton';
 import { getEvent, performancePath, type EventDetails } from '../../api/performances';
 import { useAuth } from '../../features/auth/AuthContext';
 import { performanceTime } from '../../features/performance/format';
@@ -18,7 +20,8 @@ function EventDetailsPage({ id }: { id: string }) {
   const selectedId = new URLSearchParams(search).get('performance');
   const selectedShow = useRef<HTMLLIElement>(null);
   const [event, setEvent] = useState<EventDetails | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<'missing' | 'temporary' | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
     const controller = new AbortController();
@@ -27,10 +30,13 @@ function EventDetailsPage({ id }: { id: string }) {
         if (!controller.signal.aborted) setEvent(data);
       })
       .catch((error) => {
-        if (!controller.signal.aborted && !isRequestCanceled(error)) setFailed(true);
+        if (controller.signal.aborted || isRequestCanceled(error)) return;
+        setFailed(
+          error instanceof ApiClientError && error.status === 404 ? 'missing' : 'temporary',
+        );
       });
     return () => controller.abort();
-  }, [id]);
+  }, [id, reloadKey]);
 
   useEffect(() => {
     const show = selectedShow.current;
@@ -61,16 +67,42 @@ function EventDetailsPage({ id }: { id: string }) {
 
   if (failed)
     return (
-      <section className="page-width performance-page">
-        <p role="alert">{t('performances:loadFailed')}</p>
-        <Link to="/events">{t('performances:events')}</Link>
+      <section className="buyer-page page-width performance-page">
+        <BuyerState
+          tone="error"
+          headingLevel={1}
+          title={t(
+            failed === 'missing' ? 'performances:unavailable' : 'performances:loadFailedTitle',
+          )}
+          actions={
+            <>
+              {failed === 'temporary' ? (
+                <button
+                  type="button"
+                  className="button button-primary"
+                  onClick={() => {
+                    setFailed(null);
+                    setReloadKey((key) => key + 1);
+                  }}
+                >
+                  {t('performances:retry')}
+                </button>
+              ) : null}
+              <Link className="button button-secondary" to="/events">
+                {t('performances:events')}
+              </Link>
+            </>
+          }
+        >
+          {t(failed === 'missing' ? 'performances:unavailableBody' : 'performances:loadFailed')}
+        </BuyerState>
       </section>
     );
   if (!event)
     return (
-      <p className="page-width performance-page" role="status">
-        {t('performances:loading')}
-      </p>
+      <section className="buyer-page page-width performance-page">
+        <DetailSkeleton label={t('performances:loading')} />
+      </section>
     );
 
   return (
