@@ -28,7 +28,13 @@ export type EventDetails = {
 type DiscoveryEvent = ConcertSummary & {
   eventId: string | null;
   salesSuspended: boolean;
+  minPrice: number | null;
+  city: string | null;
+  category: string | null;
+  performanceCount: number;
 };
+
+export type DiscoveryFacets = { cities: string[]; categories: string[] };
 
 export type Point = { x: number; y: number };
 export type SectionKind = 'GA' | 'ASSIGNED';
@@ -121,6 +127,10 @@ export async function getDiscoveryEvents(search: string, page: number, signal: A
     throw new Error('Invalid event discovery response');
   }
   return response;
+}
+
+export function getDiscoveryFacets(signal?: AbortSignal) {
+  return publicGet<DiscoveryFacets>('/api/v2/events/discovery/facets', signal);
 }
 
 export function getEvent(id: string, signal?: AbortSignal) {

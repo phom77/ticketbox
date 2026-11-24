@@ -1,52 +1,57 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { DiscoveryFilterPanel } from './DiscoveryFilterPanel';
 import { readDiscoveryFilters } from './filters';
 
-const noFilters = readDiscoveryFilters(new URLSearchParams(), false);
+const facets = { cities: ['Hanoi', 'Ho Chi Minh City'], categories: ['jazz', 'pop'] };
 
-function renderPanel(isPreview = false) {
+function renderPanel(query = '') {
   const onApply = vi.fn();
-  render(<DiscoveryFilterPanel filters={noFilters} isPreview={isPreview} onApply={onApply} />);
+  render(
+    <DiscoveryFilterPanel
+      filters={readDiscoveryFilters(new URLSearchParams(query))}
+      facets={facets}
+      count={12}
+      onApply={onApply}
+    />,
+  );
   return { onApply, user: userEvent.setup() };
 }
 
 describe('DiscoveryFilterPanel', () => {
-  it('shows date fields only for a custom range and applies the chosen dates', async () => {
+  it('offers the cities and categories that have events and applies a choice immediately', async () => {
+    const { onApply, user } = renderPanel();
+    const city = screen.getByRole('combobox', { name: /City/ });
+    expect(screen.getByRole('option', { name: 'Hanoi' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Jazz' })).toBeInTheDocument();
+    await user.selectOptions(city, 'Hanoi');
+    expect(onApply).toHaveBeenCalledWith({ city: 'Hanoi' });
+    await user.selectOptions(screen.getByRole('combobox', { name: /Price/ }), '500000-1000000');
+    expect(onApply).toHaveBeenLastCalledWith({ price: '500000-1000000' });
+  });
+
+  it('applies date presets and shows a calendar range only for custom dates', async () => {
     const { onApply, user } = renderPanel();
     expect(screen.queryByLabelText(/From date/)).not.toBeInTheDocument();
-    expect(screen.queryByRole('combobox', { name: /City/ })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'This weekend' }));
+    expect(onApply).toHaveBeenLastCalledWith({ date: 'weekend', from: '', to: '' });
 
-    await user.selectOptions(screen.getByRole('combobox', { name: /Event date/ }), 'custom');
+    await user.click(screen.getByRole('button', { name: 'Choose dates' }));
     fireEvent.change(screen.getByLabelText(/From date/), { target: { value: '2026-12-01' } });
-    fireEvent.change(screen.getByLabelText(/To date/), { target: { value: '2026-12-31' } });
-    await user.selectOptions(screen.getByRole('combobox', { name: /Ticket sales/ }), 'on-sale');
-    await user.click(screen.getByRole('button', { name: 'Apply filters' }));
-
-    expect(onApply).toHaveBeenCalledWith({
-      date: 'custom',
-      from: '2026-12-01',
-      to: '2026-12-31',
-      status: 'on-sale',
-    });
+    expect(onApply).toHaveBeenLastCalledWith({ date: 'custom', from: '2026-12-01', to: '' });
   });
 
-  it('clears an empty custom range instead of applying it', async () => {
-    const { onApply, user } = renderPanel();
-    await user.selectOptions(screen.getByRole('combobox', { name: /Event date/ }), 'custom');
-    await user.click(screen.getByRole('button', { name: 'Apply filters' }));
-
-    expect(onApply).toHaveBeenCalledWith({ date: '', from: '', to: '', status: '' });
-  });
-
-  it('includes the sample city, category and price filters on the preview route', async () => {
-    const { onApply, user } = renderPanel(true);
-    await user.selectOptions(screen.getByRole('combobox', { name: /City/ }), 'hanoi');
-    await user.click(screen.getByRole('button', { name: 'Apply filters' }));
-
-    expect(onApply).toHaveBeenCalledWith(
-      expect.objectContaining({ city: 'hanoi', category: '', price: '' }),
-    );
+  it('keeps a city from the URL selectable and opens as a sheet with a result count', async () => {
+    const { user } = renderPanel('city=Da+Nang');
+    expect(screen.getByRole('option', { name: 'Da Nang' })).toBeInTheDocument();
+    const trigger = screen.getByRole('button', { name: /Filters/ });
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    await user.click(trigger);
+    expect(screen.getByRole('dialog', { name: 'Filters' })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    expect(trigger).toHaveFocus();
+    expect(screen.getByRole('button', { name: 'Show 12 events' })).toBeInTheDocument();
   });
 });

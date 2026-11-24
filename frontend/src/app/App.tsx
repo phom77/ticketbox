@@ -8,7 +8,7 @@ import {
   RequireOrganizationGrant,
   RequireOrganizationMembership,
 } from '../features/organizations/OrganizationProvider';
-import { lazy, Suspense, useLayoutEffect } from 'react';
+import { useLayoutEffect } from 'react';
 import { lazyNamed } from './lazyNamed';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { OperationsLayout } from '../components/layout/OperationsLayout';
@@ -25,7 +25,8 @@ import { ProfilePage } from '../pages/customer/ProfilePage';
 import { SeatSelectionPage } from '../pages/customer/SeatSelectionPage';
 import { WaitingRoomPage } from '../pages/customer/WaitingRoomPage';
 import { ConcertDetailPage } from '../pages/public/ConcertDetailPage';
-import { EventCataloguePage, HomePage } from '../pages/public/HomePage';
+import EventCataloguePage from '../pages/public/EventCataloguePage';
+import { HomePage } from '../pages/public/HomePage';
 import { LoginPage } from '../pages/public/LoginPage';
 import { NotFoundPage } from '../pages/public/NotFoundPage';
 import { RequestPasswordResetPage, ResetPasswordPage } from '../pages/public/PasswordRecoveryPage';
@@ -134,9 +135,6 @@ const audiencePage = (page: React.ReactNode) => (
 );
 
 const cataloguePage = (page: React.ReactNode) => <CatalogueRoute>{page}</CatalogueRoute>;
-const DiscoveryPreviewPage = import.meta.env.DEV
-  ? lazy(() => import('../pages/public/DiscoveryPreviewPage'))
-  : null;
 
 export function App() {
   useTranslation();
@@ -158,16 +156,6 @@ export function App() {
                 path="/events/:eventId/performances/:id/seats"
                 element={audiencePage(<PerformanceSelectionPage />)}
               />
-              {DiscoveryPreviewPage ? (
-                <Route
-                  path="/discover-preview"
-                  element={cataloguePage(
-                    <Suspense fallback={null}>
-                      <DiscoveryPreviewPage />
-                    </Suspense>,
-                  )}
-                />
-              ) : null}
               <Route path="/concerts/:id" element={cataloguePage(<ConcertDetailPage />)} />
               <Route
                 path="/concerts/:id/waiting-room"
