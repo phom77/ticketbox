@@ -16,7 +16,10 @@ import { PublicLayout } from '../components/layout/PublicLayout';
 import { ToastProvider } from '../components/feedback/ToastProvider';
 import { AuthProvider } from '../features/auth/AuthContext';
 import { CatalogueRoute, ProtectedRoute } from '../features/auth/ProtectedRoute';
-import { BookingConfirmationPage } from '../pages/customer/BookingConfirmationPage';
+import {
+  BookingConfirmationPage,
+  OrderConfirmationPage,
+} from '../pages/customer/BookingConfirmationPage';
 import { CheckoutPage } from '../pages/customer/CheckoutPage';
 import { MyTicketsPage } from '../pages/customer/MyTicketsPage';
 import { NotificationsPage } from '../pages/customer/NotificationsPage';
@@ -178,6 +181,10 @@ export function App() {
               <Route
                 path="/booking-confirmation"
                 element={audiencePage(<BookingConfirmationPage />)}
+              />
+              <Route
+                path="/orders/:orderId/confirmation"
+                element={audiencePage(<OrderConfirmationPage />)}
               />
               <Route path="/payment/result" element={audiencePage(<PaymentResultPage />)} />
               <Route path="/my-tickets" element={audiencePage(<MyTicketsPage />)} />

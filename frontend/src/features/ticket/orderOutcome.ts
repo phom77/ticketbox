@@ -22,6 +22,10 @@ export type OrderOutcome = {
   settled: boolean;
 };
 
+/** The deep-linkable confirmation page of a paid order. */
+export const confirmationPath = (orderId: string) =>
+  `/orders/${encodeURIComponent(orderId)}/confirmation`;
+
 const outcome = (kind: OrderOutcomeKind, settled = false): OrderOutcome => ({ kind, settled });
 
 export function resolveOrderOutcome(

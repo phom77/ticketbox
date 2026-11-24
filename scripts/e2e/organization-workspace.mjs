@@ -282,10 +282,10 @@ try {
   await audience.page.waitForURL('**/checkout?orderId=*');
   const pay = audience.page.getByRole('button', { name: 'Tiếp tục với thanh toán demo' });
   await Promise.all([
-    audience.page.waitForURL(/\/(payment\/result|booking-confirmation)(\?|$)/),
+    audience.page.waitForURL(/\/(payment\/result|orders\/[^/]+\/confirmation)(\?|$)/),
     pay.click(),
   ]);
-  if (new URL(audience.page.url()).pathname !== '/booking-confirmation') {
+  if (!/^\/orders\/[^/]+\/confirmation$/.test(new URL(audience.page.url()).pathname)) {
     await audience.page.waitForURL('**/checkout?orderId=*');
     await pay.click();
   }

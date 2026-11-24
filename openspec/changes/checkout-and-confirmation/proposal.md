@@ -2,7 +2,7 @@
 
 ## Why
 
-Checkout shows only a payment method list and an order summary. A failed payment forces the buyer to cancel the order and queue again, leaving checkout uses `window.confirm`, the payment result page shows a bare status panel while the order is confirmed, and the confirmation page works only from router state, so it cannot be opened from a link or an email.
+Checkout shows only a payment method list and an order summary. A failed payment forces the buyer to cancel the order and queue again, and leaving checkout uses `window.confirm`, the payment result page shows a bare status panel while the order is confirmed, and the confirmation page works only from router state, so it cannot be opened from a link or an email.
 
 This change is U5 of the buyer UI/UX redesign plan.
 
