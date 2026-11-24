@@ -1,5 +1,122 @@
 .waiting-purchase-page {
-  max-inline-size: 48rem;
+  display: grid;
+  gap: var(--purchase-space);
+  max-inline-size: 64rem;
+}
+
+.waiting-hero {
+  display: grid;
+  grid-template-columns: 5rem minmax(0, 1fr);
+  align-items: center;
+  gap: 1rem;
+}
+.waiting-hero-text {
+  display: grid;
+  gap: 0.375rem;
+  min-inline-size: 0;
+}
+.waiting-hero h1,
+.waiting-hero p {
+  margin: 0;
+}
+.waiting-art {
+  inline-size: 5rem;
+  block-size: 5rem;
+  border-radius: 0.75rem;
+  object-fit: cover;
+}
+.waiting-art-empty {
+  background: linear-gradient(135deg, var(--buyer-primary), var(--surface-2));
+}
+.waiting-grid {
+  display: grid;
+  gap: var(--purchase-space);
+  align-items: start;
+}
+.waiting-warning {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--buyer-warning-line);
+  border-radius: 0.625rem;
+  background: var(--buyer-warning-bg);
+  color: var(--buyer-warning-text);
+}
+.waiting-progress {
+  inline-size: 100%;
+  block-size: 0.75rem;
+  border-radius: 999px;
+  background: var(--buyer-skeleton);
+  overflow: hidden;
+}
+.waiting-progress span {
+  display: block;
+  block-size: 100%;
+  border-radius: 999px;
+  background: var(--buyer-primary);
+  transition: inline-size 0.6s ease;
+}
+.waiting-counts,
+.waiting-updated {
+  color: var(--muted);
+  font-size: var(--buyer-meta-size);
+}
+.waiting-alert,
+.waiting-leave-action {
+  min-block-size: 2.75rem;
+}
+.waiting-checklist {
+  display: grid;
+  gap: 0.625rem;
+}
+.waiting-checklist h2,
+.waiting-checklist p {
+  margin: 0;
+}
+.waiting-checklist ul {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.waiting-checklist li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-block-size: 2.75rem;
+}
+.waiting-checklist li > svg {
+  flex: none;
+  color: var(--buyer-success-text);
+}
+.waiting-checklist label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-block-size: 2.75rem;
+  cursor: pointer;
+}
+.waiting-checklist input {
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+}
+.waiting-checklist li[data-done='false'] > svg {
+  color: var(--muted);
+  opacity: 0.5;
+}
+
+@media (min-width: 768px) {
+  .waiting-hero {
+    grid-template-columns: 8rem minmax(0, 1fr);
+    gap: 1.5rem;
+  }
+  .waiting-art {
+    inline-size: 8rem;
+    block-size: 8rem;
+  }
+  .waiting-grid {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  }
 }
 
 .waiting-purchase-panel {

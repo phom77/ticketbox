@@ -147,3 +147,7 @@
 .performance-purchase-header {
   margin-block-end: 1.25rem;
 }
+
+.purchase-deadline strong {
+  font-variant-numeric: tabular-nums;
+}

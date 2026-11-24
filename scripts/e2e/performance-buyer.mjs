@@ -45,6 +45,7 @@ try {
   let admit = false;
   const legacyPerformanceReads = [];
   let hold = { version: 0, expiresAt: null, items: [], totalAmount: 0 };
+  let released = 0;
   await page.route('**/*', async (route) => {
     const url = new URL(route.request().url());
     if (url.origin !== origin) return route.abort();
@@ -83,7 +84,9 @@ try {
         { id: 'a12', label: '12', x: 30, y: 25, accessible: false, restrictedView: false, blocked: false },
       ] }] } });
     }
-    if (path === '/api/v2/performances/second/availability') return send({ layoutVersion: 1, saleVersion: 2, groups });
+    if (path === '/api/v2/performances/first/availability' || path === '/api/v2/performances/second/availability') {
+      return send({ layoutVersion: 1, saleVersion: 2, groups });
+    }
     if (path === '/api/v2/performances/second/availability/sections/balcony') {
       detailReads++;
       return send({ layoutVersion: 1, saleVersion: 2, sectionId, seats: [{ id: 'a12', available: true, groupId: 'priced' }] });
@@ -91,6 +94,11 @@ try {
     if (path === '/api/v2/performances/second/hold') {
       assert.equal(route.request().headers()['queue-access-token'], 'seat-token');
       if (route.request().method() === 'GET') return send(hold);
+      if (route.request().method() === 'DELETE') {
+        released++;
+        hold = { version: hold.version + 1, expiresAt: null, items: [], totalAmount: 0 };
+        return route.fulfill({ status: 204 });
+      }
       const { items, layoutVersion, holdVersion } = route.request().postDataJSON();
       assert.equal(layoutVersion, 1);
       assert.equal(holdVersion, hold.version);
@@ -109,22 +117,36 @@ try {
     await page.goto(origin + '/events');
     await page.getByRole('link', { name: 'River Tour · Find tickets' }).click();
     await page.getByRole('heading', { name: 'River Tour', exact: true }).waitFor();
-    assert.equal(await page.getByText('Studio One', { exact: true }).count(), 1);
-    assert.equal(await page.getByText('Studio Two', { exact: true }).count(), 1);
-    const buy = page.getByRole('link', { name: 'Buy tickets' }).nth(1);
+    const main = page.getByRole('main');
+    const firstDate = main.getByRole('button', { name: /Studio One/ });
+    const secondDate = main.getByRole('button', { name: /Studio Two/ });
+    assert.equal(await firstDate.getAttribute('aria-pressed'), 'true');
+    const chooseSecond = async () => {
+      await secondDate.click();
+      assert.equal(await secondDate.getAttribute('aria-pressed'), 'true');
+      await page.waitForURL((url) => url.searchParams.get('performance') === 'second');
+    };
+    await chooseSecond();
+    const buy = main.getByRole('link', { name: 'Buy tickets' });
     await buy.click();
-    await page.waitForURL('**' + performanceUrl + '/waiting-room');
+    await page.waitForURL((url) => url.pathname === performanceUrl + '/waiting-room');
     await page.getByRole('heading', { name: 'River Tour', exact: true }).waitFor();
     await page.getByText(/Studio Two/).waitFor();
     await page.getByRole('button', { name: 'Leave the queue' }).click();
-    await page.waitForURL('**' + eventUrl);
+    await page.waitForURL((url) => url.pathname === eventUrl);
     admit = true;
+    await chooseSecond();
     await buy.click();
-    await page.waitForURL('**' + performanceUrl + '/seats');
+    await page.waitForURL((url) => url.pathname === performanceUrl + '/tickets');
     await page.getByRole('heading', { name: 'Choose tickets', exact: true }).waitFor();
     assert.deepEqual(legacyPerformanceReads, [], 'Native performances never load legacy concert data.');
     assert.equal(detailReads, 0, 'Initial load must avoid seat detail requests');
-    await page.getByRole('button', { name: 'Balcony' }).focus();
+    // Without a usable map the list stays an equivalent keyboard route, behind the List tab on phones.
+    const listTab = page.getByRole('tab', { name: 'List' });
+    await listTab.focus();
+    await page.keyboard.press('Enter');
+    assert.equal(await listTab.getAttribute('aria-selected'), 'true');
+    await page.getByRole('button', { name: 'View seats' }).focus();
     await page.keyboard.press('Enter');
     const seat = page.getByRole('button', { name: 'Row A, seat 12' });
     await seat.waitFor();
@@ -135,6 +157,7 @@ try {
     assert.equal(await page.getByRole('button', { name: 'Continue to checkout' }).isEnabled(), true);
     await page.getByRole('button', { name: 'Continue to checkout' }).click();
     await page.waitForURL('**/checkout?orderId=seat-order');
+    assert.equal(released, 0, 'Checkout keeps the hold.');
     await page.getByText('Balcony · Row A, seat 12', { exact: false }).waitFor();
     await page.goto(origin + '/concerts/first');
     await page.getByRole('heading', { name: 'Legacy River Show', exact: true }).waitFor();

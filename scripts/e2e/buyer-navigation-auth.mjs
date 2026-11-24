@@ -298,14 +298,14 @@ const cases = [
   ['Legacy and native purchase routes keep the compact language header', async () => {
     await fixture({ authenticated: true, width: 390 }, async (page) => {
       await page.addInitScript(() => {
-        const [, concertId] = location.pathname.match(/\/([^/]+)\/seats$/) ?? [];
+        const [, concertId] = location.pathname.match(/\/([^/]+)\/tickets$/) ?? [];
         if (concertId) sessionStorage.setItem('ticketbox.queue-admission', JSON.stringify({
           concertId, queueAccessToken: 'fixture-admission', sessionExpiresAt: new Date(Date.now() + 60_000).toISOString(),
         }));
       });
       for (const path of [
-        '/concerts/legacy/waiting-room', '/concerts/legacy/seats',
-        '/events/native/performances/show/waiting-room', '/events/native/performances/show/seats',
+        '/concerts/legacy/waiting-room', '/events/legacy/tickets',
+        '/events/native/performances/show/waiting-room', '/events/native/performances/show/tickets',
       ]) {
         await page.goto(path);
         await page.getByRole('combobox', { name: 'Language' }).waitFor();

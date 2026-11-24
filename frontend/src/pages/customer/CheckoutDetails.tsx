@@ -5,7 +5,7 @@ import { dateFormatter } from '../../data/formatters';
 import { PurchaseProgress, type PurchaseStep } from '../../components/purchase/PurchaseProgress';
 import { formatPrice } from '../../features/price/price';
 import { seatDescription } from '../../features/performance/checkoutPresentation';
-import type { CheckoutSelection } from './SeatSelectionPage';
+import type { CheckoutSelection } from '../../features/ticketSelection/selection';
 import './PurchaseCheckout.css';
 
 type OrderLinesProps = {
