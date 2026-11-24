@@ -1,0 +1,48 @@
+/*
+ * Buyer theme tokens. Light values extend the existing tokens in app.css.
+ * PublicLayout sets data-theme on <html> from useThemePreference; the workspace
+ * shell keeps its own scoped palette in operations.css.
+ */
+:root {
+  --buyer-warning-bg: #fff8ec;
+  --buyer-warning-line: #d6b16c;
+  --buyer-warning-text: #744c08;
+  --buyer-danger-bg: #fff8f7;
+  --buyer-danger-line: #edc6c3;
+  --buyer-danger-text: #942a22;
+  --buyer-success-text: #087748;
+  --buyer-selected-bg: #eef4ff;
+  --buyer-skeleton: #eaecf0;
+  --buyer-skeleton-highlight: #f5f7fa;
+  --buyer-on-primary: #ffffff;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  color: #eef2fa;
+  background: #0e141e;
+  --ink: #0e141e;
+  --surface: #161f2d;
+  --surface-2: #1f2a3c;
+  --line: #3a4960;
+  --muted: #b3c0d4;
+  --coral: #8fb6ff;
+  --coral-light: #b5ceff;
+  --violet: #b0ccff;
+  --cream: #eef2fa;
+  --buyer-warning-bg: #3b2d17;
+  --buyer-warning-line: #8a6a2d;
+  --buyer-warning-text: #fbd491;
+  --buyer-danger-bg: #422229;
+  --buyer-danger-line: #8c4048;
+  --buyer-danger-text: #ffbcb7;
+  --buyer-success-text: #8be0b8;
+  --buyer-selected-bg: #20385d;
+  --buyer-skeleton: #222d40;
+  --buyer-skeleton-highlight: #2c3a52;
+  --buyer-on-primary: #0d1b34;
+}
+
+:root[data-theme='dark'] select {
+  color-scheme: dark;
+}

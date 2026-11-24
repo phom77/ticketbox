@@ -40,23 +40,11 @@ import { useAuth, type UserSummary } from '../../features/auth/AuthContext';
 import { Logo } from './PublicLayout';
 import { WorkspaceSelect } from '../WorkspaceSelect';
 import { WorkspaceRouteBoundary } from './WorkspaceRouteBoundary';
+import { useThemePreference } from '../../hooks/useThemePreference';
 import type { OperationsConcertContext } from './operationsConcertNavigation';
 
-type WorkspaceTheme = 'light' | 'dark';
 type WorkspaceMode = 'admin' | 'organizer' | 'staff';
 type Sidebar = 'primary' | 'concert';
-const themePreferenceKey = 'ticketbox.workspace.theme';
-
-function initialTheme(): WorkspaceTheme {
-  try {
-    const saved = window.localStorage.getItem(themePreferenceKey);
-    if (saved === 'light' || saved === 'dark') return saved;
-  } catch {
-    // The workspace can still switch themes when storage is unavailable.
-  }
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-}
-
 function sidebarPreferenceKey(mode: WorkspaceMode, sidebar: Sidebar) {
   return `ticketbox.workspace.${mode}.${sidebar}.collapsed`;
 }
@@ -269,7 +257,7 @@ export function OperationsLayout({ mode }: { mode: WorkspaceMode }) {
   const [disclosure, setDisclosure] = useState<{ locationKey: string; expanded: boolean }>();
   const [concert, setConcert] = useState<OperationsConcertContext | null>(null);
   const [accountOpen, setAccountOpen] = useState(false);
-  const [theme, setTheme] = useState(initialTheme);
+  const { theme, dark, toggleTheme: switchTheme } = useThemePreference();
   const drawer = useRef<HTMLDialogElement>(null);
   const drawerTrigger = useRef<HTMLButtonElement>(null);
   const concertTrigger = useRef<HTMLButtonElement>(null);
@@ -277,7 +265,6 @@ export function OperationsLayout({ mode }: { mode: WorkspaceMode }) {
   const canCollapse = !narrow && mode !== 'staff';
   const primaryRail = canCollapse && primaryCollapsed;
   const concertRail = canCollapse && concertCollapsed;
-  const dark = theme === 'dark';
   const themeAction = translate(
     dark ? 'shared:workspaceSwitchToLight' : 'shared:workspaceSwitchToDark',
   );
@@ -344,16 +331,6 @@ export function OperationsLayout({ mode }: { mode: WorkspaceMode }) {
 
   function backToMainNavigation() {
     setDrawerConcert(false);
-  }
-
-  function switchTheme() {
-    const next = dark ? 'light' : 'dark';
-    setTheme(next);
-    try {
-      window.localStorage.setItem(themePreferenceKey, next);
-    } catch {
-      // Keep the current preference for the active workspace session.
-    }
   }
 
   function toggleSidebar(sidebar: Sidebar) {
