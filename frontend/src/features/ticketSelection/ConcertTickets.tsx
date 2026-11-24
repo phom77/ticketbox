@@ -33,6 +33,7 @@ import {
 import { TicketSelectionShell } from './TicketSelectionShell';
 import {
   defaultFilters,
+  holdProblem,
   parseQuantity,
   visibleRows,
   type OfferRow,
@@ -41,6 +42,13 @@ import {
 
 type HoldAction = 'reserve' | 'release' | 'verify';
 type HoldFeedback = { kind: 'error' | 'confirmed' | 'unverified'; message: string };
+const problemKeys = {
+  quota: 'customer:ticketSelection_problem_quota',
+  soldOut: 'customer:ticketSelection_problem_soldOut',
+  conflict: 'customer:ticketSelection_problem_conflict',
+  rateLimit: 'customer:ticketSelection_problem_rateLimit',
+  generic: 'customer:ticketSelection_problem_generic',
+} as const;
 const eventDateTime = dateFormatter({ dateStyle: 'medium', timeStyle: 'short' });
 
 /** Legacy zone-only concerts, adapted to the unified Choose tickets page. Holds change per click. */
@@ -282,7 +290,10 @@ export function ConcertTickets({ id }: { id: string }) {
         error.status !== 408 &&
         !(action === 'release' && error.status === 400)
       ) {
-        setZoneFeedback(type.id, { kind: 'error', message: error.message });
+        setZoneFeedback(type.id, {
+          kind: 'error',
+          message: translate(problemKeys[holdProblem(error)]),
+        });
       } else {
         // A lost response may follow a committed write. Re-read the hold before allowing a new write.
         await verifyQuantity(type.id, token);
