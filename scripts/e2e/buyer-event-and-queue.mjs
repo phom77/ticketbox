@@ -68,7 +68,12 @@ async function fixture(user) {
     if (path === '/api/concerts') return reply(emptyPage);
     if (path === `/api/concerts/${eventId}`) return reply(state.event, state.event ? 200 : 404);
     if (path === `/api/concerts/${eventId}/ticket-types`) return reply(state.event.ticketTypes);
-    if (path === `/api/concerts/${eventId}/availability`) return reply({ concertId: eventId, items: [] });
+    if (path === `/api/concerts/${eventId}/availability`) return reply({
+      concertId: eventId,
+      items: state.event.ticketTypes.map((type) => ({
+        ticketTypeId: type.id, name: type.name, availableQty: type.availableQty, totalQuantity: type.totalQuantity,
+      })),
+    });
     if (path === `/api/queue/concerts/${eventId}/join`) {
       state.joins++;
       return reply(state.queue);
@@ -131,41 +136,40 @@ try {
   const event = await fixture();
   const { page, state } = event;
   const content = page.getByRole('main');
-  const buyNow = content.getByRole('link', { name: 'Buy now' });
-  const enterWaitingRoom = content.getByRole('link', { name: 'Join the waiting room' });
+  const buyNow = content.getByRole('link', { name: 'Sign in to buy' });
+  const enterWaitingRoom = content.getByRole('link', { name: 'Join waiting room' });
   const salesCases = [
-    [{ status: 'CANCELLED', saleStartAt: timestamp(90) }, 'This event was cancelled.'],
+    [{ status: 'CANCELLED', saleStartAt: timestamp(90) }, 'Cancelled'],
     [{ status: 'SOLD_OUT' }, 'Sold out'],
-    [{ status: 'COMPLETED' }, 'Ticket sales have ended'],
-    [{ saleEndAt: timestamp(-1) }, 'Ticket sales have ended'],
-    [{ saleStartAt: timestamp(90) }, 'Not yet on sale'],
+    [{ status: 'COMPLETED' }, 'Sale closed'],
+    [{ saleEndAt: timestamp(-1) }, 'Sale closed'],
+    [{ saleStartAt: timestamp(90) }, /^Opens /],
   ];
   for (const [overrides, label] of salesCases) {
     state.event = { ...detail, ...overrides };
     await page.goto(eventPath);
     await content.getByRole('heading', { name: eventTitle }).waitFor();
-    await content.getByText(label, { exact: true }).first().waitFor();
+    await content.getByText(label, { exact: typeof label === 'string' }).first().waitFor();
     assert.equal(await buyNow.count(), 0);
     assert.equal(await enterWaitingRoom.count(), 0);
   }
   state.event = null;
   await page.goto(eventPath);
   await content.getByRole('heading', { name: 'Event unavailable' }).waitFor();
-  assert.equal(await content.getByText('This event was cancelled.', { exact: true }).count(), 0);
+  assert.equal(await content.getByText('Cancelled', { exact: true }).count(), 0);
   assert.equal(await buyNow.count(), 0);
   state.event = { ...detail, saleStartAt: timestamp(30) };
   await page.goto(eventPath);
-  await enterWaitingRoom.waitFor();
-  assert.equal(await enterWaitingRoom.getAttribute('href'), eventPath + '/waiting-room');
+  await content.getByRole('link', { name: 'Sign in to buy' }).waitFor();
   state.event = detail;
   await page.goto(eventPath);
+  assert.equal(new URL(page.url()).pathname, '/events/' + eventId, 'Legacy links redirect to the event page');
   await buyNow.waitFor();
-  assert.equal(await buyNow.getAttribute('href'), eventPath + '/waiting-room');
   await content.getByText('Balcony', { exact: true }).waitFor();
   await assertFits(page);
   await page.getByRole('banner').getByRole('button', { name: 'Open account menu' }).click();
   await page.getByRole('combobox', { name: 'Language' }).selectOption('vi');
-  await content.getByText('Đang mở bán', { exact: true }).waitFor();
+  await content.getByText('Đang mở bán', { exact: true }).first().waitFor();
   await assertFits(page);
   await page.getByRole('combobox', { name: 'Ngôn ngữ' }).selectOption('en');
   await page.keyboard.press('Escape');
@@ -176,7 +180,7 @@ try {
   await buyNow.focus();
   await page.keyboard.press('Enter');
   await signIn(page);
-  await page.waitForURL('**' + eventPath + '/waiting-room');
+  await page.waitForURL((url) => url.pathname === eventPath + '/waiting-room' && url.search === '?qty=1');
   await page.getByRole('heading', { name: "You're in line." }).waitFor();
   assert(state.joins > 0);
   await event.context.close();
@@ -199,10 +203,10 @@ try {
 
   const preview = await fixture(organizer);
   await preview.page.goto(`/organizer${eventPath}/preview`);
-  await preview.page.getByText('Organizer preview', { exact: true }).waitFor();
+  await preview.page.getByText(/^Organizer preview/).first().waitFor();
   await preview.page.getByRole('heading', { name: eventTitle }).waitFor();
   assert(preview.state.previews > 0);
-  assert.equal(await preview.page.getByRole('link', { name: /Buy now|Join waiting room/ }).count(), 0);
+  assert.equal(await preview.page.getByRole('link', { name: /Buy tickets|Join waiting room|Sign in to buy/ }).count(), 0);
   await preview.context.close();
   console.log('Organizer preview uses the scoped API and provides no purchase link.');
 
@@ -272,16 +276,16 @@ try {
     departing.state.mockSocket = true;
     departing.state.queue = { ...waiting, pollAfterMs: 5_000 };
     await departing.page.goto(eventPath);
-    await departing.page.getByRole('main').getByRole('link', { name: 'Buy now' }).click();
-    await departing.page.waitForURL(origin + eventPath + '/waiting-room');
+    await departing.page.getByRole('main').getByRole('link', { name: 'Buy tickets' }).click();
+    await departing.page.waitForURL((url) => url.pathname === eventPath + '/waiting-room');
     await departing.page.getByRole('heading', { name: "You're in line." }).waitFor();
     await waitForQueueSocket(departing);
     if (leave) {
       await departing.page.getByRole('button', { name: 'Leave the queue' }).click();
-      await departing.page.waitForURL(origin + eventPath);
+      await departing.page.waitForURL(origin + '/events/' + eventId);
     } else {
       await departing.page.goBack();
-      await departing.page.waitForURL(origin + eventPath);
+      await departing.page.waitForURL((url) => url.pathname === '/events/' + eventId);
     }
     const pollsBeforeDeparture = departing.state.polls;
     await departing.page.clock.fastForward(65_000);
@@ -299,7 +303,7 @@ try {
   const back = closed.page.getByRole('link', { name: 'Back to event details' });
   assert.equal(await back.getAttribute('href'), eventPath);
   await back.click();
-  await closed.page.waitForURL('**' + eventPath);
+  await closed.page.waitForURL('**/events/' + eventId);
   await closed.context.close();
   console.log('An expired queue session explains what happened and links back to the correct event.');
 } finally {

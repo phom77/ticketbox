@@ -6,6 +6,10 @@ export type Performance = {
   id: string;
   eventId: string;
   venueName: string;
+  venueAddress?: string | null;
+  spaceName?: string | null;
+  doorsOpenAt?: string | null;
+  maxPerAccount?: number | null;
   startsAt: string;
   endsAt: string;
   timezone: string;
@@ -22,6 +26,7 @@ export type EventDetails = {
   id: string;
   title: string;
   description: string | null;
+  category?: string | null;
   performances: Performance[];
 };
 
