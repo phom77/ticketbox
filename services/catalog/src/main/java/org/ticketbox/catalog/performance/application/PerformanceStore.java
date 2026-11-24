@@ -26,6 +26,8 @@ public interface PerformanceStore {
 
     Page<DiscoveryCard> discover(DiscoveryQuery query, Pageable page);
 
+    PerformanceViews.DiscoveryFacets discoveryFacets();
+
     Optional<Event> event(UUID id, UUID organizer);
 
     boolean ownsNativeEvent(UUID id, UUID organizer);

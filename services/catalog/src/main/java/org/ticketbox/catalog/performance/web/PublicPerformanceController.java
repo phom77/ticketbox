@@ -44,6 +44,8 @@ public class PublicPerformanceController {
             @RequestParam(defaultValue = "") String q, @RequestParam(defaultValue = "") String date,
             @RequestParam(defaultValue = "") String from, @RequestParam(defaultValue = "") String to,
             @RequestParam(defaultValue = "") String status, @RequestParam(defaultValue = "") String sort,
+            @RequestParam(defaultValue = "") String city, @RequestParam(defaultValue = "") String category,
+            @RequestParam(defaultValue = "") String minPrice, @RequestParam(defaultValue = "") String maxPrice,
             @RequestParam(defaultValue = "0") String page, @RequestParam(defaultValue = "24") String size) {
         var query = q.strip();
         if (query.codePointCount(0, query.length()) > 160 || query.indexOf('\0') >= 0) {
@@ -74,6 +76,14 @@ public class PublicPerformanceController {
         if (!sort.isEmpty() && !sort.equals("sale-start")) {
             throw new AppException(ErrorCode.INVALID_REQUEST, "error.invalid-value");
         }
+        if (city.length() > 120 || category.length() > 120) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "error.invalid-value");
+        }
+        var lowest = price(minPrice);
+        var highest = price(maxPrice);
+        if (lowest != null && highest != null && lowest > highest) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "error.invalid-value");
+        }
         PageRequest paging;
         try {
             paging = PageRequest.of(Math.max(Integer.parseInt(page), 0), Math.clamp(Integer.parseInt(size), 1, 100));
@@ -81,7 +91,23 @@ public class PublicPerformanceController {
             throw new AppException(ErrorCode.INVALID_REQUEST, "error.pagination.invalid");
         }
         return ApiResponse.success(catalog.discover(DiscoveryQuery.of(query, preset, start, end, saleStatus,
-                sort.equals("sale-start")), paging));
+                sort.equals("sale-start"), city, category, lowest, highest), paging));
+    }
+
+    @GetMapping("/events/discovery/facets")
+    public ApiResponse<DiscoveryFacets> discoveryFacets() {
+        return ApiResponse.success(catalog.discoveryFacets());
+    }
+
+    private static Long price(String value) {
+        if (value.isEmpty()) return null;
+        try {
+            var parsed = Long.parseLong(value);
+            if (parsed >= 0) return parsed;
+        } catch (NumberFormatException failure) {
+            // rejected below
+        }
+        throw new AppException(ErrorCode.INVALID_REQUEST, "error.invalid-value");
     }
 
     private static LocalDate discoveryDate(String date) {
