@@ -4,7 +4,7 @@
 
 Compose mặc định chạy sáu Spring Boot process, sáu PostgreSQL instance, gateway, Redis, RabbitMQ và SMTP sink. Identity sở hữu account/role/profile. Catalog sở hữu concert, ticket type và AI jobs. Ticketing sở hữu stock, holds, quota, Order event stream, payment workflow và phát hành vé. Check-in sở hữu admission ledger, guest list và CSV jobs. Payment và Notification giữ hợp đồng version 1.
 
-Mỗi service sở hữu mã Java, test và tài nguyên Flyway trong `services/<name>/`. Compose build từng ứng dụng từ thư mục service tương ứng. Maven reactor ở gốc kiểm tra cả sáu service, còn `backend/` build và kiểm tra Core legacy riêng.
+Mỗi service sở hữu mã Java, test và tài nguyên Flyway trong `services/<name>/`. Compose build từng ứng dụng từ thư mục service tương ứng. Maven reactor ở gốc kiểm tra cả sáu service.
 
 Các bảng concerts và ticket_types bên Ticketing/Check-in là projection của Catalog. Bảng tickets bên Check-in là projection phát hành kết hợp trạng thái sử dụng tại cổng. Các FK xuyên chủ sở hữu được thay bằng ID và luồng đồng bộ. Transaction tạo đơn, stock, Order event và phát hành vé ở Ticketing DB.
 
@@ -49,7 +49,7 @@ Các acceptance script chỉ chạy với project ticketbox-e2e-*. Ví dụ dùn
 
 ## Chuyển dữ liệu đã có
 
-Quy trình cutover từ Core V34 nằm trong [runbook legacy](../legacy/core/README.md#chuyển-dữ-liệu-đã-có).
+Runbook cutover từ Core V34 đã được gỡ cùng mã Core ngày 2026-11-24. Bản cuối nằm trong lịch sử Git tại commit `73fcd66` (`legacy/core/README.md`).
 
 ## Bằng chứng kiểm thử
 

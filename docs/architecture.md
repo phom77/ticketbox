@@ -28,46 +28,6 @@ publications together with the relevant state change.
 Architecture tests in every service check layer dependencies. Functional tests check concurrent writes,
 legacy publication replay, physical replica routing, provider callbacks and read projections.
 
-## Legacy deployment
-
-`backend/` builds and tests the Core application separately. The diagram and Core module descriptions below document the archived deployment described in the [legacy runbook](../legacy/core/README.md).
-
-```mermaid
-flowchart LR
-  Clients[React web / Expo scanner] --> Gateway[Nginx]
-  Gateway --> Core
-  Gateway --> Notification
-  Gateway -->|Provider webhooks| Payment
-  Core --> CoreDB[(Core database)]
-  Core --> Redis[(Redis)]
-  Core -->|Durable intent / HTTP| Payment
-  Payment -->|Result / persisted ACK| Core
-  Payment --> PaymentDB[(Payment database)]
-  Payment --> Providers[MOCK / MoMo / VNPAY]
-  Core -->|Durable event| RabbitMQ
-  RabbitMQ --> Notification
-  Notification --> NotificationDB[(Notification database)]
-  Notification -->|Contact / e-ticket PDF| Core
-  Notification --> SMTP[SMTP]
-```
-
-## Core modules
-
-| Module | Responsibility |
-| --- | --- |
-| `auth` | Accounts, BCrypt credentials, JWTs, profiles and roles |
-| `concert` | Concert lifecycle, sale windows, ticket-type metadata, posters and content |
-| `inventory` | Operational stock in `ticket_inventory` |
-| `queue` | Waiting room, randomized opening queue, FIFO arrivals, admission and shopping sessions |
-| `ticket` | Holds, orders, expiry, payment intents, ticket issuance and PDF documents |
-| `payment` | Embedded implementation and remote Payment adapter |
-| `notification` | Embedded implementation and Core-owned reminder scheduling |
-| `checkin` | Online check-in, offline dataset/sync and scan history |
-| `admin` | Guest-list CSV imports, guest attendance and organizer revenue reports |
-| `ai` | PDF-to-biography jobs, recovery and organizer-reviewed drafts |
-
-Modules expose ports and views from their root packages. Other modules use those APIs instead of importing internal entities or repositories. `ModularityTest` verifies the declared Spring Modulith boundaries. Infrastructure adapters and shared contracts live outside the business modules.
-
 ## Purchase consistency
 
 1. Queue admission creates a user/concert shopping token in Redis. The default session lasts ten minutes. Opening-time entrants are randomized; later arrivals join the FIFO queue.
@@ -92,8 +52,6 @@ The stock invariant for a normal sale is `total = available + held + allocated`,
 ## Contracts and deployment boundaries
 
 `contracts/` contains versioned JSON schemas for payment intents, results, ACKs and notification commands. Stable event/request IDs are retained across retries. Internal HTTP uses dedicated service tokens; provider callbacks verify signatures. The public gateway blocks internal and actuator routes.
-
-Core retains legacy embedded implementations and historical migrations. In remote mode, database fencing prevents old Payment/Notification writers from modifying their former tables. After remote transactions exist, changing routing alone is not a safe rollback.
 
 The supplied Compose configuration is a single-host development deployment with demo credentials. Real merchant certification, production failover, signing-key rotation, multi-device field testing and large-scale capacity acceptance remain separate work. No 80,000-user capacity claim is made.
 

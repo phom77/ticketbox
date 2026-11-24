@@ -8,4 +8,4 @@ The owning service resolves resource ownership. It verifies the caller's current
 
 A1 starts with new organizations and events. Existing events without organization ownership stay outside organizer access. Existing Flyway migrations and IDs are retained. Unscoped staff routes are disabled while the replacement scanner is deferred. The scanner change will define scoped staff permissions and offline behavior.
 
-[OpenSpec design](../../openspec/changes/organizer-identity-and-access/design.md) · [Identity organization access contract](../../contracts/identity.organization-access.v1.json) · [Catalog snapshot contract](../../contracts/catalog.sale-snapshot.v1.json)
+[OpenSpec design](../../openspec/changes/archive/2026-11-24-organizer-identity-and-access/design.md) · [Identity organization access contract](../../contracts/identity.organization-access.v1.json) · [Catalog snapshot contract](../../contracts/catalog.sale-snapshot.v1.json)

@@ -85,7 +85,7 @@ Identity owns accounts. Catalog owns concert metadata and AI jobs. Ticketing own
 
 Each Java service builds from its own source, tests and resources. The root Maven reactor verifies all six applications. Order events and stock changes commit together in Ticketing. Durable, versioned snapshots synchronize the Catalog and Check-in projections.
 
-The retired Core deployment and offline cutover runbook are in the [legacy archive](legacy/core/README.md). Phase 5–6 is available in the isolated [replication and partitioning lab](docs/lab-replication-partitioning.md), including stale reads, primary checkout routing, manual switchover and measured query plans.
+Phase 5–6 is available in the isolated [replication and partitioning lab](docs/lab-replication-partitioning.md), including stale reads, primary checkout routing, manual switchover and measured query plans.
 
 ## Stack
 
@@ -101,7 +101,6 @@ The retired Core deployment and offline cutover runbook are in the [legacy archi
 ## Repository
 
 ```text
-backend/           Archived Core source, migrations and tests
 services/          Six independent applications, each with its own code, migrations and tests
 frontend/          React web application
 mobile-scanner/    Expo scanner and offline synchronization
@@ -111,7 +110,6 @@ scripts/           Verification, smoke and isolated end-to-end tests
 docs/              Architecture, development and API guides
 compose.yaml       Default six-service deployment
 compose.lab.yaml   Optional replication and partitioning lab override
-legacy/core/       Manual Core deployment and cutover tools
 ```
 
 ## Verification and documentation

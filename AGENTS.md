@@ -105,6 +105,6 @@ Read `GLOSSARY-MAP.md` and the owning service glossary before changing business 
 - Report source/build isolation, internal architecture checks and operational
   acceptance separately, with the evidence that actually ran.
 
-Core legacy lives in `backend/`. Its deployment and verification are manual
-and documented in [the legacy runbook](legacy/core/README.md). Apply service
-architecture changes to the owning service.
+The retired Core monolith (`backend/`) and its manual runbook (`legacy/core/`)
+were removed on 2026-11-24. They remain in Git history at commit `73fcd66`.
+Apply service architecture changes to the owning service.

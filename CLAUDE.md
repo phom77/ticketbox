@@ -55,7 +55,7 @@ Demo accounts (local only): `audience@`, `organizer@`, `staff@`, `admin@ticketbo
 - **Per-service layering** is enforced by `src/test/java/.../architecture/ArchitectureTest.java` in each service. Update it when moving packages. `scripts/ci/java-suites.json` lists the test suites CI requires per service.
 - **Gateway:** Nginx config in `infra/` routes `/api/...` to the services; the web app is served from the same origin.
 - **Frontend** (`frontend/src`): React 18 + TypeScript + Vite + Tailwind 4. API clients live in `src/api/` (the Admin/Organizer management client is split by area under `src/api/management/` and re-exported from `src/api/admin.ts`, so import from `api/admin`), routes in `src/app/App.tsx`, pages in `src/pages/{public,...}`, feature logic in `src/features/`, design tokens in `src/app/app.css` (see `frontend/DESIGN_SYSTEM.md`). All user-facing text goes through i18next catalogs in `src/i18n/{en,vi}/`. Lint fails on missing keys or mismatched interpolation/plurals. Unit tests are colocated `*.test.ts(x)` files run by Vitest; the setup in `src/test/setup.ts` loads the English catalogs.
-- **`backend/` and `legacy/core/`** are the retired Core monolith. Don't put new work there. Apply changes to the owning service.
+- **The retired Core monolith** (`backend/`, `legacy/core/`) was deleted on 2026-11-24. It is in Git history at commit `73fcd66` (local tag `archive/core-legacy`). Don't recreate it; put work in the owning service.
 - **Design records:** ADRs in `docs/adr/`, durable specs in `openspec/specs/`, in-flight changes in `openspec/changes/`, older plans in `docs/superpowers/`. `docs/architecture.md` and `docs/api.md` describe consistency guarantees and HTTP APIs.
 
 ## Gotchas
