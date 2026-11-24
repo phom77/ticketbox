@@ -113,12 +113,14 @@ export type HoldProblem = 'quota' | 'soldOut' | 'conflict' | 'rateLimit' | 'gene
 
 /** Maps a hold or order failure to a translatable problem, never raw server text. */
 export function holdProblem(error: unknown): HoldProblem {
-  if (!(error instanceof ApiClientError)) return 'generic';
+  if (!(error instanceof ApiClientError) || error.status >= 500) return 'generic';
   if (error.status === 429) return 'rateLimit';
-  if (error.status === 409) return 'conflict';
+  // Limit and sold-out answers are also 409, so read the (localized) message before the status.
   const text = error.message.toLowerCase();
-  if (/quota|limit|per account|max|too many|exceed/.test(text)) return 'quota';
-  if (/sold|available|unavailable|stock|taken|held/.test(text)) return 'soldOut';
+  if (/quota|limit|per account|maximum|exceed|giới hạn|tối đa/.test(text)) return 'quota';
+  if (/sold out|no longer available|already held|taken|bán hết|không còn/.test(text))
+    return 'soldOut';
+  if (error.status === 409) return 'conflict';
   return 'generic';
 }
 

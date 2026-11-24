@@ -85,6 +85,13 @@ describe('selection helpers', () => {
     expect(holdProblem(new ApiClientError('x', 409))).toBe('conflict');
     expect(holdProblem(new ApiClientError('Per account limit exceeded', 422))).toBe('quota');
     expect(holdProblem(new ApiClientError('Seat already held', 422))).toBe('soldOut');
+    expect(holdProblem(new ApiClientError('You have reached the ticket purchase limit', 409))).toBe(
+      'quota',
+    );
+    expect(holdProblem(new ApiClientError('Bạn đã vượt quá giới hạn giữ vé.', 409))).toBe('quota');
+    expect(holdProblem(new ApiClientError('Vé đã bán hết', 409))).toBe('soldOut');
+    expect(holdProblem(new ApiClientError('Tickets are sold out', 409))).toBe('soldOut');
+    expect(holdProblem(new ApiClientError('The waiting room is unavailable', 503))).toBe('generic');
     expect(holdProblem(new Error('boom'))).toBe('generic');
   });
 

@@ -76,7 +76,7 @@ async function fixture({ svg = mapSvg, admitted = true, expiresIn = 300000, held
       if (state.mode === 'limit') return reply(route, null, 409, 'Bạn đã vượt quá giới hạn giữ vé.');
       if (state.mode === 'soldout') {
         state.stock[id] = 0;
-        return reply(route, null, 409, 'Hạng vé này vừa hết.');
+        return reply(route, null, 409, 'Vé đã bán hết cho hạng vé GA');
       }
       state.held[id] = (state.held[id] ?? 0) + (action === 'reserve' ? 1 : -1);
       if (state.mode === 'lost') return route.abort('failed');
@@ -130,7 +130,7 @@ try {
 
   state.mode = 'limit';
   await vip.getByRole('button', { name: 'Thêm một vé VIP' }).click();
-  await vip.getByRole('alert').getByText('Bạn đã vượt quá giới hạn giữ vé.').waitFor();
+  await vip.getByRole('alert').getByText('Bạn đã đạt giới hạn số vé của buổi diễn này.', { exact: false }).waitFor();
   await subtotal.waitFor();
 
   state.mode = 'lost';
@@ -153,7 +153,7 @@ try {
 
   state.mode = 'soldout';
   await general.getByRole('button', { name: 'Thêm một vé GA' }).click();
-  await general.getByRole('alert').getByText('Hạng vé này vừa hết.').waitFor();
+  await general.getByRole('alert').getByText('Có người vừa lấy những vé đó.', { exact: false }).waitFor();
   await general.getByText('Hết vé', { exact: true }).waitFor();
   await bar.getByText(/750[.\s]000/).waitFor();
 
