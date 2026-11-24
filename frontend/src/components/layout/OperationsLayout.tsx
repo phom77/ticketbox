@@ -39,6 +39,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { useAuth, type UserSummary } from '../../features/auth/AuthContext';
 import { Logo } from './PublicLayout';
 import { WorkspaceSelect } from '../WorkspaceSelect';
+import { WorkspaceRouteBoundary } from './WorkspaceRouteBoundary';
 import type { OperationsConcertContext } from './operationsConcertNavigation';
 
 type WorkspaceTheme = 'light' | 'dark';
@@ -761,7 +762,9 @@ export function OperationsLayout({ mode }: { mode: WorkspaceMode }) {
             key={`${location.pathname}:${organization?.selected?.id ?? ''}`}
             className="route-transition"
           >
-            <Outlet context={setConcert} />
+            <WorkspaceRouteBoundary>
+              <Outlet context={setConcert} />
+            </WorkspaceRouteBoundary>
           </div>
         </main>
       </div>

@@ -200,5 +200,9 @@
   "partnerLock": "Lock account",
   "partnerUnlock": "Unlock account",
   "partnerMigrateMember": "Move access to a work account",
-  "releaseMemberDirectory": "Organization members"
+  "releaseMemberDirectory": "Organization members",
+  "workspaceRouteLoading": "Loading page…",
+  "workspaceRouteFailedTitle": "This page could not open",
+  "workspaceRouteFailedBody": "TicketBox may have been updated, or the connection dropped while the page was loading. Reload to open the latest version.",
+  "workspaceRouteReload": "Reload page"
 }

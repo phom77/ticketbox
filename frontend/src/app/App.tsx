@@ -1,43 +1,21 @@
-import { PerformanceOperationsPage } from '../pages/admin/PerformanceOperationsPage';
-import {
-  NewPerformanceEventPage,
-  PerformanceEventAccess,
-  PerformanceEventPage,
-} from '../pages/organizer/PerformanceEventsPage';
-import { ConcertDirectoryPage } from '../pages/operations/ConcertDirectoryPage';
-import { AdminEventWorkspacePage } from '../pages/admin/AdminEventWorkspacePage';
-import { AdminSettingsPage } from '../pages/admin/AdminSettingsPage';
-import { OperationsReportsPage } from '../pages/operations/OperationsReportsPage';
 import { EventPage } from '../pages/public/EventsPage';
 import { PerformanceSelectionPage } from '../pages/customer/PerformanceSelectionPage';
 import '../pages/public/Performances.css';
 import { translate } from '../i18n';
 import { useTranslation } from 'react-i18next';
-import { ReconciliationPage } from '../pages/organizer/ReconciliationPage';
 import {
   OrganizationProvider,
   RequireOrganizationGrant,
   RequireOrganizationMembership,
 } from '../features/organizations/OrganizationProvider';
-import { AdminOrganizationsPage } from '../pages/admin/AdminOrganizationsPage';
-import { OrganizationMembersPage } from '../pages/organizer/OrganizationMembersPage';
 import { lazy, Suspense, useLayoutEffect } from 'react';
+import { lazyNamed } from './lazyNamed';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { OperationsLayout } from '../components/layout/OperationsLayout';
 import { PublicLayout } from '../components/layout/PublicLayout';
 import { ToastProvider } from '../components/feedback/ToastProvider';
 import { AuthProvider } from '../features/auth/AuthContext';
 import { CatalogueRoute, ProtectedRoute } from '../features/auth/ProtectedRoute';
-import { AdminArtistBioPage } from '../pages/admin/AdminArtistBioPage';
-import { AdminConcertsPage } from '../pages/admin/AdminConcertsPage';
-import { ConcertWorkspacePage } from '../pages/admin/ConcertWorkspacePage';
-import { AdminGuestImportsPage } from '../pages/admin/AdminGuestImportsPage';
-import { AdminNotificationsPage } from '../pages/admin/AdminNotificationsPage';
-import { AdminOrdersPage } from '../pages/admin/AdminOrdersPage';
-import { AdminOverviewPage } from '../pages/admin/AdminOverviewPage';
-import { AdminPublicationQueuePage } from '../pages/admin/AdminPublicationQueuePage';
-import { AdminTicketTypesPage } from '../pages/admin/AdminTicketTypesPage';
-import { AdminUsersPage } from '../pages/admin/AdminUsersPage';
 import { BookingConfirmationPage } from '../pages/customer/BookingConfirmationPage';
 import { CheckoutPage } from '../pages/customer/CheckoutPage';
 import { MyTicketsPage } from '../pages/customer/MyTicketsPage';
@@ -46,8 +24,6 @@ import { PaymentResultPage } from '../pages/customer/PaymentResultPage';
 import { ProfilePage } from '../pages/customer/ProfilePage';
 import { SeatSelectionPage } from '../pages/customer/SeatSelectionPage';
 import { WaitingRoomPage } from '../pages/customer/WaitingRoomPage';
-import { OrganizerOverviewPage } from '../pages/organizer/OrganizerOverviewPage';
-import { OrganizerRevenuePage } from '../pages/organizer/OrganizerRevenuePage';
 import { ConcertDetailPage } from '../pages/public/ConcertDetailPage';
 import { EventCataloguePage, HomePage } from '../pages/public/HomePage';
 import { LoginPage } from '../pages/public/LoginPage';
@@ -57,6 +33,98 @@ import {
   OrganizerApplicationPage,
   OrganizerActivationPage,
 } from '../pages/public/OrganizerAccessPages';
+
+// Admin and Organizer workspace pages load on demand, so buyer pages do not
+// download them. OperationsLayout shows their loading and failure states.
+const PerformanceOperationsPage = lazyNamed(
+  () => import('../pages/admin/PerformanceOperationsPage'),
+  'PerformanceOperationsPage',
+);
+const NewPerformanceEventPage = lazyNamed(
+  () => import('../pages/organizer/PerformanceEventsPage'),
+  'NewPerformanceEventPage',
+);
+const PerformanceEventAccess = lazyNamed(
+  () => import('../pages/organizer/PerformanceEventsPage'),
+  'PerformanceEventAccess',
+);
+const PerformanceEventPage = lazyNamed(
+  () => import('../pages/organizer/PerformanceEventsPage'),
+  'PerformanceEventPage',
+);
+const ConcertDirectoryPage = lazyNamed(
+  () => import('../pages/operations/ConcertDirectoryPage'),
+  'ConcertDirectoryPage',
+);
+const AdminEventWorkspacePage = lazyNamed(
+  () => import('../pages/admin/AdminEventWorkspacePage'),
+  'AdminEventWorkspacePage',
+);
+const AdminSettingsPage = lazyNamed(
+  () => import('../pages/admin/AdminSettingsPage'),
+  'AdminSettingsPage',
+);
+const OperationsReportsPage = lazyNamed(
+  () => import('../pages/operations/OperationsReportsPage'),
+  'OperationsReportsPage',
+);
+const ReconciliationPage = lazyNamed(
+  () => import('../pages/organizer/ReconciliationPage'),
+  'ReconciliationPage',
+);
+const AdminOrganizationsPage = lazyNamed(
+  () => import('../pages/admin/AdminOrganizationsPage'),
+  'AdminOrganizationsPage',
+);
+const OrganizationMembersPage = lazyNamed(
+  () => import('../pages/organizer/OrganizationMembersPage'),
+  'OrganizationMembersPage',
+);
+const AdminArtistBioPage = lazyNamed(
+  () => import('../pages/admin/AdminArtistBioPage'),
+  'AdminArtistBioPage',
+);
+const AdminConcertsPage = lazyNamed(
+  () => import('../pages/admin/AdminConcertsPage'),
+  'AdminConcertsPage',
+);
+const ConcertWorkspacePage = lazyNamed(
+  () => import('../pages/admin/ConcertWorkspacePage'),
+  'ConcertWorkspacePage',
+);
+const AdminGuestImportsPage = lazyNamed(
+  () => import('../pages/admin/AdminGuestImportsPage'),
+  'AdminGuestImportsPage',
+);
+const AdminNotificationsPage = lazyNamed(
+  () => import('../pages/admin/AdminNotificationsPage'),
+  'AdminNotificationsPage',
+);
+const AdminOrdersPage = lazyNamed(
+  () => import('../pages/admin/AdminOrdersPage'),
+  'AdminOrdersPage',
+);
+const AdminOverviewPage = lazyNamed(
+  () => import('../pages/admin/AdminOverviewPage'),
+  'AdminOverviewPage',
+);
+const AdminPublicationQueuePage = lazyNamed(
+  () => import('../pages/admin/AdminPublicationQueuePage'),
+  'AdminPublicationQueuePage',
+);
+const AdminTicketTypesPage = lazyNamed(
+  () => import('../pages/admin/AdminTicketTypesPage'),
+  'AdminTicketTypesPage',
+);
+const AdminUsersPage = lazyNamed(() => import('../pages/admin/AdminUsersPage'), 'AdminUsersPage');
+const OrganizerOverviewPage = lazyNamed(
+  () => import('../pages/organizer/OrganizerOverviewPage'),
+  'OrganizerOverviewPage',
+);
+const OrganizerRevenuePage = lazyNamed(
+  () => import('../pages/organizer/OrganizerRevenuePage'),
+  'OrganizerRevenuePage',
+);
 
 const audiencePage = (page: React.ReactNode) => (
   <ProtectedRoute allowedRoles={['AUDIENCE']} redirectUnauthorized>
