@@ -15,6 +15,8 @@
   --buyer-skeleton: #eaecf0;
   --buyer-skeleton-highlight: #f5f7fa;
   --buyer-on-primary: #ffffff;
+  --buyer-primary: #1457d9;
+  --buyer-primary-hover: #0f47b5;
 }
 
 :root[data-theme='dark'] {
@@ -45,4 +47,108 @@
 
 :root[data-theme='dark'] select {
   color-scheme: dark;
+}
+
+/*
+ * app.css hard-codes light colours on shared buyer surfaces. Map them to the
+ * tokens in the dark theme; light values stay exactly as they were.
+ */
+:root[data-theme='dark']
+  :is(html, body, #root, .site-shell, .auth-route-loading, .profile-loading) {
+  background: var(--ink);
+  color: var(--cream);
+}
+
+:root[data-theme='dark'] :is(select, option) {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--cream);
+}
+
+:root[data-theme='dark'] .logo {
+  color: var(--cream);
+}
+:root[data-theme='dark'] .logo > span:last-child > span {
+  color: var(--coral);
+}
+
+:root[data-theme='dark'] .button-secondary {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--cream);
+}
+:root[data-theme='dark'] .button-secondary:hover {
+  border-color: var(--muted);
+  background: var(--surface-2);
+}
+:root[data-theme='dark'] .button-disabled,
+:root[data-theme='dark'] .button:disabled {
+  border-color: var(--line);
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+:root[data-theme='dark'] .buyer-filters button[aria-pressed='true'] {
+  background: var(--buyer-selected-bg);
+}
+
+:root[data-theme='dark'] :is(input, textarea):not([type='radio'], [type='checkbox']) {
+  color-scheme: dark;
+}
+
+/* Selected and highlighted states that use light tints in app.css and page styles. */
+:root[data-theme='dark']
+  :is(
+    .buyer-account-nav a[aria-current],
+    .purchase-payment-option[data-selected],
+    .purchase-zone[data-selected='true'],
+    .performance-options button[aria-pressed='true'],
+    .inbox-read-state[data-unread='true'],
+    .discovery-main .discovery-preview-label,
+    .discovery-filter-count,
+    .discovery-chips button
+  ) {
+  border-color: var(--line);
+  background: var(--buyer-selected-bg);
+  color: var(--violet);
+}
+
+/* Status text that is dark red, amber or green on light surfaces. */
+:root[data-theme='dark']
+  :is(
+    .purchase-checkout-notice p,
+    .inbox-read-error,
+    .purchase-zone-availability[data-sold-out='true'],
+    .purchase-zone-feedback[data-error='true'],
+    .buyer-auth .buyer-auth-field-error
+  ) {
+  color: var(--buyer-danger-text);
+}
+:root[data-theme='dark'] :is(.purchase-zone-availability, .purchase-confirmed-header > svg) {
+  color: var(--buyer-success-text);
+}
+:root[data-theme='dark'] .purchase-seat-time p {
+  color: var(--buyer-warning-text);
+}
+
+:root[data-theme='dark']
+  :is(.inbox-feedback, .buyer-auth-feedback[role='alert'], .buyer-account-feedback.is-error) {
+  border-color: var(--buyer-danger-line);
+  background: var(--buyer-danger-bg);
+  color: var(--buyer-danger-text);
+}
+:root[data-theme='dark'] .buyer-account-feedback.is-success {
+  background: var(--surface-2);
+  color: var(--buyer-success-text);
+}
+
+:root[data-theme='dark'] .purchase-header .purchase-deadline[data-state='warning'] {
+  border-color: var(--buyer-warning-line);
+  background: var(--buyer-warning-bg);
+  color: var(--buyer-warning-text);
+}
+:root[data-theme='dark'] .purchase-header .purchase-deadline[data-state='expired'] {
+  border-color: var(--buyer-danger-line);
+  background: var(--buyer-danger-bg);
+  color: var(--buyer-danger-text);
 }

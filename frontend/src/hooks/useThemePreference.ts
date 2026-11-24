@@ -1,4 +1,4 @@
-import { useCallback, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useSyncExternalStore } from 'react';
 
 export type Theme = 'light' | 'dark';
 
@@ -57,6 +57,22 @@ export function useThemePreference() {
   const theme = useSyncExternalStore(subscribe, readTheme, () => 'light' as Theme);
   const toggleTheme = useCallback(() => selectTheme(readTheme() === 'dark' ? 'light' : 'dark'), []);
   return { theme, dark: theme === 'dark', toggleTheme };
+}
+
+/**
+ * Applies the preference to <html> while a buyer layout is mounted, so portals such as
+ * dialogs and toasts share the palette. The workspace shell scopes its own palette.
+ */
+export function useDocumentTheme() {
+  const { theme } = useThemePreference();
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.theme = theme;
+    return () => {
+      delete root.dataset.theme;
+    };
+  }, [theme]);
+  return theme;
 }
 
 /** Test helper: forget the in-memory session choice. */

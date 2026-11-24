@@ -335,5 +335,9 @@
   "setupRepriceRow": "Đổi giá cho cả hàng {{row}}",
   "setupMapMismatchHelp": "Sơ đồ đã lưu chưa đủ cho cách bán vé đang chọn. Thêm khu hoặc ghế cần thiết, hoặc đổi cách bán vé cho phù hợp với sơ đồ.",
   "setupBackFromMap": "Về cấu hình vé",
-  "holdExpiresIn": "Giữ vé trong"
+  "holdExpiresIn": "Giữ vé trong",
+  "unavailable": "Sự kiện không khả dụng",
+  "unavailableBody": "Sự kiện này chưa được công bố hoặc không còn tồn tại. Hãy xem các sự kiện khác.",
+  "loadFailedTitle": "Không tải được sự kiện",
+  "retry": "Thử lại"
 }
