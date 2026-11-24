@@ -172,6 +172,54 @@ class PerformanceCatalogIntegrationTest {
     }
 
     @Test
+    void discoveryCardsCarryPriceCityCategoryAndDateCountAndFilterByThem() throws Exception {
+        var starts = OffsetDateTime.now(ZoneOffset.UTC).plusDays(60).withNano(0);
+        UUID legacy = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO concerts (id,title,venue_name,venue_address,event_date,sale_start_at,status,created_by)
+                VALUES (?,'Facet showcase','Grand Hall','1 Main Street, Hanoi, Vietnam',?,?,'DRAFT',?)
+                """, legacy, starts, starts.minusDays(1), owner);
+        jdbc.update("INSERT INTO ticket_types (concert_id,name,price,total_quantity,available_qty) VALUES (?,'Standard',450000,10,10),(?,'Early',300000,10,10)",
+                legacy, legacy);
+        jdbc.update("UPDATE concerts SET status='ON_SALE' WHERE id=?", legacy);
+        var nativeEvent = tx(() -> catalog.createEvent(owner, "Facet native", "Tour", "jazz")).id();
+        discoveryShow(nativeEvent, starts.plusDays(1), starts.minusDays(4), true);
+        discoveryShow(nativeEvent, starts.plusDays(2), starts.minusDays(3), true);
+
+        var path = "/api/v2/events/discovery";
+        var legacyCard = discoveryPage(MockMvcRequestBuilders.get(path).param("q", "facet showcase"))
+                .path("content").get(0);
+        assertThat(legacyCard.path("minPrice").asLong()).isEqualTo(300000);
+        assertThat(legacyCard.path("city").asText()).isEqualTo("Hanoi");
+        assertThat(legacyCard.path("performanceCount").asInt()).isEqualTo(1);
+
+        var nativeCard = discoveryPage(MockMvcRequestBuilders.get(path).param("q", "facet native"))
+                .path("content").get(0);
+        assertThat(nativeCard.path("category").asText()).isEqualTo("jazz");
+        assertThat(nativeCard.path("performanceCount").asInt()).isEqualTo(2);
+        assertThat(nativeCard.path("minPrice").isNull()).isFalse();
+
+        assertThat(discoveryPage(MockMvcRequestBuilders.get(path).param("q", "facet").param("city", "HANOI"))
+                .path("totalElements").asInt()).isEqualTo(1);
+        assertThat(discoveryPage(MockMvcRequestBuilders.get(path).param("q", "facet").param("city", "Hue"))
+                .path("totalElements").asInt()).isZero();
+        assertThat(discoveryPage(MockMvcRequestBuilders.get(path).param("q", "facet").param("category", "Jazz"))
+                .path("totalElements").asInt()).isEqualTo(1);
+        assertThat(discoveryPage(MockMvcRequestBuilders.get(path).param("q", "facet showcase").param("minPrice", "400000"))
+                .path("totalElements").asInt()).isZero();
+        assertThat(discoveryPage(MockMvcRequestBuilders.get(path).param("q", "facet showcase").param("maxPrice", "300000"))
+                .path("totalElements").asInt()).isEqualTo(1);
+        publicCatalog.perform(MockMvcRequestBuilders.get(path).param("minPrice", "9").param("maxPrice", "1"))
+                .andExpect(status().isBadRequest());
+        publicCatalog.perform(MockMvcRequestBuilders.get(path).param("minPrice", "cheap"))
+                .andExpect(status().isBadRequest());
+
+        var facets = discoveryPage(MockMvcRequestBuilders.get(path + "/facets"));
+        assertThat(facets.path("cities").toString()).contains("Hanoi");
+        assertThat(facets.path("categories").toString()).contains("jazz");
+    }
+
+    @Test
     void discoveryRejectsUnsupportedSearchParameters() throws Exception {
         String path = "/api/v2/events/discovery";
         publicCatalog.perform(MockMvcRequestBuilders.get(path).param("q", "x".repeat(161))).andExpect(status().isBadRequest());

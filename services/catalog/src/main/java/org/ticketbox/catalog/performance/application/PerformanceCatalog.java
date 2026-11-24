@@ -38,6 +38,10 @@ public class PerformanceCatalog {
     }
 
     @Transactional(readOnly = true)
+    public PerformanceViews.DiscoveryFacets discoveryFacets() {
+        return store.discoveryFacets();
+    }
+
     public Page<DiscoveryCard> discover(DiscoveryQuery query, Pageable page) {
         return store.discover(query, page);
     }
