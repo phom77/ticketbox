@@ -1,5 +1,6 @@
 package org.ticketbox.ticketing.architecture;
 
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 import com.tngtech.archunit.core.domain.JavaClasses;
@@ -76,6 +77,18 @@ class ArchitectureTest {
                         org.ticketbox.ticketing.order.domain.Order.class,
                         "setStatus",
                         org.ticketbox.ticketing.order.domain.Order.Status.class)
+                .check(classes);
+    }
+
+    @Test
+    void waitingRoomUseCasesLiveInTheApplicationLayer() {
+        classes()
+                .that()
+                .implement(org.ticketbox.ticketing.queue.application.port.WaitingRoomOperations.class)
+                .or()
+                .implement(org.ticketbox.ticketing.queue.application.port.QueueAccessPort.class)
+                .should()
+                .resideInAPackage("..queue.application..")
                 .check(classes);
     }
 }

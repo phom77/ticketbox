@@ -119,7 +119,8 @@
           "domainIsIndependentOfFrameworksAndOuterLayers",
           "useCasesDependOnPortsInsteadOfAdapters",
           "controllersUseApplicationInterfaces",
-          "useCasesChangeOrderStateThroughItsDomainOperations"
+          "useCasesChangeOrderStateThroughItsDomainOperations",
+          "waitingRoomUseCasesLiveInTheApplicationLayer"
         ]
       },
       "domain-rules": {

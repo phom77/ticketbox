@@ -13,7 +13,7 @@ const reservationData = (() => {
   const dto = t('inventory/hold/application/dto/ReserveTicketRequest', 9, 15, 'ReserveTicketRequest');
   const lock = t('inventory/hold/infrastructure/PurchaseGuard', 12, 32, 'PurchaseGuard.lock');
   const shop = t('queue/domain/ShoppingSession', 7, 18, 'ShoppingSession.authorize and requireToken');
-  const redisToken = t('queue/infrastructure/WaitingRoomService', 418, 424, 'WaitingRoomService.validateAccess');
+  const redisToken = t('queue/application/WaitingRoomService', 302, 306, 'WaitingRoomService.validateAccess');
   const redisTtl = t('infrastructure/redis/RedisPurchaseSessions', 35, 38, 'RedisPurchaseSessions.remainingSeconds');
   const projection = t('infrastructure/integration/catalog/TicketingCatalogProjection', 107, 128, 'TicketingCatalogProjection.findTicketTypesByIds');
   const cleanup = t('inventory/hold/application/ReservationService', 200, 220, 'ReservationService.removeStaleHold and releaseAndDelete');
@@ -28,7 +28,7 @@ const reservationData = (() => {
   const ingest = t('infrastructure/integration/catalog/TicketingCatalogReceiver', 56, 120, 'TicketingCatalogReceiver · local snapshot and stock updates');
   const expiryWorker = t('inventory/hold/application/HoldCleanupWorker', 19, 27, 'HoldCleanupWorker');
   const expiryCleanup = t('inventory/hold/application/ReservationService', 175, 182, 'ReservationService.cleanupExpiredHoldsForOwner');
-  const leave = t('queue/infrastructure/WaitingRoomService', 288, 308, 'WaitingRoomService.leave · local event publication');
+  const leave = t('queue/application/WaitingRoomService', 167, 173, 'WaitingRoomService.leave · local event publication');
   const leaveListener = t('inventory/hold/application/UserLeftQueueListener', 17, 26, 'UserLeftQueueListener');
   const releaseSession = t('inventory/hold/application/ReservationService', 190, 198, 'ReservationService.releaseHoldsForSession');
   const tests = (start, end, symbol) => source(

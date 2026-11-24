@@ -40,7 +40,8 @@ import org.ticketbox.ticketing.queue.application.port.DispatchBacklog;
 import org.ticketbox.ticketing.queue.domain.QueueStatus;
 import org.ticketbox.ticketing.queue.infrastructure.QueueAdmissionBus;
 import org.ticketbox.ticketing.queue.infrastructure.RedisAdmissionControl;
-import org.ticketbox.ticketing.queue.infrastructure.WaitingRoomService;
+import org.ticketbox.ticketing.queue.infrastructure.RedisQueueRequestLimiter;
+import org.ticketbox.ticketing.queue.infrastructure.RedisWaitingRoomStore;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -149,7 +150,8 @@ class WaitingRoomServiceIntegrationTest {
                 mapper, new SimpleMeterRegistry());
         metadata = new QueueMetadataService(concertOrderPort, readCache);
         admission = newAdmissionControl();
-        service = new WaitingRoomService(redisTemplate, metadata, new TokenBucketRateLimiter(redisTemplate),
+        service = new WaitingRoomService(new RedisWaitingRoomStore(redisTemplate), metadata,
+                new RedisQueueRequestLimiter(new TokenBucketRateLimiter(redisTemplate)),
                 publisher, admission);
         ReflectionTestUtils.setField(service, "admissionCapacity", 1);
         ReflectionTestUtils.setField(service, "sessionTtl", Duration.ofMillis(450));
@@ -491,7 +493,8 @@ class WaitingRoomServiceIntegrationTest {
     void separateWorkersConsumeTheSameSharedCreditsAcrossTwoBacklogs() throws Exception {
         ReflectionTestUtils.setField(service, "adaptiveEnabled", true);
         ReflectionTestUtils.setField(service, "sessionTtl", Duration.ofMinutes(10));
-        var replica = new WaitingRoomService(redisTemplate, metadata, new TokenBucketRateLimiter(redisTemplate),
+        var replica = new WaitingRoomService(new RedisWaitingRoomStore(redisTemplate), metadata,
+                new RedisQueueRequestLimiter(new TokenBucketRateLimiter(redisTemplate)),
                 publisher, newAdmissionControl());
         ReflectionTestUtils.setField(replica, "adaptiveEnabled", true);
         UUID other = UUID.randomUUID();

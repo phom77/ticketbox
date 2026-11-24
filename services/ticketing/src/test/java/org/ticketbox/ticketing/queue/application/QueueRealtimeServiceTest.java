@@ -9,7 +9,6 @@ import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 import org.ticketbox.ticketing.queue.application.dto.QueueSnapshotResponse;
 import org.ticketbox.ticketing.queue.application.dto.QueueStatusResponse;
 import org.ticketbox.ticketing.queue.domain.QueueStatus;
-import org.ticketbox.ticketing.queue.infrastructure.WaitingRoomService;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
