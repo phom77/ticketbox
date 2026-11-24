@@ -8,7 +8,7 @@ The imported `AGENTS.md` holds the binding project rules (product UX feedback, O
 
 ## Commands
 
-Run from the repository root unless noted. Java integration tests use Testcontainers, so Docker must be running.
+Run from the repository root unless noted. Java integration tests use Testcontainers, so Docker must be running. The services require Java 21 (the Maven enforcer fails the build on other JDKs). If the host JDK is not 21, replace `./mvnw` with `scripts/mvnw-docker.sh` and keep the same arguments.
 
 ```sh
 # Full local stack (gateway on http://localhost:18091), then smoke check
@@ -20,6 +20,7 @@ docker compose up -d --build ticketing      # rebuild/recreate one service
 ./mvnw -B -ntp clean verify                                   # six-service reactor
 ./mvnw -B -ntp -f services/ticketing/pom.xml clean verify     # one service
 ./mvnw -B -ntp -f services/ticketing/pom.xml test -Dtest=ArchitectureTest   # one test class
+scripts/mvnw-docker.sh -B -ntp -f services/ticketing/pom.xml verify         # one service, in a Java 21 container
 python3 scripts/ci/verify-service-boundaries.py --service ticketing         # independent build/boundary gate
 
 # Web (Node 24)
@@ -59,6 +60,7 @@ Demo accounts (local only): `audience@`, `organizer@`, `staff@`, `admin@ticketbo
 
 ## Gotchas
 
+- Testcontainers' Docker API version (1.44, required by Docker 29) comes from each service's `src/test/resources/docker-java.properties`. Keep that file when adding a service.
 - Never edit a released Flyway migration: checksums are baked into existing databases. Add a new one in the owning service.
 - Initial publication of new performances is gated by `TICKETBOX_PERFORMANCE_SALES_ORGANIZATIONS` on Catalog (`*` for isolated local fixtures).
 - Organizer application links and password reset need `PASSWORD_RESET_KEY` (≥32 bytes) in `.env` for Identity.

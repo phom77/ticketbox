@@ -33,6 +33,14 @@
  </dependencies>
  <build><plugins><plugin><groupId>org.springframework.boot</groupId><artifactId>spring-boot-maven-plugin</artifactId></plugin>
   <plugin>
+   <groupId>org.apache.maven.plugins</groupId><artifactId>maven-enforcer-plugin</artifactId>
+   <executions><execution><id>require-java-21</id><goals><goal>enforce</goal></goals>
+    <configuration><rules><requireJavaVersion><version>[21,22)</version>
+     <message>TicketBox services build and test on Java 21. Without a local JDK 21, run Maven in Docker: scripts/mvnw-docker.sh followed by the same arguments (see docs/development.md).</message>
+    </requireJavaVersion></rules></configuration>
+   </execution></executions>
+  </plugin>
+  <plugin>
    <groupId>org.apache.maven.plugins</groupId><artifactId>maven-compiler-plugin</artifactId>
    <configuration>
     <annotationProcessorPaths>
