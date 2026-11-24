@@ -229,7 +229,7 @@ try {
 
   queue.state.queue = { ...waiting, estimatedWaitSeconds: 125 };
   await queue.page.clock.fastForward(16_000);
-  await queue.page.getByText('Estimated wait: About 3 minutes', { exact: true }).waitFor();
+  await queue.page.getByText('Estimated wait: 1–3 minutes', { exact: true }).waitFor();
   queue.state.queue = status('ADMITTED', { queueAccessToken: 'expired-fixture-token', sessionExpiresAt: timestamp(-1) });
   await queue.page.clock.fastForward(16_000);
   await queue.page.getByText('We’re still checking your ticket selection access.', { exact: true }).waitFor();
