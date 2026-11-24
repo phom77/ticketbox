@@ -646,7 +646,6 @@ export function CheckoutPage() {
           <HoldTimer
             expiresAt={createdOrder.expiresAt}
             label={translate('customer:checkoutPage_thoiGianThanhToan')}
-            warningSeconds={180}
             // The page announces expiry with its own alert and next action.
             expiredMessage=""
           />
