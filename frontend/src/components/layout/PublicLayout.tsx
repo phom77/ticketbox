@@ -1,6 +1,6 @@
 import { translate } from '../../i18n';
 import { useTranslation } from 'react-i18next';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { ChevronDown, CircleUserRound, LogOut, Moon, Search, Sun, Ticket } from 'lucide-react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { getUnreadNotificationCount, isNotificationAccessDenied } from '../../api/notifications';
@@ -128,6 +128,26 @@ function AccountMenuLinks({
   );
 }
 
+const compactHeaderQuery = '(max-width: 760px)';
+
+const canMatchMedia = () => typeof window.matchMedia === 'function';
+
+function subscribeToCompactHeader(onChange: () => void) {
+  if (!canMatchMedia()) return () => undefined;
+  const query = window.matchMedia(compactHeaderQuery);
+  query.addEventListener('change', onChange);
+  return () => query.removeEventListener('change', onChange);
+}
+
+/** Narrow headers keep language and theme in the account menu; wider ones show them directly. */
+function useCompactHeader() {
+  return useSyncExternalStore(
+    subscribeToCompactHeader,
+    () => canMatchMedia() && window.matchMedia(compactHeaderQuery).matches,
+    () => false,
+  );
+}
+
 function ThemeToggle({ className }: { className?: string }) {
   const { dark, toggleTheme } = useThemePreference();
   const label = translate(dark ? 'shared:workspaceSwitchToLight' : 'shared:workspaceSwitchToDark');
@@ -205,6 +225,7 @@ function PublicHeader({
 }) {
   useTranslation();
   const [open, setOpen] = useState<Disclosure | null>(null);
+  const compact = useCompactHeader();
   const header = useRef<HTMLElement>(null);
   const trigger = useRef<HTMLButtonElement>();
   const searchInput = useRef<HTMLInputElement>(null);
@@ -303,10 +324,14 @@ function PublicHeader({
               <Search size={20} aria-hidden="true" />
             </button>
           ) : null}
-          <div className="public-header-language">
-            <LanguageSelect compact />
-          </div>
-          <ThemeToggle className="public-header-theme" />
+          {compact ? null : (
+            <>
+              <div className="public-header-language">
+                <LanguageSelect compact />
+              </div>
+              <ThemeToggle className="public-header-theme" />
+            </>
+          )}
           {user ? (
             <nav
               className={isAudience ? 'public-main-nav' : 'public-main-nav public-workspace-nav'}
@@ -380,13 +405,15 @@ function PublicHeader({
                     </Link>
                   </>
                 ) : null}
-                <div className="public-account-preferences">
-                  <label className="public-account-language">
-                    {translate('common:language')}
-                    <LanguageSelect />
-                  </label>
-                  <ThemeMenuItem />
-                </div>
+                {compact ? (
+                  <div className="public-account-preferences">
+                    <label className="public-account-language">
+                      {translate('common:language')}
+                      <LanguageSelect />
+                    </label>
+                    <ThemeMenuItem />
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </div>
