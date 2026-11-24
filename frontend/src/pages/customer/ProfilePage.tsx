@@ -2,9 +2,7 @@ import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ArrowUpRight,
-  CalendarDays,
   ClipboardList,
-  MapPin,
   Settings2,
   ShieldCheck,
   Ticket,
@@ -526,9 +524,7 @@ function OrderCard({ order, status }: { order: Order; status: OrderStatus }) {
         </div>
         {Number.isFinite(dateTimestamp) ? (
           <div>
-            <dt>
-              <CalendarDays size={14} aria-hidden="true" /> {t('customer:account_eventDate')}
-            </dt>
+            <dt>{t('customer:account_eventDate')}</dt>
             <dd>
               <time dateTime={view.date}>{dateTime.format(dateTimestamp)}</time>
             </dd>
@@ -536,9 +532,7 @@ function OrderCard({ order, status }: { order: Order; status: OrderStatus }) {
         ) : null}
         {view.venue ? (
           <div>
-            <dt>
-              <MapPin size={14} aria-hidden="true" /> {t('customer:account_venue')}
-            </dt>
+            <dt>{t('customer:account_venue')}</dt>
             <dd>{view.venue}</dd>
           </div>
         ) : null}
