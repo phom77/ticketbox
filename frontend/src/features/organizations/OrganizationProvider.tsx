@@ -1,7 +1,16 @@
 import { translate } from '../../i18n';
 import { useTranslation } from 'react-i18next';
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, type ReactNode, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import { Link } from 'react-router-dom';
 import { setRequestOrganization } from '../../api/client';
 import {
@@ -34,29 +43,36 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   const pending = useRef<AbortController | null>(null);
   const selected = memberships.find((membership) => membership.id === selectedId);
 
-  const reload = useCallback(async (preferred?: string) => {
-    pending.current?.abort();
-    const controller = new AbortController();
-    pending.current = controller;
-    setLoading(true);
-    setError('');
-    try {
-      const next = await getOrganizationMemberships(controller.signal);
-      if (controller.signal.aborted) return;
-      const wanted = preferred ?? sessionStorage.getItem(storageKey);
-      const id = next.find((organization) => organization.id === wanted)?.id ?? next[0]?.id ?? '';
-      setMemberships(next);
-      setSelectedId(id);
-      if (id) sessionStorage.setItem(storageKey, id);
-      else sessionStorage.removeItem(storageKey);
-    } catch (failure) {
-      if (controller.signal.aborted) return;
-      setMemberships([]);
-      setError(failure instanceof Error ? failure.message : translate("shared:organizationProvider_khongTheTaiDanhSachToChuc"));
-    } finally {
-      if (!controller.signal.aborted) setLoading(false);
-    }
-  }, [storageKey]);
+  const reload = useCallback(
+    async (preferred?: string) => {
+      pending.current?.abort();
+      const controller = new AbortController();
+      pending.current = controller;
+      setLoading(true);
+      setError('');
+      try {
+        const next = await getOrganizationMemberships(controller.signal);
+        if (controller.signal.aborted) return;
+        const wanted = preferred ?? sessionStorage.getItem(storageKey);
+        const id = next.find((organization) => organization.id === wanted)?.id ?? next[0]?.id ?? '';
+        setMemberships(next);
+        setSelectedId(id);
+        if (id) sessionStorage.setItem(storageKey, id);
+        else sessionStorage.removeItem(storageKey);
+      } catch (failure) {
+        if (controller.signal.aborted) return;
+        setMemberships([]);
+        setError(
+          failure instanceof Error
+            ? failure.message
+            : translate('shared:organizationProvider_khongTheTaiDanhSachToChuc'),
+        );
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    },
+    [storageKey],
+  );
 
   useEffect(() => {
     void reload();
@@ -89,13 +105,29 @@ export function RequireOrganizationMembership({ children }: { children: ReactNod
   const { t } = useTranslation();
   const organization = useOrganization();
   const { logout } = useAuth();
-  if (organization?.loading) return <p className="buyer-state" role="status">{t('shared:organizationProvider_dangTaiQuyenCuaToChuc')}</p>;
+  if (organization?.loading)
+    return (
+      <p className="buyer-state" role="status">
+        {t('shared:organizationProvider_dangTaiQuyenCuaToChuc')}
+      </p>
+    );
   if (organization?.selected) return <>{children}</>;
   return (
     <AuthLayout title={t('shared:partnerNoMembership')}>
       {organization?.error ? <p role="alert">{organization.error}</p> : null}
-      {organization?.error ? <button className="button button-secondary" onClick={() => void organization.reload()}>{t('shared:publicationPanel_kiemTraLai')}</button> : null}
-      <button className="button button-secondary" onClick={() => { void logout(); }}>{t('shared:operationsLayout_dangXuat')}</button>
+      {organization?.error ? (
+        <button className="button button-secondary" onClick={() => void organization.reload()}>
+          {t('shared:publicationPanel_kiemTraLai')}
+        </button>
+      ) : null}
+      <button
+        className="button button-secondary"
+        onClick={() => {
+          void logout();
+        }}
+      >
+        {t('shared:operationsLayout_dangXuat')}
+      </button>
     </AuthLayout>
   );
 }
@@ -104,16 +136,23 @@ export function RequireOrganizationGrant({
   grant,
   children,
   fallback,
-}: { grant: OrganizationGrant; children: ReactNode; fallback?: ReactNode }) {
+}: {
+  grant: OrganizationGrant;
+  children: ReactNode;
+  fallback?: ReactNode;
+}) {
   useTranslation();
   const organization = useOrganization();
-  if (organization?.loading) return <p role="status">{translate("shared:organizationProvider_dangTaiQuyenCuaToChuc")}</p>;
+  if (organization?.loading)
+    return <p role="status">{translate('shared:organizationProvider_dangTaiQuyenCuaToChuc')}</p>;
   if (organization?.selected?.grants.includes(grant)) return <>{children}</>;
   if (fallback) return <>{fallback}</>;
   return (
     <div className="admin-empty-state">
-      <p role="status">{translate("shared:organizationProvider_toChucDangChonChuaCapQuyen")}</p>
-      <Link className="admin-secondary-action" to="/organizer">{translate("shared:organizationProvider_veTongQuanToChuc")}</Link>
+      <p role="status">{translate('shared:organizationProvider_toChucDangChonChuaCapQuyen')}</p>
+      <Link className="admin-secondary-action" to="/organizer">
+        {translate('shared:organizationProvider_veTongQuanToChuc')}
+      </Link>
     </div>
   );
 }

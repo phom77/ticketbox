@@ -35,6 +35,6 @@ export function useOperationsConcert(concert: OperationsConcert | null) {
     if (!setConcert || !concert) return;
     const context = { ...concert, pathname, organizationId };
     setConcert(context);
-    return () => setConcert((current) => current === context ? null : current);
+    return () => setConcert((current) => (current === context ? null : current));
   }, [concert, pathname, organizationId, setConcert]);
 }

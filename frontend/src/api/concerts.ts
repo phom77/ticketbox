@@ -78,5 +78,8 @@ export type TicketAvailability = {
 };
 
 export function getTicketAvailability(concertId: string, signal?: AbortSignal) {
-  return publicGet<TicketAvailability>(`/api/concerts/${encodeURIComponent(concertId)}/availability`, signal);
+  return publicGet<TicketAvailability>(
+    `/api/concerts/${encodeURIComponent(concertId)}/availability`,
+    signal,
+  );
 }

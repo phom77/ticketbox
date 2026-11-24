@@ -2,7 +2,11 @@
   min-height: 100dvh;
   color: var(--cream);
   background: var(--ink);
-  font: 400 1rem/1.5 "Manrope", ui-sans-serif, system-ui, sans-serif;
+  font:
+    400 1rem/1.5 'Manrope',
+    ui-sans-serif,
+    system-ui,
+    sans-serif;
 }
 
 .buyer-auth-top {
@@ -19,8 +23,13 @@
 }
 
 .buyer-auth-top .logo,
-.buyer-auth-top .language-select { min-height: 44px; }
-.buyer-auth-top .language-select { font: inherit; font-size: .875rem; }
+.buyer-auth-top .language-select {
+  min-height: 44px;
+}
+.buyer-auth-top .language-select {
+  font: inherit;
+  font-size: 0.875rem;
+}
 
 .buyer-auth-main {
   width: min(calc(100% - 32px), 32rem);
@@ -35,12 +44,18 @@
   background: var(--surface);
 }
 
-.buyer-auth-heading { margin-bottom: 24px; }
+.buyer-auth-heading {
+  margin-bottom: 24px;
+}
 
 .buyer-auth-heading h1 {
   margin: 0;
-  font: 800 2rem/1.18 "Manrope", ui-sans-serif, system-ui, sans-serif;
-  letter-spacing: -.025em;
+  font:
+    800 2rem/1.18 'Manrope',
+    ui-sans-serif,
+    system-ui,
+    sans-serif;
+  letter-spacing: -0.025em;
   text-wrap: wrap;
 }
 
@@ -58,7 +73,7 @@
   gap: 6px;
   min-width: 0;
   color: var(--cream);
-  font-size: .875rem;
+  font-size: 0.875rem;
   font-weight: 700;
   letter-spacing: normal;
   text-transform: none;
@@ -72,14 +87,16 @@
 }
 
 .buyer-auth .field textarea {
-  padding: .75rem;
+  padding: 0.75rem;
   border: 1px solid var(--line);
   background: var(--surface);
   color: var(--cream);
   resize: vertical;
 }
 
-.buyer-auth .field input[aria-invalid="true"] { border-color: #a32631; }
+.buyer-auth .field input[aria-invalid='true'] {
+  border-color: #a32631;
+}
 
 .buyer-auth .field-hint {
   color: var(--muted);
@@ -91,7 +108,9 @@
   font-weight: 600;
 }
 
-.buyer-auth .password-field input { padding-inline-end: 78px; }
+.buyer-auth .password-field input {
+  padding-inline-end: 78px;
+}
 
 .buyer-auth .password-field button {
   right: 2px;
@@ -103,24 +122,29 @@
   font: inherit;
 }
 
-.buyer-auth .password-field button:hover { background: var(--surface-2); }
+.buyer-auth .password-field button:hover {
+  background: var(--surface-2);
+}
 
 .buyer-auth a:not(.logo, .button) {
   color: var(--violet);
   font-weight: 700;
   text-decoration: underline;
-  text-underline-offset: .18em;
+  text-underline-offset: 0.18em;
 }
 
-.buyer-auth a:not(.logo, .button):hover { color: var(--coral); }
+.buyer-auth a:not(.logo, .button):hover {
+  color: var(--coral);
+}
 
 .buyer-auth-alternate {
   margin: 24px 0 0;
   color: var(--muted);
-  font-size: .9375rem;
+  font-size: 0.9375rem;
 }
 
-.buyer-auth-alternate a, .buyer-auth-recovery {
+.buyer-auth-alternate a,
+.buyer-auth-recovery {
   display: inline-flex;
   align-items: center;
   min-height: 44px;
@@ -129,12 +153,16 @@
 .buyer-auth-recovery {
   justify-self: end;
   margin-block: -8px;
-  font-size: .9375rem;
+  font-size: 0.9375rem;
 }
 
 .buyer-auth .button {
   min-height: 48px;
-  font: 800 1rem/1.25 "Manrope", ui-sans-serif, system-ui, sans-serif;
+  font:
+    800 1rem/1.25 'Manrope',
+    ui-sans-serif,
+    system-ui,
+    sans-serif;
   text-align: center;
 }
 
@@ -143,7 +171,7 @@
   align-items: center;
   gap: 10px;
   color: var(--cream);
-  font-size: .875rem;
+  font-size: 0.875rem;
   min-height: 44px;
 }
 
@@ -154,7 +182,8 @@
   accent-color: var(--coral);
 }
 
-.buyer-auth-checkbox label, .buyer-auth-checkbox a {
+.buyer-auth-checkbox label,
+.buyer-auth-checkbox a {
   display: inline-block;
   padding-block: 4px;
 }
@@ -167,9 +196,11 @@
   color: var(--cream);
 }
 
-.buyer-auth-feedback p { margin: 0; }
+.buyer-auth-feedback p {
+  margin: 0;
+}
 
-.buyer-auth-feedback[role="alert"] {
+.buyer-auth-feedback[role='alert'] {
   border-color: #e8babf;
   background: #fff3f4;
   color: #8e1b2b;
@@ -182,7 +213,13 @@
 }
 
 @media (max-width: 560px) {
-  .buyer-auth-main { padding-block: 24px 40px; }
-  .buyer-auth-card { padding: 20px; }
-  .buyer-auth-heading h1 { font-size: 1.75rem; }
+  .buyer-auth-main {
+    padding-block: 24px 40px;
+  }
+  .buyer-auth-card {
+    padding: 20px;
+  }
+  .buyer-auth-heading h1 {
+    font-size: 1.75rem;
+  }
 }

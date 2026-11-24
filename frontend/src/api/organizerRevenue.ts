@@ -50,12 +50,7 @@ export function getZoneRevenue(concertId: string, signal?: AbortSignal) {
   );
 }
 
-export function getSalesTrend(
-  concertId: string,
-  from: string,
-  to: string,
-  signal?: AbortSignal,
-) {
+export function getSalesTrend(concertId: string, from: string, to: string, signal?: AbortSignal) {
   const params = new URLSearchParams({ from, to, groupBy: 'day' });
   return apiGet<SalesTrend[]>(
     `/api/organizer/concerts/${encodeURIComponent(concertId)}/sales-trend?${params}`,
@@ -63,7 +58,11 @@ export function getSalesTrend(
   );
 }
 
-export function exportRevenueReport(concertId: string, format: 'csv' | 'pdf', signal?: AbortSignal) {
+export function exportRevenueReport(
+  concertId: string,
+  format: 'csv' | 'pdf',
+  signal?: AbortSignal,
+) {
   const params = new URLSearchParams({ format });
   return api.get<unknown, Blob>(
     `/api/organizer/concerts/${encodeURIComponent(concertId)}/revenue-report/export?${params}`,

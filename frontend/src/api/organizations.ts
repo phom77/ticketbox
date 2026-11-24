@@ -4,10 +4,18 @@ import { api, apiGet } from './client';
 export type OrganizationGrant = 'MEMBERS' | 'EVENTS' | 'FINANCE' | 'ADMISSION';
 
 export const organizationGrantLabels: Record<OrganizationGrant, string> = {
-  get ADMISSION() { return translate('performances:admissionGrant'); },
-  get MEMBERS() { return translate("shared:organizations_quanLyThanhVien"); },
-  get EVENTS() { return translate("shared:organizations_quanLyBuoiDien"); },
-  get FINANCE() { return translate("shared:organizations_xemDonHangVaDoanhThu"); },
+  get ADMISSION() {
+    return translate('performances:admissionGrant');
+  },
+  get MEMBERS() {
+    return translate('shared:organizations_quanLyThanhVien');
+  },
+  get EVENTS() {
+    return translate('shared:organizations_quanLyBuoiDien');
+  },
+  get FINANCE() {
+    return translate('shared:organizations_xemDonHangVaDoanhThu');
+  },
 };
 
 export type OrganizationMembership = {
@@ -42,18 +50,41 @@ export function getOrganizationMembers(id: string, signal?: AbortSignal) {
 export type AdmissionStaff = Pick<OrganizationMember, 'accountId' | 'email' | 'fullName'>;
 
 export function getAdmissionStaff(id: string, signal?: AbortSignal) {
-  return apiGet<AdmissionStaff[]>(`/api/organizations/${encodeURIComponent(id)}/admission-staff`, signal);
+  return apiGet<AdmissionStaff[]>(
+    `/api/organizations/${encodeURIComponent(id)}/admission-staff`,
+    signal,
+  );
 }
 
-export type InviteResult = { email: string; outcome: 'INVALID' | 'UNAVAILABLE' | 'MEMBER' | 'PENDING' | 'QUEUED' };
-export type PendingOrganizerInvite = { id: string; email: string; expiresAt: string; delivered: boolean };
+export type InviteResult = {
+  email: string;
+  outcome: 'INVALID' | 'UNAVAILABLE' | 'MEMBER' | 'PENDING' | 'QUEUED';
+};
+export type PendingOrganizerInvite = {
+  id: string;
+  email: string;
+  expiresAt: string;
+  delivered: boolean;
+};
 export type OrganizerApplication = {
-  id: string; organizationName: string; managerName: string; email: string; firstEvent: string; organizationId: string | null;
+  id: string;
+  organizationName: string;
+  managerName: string;
+  email: string;
+  firstEvent: string;
+  organizationId: string | null;
   activationPending: boolean;
 };
 
-export function createOrganizationInvites(id: string, emails: string[], grants: OrganizationGrant[]) {
-  return api.post<unknown, InviteResult[]>(`/api/organizations/${id}/invitations/email`, { emails, grants });
+export function createOrganizationInvites(
+  id: string,
+  emails: string[],
+  grants: OrganizationGrant[],
+) {
+  return api.post<unknown, InviteResult[]>(`/api/organizations/${id}/invitations/email`, {
+    emails,
+    grants,
+  });
 }
 
 export function getPendingOrganizationInvites(id: string, signal?: AbortSignal) {
@@ -64,7 +95,11 @@ export function resendOrganizationInvite(id: string, email: string) {
   return api.post(`/api/organizations/${id}/invitations/email/resend`, { email });
 }
 
-export function updateOrganizationMember(id: string, accountId: string, grants: OrganizationGrant[]) {
+export function updateOrganizationMember(
+  id: string,
+  accountId: string,
+  grants: OrganizationGrant[],
+) {
   return api.put(`/api/organizations/${id}/members/${accountId}`, { grants });
 }
 
@@ -93,11 +128,17 @@ export function getPlatformOrganizationMembers(id: string, signal?: AbortSignal)
 }
 
 export function getPlatformOrganizationInvites(id: string, signal?: AbortSignal) {
-  return apiGet<PendingOrganizerInvite[]>(`/api/admin/organizations/${id}/invitations/email`, signal);
+  return apiGet<PendingOrganizerInvite[]>(
+    `/api/admin/organizations/${id}/invitations/email`,
+    signal,
+  );
 }
 
 export function migrateOrganizationMember(id: string, accountId: string, email: string) {
-  return api.post<unknown, InviteResult>(`/api/admin/organizations/${id}/members/${accountId}/migration`, { email });
+  return api.post<unknown, InviteResult>(
+    `/api/admin/organizations/${id}/members/${accountId}/migration`,
+    { email },
+  );
 }
 
 export function setOrganizationMemberActivity(id: string, accountId: string, active: boolean) {

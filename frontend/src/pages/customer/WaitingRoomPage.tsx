@@ -22,7 +22,10 @@ import './WaitingRoomPage.css';
 
 const eventDateTime = dateFormatter({ dateStyle: 'medium', timeStyle: 'short' });
 const counts = numberFormatter({ maximumFractionDigits: 0 });
-type QueueEvent = Pick<ConcertDetail, 'title' | 'translations' | 'eventDate' | 'venueName' | 'saleStartAt'>;
+type QueueEvent = Pick<
+  ConcertDetail,
+  'title' | 'translations' | 'eventDate' | 'venueName' | 'saleStartAt'
+>;
 
 const queueTitles = {
   WAITING_ROOM: 'waitingRoomPage_banDaOTrongPhongChoAn',
@@ -59,8 +62,13 @@ export function WaitingRoomPage() {
   const leaving = leavingConcert === id;
   const leavingRef = useRef(false);
   const stopWaitingRef = useRef<(() => void) | null>(null);
-  const detailsPath = eventId ? eventPath(eventId) : id ? '/concerts/' + encodeURIComponent(id) : '/';
-  const seatsPath = eventId && id ? performancePath(eventId, id) + '/seats' : detailsPath + '/seats';
+  const detailsPath = eventId
+    ? eventPath(eventId)
+    : id
+      ? '/concerts/' + encodeURIComponent(id)
+      : '/';
+  const seatsPath =
+    eventId && id ? performancePath(eventId, id) + '/seats' : detailsPath + '/seats';
 
   useEffect(() => {
     if (!id) return;
@@ -68,17 +76,19 @@ export function WaitingRoomPage() {
     const { signal } = controller;
     const detail = eventId
       ? getEventPerformance(eventId, id, signal).then(({ event, performance }) => ({
-        title: event.title,
-        eventDate: performance.startsAt,
-        venueName: performance.venueName,
-        saleStartAt: performance.saleStartAt,
-      }))
+          title: event.title,
+          eventDate: performance.startsAt,
+          venueName: performance.venueName,
+          saleStartAt: performance.saleStartAt,
+        }))
       : getConcert(id, signal);
-    void detail.then((result) => {
-      if (!signal.aborted) setEventDetails(result);
-    }).catch((error: unknown) => {
-      if (!signal.aborted && !isRequestCanceled(error)) setDetailsFailed(true);
-    });
+    void detail
+      .then((result) => {
+        if (!signal.aborted) setEventDetails(result);
+      })
+      .catch((error: unknown) => {
+        if (!signal.aborted && !isRequestCanceled(error)) setDetailsFailed(true);
+      });
     return () => controller.abort();
   }, [eventId, id]);
 
@@ -114,9 +124,10 @@ export function WaitingRoomPage() {
     function scheduleRefresh() {
       window.clearTimeout(refreshTimer);
       if (!signal.aborted && !finished && !leavingRef.current) {
-        const delay = pollAfterMs == null
-          ? 12_000 + Math.random() * 3_000
-          : pollAfterMs * (0.8 + Math.random() * 0.4);
+        const delay =
+          pollAfterMs == null
+            ? 12_000 + Math.random() * 3_000
+            : pollAfterMs * (0.8 + Math.random() * 0.4);
         refreshTimer = window.setTimeout(refreshStatus, delay);
       }
     }
@@ -125,7 +136,11 @@ export function WaitingRoomPage() {
       if (signal.aborted || finished || leavingRef.current) return;
       if (nextStatus.status === 'ADMITTED') {
         const expiry = nextStatus.sessionExpiresAt ? Date.parse(nextStatus.sessionExpiresAt) : NaN;
-        if (!Number.isFinite(expiry) || expiry <= Date.now() || !storeQueueAdmission(concertId, nextStatus)) {
+        if (
+          !Number.isFinite(expiry) ||
+          expiry <= Date.now() ||
+          !storeQueueAdmission(concertId, nextStatus)
+        ) {
           setProblem('admissionUnconfirmed');
           return;
         }
@@ -142,8 +157,10 @@ export function WaitingRoomPage() {
         stopWaiting();
       } else {
         pollAfterMs = nextStatus.pollAfterMs;
-        const nearFront = nextStatus.status === 'WAITING'
-          && nextStatus.position != null && nextStatus.position <= 1_000;
+        const nearFront =
+          nextStatus.status === 'WAITING' &&
+          nextStatus.position != null &&
+          nextStatus.position <= 1_000;
         if (pollAfterMs == null || nearFront) connectRealtime();
         else {
           stopRealtime();
@@ -185,16 +202,24 @@ export function WaitingRoomPage() {
         scheduleRefresh();
       } catch (error) {
         if (signal.aborted || isRequestCanceled(error) || leavingRef.current) return;
-        if (error instanceof ApiClientError && [429, 503].includes(error.status) && joinAttempts < 6) {
+        if (
+          error instanceof ApiClientError &&
+          [429, 503].includes(error.status) &&
+          joinAttempts < 6
+        ) {
           const delay = Math.min(5_000, 1_000 * 2 ** joinAttempts++) + Math.random() * 500;
           setProblem('preparing');
           joinRetryTimer = window.setTimeout(join, delay);
           return;
         }
         setJoining(false);
-        setProblem(queueUnavailable(error)
-          ? 'unavailable'
-          : error instanceof ApiClientError && error.status === 429 ? 'rateLimit' : 'joinFailed');
+        setProblem(
+          queueUnavailable(error)
+            ? 'unavailable'
+            : error instanceof ApiClientError && error.status === 429
+              ? 'rateLimit'
+              : 'joinFailed',
+        );
       }
     }
 
@@ -273,38 +298,65 @@ export function WaitingRoomPage() {
   const unavailable = problem === 'unavailable';
   const canRetry = problem === 'joinFailed' || problem === 'rateLimit';
   const saleStartAt = eventDetails?.saleStartAt;
-  const roomOpensAt = saleStartAt && Number.isFinite(Date.parse(saleStartAt)) ? saleStartAt : undefined;
+  const roomOpensAt =
+    saleStartAt && Number.isFinite(Date.parse(saleStartAt)) ? saleStartAt : undefined;
   const peopleAhead = queueStatus?.peopleAhead;
   const position = peopleAhead ?? queueStatus?.position;
   const estimate = queueStatus?.estimatedWaitSeconds;
   const minutes = estimate != null && estimate >= 0 ? Math.ceil(estimate / 60) : null;
-  const title = unavailable ? 'waitingRoomPage_hangChoDaDong'
-    : queueStatus ? queueTitles[queueStatus.status]
-      : canRetry ? 'waitingRoomPage_joinFailed' : 'waitingRoomPage_dangChuanBiViTriCuaBan';
+  const title = unavailable
+    ? 'waitingRoomPage_hangChoDaDong'
+    : queueStatus
+      ? queueTitles[queueStatus.status]
+      : canRetry
+        ? 'waitingRoomPage_joinFailed'
+        : 'waitingRoomPage_dangChuanBiViTriCuaBan';
 
   return (
     <div className="buyer-page purchase-page page-width waiting-purchase-page">
       <header className="purchase-header">
         <div>
-          <h1>{eventDetails ? concertTitle(eventDetails) : t('customer:waitingRoomPage_hangChoMuaVe')}</h1>
+          <h1>
+            {eventDetails ? concertTitle(eventDetails) : t('customer:waitingRoomPage_hangChoMuaVe')}
+          </h1>
           {eventDetails ? (
-            <p><time dateTime={eventDetails.eventDate}>{eventDateTime.format(new Date(eventDetails.eventDate))}</time> · {eventDetails.venueName}</p>
-          ) : detailsFailed ? <p>{t('customer:waitingRoomPage_khongTheTaiThongTinBuoiBieu')}</p> : null}
+            <p>
+              <time dateTime={eventDetails.eventDate}>
+                {eventDateTime.format(new Date(eventDetails.eventDate))}
+              </time>{' '}
+              · {eventDetails.venueName}
+            </p>
+          ) : detailsFailed ? (
+            <p>{t('customer:waitingRoomPage_khongTheTaiThongTinBuoiBieu')}</p>
+          ) : null}
         </div>
         {(inRoom || inQueue) && !unavailable ? (
-          <p className="purchase-step" aria-current="step">{t(inRoom ? 'waitingRoomPage_phongCho' : 'waitingRoomPage_hangCho')}</p>
+          <p className="purchase-step" aria-current="step">
+            {t(inRoom ? 'waitingRoomPage_phongCho' : 'waitingRoomPage_hangCho')}
+          </p>
         ) : null}
       </header>
 
-      <section className="purchase-panel waiting-purchase-panel" aria-labelledby="waiting-purchase-title">
+      <section
+        className="purchase-panel waiting-purchase-panel"
+        aria-labelledby="waiting-purchase-title"
+      >
         <div aria-live="polite">
           <h2 id="waiting-purchase-title">{t(title)}</h2>
         </div>
 
         {expired || unavailable ? (
           <>
-            <p>{t(expired ? 'waitingRoomPage_hayThamGiaLaiDeYeuCau' : 'waitingRoomPage_queueUnavailable')}</p>
-            <Link className="button button-primary" to={detailsPath}>{t('customer:waitingRoomPage_backToEvent')}</Link>
+            <p>
+              {t(
+                expired
+                  ? 'waitingRoomPage_hayThamGiaLaiDeYeuCau'
+                  : 'waitingRoomPage_queueUnavailable',
+              )}
+            </p>
+            <Link className="button button-primary" to={detailsPath}>
+              {t('customer:waitingRoomPage_backToEvent')}
+            </Link>
           </>
         ) : null}
 
@@ -319,18 +371,29 @@ export function WaitingRoomPage() {
           <>
             {position != null ? (
               <dl className="waiting-queue-position">
-                <dt>{t(peopleAhead != null ? 'waitingRoomPage_nguoiPhiaTruoc' : 'waitingRoomPage_viTri')}</dt>
+                <dt>
+                  {t(
+                    peopleAhead != null
+                      ? 'waitingRoomPage_nguoiPhiaTruoc'
+                      : 'waitingRoomPage_viTri',
+                  )}
+                </dt>
                 <dd>{counts.format(position)}</dd>
               </dl>
             ) : null}
             {minutes === null ? (
               <p>{t('customer:waitingRoomPage_noEstimate')}</p>
             ) : (
-              <p>{t('customer:waitingRoomPage_estimate', {
-                duration: t(minutes <= 1 ? 'waitingRoomPage_khoang1Phut' : 'waitingRoomPage_khoangPhut', {
-                  arg1: counts.format(minutes),
-                }),
-              })}</p>
+              <p>
+                {t('customer:waitingRoomPage_estimate', {
+                  duration: t(
+                    minutes <= 1 ? 'waitingRoomPage_khoang1Phut' : 'waitingRoomPage_khoangPhut',
+                    {
+                      arg1: counts.format(minutes),
+                    },
+                  ),
+                })}
+              </p>
             )}
           </>
         ) : null}
@@ -342,20 +405,33 @@ export function WaitingRoomPage() {
         ) : null}
 
         {canRetry ? (
-          <button className="button button-primary" type="button" onClick={() => setRetry((key) => key + 1)}>
+          <button
+            className="button button-primary"
+            type="button"
+            onClick={() => setRetry((key) => key + 1)}
+          >
             {t('customer:waitingRoomPage_tryAgain')}
           </button>
         ) : null}
 
         {!expired && !unavailable && (joining || inQueue || inRoom) ? (
-          <p className="waiting-purchase-help">{t('customer:waitingRoomPage_hayGiuTabNayMoTrongKhi')}</p>
+          <p className="waiting-purchase-help">
+            {t('customer:waitingRoomPage_hayGiuTabNayMoTrongKhi')}
+          </p>
         ) : null}
       </section>
 
       {canRetry ? (
-        <Link className="button button-secondary waiting-leave-action" to={detailsPath}>{t('customer:waitingRoomPage_backToEvent')}</Link>
+        <Link className="button button-secondary waiting-leave-action" to={detailsPath}>
+          {t('customer:waitingRoomPage_backToEvent')}
+        </Link>
       ) : !expired && !unavailable && !admitted ? (
-        <button className="button button-secondary waiting-leave-action" type="button" disabled={leaving} onClick={() => void leave()}>
+        <button
+          className="button button-secondary waiting-leave-action"
+          type="button"
+          disabled={leaving}
+          onClick={() => void leave()}
+        >
           {t(leaving ? 'waitingRoomPage_leaving' : 'waitingRoomPage_leaveQueue')}
         </button>
       ) : null}
@@ -371,7 +447,9 @@ function OpeningCountdown({ opensAt }: { opensAt: string }) {
   return (
     <p className="purchase-deadline waiting-opening-countdown">
       <span>{t('customer:waitingRoomPage_moBanVeSau')}</span>
-      <strong role="timer" aria-label={t('customer:waitingRoomPage_moBanVeSau')}>{countdown.formatted}</strong>
+      <strong role="timer" aria-label={t('customer:waitingRoomPage_moBanVeSau')}>
+        {countdown.formatted}
+      </strong>
     </p>
   );
 }

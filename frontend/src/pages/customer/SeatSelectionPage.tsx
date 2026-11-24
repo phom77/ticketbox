@@ -5,7 +5,12 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ApiClientError, isRequestCanceled } from '../../api/client';
 import { getConcert, type ConcertDetail, type TicketType } from '../../api/concerts';
 import { clearStoredQueueAdmission, getStoredQueueAdmission, leaveQueue } from '../../api/queue';
-import { getCurrentHolds, releaseAllHolds, releaseTicket, reserveTicket } from '../../api/reservations';
+import {
+  getCurrentHolds,
+  releaseAllHolds,
+  releaseTicket,
+  reserveTicket,
+} from '../../api/reservations';
 import { ConcertSeatMap } from '../../components/ConcertSeatMap';
 import { useToast } from '../../components/feedback/toast-context';
 import { currency, dateFormatter } from '../../data/formatters';
@@ -16,7 +21,12 @@ import { useCountdown } from '../../hooks/useCountdown';
 import { translate } from '../../i18n';
 import './SeatSelectionPage.css';
 
-export type CheckoutSelection = Pick<TicketType, 'id' | 'name' | 'price'> & { quantity: number; sectionLabel?: string | null; rowLabel?: string | null; seatLabel?: string | null };
+export type CheckoutSelection = Pick<TicketType, 'id' | 'name' | 'price'> & {
+  quantity: number;
+  sectionLabel?: string | null;
+  rowLabel?: string | null;
+  seatLabel?: string | null;
+};
 
 type HoldAction = 'reserve' | 'release' | 'verify';
 type HoldFeedback = { kind: 'error' | 'confirmed' | 'unverified'; message: string };
@@ -46,24 +56,34 @@ function SeatSelection({ id }: { id: string }) {
   const active = useRef(false);
   const token = admission?.queueAccessToken;
   const {
-    ticketTypes, loading: availabilityLoading, updatesDelayed, initialLoadFailed, refresh,
+    ticketTypes,
+    loading: availabilityLoading,
+    updatesDelayed,
+    initialLoadFailed,
+    refresh,
   } = useTicketAvailability(admission ? id : undefined, reloadKey);
 
-  const returnToWaitingRoom = useCallback((message: string) => {
-    if (token && getStoredQueueAdmission(id)?.queueAccessToken === token) clearStoredQueueAdmission();
-    toast.error(message);
-    navigate(`/concerts/${id}/waiting-room`, { replace: true });
-  }, [id, navigate, toast, token]);
+  const returnToWaitingRoom = useCallback(
+    (message: string) => {
+      if (token && getStoredQueueAdmission(id)?.queueAccessToken === token)
+        clearStoredQueueAdmission();
+      toast.error(message);
+      navigate(`/concerts/${id}/waiting-room`, { replace: true });
+    },
+    [id, navigate, toast, token],
+  );
 
   useEffect(() => {
     active.current = true;
     if (!admission) {
-      returnToWaitingRoom(translate("customer:seatSelectionPage_missingAdmission"));
-      return () => { active.current = false; };
+      returnToWaitingRoom(translate('customer:seatSelectionPage_missingAdmission'));
+      return () => {
+        active.current = false;
+      };
     }
 
     const timer = window.setTimeout(
-      () => returnToWaitingRoom(translate("customer:seatSelectionPage_phienMuaVeDaHetHanVui")),
+      () => returnToWaitingRoom(translate('customer:seatSelectionPage_phienMuaVeDaHetHanVui')),
       Math.max(0, Date.parse(admission.sessionExpiresAt) - Date.now()),
     );
 
@@ -80,36 +100,46 @@ function SeatSelection({ id }: { id: string }) {
     setConcertStatus('loading');
     setHoldsStatus('loading');
 
-    void getConcert(id, signal).then((detail) => {
-      if (signal.aborted) return;
-      setConcert(detail);
-      setConcertStatus('ready');
-    }).catch((error: unknown) => {
-      if (!signal.aborted && !isRequestCanceled(error)) setConcertStatus('failed');
-    });
+    void getConcert(id, signal)
+      .then((detail) => {
+        if (signal.aborted) return;
+        setConcert(detail);
+        setConcertStatus('ready');
+      })
+      .catch((error: unknown) => {
+        if (!signal.aborted && !isRequestCanceled(error)) setConcertStatus('failed');
+      });
 
-    void getCurrentHolds(id, token, signal).then((holds) => {
-      if (signal.aborted) return;
-      setHeldQuantities(Object.fromEntries(holds.map(({ ticketTypeId, quantity }) => [ticketTypeId, quantity])));
-      setHoldsStatus('ready');
-    }).catch((error: unknown) => {
-      if (signal.aborted || isRequestCanceled(error)) return;
-      if (error instanceof ApiClientError && error.status === 403) {
-        returnToWaitingRoom(translate("customer:seatSelectionPage_phienMuaVeDaHetHanVui"));
-        return;
-      }
-      setHoldsStatus('failed');
-    });
+    void getCurrentHolds(id, token, signal)
+      .then((holds) => {
+        if (signal.aborted) return;
+        setHeldQuantities(
+          Object.fromEntries(holds.map(({ ticketTypeId, quantity }) => [ticketTypeId, quantity])),
+        );
+        setHoldsStatus('ready');
+      })
+      .catch((error: unknown) => {
+        if (signal.aborted || isRequestCanceled(error)) return;
+        if (error instanceof ApiClientError && error.status === 403) {
+          returnToWaitingRoom(translate('customer:seatSelectionPage_phienMuaVeDaHetHanVui'));
+          return;
+        }
+        setHoldsStatus('failed');
+      });
 
     return () => controller.abort();
   }, [id, reloadKey, returnToWaitingRoom, token]);
 
   const pickerTypes = useMemo(() => {
     const availableIds = new Set(ticketTypes.map((type) => type.id));
-    const previousTypes = concert?.ticketTypes.filter((type) =>
-      !availableIds.has(type.id) &&
-      ((heldQuantities[type.id] ?? 0) > 0 || zoneLoading[type.id] || feedback[type.id]?.kind === 'unverified'),
-    ) ?? [];
+    const previousTypes =
+      concert?.ticketTypes.filter(
+        (type) =>
+          !availableIds.has(type.id) &&
+          ((heldQuantities[type.id] ?? 0) > 0 ||
+            zoneLoading[type.id] ||
+            feedback[type.id]?.kind === 'unverified'),
+      ) ?? [];
     return [...ticketTypes, ...previousTypes.map((type) => ({ ...type, availableQty: 0 }))];
   }, [concert, feedback, heldQuantities, ticketTypes, zoneLoading]);
 
@@ -117,19 +147,41 @@ function SeatSelection({ id }: { id: string }) {
     () => new Map(pickerTypes.map(({ id: typeId, name }) => [typeId, name])),
     [pickerTypes],
   );
-  const disabledZoneIds = useMemo(() => new Set(pickerTypes
-    .filter((type) => type.availableQty <= 0 && !(heldQuantities[type.id] > 0))
-    .map((type) => type.id)), [heldQuantities, pickerTypes]);
-  const currentType = pickerTypes.find((type) => type.id === selectedZone && !disabledZoneIds.has(type.id))
-    ?? pickerTypes.find((type) => !disabledZoneIds.has(type.id));
+  const disabledZoneIds = useMemo(
+    () =>
+      new Set(
+        pickerTypes
+          .filter((type) => type.availableQty <= 0 && !(heldQuantities[type.id] > 0))
+          .map((type) => type.id),
+      ),
+    [heldQuantities, pickerTypes],
+  );
+  const currentType =
+    pickerTypes.find((type) => type.id === selectedZone && !disabledZoneIds.has(type.id)) ??
+    pickerTypes.find((type) => !disabledZoneIds.has(type.id));
   const selection = pickerTypes
     .filter((type) => heldQuantities[type.id] > 0)
-    .map(({ id: typeId, name, price }) => ({ id: typeId, name, price, quantity: heldQuantities[typeId] }));
-  const ticketCount = Object.values(heldQuantities).reduce((total, quantity) => total + quantity, 0);
+    .map(({ id: typeId, name, price }) => ({
+      id: typeId,
+      name,
+      price,
+      quantity: heldQuantities[typeId],
+    }));
+  const ticketCount = Object.values(heldQuantities).reduce(
+    (total, quantity) => total + quantity,
+    0,
+  );
   const subtotal = selection.reduce((total, item) => total + item.price * item.quantity, 0);
-  const hasUnknownHold = Object.entries(heldQuantities).some(([typeId, qty]) => qty > 0 && !typeLabels.has(typeId));
+  const hasUnknownHold = Object.entries(heldQuantities).some(
+    ([typeId, qty]) => qty > 0 && !typeLabels.has(typeId),
+  );
   const verificationNeeded = Object.values(feedback).some((item) => item?.kind === 'unverified');
-  const checkoutDisabled = !ticketCount || leaving || hasUnknownHold || verificationNeeded || Object.keys(zoneLoading).length > 0;
+  const checkoutDisabled =
+    !ticketCount ||
+    leaving ||
+    hasUnknownHold ||
+    verificationNeeded ||
+    Object.keys(zoneLoading).length > 0;
 
   function isCurrentSession() {
     return active.current && getStoredQueueAdmission(id)?.queueAccessToken === token;
@@ -152,17 +204,17 @@ function SeatSelection({ id }: { id: string }) {
       setConfirmedQuantity(typeId, quantity);
       setZoneFeedback(typeId, {
         kind: 'confirmed',
-        message: translate("customer:seatSelectionPage_holdVerified"),
+        message: translate('customer:seatSelectionPage_holdVerified'),
       });
     } catch (error) {
       if (!isCurrentSession()) return;
       if (error instanceof ApiClientError && error.status === 403) {
-        returnToWaitingRoom(translate("customer:seatSelectionPage_phienMuaVeDaHetHanVui"));
+        returnToWaitingRoom(translate('customer:seatSelectionPage_phienMuaVeDaHetHanVui'));
         return;
       }
       setZoneFeedback(typeId, {
         kind: 'unverified',
-        message: translate("customer:seatSelectionPage_holdVerifyFailed"),
+        message: translate('customer:seatSelectionPage_holdVerifyFailed'),
       });
     }
   }
@@ -170,7 +222,7 @@ function SeatSelection({ id }: { id: string }) {
   async function updateQuantity(type: TicketType, action: HoldAction) {
     if (!token || leaving || inFlight.current.has(type.id)) return;
     if (!isCurrentSession()) {
-      returnToWaitingRoom(translate("customer:seatSelectionPage_phienMuaVeDaHetHanVui"));
+      returnToWaitingRoom(translate('customer:seatSelectionPage_phienMuaVeDaHetHanVui'));
       return;
     }
 
@@ -193,8 +245,12 @@ function SeatSelection({ id }: { id: string }) {
       const mutate = action === 'reserve' ? reserveTicket : releaseTicket;
       const hold = await mutate(id, type.id, 1, token);
       if (!isCurrentSession()) return;
-      if (hold?.ticketTypeId === type.id && typeof hold.quantity === 'number' &&
-          Number.isInteger(hold.quantity) && hold.quantity >= 0) {
+      if (
+        hold?.ticketTypeId === type.id &&
+        typeof hold.quantity === 'number' &&
+        Number.isInteger(hold.quantity) &&
+        hold.quantity >= 0
+      ) {
         setConfirmedQuantity(type.id, hold.quantity);
       } else {
         await verifyQuantity(type.id, token);
@@ -202,14 +258,18 @@ function SeatSelection({ id }: { id: string }) {
     } catch (error) {
       if (!isCurrentSession()) return;
       if (error instanceof ApiClientError && error.status === 403) {
-        returnToWaitingRoom(translate("customer:seatSelectionPage_phienMuaVeDaHetHanVui"));
+        returnToWaitingRoom(translate('customer:seatSelectionPage_phienMuaVeDaHetHanVui'));
       } else if (error instanceof ApiClientError && error.status === 429) {
         setZoneFeedback(type.id, {
           kind: 'error',
-          message: translate("customer:seatSelectionPage_coQuaNhieuYeuCauVuiLong"),
+          message: translate('customer:seatSelectionPage_coQuaNhieuYeuCauVuiLong'),
         });
-      } else if (error instanceof ApiClientError && error.status < 500 && error.status !== 408 &&
-          !(action === 'release' && error.status === 400)) {
+      } else if (
+        error instanceof ApiClientError &&
+        error.status < 500 &&
+        error.status !== 408 &&
+        !(action === 'release' && error.status === 400)
+      ) {
         setZoneFeedback(type.id, { kind: 'error', message: error.message });
       } else {
         // A lost response may follow a committed write. Re-read the hold before allowing a new write.
@@ -231,7 +291,7 @@ function SeatSelection({ id }: { id: string }) {
   function continueToCheckout() {
     if (!admission || !concert || checkoutDisabled || inFlight.current.size > 0) return;
     if (!isCurrentSession()) {
-      returnToWaitingRoom(translate("customer:seatSelectionPage_phienMuaVeDaHetHanVui"));
+      returnToWaitingRoom(translate('customer:seatSelectionPage_phienMuaVeDaHetHanVui'));
       return;
     }
 
@@ -271,12 +331,17 @@ function SeatSelection({ id }: { id: string }) {
     navigate(`/concerts/${id}`, { replace: true });
   }
 
-  if (!admission || concertStatus === 'loading' || availabilityLoading || holdsStatus === 'loading') {
+  if (
+    !admission ||
+    concertStatus === 'loading' ||
+    availabilityLoading ||
+    holdsStatus === 'loading'
+  ) {
     return (
       <div className="buyer-page purchase-page page-width">
         <div className="buyer-state" role="status">
-          <h1>{translate("customer:seatSelectionPage_chonVe")}</h1>
-          <p>{translate("customer:seatSelectionPage_loading")}</p>
+          <h1>{translate('customer:seatSelectionPage_chonVe')}</h1>
+          <p>{translate('customer:seatSelectionPage_loading')}</p>
         </div>
       </div>
     );
@@ -286,14 +351,23 @@ function SeatSelection({ id }: { id: string }) {
     return (
       <div className="buyer-page purchase-page page-width">
         <div className="buyer-state purchase-seat-error" role="alert">
-          <h1>{translate("customer:seatSelectionPage_loadFailed")}</h1>
-          <p>{translate("customer:seatSelectionPage_loadFailedHelp")}</p>
+          <h1>{translate('customer:seatSelectionPage_loadFailed')}</h1>
+          <p>{translate('customer:seatSelectionPage_loadFailedHelp')}</p>
           <div>
-            <button className="button button-primary" type="button" onClick={() => setReloadKey((value) => value + 1)}>
-              {translate("customer:seatSelectionPage_thuLai")}
+            <button
+              className="button button-primary"
+              type="button"
+              onClick={() => setReloadKey((value) => value + 1)}
+            >
+              {translate('customer:seatSelectionPage_thuLai')}
             </button>
-            <button className="button button-secondary" type="button" disabled={leaving} onClick={() => void leaveSelection()}>
-              {translate("customer:seatSelectionPage_chiTietSuKien")}
+            <button
+              className="button button-secondary"
+              type="button"
+              disabled={leaving}
+              onClick={() => void leaveSelection()}
+            >
+              {translate('customer:seatSelectionPage_chiTietSuKien')}
             </button>
           </div>
         </div>
@@ -311,22 +385,35 @@ function SeatSelection({ id }: { id: string }) {
           onClick={() => void leaveSelection()}
         >
           <ArrowLeft size={16} aria-hidden="true" />
-          {translate("customer:seatSelectionPage_chiTietSuKien")}
+          {translate('customer:seatSelectionPage_chiTietSuKien')}
         </button>
         <div className="purchase-seat-context">
-          <p className="purchase-step" aria-current="step">{translate("customer:seatSelectionPage_chonVe")}</p>
+          <p className="purchase-step" aria-current="step">
+            {translate('customer:seatSelectionPage_chonVe')}
+          </p>
           <h1>{concertTitle(concert)}</h1>
           <p className="purchase-seat-event">
-            <span><CalendarDays size={16} aria-hidden="true" />{eventDateTime.format(new Date(concert.eventDate))}</span>
-            {concert.venueName ? <span><MapPin size={16} aria-hidden="true" />{concert.venueName}</span> : null}
+            <span>
+              <CalendarDays size={16} aria-hidden="true" />
+              {eventDateTime.format(new Date(concert.eventDate))}
+            </span>
+            {concert.venueName ? (
+              <span>
+                <MapPin size={16} aria-hidden="true" />
+                {concert.venueName}
+              </span>
+            ) : null}
           </p>
         </div>
         <SelectionDeadline expiresAt={admission.sessionExpiresAt} />
       </header>
 
       <div className="purchase-columns">
-        <section className="purchase-panel purchase-seat-map" aria-labelledby="purchase-seat-map-title">
-          <h2 id="purchase-seat-map-title">{translate("customer:seatSelectionPage_map")}</h2>
+        <section
+          className="purchase-panel purchase-seat-map"
+          aria-labelledby="purchase-seat-map-title"
+        >
+          <h2 id="purchase-seat-map-title">{translate('customer:seatSelectionPage_map')}</h2>
           <ConcertSeatMap
             svg={concert.seatMapSvg}
             selectedTicketTypeId={currentType?.id ?? null}
@@ -334,14 +421,23 @@ function SeatSelection({ id }: { id: string }) {
             ticketTypeLabels={typeLabels}
             onZoneSelect={setSelectedZone}
           />
-          {concert.seatMapSvg ? <p>{translate("customer:seatSelectionPage_chonPhanKhuTrenSoDoHoac")}</p> : null}
+          {concert.seatMapSvg ? (
+            <p>{translate('customer:seatSelectionPage_chonPhanKhuTrenSoDoHoac')}</p>
+          ) : null}
         </section>
 
-        <aside className="purchase-panel purchase-ticket-picker" aria-labelledby="purchase-ticket-picker-title">
-          <h2 id="purchase-ticket-picker-title">{translate("customer:seatSelectionPage_chonHangVe")}</h2>
-          {updatesDelayed ? <p className="purchase-seat-feedback" role="status">
-            {translate("customer:seatSelectionPage_availabilityDelayed")}
-          </p> : null}
+        <aside
+          className="purchase-panel purchase-ticket-picker"
+          aria-labelledby="purchase-ticket-picker-title"
+        >
+          <h2 id="purchase-ticket-picker-title">
+            {translate('customer:seatSelectionPage_chonHangVe')}
+          </h2>
+          {updatesDelayed ? (
+            <p className="purchase-seat-feedback" role="status">
+              {translate('customer:seatSelectionPage_availabilityDelayed')}
+            </p>
+          ) : null}
           {pickerTypes.length ? (
             <div className="purchase-zone-list">
               {pickerTypes.map((type) => (
@@ -359,21 +455,38 @@ function SeatSelection({ id }: { id: string }) {
               ))}
             </div>
           ) : (
-            <p className="purchase-seat-feedback">{translate("customer:seatSelectionPage_noTypes")}</p>
+            <p className="purchase-seat-feedback">
+              {translate('customer:seatSelectionPage_noTypes')}
+            </p>
           )}
-          {hasUnknownHold ? <p role="alert" className="purchase-seat-feedback">
-            {translate("customer:seatSelectionPage_missingHeldType")}
-          </p> : null}
+          {hasUnknownHold ? (
+            <p role="alert" className="purchase-seat-feedback">
+              {translate('customer:seatSelectionPage_missingHeldType')}
+            </p>
+          ) : null}
           <div className="purchase-action-bar">
             <div className="purchase-seat-total">
-              <span>{translate("customer:seatSelectionPage_veDangGiu", { count: ticketCount })}</span>
-              <strong>{hasUnknownHold
-                ? translate("customer:seatSelectionPage_subtotalUnavailable")
-                : <>{translate("customer:seatSelectionPage_subtotal")} {currency.format(subtotal)}</>}
+              <span>
+                {translate('customer:seatSelectionPage_veDangGiu', { count: ticketCount })}
+              </span>
+              <strong>
+                {hasUnknownHold ? (
+                  translate('customer:seatSelectionPage_subtotalUnavailable')
+                ) : (
+                  <>
+                    {translate('customer:seatSelectionPage_subtotal')} {currency.format(subtotal)}
+                  </>
+                )}
               </strong>
             </div>
-            <button className="button button-primary" type="button" disabled={checkoutDisabled} onClick={continueToCheckout}>
-              {translate("customer:seatSelectionPage_tiepTucThanhToan")} <ArrowRight size={17} aria-hidden="true" />
+            <button
+              className="button button-primary"
+              type="button"
+              disabled={checkoutDisabled}
+              onClick={continueToCheckout}
+            >
+              {translate('customer:seatSelectionPage_tiepTucThanhToan')}{' '}
+              <ArrowRight size={17} aria-hidden="true" />
             </button>
           </div>
         </aside>
@@ -387,18 +500,29 @@ function SelectionDeadline({ expiresAt }: { expiresAt: string }) {
   return (
     <div className="purchase-seat-time">
       <div className={`purchase-deadline${countdown.isWarning ? ' is-warning' : ''}`}>
-        <span id="purchase-seat-deadline">{translate("customer:seatSelectionPage_thoiGianChonVe")}</span>
-        <strong role="timer" aria-labelledby="purchase-seat-deadline">{countdown.formatted}</strong>
+        <span id="purchase-seat-deadline">
+          {translate('customer:seatSelectionPage_thoiGianChonVe')}
+        </span>
+        <strong role="timer" aria-labelledby="purchase-seat-deadline">
+          {countdown.formatted}
+        </strong>
       </div>
-      {countdown.isWarning && !countdown.isExpired ? <p role="status">
-        {translate("customer:seatSelectionPage_phienMuaVe10PhutCuaBan")}
-      </p> : null}
+      {countdown.isWarning && !countdown.isExpired ? (
+        <p role="status">{translate('customer:seatSelectionPage_phienMuaVe10PhutCuaBan')}</p>
+      ) : null}
     </div>
   );
 }
 
 function TicketTypeRow({
-  type, selected, quantity, updating, feedback, leaving, onSelect, onUpdate,
+  type,
+  selected,
+  quantity,
+  updating,
+  feedback,
+  leaving,
+  onSelect,
+  onUpdate,
 }: {
   type: TicketType;
   selected: boolean;
@@ -422,53 +546,79 @@ function TicketTypeRow({
   } as const;
 
   return (
-    <article className="purchase-zone" data-selected={selected} aria-labelledby={headingId} ref={row} tabIndex={-1}>
+    <article
+      className="purchase-zone"
+      data-selected={selected}
+      aria-labelledby={headingId}
+      ref={row}
+      tabIndex={-1}
+    >
       <div className="purchase-zone-info">
         <h3 id={headingId}>
-          <button type="button" aria-pressed={selected} disabled={soldOut && !quantity} onClick={onSelect}>
+          <button
+            type="button"
+            aria-pressed={selected}
+            disabled={soldOut && !quantity}
+            onClick={onSelect}
+          >
             {type.name}
           </button>
         </h3>
-        <p className="purchase-zone-price"><strong>{currency.format(type.price)}</strong></p>
-        <p>{translate("customer:seatSelectionPage_toiDaVeTaiKhoan", { arg1: type.maxPerAccount })}</p>
+        <p className="purchase-zone-price">
+          <strong>{currency.format(type.price)}</strong>
+        </p>
+        <p>
+          {translate('customer:seatSelectionPage_toiDaVeTaiKhoan', { arg1: type.maxPerAccount })}
+        </p>
       </div>
       <div className="purchase-zone-actions">
         <p className="purchase-zone-availability" data-sold-out={soldOut}>
           {soldOut
-            ? translate("customer:seatSelectionPage_hetVe")
-            : translate("customer:seatSelectionPage_conVe")}
+            ? translate('customer:seatSelectionPage_hetVe')
+            : translate('customer:seatSelectionPage_conVe')}
         </p>
         <div className="purchase-zone-quantity" aria-busy={Boolean(updating)}>
           <button
             type="button"
-            aria-label={translate("customer:seatSelectionPage_boMotVe", { arg1: type.name })}
+            aria-label={translate('customer:seatSelectionPage_boMotVe', { arg1: type.name })}
             aria-disabled={!canRemove}
-            onClick={() => { if (canRemove) onUpdate('release'); }}
+            onClick={() => {
+              if (canRemove) onUpdate('release');
+            }}
           >
             <Minus size={16} aria-hidden="true" />
           </button>
           <span aria-live="polite">{quantity}</span>
           <button
             type="button"
-            aria-label={translate("customer:seatSelectionPage_themMotVe", { arg1: type.name })}
+            aria-label={translate('customer:seatSelectionPage_themMotVe', { arg1: type.name })}
             aria-disabled={!canAdd}
-            onClick={() => { if (canAdd) onUpdate('reserve'); }}
+            onClick={() => {
+              if (canAdd) onUpdate('reserve');
+            }}
           >
             <Plus size={16} aria-hidden="true" />
           </button>
         </div>
       </div>
       {updating ? (
-        <p className="purchase-zone-feedback" role="status">{translate(pendingLabel[updating])}</p>
+        <p className="purchase-zone-feedback" role="status">
+          {translate(pendingLabel[updating])}
+        </p>
       ) : feedback ? (
         <div className="purchase-zone-feedback" data-error={feedback.kind !== 'confirmed'}>
           <p role={feedback.kind === 'confirmed' ? 'status' : 'alert'}>{feedback.message}</p>
           {feedback.kind === 'unverified' ? (
-            <button className="button button-secondary" type="button" disabled={leaving} onClick={() => {
-              row.current?.focus();
-              onUpdate('verify');
-            }}>
-              {translate("customer:seatSelectionPage_holdRetry")}
+            <button
+              className="button button-secondary"
+              type="button"
+              disabled={leaving}
+              onClick={() => {
+                row.current?.focus();
+                onUpdate('verify');
+              }}
+            >
+              {translate('customer:seatSelectionPage_holdRetry')}
             </button>
           ) : null}
         </div>

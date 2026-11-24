@@ -56,12 +56,48 @@ const money = numberFormatter({
 });
 
 const tabs: Array<{ id: WorkspaceTab; label: string; icon: typeof CalendarDays }> = [
-  { id: 'overview', get label() { return translate("admin:concertWorkspacePage_tongQuan"); }, icon: CalendarDays },
-  { id: 'details', get label() { return translate("admin:concertWorkspacePage_thongTinLich"); }, icon: Settings2 },
-  { id: 'tickets', get label() { return translate("admin:concertWorkspacePage_hangVe"); }, icon: Ticket },
-  { id: 'guests', get label() { return translate("admin:concertWorkspacePage_khachMoi"); }, icon: Users },
-  { id: 'operations', get label() { return translate("admin:concertWorkspacePage_donHangCheckIn"); }, icon: ClipboardCheck },
-  { id: 'artist', get label() { return translate("admin:concertWorkspacePage_ngheSiAi"); }, icon: Sparkles },
+  {
+    id: 'overview',
+    get label() {
+      return translate('admin:concertWorkspacePage_tongQuan');
+    },
+    icon: CalendarDays,
+  },
+  {
+    id: 'details',
+    get label() {
+      return translate('admin:concertWorkspacePage_thongTinLich');
+    },
+    icon: Settings2,
+  },
+  {
+    id: 'tickets',
+    get label() {
+      return translate('admin:concertWorkspacePage_hangVe');
+    },
+    icon: Ticket,
+  },
+  {
+    id: 'guests',
+    get label() {
+      return translate('admin:concertWorkspacePage_khachMoi');
+    },
+    icon: Users,
+  },
+  {
+    id: 'operations',
+    get label() {
+      return translate('admin:concertWorkspacePage_donHangCheckIn');
+    },
+    icon: ClipboardCheck,
+  },
+  {
+    id: 'artist',
+    get label() {
+      return translate('admin:concertWorkspacePage_ngheSiAi');
+    },
+    icon: Sparkles,
+  },
 ];
 
 function isActiveGuestImport(status: BatchLog['status']) {
@@ -112,7 +148,10 @@ function parseWorkspaceTab(value: string | null): WorkspaceTab {
   return tabs.some((item) => item.id === value) ? (value as WorkspaceTab) : 'overview';
 }
 
-function useWorkspaceSection<T>(enabled: boolean, fetchSection: (signal: AbortSignal) => Promise<T>) {
+function useWorkspaceSection<T>(
+  enabled: boolean,
+  fetchSection: (signal: AbortSignal) => Promise<T>,
+) {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(enabled);
@@ -125,36 +164,73 @@ function useWorkspaceSection<T>(enabled: boolean, fetchSection: (signal: AbortSi
     setData(null);
     setError('');
     setLoading(true);
-    void fetchSection(controller.signal).then((result) => {
-      if (!controller.signal.aborted) setData(result);
-    }).catch((failure: unknown) => {
-      if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : translate("admin:concertWorkspacePage_khongTaiDuocDuLieu"));
-    }).finally(() => {
-      if (!controller.signal.aborted) setLoading(false);
-    });
+    void fetchSection(controller.signal)
+      .then((result) => {
+        if (!controller.signal.aborted) setData(result);
+      })
+      .catch((failure: unknown) => {
+        if (!controller.signal.aborted)
+          setError(
+            failure instanceof Error
+              ? failure.message
+              : translate('admin:concertWorkspacePage_khongTaiDuocDuLieu'),
+          );
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
     return () => controller.abort();
   }, [enabled, fetchSection, revision]);
 
   return { data, error, loading, retry };
 }
 
-function SectionStatus({ error, loading, retry }: { error: string; loading: boolean; retry: () => void }) {
+function SectionStatus({
+  error,
+  loading,
+  retry,
+}: {
+  error: string;
+  loading: boolean;
+  retry: () => void;
+}) {
   useTranslation();
-  if (loading) return <p role="status">{translate("admin:concertWorkspacePage_dangTaiDuLieu")}</p>;
+  if (loading) return <p role="status">{translate('admin:concertWorkspacePage_dangTaiDuLieu')}</p>;
   if (!error) return null;
-  return <p role="alert">{error} <button type="button" className="admin-secondary-action" onClick={retry}>{translate("admin:concertWorkspacePage_thuLai")}</button></p>;
+  return (
+    <p role="alert">
+      {error}{' '}
+      <button type="button" className="admin-secondary-action" onClick={retry}>
+        {translate('admin:concertWorkspacePage_thuLai')}
+      </button>
+    </p>
+  );
 }
 
 const workspaceStatus: Record<ConcertDetail['status'], string> = {
-  get DRAFT() { return translate("admin:concertWorkspacePage_banNhap"); }, get ON_SALE() { return translate("admin:concertWorkspacePage_daCauHinhMoBan"); }, get SOLD_OUT() { return translate("admin:concertWorkspacePage_hetVe"); },
-  get COMPLETED() { return translate("admin:concertWorkspacePage_daDienRa"); }, get CANCELLED() { return translate("admin:concertWorkspacePage_daHuy"); },
+  get DRAFT() {
+    return translate('admin:concertWorkspacePage_banNhap');
+  },
+  get ON_SALE() {
+    return translate('admin:concertWorkspacePage_daCauHinhMoBan');
+  },
+  get SOLD_OUT() {
+    return translate('admin:concertWorkspacePage_hetVe');
+  },
+  get COMPLETED() {
+    return translate('admin:concertWorkspacePage_daDienRa');
+  },
+  get CANCELLED() {
+    return translate('admin:concertWorkspacePage_daHuy');
+  },
 };
 
 export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: ManagementApiScope }) {
   useTranslation();
   const { id } = useParams();
   const organization = useOrganization();
-  const canViewOrders = apiScope === 'admin' || !!organization?.selected?.grants.includes('FINANCE');
+  const canViewOrders =
+    apiScope === 'admin' || !!organization?.selected?.grants.includes('FINANCE');
   const [searchParams, setSearchParams] = useSearchParams();
   const toast = useToast();
   const [tab, setTab] = useState<WorkspaceTab>(() => parseWorkspaceTab(searchParams.get('tab')));
@@ -190,7 +266,9 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
         else query.set('tab', item.id);
         return {
           to: `${root}/concerts/${concert.id}${query.size ? `?${query}` : ''}`,
-          get label() { return item.label; },
+          get label() {
+            return item.label;
+          },
           icon: item.icon,
           current: item.id === parseWorkspaceTab(searchParams.get('tab')),
         };
@@ -233,7 +311,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
           setError(
             requestError instanceof Error
               ? requestError.message
-              : translate("admin:concertWorkspacePage_khongTheTaiConcertWorkspace"),
+              : translate('admin:concertWorkspacePage_khongTheTaiConcertWorkspace'),
           );
       } finally {
         if (!background && !signal?.aborted) setLoading(false);
@@ -248,23 +326,44 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
     return () => controller.abort();
   }, [load]);
 
-  const refreshAfterDisruption = useCallback((signal: AbortSignal) => void load(signal, true), [load]);
+  const refreshAfterDisruption = useCallback(
+    (signal: AbortSignal) => void load(signal, true),
+    [load],
+  );
 
-  const guestSection = useWorkspaceSection(!!id, useCallback(
-    (signal: AbortSignal) => getConcertGuestList(id!, guestPageIndex, 20, signal, apiScope,
-      { query: guestQuery, activeOnly }),
-    [id, guestPageIndex, apiScope, guestQuery, activeOnly],
-  ));
-  const orderSection = useWorkspaceSection(!!id && canViewOrders, useCallback(
-    (signal: AbortSignal) => getAdminOrders({ concertId: id }, apiScope, signal), [id, apiScope],
-  ));
-  const checkinSection = useWorkspaceSection(!!id, useCallback(
-    (signal: AbortSignal) => getManagedCheckinSummary(id!, signal, apiScope), [id, apiScope],
-  ));
-  const artistSection = useWorkspaceSection(!!id && tab === 'artist', useCallback(
-    (signal: AbortSignal) => getArtistBioJobs({ concertId: id, page: 0, size: 5 }, signal, apiScope),
-    [id, apiScope],
-  ));
+  const guestSection = useWorkspaceSection(
+    !!id,
+    useCallback(
+      (signal: AbortSignal) =>
+        getConcertGuestList(id!, guestPageIndex, 20, signal, apiScope, {
+          query: guestQuery,
+          activeOnly,
+        }),
+      [id, guestPageIndex, apiScope, guestQuery, activeOnly],
+    ),
+  );
+  const orderSection = useWorkspaceSection(
+    !!id && canViewOrders,
+    useCallback(
+      (signal: AbortSignal) => getAdminOrders({ concertId: id }, apiScope, signal),
+      [id, apiScope],
+    ),
+  );
+  const checkinSection = useWorkspaceSection(
+    !!id,
+    useCallback(
+      (signal: AbortSignal) => getManagedCheckinSummary(id!, signal, apiScope),
+      [id, apiScope],
+    ),
+  );
+  const artistSection = useWorkspaceSection(
+    !!id && tab === 'artist',
+    useCallback(
+      (signal: AbortSignal) =>
+        getArtistBioJobs({ concertId: id, page: 0, size: 5 }, signal, apiScope),
+      [id, apiScope],
+    ),
+  );
   useEffect(() => {
     if (artistSection.data) setArtistJobs(artistSection.data.content);
   }, [artistSection.data]);
@@ -287,7 +386,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
         if (batch.status === 'SUCCESS' || batch.status === 'PARTIAL') {
           refreshGuests();
           if (!controller.signal.aborted) {
-            toast.success(translate("admin:concertWorkspacePage_danhSachKhachMoiDaDuocCap"));
+            toast.success(translate('admin:concertWorkspacePage_danhSachKhachMoiDaDuocCap'));
           }
         }
         if (!controller.signal.aborted) setActiveGuestImportId('');
@@ -296,7 +395,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
           toast.error(
             requestError instanceof Error
               ? requestError.message
-              : translate("admin:concertWorkspacePage_khongTheCapNhatTrangThaiNhap"),
+              : translate('admin:concertWorkspacePage_khongTheCapNhatTrangThaiNhap'),
           );
           setActiveGuestImportId('');
         }
@@ -341,10 +440,12 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
       const result = await updateConcert(id, payload, apiScope);
       setConcert(result.data);
       setForm(toForm(result.data));
-      await showEditResult(id, "admin:concertWorkspacePage_daLuuCauHinhConcert");
+      await showEditResult(id, 'admin:concertWorkspacePage_daLuuCauHinhConcert');
     } catch (requestError) {
       toast.error(
-        requestError instanceof Error ? requestError.message : translate("admin:concertWorkspacePage_khongTheLuuCauHinhConcert"),
+        requestError instanceof Error
+          ? requestError.message
+          : translate('admin:concertWorkspacePage_khongTheLuuCauHinhConcert'),
       );
     } finally {
       setSaving(false);
@@ -357,10 +458,12 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
     try {
       const result = await uploadConcertPoster(id, file, apiScope);
       setConcert(result.data);
-      await showEditResult(id, "admin:concertWorkspacePage_daCapNhatPosterConcert");
+      await showEditResult(id, 'admin:concertWorkspacePage_daCapNhatPosterConcert');
     } catch (requestError) {
       toast.error(
-        requestError instanceof Error ? requestError.message : translate("admin:concertWorkspacePage_khongTheTaiPosterLen"),
+        requestError instanceof Error
+          ? requestError.message
+          : translate('admin:concertWorkspacePage_khongTheTaiPosterLen'),
       );
     } finally {
       setUploadingPoster(false);
@@ -380,12 +483,14 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
         apiScope,
       );
       setArtistJobs(refreshed.content);
-      toast.success(translate("admin:concertWorkspacePage_taiLieuDaDuocGuiDeTao", { arg1: files.length }));
+      toast.success(
+        translate('admin:concertWorkspacePage_taiLieuDaDuocGuiDeTao', { arg1: files.length }),
+      );
     } catch (requestError) {
       toast.error(
         requestError instanceof Error
           ? requestError.message
-          : translate("admin:concertWorkspacePage_khongTheGuiTaiLieuNguonCho"),
+          : translate('admin:concertWorkspacePage_khongTheGuiTaiLieuNguonCho'),
       );
     } finally {
       setUploadingArtistSources(false);
@@ -397,14 +502,14 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
     setPublishingArtistBio(true);
     try {
       await publishConcertArtistBio(id, artistBioDraft.trim(), apiScope);
-      if (!await showEditResult(id, "admin:concertWorkspacePage_daXuatBanNoiDungNgheSi")) {
+      if (!(await showEditResult(id, 'admin:concertWorkspacePage_daXuatBanNoiDungNgheSi'))) {
         await load(undefined, true);
       }
     } catch (requestError) {
       toast.error(
         requestError instanceof Error
           ? requestError.message
-          : translate("admin:concertWorkspacePage_khongTheXuatBanNoiDungNghe"),
+          : translate('admin:concertWorkspacePage_khongTheXuatBanNoiDungNghe'),
       );
     } finally {
       setPublishingArtistBio(false);
@@ -412,8 +517,11 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
   }
 
   async function showEditResult(concertId: string, savedMessage: string) {
-    const publication = concert?.status === 'DRAFT' ? null : await getPublication(concertId, apiScope).catch(() => null);
-    toast.success(translate(publication?.draftEdit ? "shared:releaseStaged" : savedMessage));
+    const publication =
+      concert?.status === 'DRAFT'
+        ? null
+        : await getPublication(concertId, apiScope).catch(() => null);
+    toast.success(translate(publication?.draftEdit ? 'shared:releaseStaged' : savedMessage));
     return publication?.draftEdit === true;
   }
 
@@ -431,12 +539,12 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
       setArtistBioDraft(result.data.resultBio ?? '');
       setArtistJobs((current) => [result.data, ...current]);
       setSelectedArtistSourceIds([]);
-      toast.success(translate("admin:concertWorkspacePage_daTongHopCacNguonDaChon"));
+      toast.success(translate('admin:concertWorkspacePage_daTongHopCacNguonDaChon'));
     } catch (requestError) {
       toast.error(
         requestError instanceof Error
           ? requestError.message
-          : translate("admin:concertWorkspacePage_khongTheTongHopCacTaiLieu"),
+          : translate('admin:concertWorkspacePage_khongTheTongHopCacTaiLieu'),
       );
     } finally {
       setCombiningArtistSources(false);
@@ -449,7 +557,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
       return;
     }
     if (!file.name.toLowerCase().endsWith('.csv')) {
-      toast.error(translate("admin:concertWorkspacePage_chiChapNhanFileCsv"));
+      toast.error(translate('admin:concertWorkspacePage_chiChapNhanFileCsv'));
       setGuestImportFile(null);
       return;
     }
@@ -463,8 +571,8 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
       const result = await importGuestList(id, guestImportFile, apiScope, guestImportScheduled);
       toast.success(
         guestImportScheduled
-          ? translate("admin:concertWorkspacePage_daXepFileCsvVaoHangCho")
-          : translate("admin:concertWorkspacePage_daImportDanhSachKhachMoiCho"),
+          ? translate('admin:concertWorkspacePage_daXepFileCsvVaoHangCho')
+          : translate('admin:concertWorkspacePage_daImportDanhSachKhachMoiCho'),
       );
       setGuestImportFile(null);
       if (guestImportScheduled) {
@@ -476,7 +584,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
       toast.error(
         requestError instanceof Error
           ? requestError.message
-          : translate("admin:concertWorkspacePage_khongTheImportDanhSachKhachMoi"),
+          : translate('admin:concertWorkspacePage_khongTheImportDanhSachKhachMoi'),
       );
     } finally {
       setGuestImporting(false);
@@ -494,7 +602,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
   if (error || !concert || !form)
     return (
       <div className="admin-notice error">
-        {error || translate("admin:concertWorkspacePage_concertKhongTonTaiHoacBanKhong")}
+        {error || translate('admin:concertWorkspacePage_concertKhongTonTaiHoacBanKhong')}
       </div>
     );
 
@@ -507,17 +615,28 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
         title={concert.title}
         description={`${concert.venueName} · ${dateTime.format(new Date(concert.eventDate))}`}
         actions={
-          <>{reportBack && <Link className="admin-secondary-action" to={reportBack}>
-            {translate('shared:operationsReports')}
-          </Link>}<span className={`admin-status status-${concert.status.toLowerCase()}`}>
-            {workspaceStatus[concert.status]}
-          </span></>
+          <>
+            {reportBack && (
+              <Link className="admin-secondary-action" to={reportBack}>
+                {translate('shared:operationsReports')}
+              </Link>
+            )}
+            <span className={`admin-status status-${concert.status.toLowerCase()}`}>
+              {workspaceStatus[concert.status]}
+            </span>
+          </>
         }
       />
 
       {tab === 'overview' && id ? (
-        <PublicationPanel key={id} id={id} scope={apiScope} saleStartAt={concert.saleStartAt}
-          updatedAt={concert.updatedAt} onPublished={() => void load()} />
+        <PublicationPanel
+          key={id}
+          id={id}
+          scope={apiScope}
+          saleStartAt={concert.saleStartAt}
+          updatedAt={concert.updatedAt}
+          onPublished={() => void load()}
+        />
       ) : null}
 
       <section className="concert-workspace-hero">
@@ -529,96 +648,120 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
           alt=""
         />
         <div>
-          <span>{translate("admin:concertWorkspacePage_veMoBan")}</span>
+          <span>{translate('admin:concertWorkspacePage_veMoBan')}</span>
           <strong>{dateTime.format(new Date(concert.saleStartAt))}</strong>
           <p>
             {concert.saleEndAt
-              ? translate("admin:concertWorkspacePage_ketThucBan", { arg1: dateTime.format(new Date(concert.saleEndAt)) })
-              : translate("admin:concertWorkspacePage_banDenKhiConcertDienRa")}
+              ? translate('admin:concertWorkspacePage_ketThucBan', {
+                  arg1: dateTime.format(new Date(concert.saleEndAt)),
+                })
+              : translate('admin:concertWorkspacePage_banDenKhiConcertDienRa')}
           </p>
         </div>
         <div>
-          <span>{translate("admin:concertWorkspacePage_trangThaiVanHanh")}</span>
+          <span>{translate('admin:concertWorkspacePage_trangThaiVanHanh')}</span>
           <strong>{workspaceStatus[concert.status]}</strong>
           <p>
-            {ticketStats.available} / {ticketStats.inventory} {translate("admin:concertWorkspacePage_veConKhaDung")}
+            {ticketStats.available} / {ticketStats.inventory}{' '}
+            {translate('admin:concertWorkspacePage_veConKhaDung')}
           </p>
         </div>
       </section>
 
-      <nav className="concert-workspace-tabs" aria-label={translate("admin:concertWorkspacePage_quanLyConcert")}>
-        {tabs.filter((item) => item.id !== 'artist').map((item) => {
-          const Icon = item.icon;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              className={tab === item.id ? 'active' : ''}
-              onClick={() => selectTab(item.id)}
-            >
-              <Icon size={16} />
-              {item.label}
-            </button>
-          );
-        })}
+      <nav
+        className="concert-workspace-tabs"
+        aria-label={translate('admin:concertWorkspacePage_quanLyConcert')}
+      >
+        {tabs
+          .filter((item) => item.id !== 'artist')
+          .map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className={tab === item.id ? 'active' : ''}
+                onClick={() => selectTab(item.id)}
+              >
+                <Icon size={16} />
+                {item.label}
+              </button>
+            );
+          })}
       </nav>
 
       {apiScope === 'admin' && tab === 'operations' && (
-        <EventDisruptionPanel key={concert.id} concertId={concert.id} concertStatus={concert.status}
-          onChanged={refreshAfterDisruption} />
+        <EventDisruptionPanel
+          key={concert.id}
+          concertId={concert.id}
+          concertStatus={concert.status}
+          onChanged={refreshAfterDisruption}
+        />
       )}
 
       {tab === 'overview' ? (
         <section className="concert-workspace-grid">
           <Metric
             icon={<Ticket size={19} />}
-            label={translate("admin:concertWorkspacePage_veConKhaDung_2")}
+            label={translate('admin:concertWorkspacePage_veConKhaDung_2')}
             value={`${ticketStats.available} / ${ticketStats.inventory}`}
             onOpen={() => selectTab('tickets')}
           />
           <Metric
             icon={<Users size={19} />}
-            label={translate("admin:concertWorkspacePage_khachMoiTheoBoLoc")}
-            value={guestTotal === undefined ? translate("admin:concertWorkspacePage_chuaCoDuLieu") : String(guestTotal)}
+            label={translate('admin:concertWorkspacePage_khachMoiTheoBoLoc')}
+            value={
+              guestTotal === undefined
+                ? translate('admin:concertWorkspacePage_chuaCoDuLieu')
+                : String(guestTotal)
+            }
             onOpen={() => selectTab('guests')}
           />
           {canViewOrders ? (
             <Metric
               icon={<ReceiptText size={19} />}
-              label={translate("admin:concertWorkspacePage_doanhThuDaThanhToan")}
-              value={orders ? money.format(revenue) : translate("admin:concertWorkspacePage_chuaCoDuLieu")}
+              label={translate('admin:concertWorkspacePage_doanhThuDaThanhToan')}
+              value={
+                orders
+                  ? money.format(revenue)
+                  : translate('admin:concertWorkspacePage_chuaCoDuLieu')
+              }
               onOpen={() => selectTab('operations')}
             />
           ) : null}
           <Metric
             icon={<ClipboardCheck size={19} />}
-            label={translate("admin:concertWorkspacePage_daCheckIn")}
-            value={checkin ? `${checkin.checkedIn} / ${checkin.totalTickets}` : translate("admin:concertWorkspacePage_chuaCoDuLieu")}
+            label={translate('admin:concertWorkspacePage_daCheckIn')}
+            value={
+              checkin
+                ? `${checkin.checkedIn} / ${checkin.totalTickets}`
+                : translate('admin:concertWorkspacePage_chuaCoDuLieu')
+            }
             onOpen={() => selectTab('operations')}
           />
           <section className="concert-workspace-card concert-workspace-card-wide">
             <div className="concert-card-heading">
               <div>
-                <span>{translate("admin:concertWorkspacePage_viecCanHoanTat")}</span>
-                <h2>{translate("admin:concertWorkspacePage_sanSangMoBan")}</h2>
+                <span>{translate('admin:concertWorkspacePage_viecCanHoanTat')}</span>
+                <h2>{translate('admin:concertWorkspacePage_sanSangMoBan')}</h2>
               </div>
               <ListChecks size={20} />
             </div>
             <ul className="concert-readiness-list">
               <li className={concert.ticketTypes.length ? 'done' : ''}>
-                {concert.ticketTypes.length ? translate("admin:concertWorkspacePage_daCoHangVe") : translate("admin:concertWorkspacePage_canTaoHangVe")}
+                {concert.ticketTypes.length
+                  ? translate('admin:concertWorkspacePage_daCoHangVe')
+                  : translate('admin:concertWorkspacePage_canTaoHangVe')}
               </li>
               <li className={concert.posterUrl ? 'done' : ''}>
-                {concert.posterUrl ? translate("admin:concertWorkspacePage_daCoPoster") : translate("admin:concertWorkspacePage_canTaiPoster")}
+                {concert.posterUrl
+                  ? translate('admin:concertWorkspacePage_daCoPoster')
+                  : translate('admin:concertWorkspacePage_canTaiPoster')}
               </li>
-              <li
-                className={
-                  concert.artistBio ? 'done' : ''
-                }
-              >
+              <li className={concert.artistBio ? 'done' : ''}>
                 {concert.artistBio
-                  ? translate("admin:concertWorkspacePage_daCoNoiDungNgheSi")
-                  : translate("admin:concertWorkspacePage_coTheBoSungArtistBio")}
+                  ? translate('admin:concertWorkspacePage_daCoNoiDungNgheSi')
+                  : translate('admin:concertWorkspacePage_coTheBoSungArtistBio')}
               </li>
             </ul>
           </section>
@@ -630,16 +773,19 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
           <div className="concert-workspace-card concert-workspace-card-wide">
             <div className="concert-card-heading">
               <div>
-                <span>{translate("admin:concertWorkspacePage_cauHinhCoBan")}</span>
-                <h2>{translate("admin:concertWorkspacePage_thongTinLichTrinhVaSoDo")}</h2>
+                <span>{translate('admin:concertWorkspacePage_cauHinhCoBan')}</span>
+                <h2>{translate('admin:concertWorkspacePage_thongTinLichTrinhVaSoDo')}</h2>
               </div>
               <Settings2 size={20} />
             </div>
             <div className="admin-form-grid">
-              <ConcertTextFields original={form.original} translations={form.translations}
-                onChange={(text) => setForm({ ...form, ...text })} />
+              <ConcertTextFields
+                original={form.original}
+                translations={form.translations}
+                onChange={(text) => setForm({ ...form, ...text })}
+              />
               <label className="admin-field">
-                <span>{translate("admin:concertWorkspacePage_thoiGianDien")}</span>
+                <span>{translate('admin:concertWorkspacePage_thoiGianDien')}</span>
                 <input
                   required
                   type="datetime-local"
@@ -649,7 +795,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
                 />
               </label>
               <label className="admin-field">
-                <span>{translate("admin:concertWorkspacePage_moCua")}</span>
+                <span>{translate('admin:concertWorkspacePage_moCua')}</span>
                 <input
                   type="datetime-local"
                   readOnly={concert.status !== 'DRAFT'}
@@ -658,7 +804,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
                 />
               </label>
               <label className="admin-field">
-                <span>{translate("admin:concertWorkspacePage_moBanVe")}</span>
+                <span>{translate('admin:concertWorkspacePage_moBanVe')}</span>
                 <input
                   required
                   type="datetime-local"
@@ -668,7 +814,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
                 />
               </label>
               <label className="admin-field">
-                <span>{translate("admin:concertWorkspacePage_ketThucBan_2")}</span>
+                <span>{translate('admin:concertWorkspacePage_ketThucBan_2')}</span>
                 <input
                   type="datetime-local"
                   readOnly={concert.status !== 'DRAFT'}
@@ -679,12 +825,12 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
               {(concert.status === 'ON_SALE' || concert.status === 'SOLD_OUT') && (
                 <p className="admin-field-wide">
                   {apiScope === 'admin'
-                    ? translate("admin:concertWorkspacePage_doiLichTrongMucDonHangCheck")
-                    : translate("admin:concertWorkspacePage_lienHeTicketboxDeDoiLichSau")}
+                    ? translate('admin:concertWorkspacePage_doiLichTrongMucDonHangCheck')
+                    : translate('admin:concertWorkspacePage_lienHeTicketboxDeDoiLichSau')}
                 </p>
               )}
               <label className="admin-field">
-                <span>{translate("admin:concertWorkspacePage_diaDiem")}</span>
+                <span>{translate('admin:concertWorkspacePage_diaDiem')}</span>
                 <input
                   required
                   value={form.venueName}
@@ -692,7 +838,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
                 />
               </label>
               <label className="admin-field">
-                <span>{translate("admin:concertWorkspacePage_diaChi")}</span>
+                <span>{translate('admin:concertWorkspacePage_diaChi')}</span>
                 <input
                   required
                   value={form.venueAddress}
@@ -700,19 +846,21 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
                 />
               </label>
               <label className="admin-field admin-field-wide">
-                <span>{translate("admin:concertWorkspacePage_soDoChoSvg")}</span>
+                <span>{translate('admin:concertWorkspacePage_soDoChoSvg')}</span>
                 <textarea
                   rows={5}
                   value={form.seatMapSvg ?? ''}
                   onChange={(e) => setForm({ ...form, seatMapSvg: e.target.value || null })}
-                  placeholder={translate("admin:concertWorkspacePage_danNoiDungSvgDaDuocKiem")}
+                  placeholder={translate('admin:concertWorkspacePage_danNoiDungSvgDaDuocKiem')}
                 />
               </label>
             </div>
             <footer>
               <label className="admin-secondary-action">
                 <FileUp size={16} />
-                {uploadingPoster ? translate("admin:concertWorkspacePage_dangTaiPoster") : translate('admin:concertWorkspacePage_replacePoster')}
+                {uploadingPoster
+                  ? translate('admin:concertWorkspacePage_dangTaiPoster')
+                  : translate('admin:concertWorkspacePage_replacePoster')}
                 <input
                   hidden
                   type="file"
@@ -722,7 +870,9 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
                 />
               </label>
               <button className="admin-primary-action" disabled={saving}>
-                {saving ? translate("admin:concertWorkspacePage_dangLuu") : translate("admin:concertWorkspacePage_luuCauHinh")}
+                {saving
+                  ? translate('admin:concertWorkspacePage_dangLuu')
+                  : translate('admin:concertWorkspacePage_luuCauHinh')}
               </button>
             </footer>
           </div>
@@ -733,27 +883,27 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
         <section className="concert-workspace-card">
           <div className="concert-card-heading">
             <div>
-              <span>{translate("admin:concertWorkspacePage_inventory")}</span>
-              <h2>{translate("admin:concertWorkspacePage_hangVeVaTonKho")}</h2>
+              <span>{translate('admin:concertWorkspacePage_inventory')}</span>
+              <h2>{translate('admin:concertWorkspacePage_hangVeVaTonKho')}</h2>
             </div>
             <Link
               className="admin-primary-action"
               to={`${root}/ticket-types?concertId=${id}&returnTo=${encodeURIComponent(`${root}/concerts/${id}?tab=tickets`)}`}
             >
-              {translate("admin:concertWorkspacePage_quanLyHangVe")}
+              {translate('admin:concertWorkspacePage_quanLyHangVe')}
             </Link>
           </div>
           <p className="concert-workspace-hint">
-            {translate("admin:concertWorkspacePage_cacHangVeBenDuoiLayTruc")}
+            {translate('admin:concertWorkspacePage_cacHangVeBenDuoiLayTruc')}
           </p>
           <div className="admin-table-wrap">
             <table className="admin-table">
               <thead>
                 <tr>
-                  <th>{translate("admin:concertWorkspacePage_hangVe")}</th>
-                  <th>{translate("admin:concertWorkspacePage_gia")}</th>
-                  <th>{translate("admin:concertWorkspacePage_tonKho")}</th>
-                  <th>{translate("admin:concertWorkspacePage_trangThai")}</th>
+                  <th>{translate('admin:concertWorkspacePage_hangVe')}</th>
+                  <th>{translate('admin:concertWorkspacePage_gia')}</th>
+                  <th>{translate('admin:concertWorkspacePage_tonKho')}</th>
+                  <th>{translate('admin:concertWorkspacePage_trangThai')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -772,7 +922,9 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
                           item.isActive ? 'status-badge badge-success' : 'status-badge badge-muted'
                         }
                       >
-                        {item.isActive ? translate("admin:concertWorkspacePage_dangHoatDong") : translate("admin:concertWorkspacePage_tamNgung")}
+                        {item.isActive
+                          ? translate('admin:concertWorkspacePage_dangHoatDong')
+                          : translate('admin:concertWorkspacePage_tamNgung')}
                       </span>
                     </td>
                   </tr>
@@ -787,26 +939,30 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
         <section className="concert-workspace-card">
           <div className="concert-card-heading">
             <div>
-              <span>{translate("admin:concertWorkspacePage_danhSachKhachMoi")}</span>
-              <h2>{guestTotal === undefined ? translate("admin:concertWorkspacePage_danhSachKhachMoi") : translate("admin:concertWorkspacePage_khachPhuHop", { count: guestTotal })}</h2>
+              <span>{translate('admin:concertWorkspacePage_danhSachKhachMoi')}</span>
+              <h2>
+                {guestTotal === undefined
+                  ? translate('admin:concertWorkspacePage_danhSachKhachMoi')
+                  : translate('admin:concertWorkspacePage_khachPhuHop', { count: guestTotal })}
+              </h2>
             </div>
             <Link
               className="admin-secondary-action"
               to={`${root}/guests?concertId=${id}&returnTo=${encodeURIComponent(`${root}/concerts/${id}?tab=guests`)}`}
             >
-              {translate("admin:concertWorkspacePage_lichSuBatch")}
+              {translate('admin:concertWorkspacePage_lichSuBatch')}
             </Link>
           </div>
           <div className="concert-inline-action-panel">
             <div>
-              <strong>{translate("admin:concertWorkspacePage_importCsvChoConcertNay")}</strong>
-              <span>
-                {translate("admin:concertWorkspacePage_chonFileDanhSachKhachImportNgay")}
-              </span>
+              <strong>{translate('admin:concertWorkspacePage_importCsvChoConcertNay')}</strong>
+              <span>{translate('admin:concertWorkspacePage_chonFileDanhSachKhachImportNgay')}</span>
             </div>
             <label className="admin-secondary-action">
               <FileUp size={16} />
-              {guestImportFile ? guestImportFile.name : translate("admin:concertWorkspacePage_chonCsv")}
+              {guestImportFile
+                ? guestImportFile.name
+                : translate('admin:concertWorkspacePage_chonCsv')}
               <input
                 hidden
                 type="file"
@@ -823,7 +979,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
                 checked={guestImportScheduled}
                 onChange={(event) => setGuestImportScheduled(event.target.checked)}
               />{' '}
-              {translate("admin:concertWorkspacePage_quaLichXuLy")}
+              {translate('admin:concertWorkspacePage_quaLichXuLy')}
             </label>
             <button
               className="admin-primary-action"
@@ -831,22 +987,30 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
               disabled={!guestImportFile || guestImporting}
               onClick={() => void submitGuestImport()}
             >
-              {guestImporting ? translate("admin:concertWorkspacePage_dangImport") : translate("admin:concertWorkspacePage_importVaoDanhSachKhach")}
+              {guestImporting
+                ? translate('admin:concertWorkspacePage_dangImport')
+                : translate('admin:concertWorkspacePage_importVaoDanhSachKhach')}
             </button>
           </div>
           <div className="concert-workspace-toolbar">
             <input
               value={guestQuery}
-              onChange={(e) => { setGuestQuery(e.target.value); setGuestPageIndex(0); }}
-              placeholder={translate("admin:concertWorkspacePage_timTenSoDienThoaiHangHoac")}
+              onChange={(e) => {
+                setGuestQuery(e.target.value);
+                setGuestPageIndex(0);
+              }}
+              placeholder={translate('admin:concertWorkspacePage_timTenSoDienThoaiHangHoac')}
             />
             <label>
               <input
                 type="checkbox"
                 checked={activeOnly}
-                onChange={(e) => { setActiveOnly(e.target.checked); setGuestPageIndex(0); }}
+                onChange={(e) => {
+                  setActiveOnly(e.target.checked);
+                  setGuestPageIndex(0);
+                }}
               />{' '}
-              {translate("admin:concertWorkspacePage_chiKhachHieuLuc")}
+              {translate('admin:concertWorkspacePage_chiKhachHieuLuc')}
             </label>
           </div>
           <SectionStatus {...guestSection} />
@@ -854,12 +1018,12 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
             <table className="admin-table">
               <thead>
                 <tr>
-                  <th>{translate("admin:concertWorkspacePage_khachMoi")}</th>
-                  <th>{translate("admin:concertWorkspacePage_hang")}</th>
-                  <th>{translate("admin:concertWorkspacePage_donViMoi")}</th>
-                  <th>{translate("admin:concertWorkspacePage_trangThai")}</th>
-                  <th>{translate("admin:concertWorkspacePage_checkIn")}</th>
-                  <th>{translate("admin:concertWorkspacePage_ghiChu")}</th>
+                  <th>{translate('admin:concertWorkspacePage_khachMoi')}</th>
+                  <th>{translate('admin:concertWorkspacePage_hang')}</th>
+                  <th>{translate('admin:concertWorkspacePage_donViMoi')}</th>
+                  <th>{translate('admin:concertWorkspacePage_trangThai')}</th>
+                  <th>{translate('admin:concertWorkspacePage_checkIn')}</th>
+                  <th>{translate('admin:concertWorkspacePage_ghiChu')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -877,20 +1041,24 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
                           guest.active ? 'status-badge badge-success' : 'status-badge badge-muted'
                         }
                       >
-                        {guest.active ? translate("admin:concertWorkspacePage_hieuLuc") : translate("admin:concertWorkspacePage_daHuy")}
+                        {guest.active
+                          ? translate('admin:concertWorkspacePage_hieuLuc')
+                          : translate('admin:concertWorkspacePage_daHuy')}
                       </span>
                     </td>
                     <td>
                       {guest.checkedInAt ? (
                         <>
-                          <strong className="admin-table-primary">{translate("admin:concertWorkspacePage_daVaoCong")}</strong>
+                          <strong className="admin-table-primary">
+                            {translate('admin:concertWorkspacePage_daVaoCong')}
+                          </strong>
                           <span className="admin-table-secondary">
                             {guest.checkinGate ?? 'VIP'} ·{' '}
                             {dateTime.format(new Date(guest.checkedInAt))}
                           </span>
                         </>
                       ) : (
-                        translate("admin:concertWorkspacePage_chuaVao")
+                        translate('admin:concertWorkspacePage_chuaVao')
                       )}
                     </td>
                     <td>{guest.notes ?? '—'}</td>
@@ -899,7 +1067,7 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
                 {guestSection.data && !visibleGuests.length ? (
                   <tr>
                     <td colSpan={6} className="concert-empty-row">
-                      {translate("admin:concertWorkspacePage_chuaCoKhachMoiPhuHop")}
+                      {translate('admin:concertWorkspacePage_chuaCoKhachMoiPhuHop')}
                     </td>
                   </tr>
                 ) : null}
@@ -908,11 +1076,28 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
           </div>
           {guestSection.data && guestSection.data.totalPages > 1 ? (
             <div className="organization-form">
-              <button type="button" className="admin-secondary-action" disabled={guestPageIndex === 0}
-                onClick={() => setGuestPageIndex((page) => page - 1)}>{translate("admin:concertWorkspacePage_trangTruoc")}</button>
-              <span>{translate('pageNumber', { page: guestPageIndex + 1, total: guestSection.data.totalPages })}</span>
-              <button type="button" className="admin-secondary-action" disabled={guestSection.data.last}
-                onClick={() => setGuestPageIndex((page) => page + 1)}>{translate('pageNext')}</button>
+              <button
+                type="button"
+                className="admin-secondary-action"
+                disabled={guestPageIndex === 0}
+                onClick={() => setGuestPageIndex((page) => page - 1)}
+              >
+                {translate('admin:concertWorkspacePage_trangTruoc')}
+              </button>
+              <span>
+                {translate('pageNumber', {
+                  page: guestPageIndex + 1,
+                  total: guestSection.data.totalPages,
+                })}
+              </span>
+              <button
+                type="button"
+                className="admin-secondary-action"
+                disabled={guestSection.data.last}
+                onClick={() => setGuestPageIndex((page) => page + 1)}
+              >
+                {translate('pageNext')}
+              </button>
             </div>
           ) : null}
         </section>
@@ -923,57 +1108,67 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
           <section className="concert-workspace-card">
             <div className="concert-card-heading">
               <div>
-                <span>{translate("admin:concertWorkspacePage_checkIn")}</span>
-                <h2>{translate("admin:concertWorkspacePage_vanHanhTaiCong")}</h2>
+                <span>{translate('admin:concertWorkspacePage_checkIn')}</span>
+                <h2>{translate('admin:concertWorkspacePage_vanHanhTaiCong')}</h2>
               </div>
               {canViewOrders ? (
-                <Link className="admin-secondary-action" to={`${root}/orders?concertId=${id}`}>{translate("admin:concertWorkspacePage_xemVe")}</Link>
+                <Link className="admin-secondary-action" to={`${root}/orders?concertId=${id}`}>
+                  {translate('admin:concertWorkspacePage_xemVe')}
+                </Link>
               ) : null}
             </div>
             <SectionStatus {...checkinSection} />
-            {checkin ? <dl className="concert-definition-list">
-              <div>
-                <dt>{translate("admin:concertWorkspacePage_tongVe")}</dt>
-                <dd>{checkin.totalTickets}</dd>
-              </div>
-              <div>
-                <dt>{translate("admin:concertWorkspacePage_daVaoCong")}</dt>
-                <dd>{checkin.checkedIn}</dd>
-              </div>
-              <div>
-                <dt>Online / Offline</dt>
-                <dd>
-                  {`${checkin.onlineCheckins} / ${checkin.offlineCheckins}`}
-                </dd>
-              </div>
-            </dl> : null}
+            {checkin ? (
+              <dl className="concert-definition-list">
+                <div>
+                  <dt>{translate('admin:concertWorkspacePage_tongVe')}</dt>
+                  <dd>{checkin.totalTickets}</dd>
+                </div>
+                <div>
+                  <dt>{translate('admin:concertWorkspacePage_daVaoCong')}</dt>
+                  <dd>{checkin.checkedIn}</dd>
+                </div>
+                <div>
+                  <dt>Online / Offline</dt>
+                  <dd>{`${checkin.onlineCheckins} / ${checkin.offlineCheckins}`}</dd>
+                </div>
+              </dl>
+            ) : null}
           </section>
           {canViewOrders ? (
             <section className="concert-workspace-card">
               <div className="concert-card-heading">
                 <div>
-                  <span>{translate("admin:concertWorkspacePage_donHang")}</span>
-                  <h2>{orders ? translate("admin:concertWorkspacePage_donPhatSinh", { count: orders.length }) : translate("admin:concertWorkspacePage_donHang")}</h2>
+                  <span>{translate('admin:concertWorkspacePage_donHang')}</span>
+                  <h2>
+                    {orders
+                      ? translate('admin:concertWorkspacePage_donPhatSinh', {
+                          count: orders.length,
+                        })
+                      : translate('admin:concertWorkspacePage_donHang')}
+                  </h2>
                 </div>
                 <Link className="admin-secondary-action" to={`${root}/orders?concertId=${id}`}>
-                  {translate("admin:concertWorkspacePage_xemDonHang")}
+                  {translate('admin:concertWorkspacePage_xemDonHang')}
                 </Link>
               </div>
               <SectionStatus {...orderSection} />
-              {orders ? <dl className="concert-definition-list">
-                <div>
-                  <dt>{translate("admin:concertWorkspacePage_daThanhToan")}</dt>
-                  <dd>{paidOrders.length}</dd>
-                </div>
-                <div>
-                  <dt>{translate("admin:concertWorkspacePage_choThanhToan")}</dt>
-                  <dd>{orders.filter((order) => order.status === 'AWAITING_PAYMENT').length}</dd>
-                </div>
-                <div>
-                  <dt>{translate('revenue')}</dt>
-                  <dd>{money.format(revenue)}</dd>
-                </div>
-              </dl> : null}
+              {orders ? (
+                <dl className="concert-definition-list">
+                  <div>
+                    <dt>{translate('admin:concertWorkspacePage_daThanhToan')}</dt>
+                    <dd>{paidOrders.length}</dd>
+                  </div>
+                  <div>
+                    <dt>{translate('admin:concertWorkspacePage_choThanhToan')}</dt>
+                    <dd>{orders.filter((order) => order.status === 'AWAITING_PAYMENT').length}</dd>
+                  </div>
+                  <div>
+                    <dt>{translate('revenue')}</dt>
+                    <dd>{money.format(revenue)}</dd>
+                  </div>
+                </dl>
+              ) : null}
             </section>
           ) : null}
         </section>
@@ -984,29 +1179,31 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
           <SectionStatus {...artistSection} />
           <div className="concert-card-heading">
             <div>
-              <span>{translate("admin:concertWorkspacePage_ngheSiNoiDungCongKhai")}</span>
-              <h2>{translate("admin:concertWorkspacePage_bienTapTruocKhiXuatBan")}</h2>
+              <span>{translate('admin:concertWorkspacePage_ngheSiNoiDungCongKhai')}</span>
+              <h2>{translate('admin:concertWorkspacePage_bienTapTruocKhiXuatBan')}</h2>
             </div>
             <Link
               className="admin-secondary-action"
               to={`${root}/artist-bio?concertId=${id}&returnTo=${encodeURIComponent(`${root}/concerts/${id}?tab=artist`)}`}
             >
-              {translate("admin:concertWorkspacePage_lichSuAiDayDu")}
+              {translate('admin:concertWorkspacePage_lichSuAiDayDu')}
             </Link>
           </div>
           <p className="artist-content-intro">
-            {translate("admin:concertWorkspacePage_moiPdfTaoMotBanNhapNguon")}
+            {translate('admin:concertWorkspacePage_moiPdfTaoMotBanNhapNguon')}
           </p>
           <div className="artist-content-grid">
             <section>
               <div className="artist-content-section-heading">
                 <div>
-                  <strong>{translate("admin:concertWorkspacePage_nguonThamKhao")}</strong>
-                  <span>{translate("admin:concertWorkspacePage_coTheThemNhieuPressKitHoac")}</span>
+                  <strong>{translate('admin:concertWorkspacePage_nguonThamKhao')}</strong>
+                  <span>{translate('admin:concertWorkspacePage_coTheThemNhieuPressKitHoac')}</span>
                 </div>
                 <label className="admin-primary-action">
                   <FileUp size={16} />
-                  {uploadingArtistSources ? translate("admin:concertWorkspacePage_dangGui") : translate("admin:concertWorkspacePage_themTaiLieuPdf")}
+                  {uploadingArtistSources
+                    ? translate('admin:concertWorkspacePage_dangGui')
+                    : translate('admin:concertWorkspacePage_themTaiLieuPdf')}
                   <input
                     hidden
                     type="file"
@@ -1030,7 +1227,9 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
                         type="checkbox"
                         checked={selectedArtistSourceIds.includes(job.id)}
                         onChange={() => toggleArtistSource(job.id)}
-                        aria-label={translate("admin:concertWorkspacePage_chonDeTongHop", { arg1: job.originalFileName })}
+                        aria-label={translate('admin:concertWorkspacePage_chonDeTongHop', {
+                          arg1: job.originalFileName,
+                        })}
                       />
                     ) : null}
                     <Music2 size={17} />
@@ -1046,13 +1245,13 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
                         className="admin-secondary-action"
                         onClick={() => setArtistBioDraft(job.resultBio ?? '')}
                       >
-                        {translate("admin:concertWorkspacePage_xemRieng")}
+                        {translate('admin:concertWorkspacePage_xemRieng')}
                       </button>
                     ) : null}
                   </div>
                 ))}
                 {!artistJobs.length ? (
-                  <p>{translate("admin:concertWorkspacePage_chuaCoTaiLieuNguonThemPress")}</p>
+                  <p>{translate('admin:concertWorkspacePage_chuaCoTaiLieuNguonThemPress')}</p>
                 ) : null}
               </div>
               <button
@@ -1062,22 +1261,28 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
                 onClick={() => void combineArtistSources()}
               >
                 {combiningArtistSources
-                  ? translate("admin:concertWorkspacePage_dangTongHop")
-                  : translate("admin:concertWorkspacePage_tongHopNguonDaChon", { arg1: selectedArtistSourceIds.length })}
+                  ? translate('admin:concertWorkspacePage_dangTongHop')
+                  : translate('admin:concertWorkspacePage_tongHopNguonDaChon', {
+                      arg1: selectedArtistSourceIds.length,
+                    })}
               </button>
             </section>
             <section className="artist-publish-panel">
               <div className="artist-content-section-heading">
                 <div>
-                  <strong>{translate("admin:concertWorkspacePage_noiDungSeHienThiCongKhai")}</strong>
-                  <span>{translate("admin:concertWorkspacePage_khanGiaXemPhanNayTruocKhi")}</span>
+                  <strong>
+                    {translate('admin:concertWorkspacePage_noiDungSeHienThiCongKhai')}
+                  </strong>
+                  <span>{translate('admin:concertWorkspacePage_khanGiaXemPhanNayTruocKhi')}</span>
                 </div>
                 <span
                   className={
                     concert.artistBio ? 'status-badge badge-success' : 'status-badge badge-muted'
                   }
                 >
-                  {concert.artistBio ? translate("admin:concertWorkspacePage_daXuatBan") : translate("admin:concertWorkspacePage_banNhap")}
+                  {concert.artistBio
+                    ? translate('admin:concertWorkspacePage_daXuatBan')
+                    : translate('admin:concertWorkspacePage_banNhap')}
                 </span>
               </div>
               <textarea
@@ -1085,17 +1290,22 @@ export function ConcertWorkspacePage({ apiScope = 'admin' }: { apiScope?: Manage
                 maxLength={2000}
                 rows={9}
                 onChange={(event) => setArtistBioDraft(event.target.value)}
-                placeholder={translate("admin:concertWorkspacePage_tongHopCacNguonHoacTuViet")}
+                placeholder={translate('admin:concertWorkspacePage_tongHopCacNguonHoacTuViet')}
               />
               <div className="artist-publish-footer">
-                <span>{artistBioDraft.length}{translate("admin:concertWorkspacePage_2000KyTu")}</span>
+                <span>
+                  {artistBioDraft.length}
+                  {translate('admin:concertWorkspacePage_2000KyTu')}
+                </span>
                 <button
                   className="admin-primary-action"
                   type="button"
                   disabled={!artistBioDraft.trim() || publishingArtistBio}
                   onClick={() => void publishArtistBio()}
                 >
-                  {publishingArtistBio ? translate("admin:concertWorkspacePage_dangXuatBan") : translate("admin:concertWorkspacePage_xuatBanLenTrangConcert")}
+                  {publishingArtistBio
+                    ? translate('admin:concertWorkspacePage_dangXuatBan')
+                    : translate('admin:concertWorkspacePage_xuatBanLenTrangConcert')}
                 </button>
               </div>
             </section>
@@ -1123,7 +1333,7 @@ function Metric({
       <span>{icon}</span>
       <small>{label}</small>
       <strong>{value}</strong>
-      <em>{translate("admin:concertWorkspacePage_xemChiTiet")}</em>
+      <em>{translate('admin:concertWorkspacePage_xemChiTiet')}</em>
     </button>
   );
 }

@@ -23,7 +23,12 @@ export function inspectSaleDraft(
       saveIssue = 'emptySeatGroup';
       break;
     }
-    if (!group.sectionLabel.trim() || !Number.isInteger(group.capacity) || group.capacity < 1 || group.capacity > 2_147_483_647) {
+    if (
+      !group.sectionLabel.trim() ||
+      !Number.isInteger(group.capacity) ||
+      group.capacity < 1 ||
+      group.capacity > 2_147_483_647
+    ) {
       saveIssue = 'reviewInvalidGroup';
       break;
     }
@@ -49,8 +54,13 @@ export function inspectSaleDraft(
 
   if (!saveIssue) {
     for (const offer of sale.offers) {
-      if (!groups.has(offer.groupId) || !offer.name.trim() || !Number.isSafeInteger(offer.price)
-        || offer.price < 1 || offer.price > 999_999_999_999) {
+      if (
+        !groups.has(offer.groupId) ||
+        !offer.name.trim() ||
+        !Number.isSafeInteger(offer.price) ||
+        offer.price < 1 ||
+        offer.price > 999_999_999_999
+      ) {
         saveIssue = 'reviewInvalidOffer';
         break;
       }
@@ -65,8 +75,13 @@ export function inspectSaleDraft(
 
   const publishIssues: string[] = [];
   if (!sale.offers.some((offer) => offer.active)) publishIssues.push('reviewMissingOffer');
-  const unassigned = layout?.sections.some((section) => section.kind === 'ASSIGNED' &&
-    section.rows.some((row) => row.seats.some((seat) => !seat.blocked && !assignedSeats.has(seat.id))));
+  const unassigned = layout?.sections.some(
+    (section) =>
+      section.kind === 'ASSIGNED' &&
+      section.rows.some((row) =>
+        row.seats.some((seat) => !seat.blocked && !assignedSeats.has(seat.id)),
+      ),
+  );
   if (!saveIssue && unassigned) publishIssues.push('reviewUnassignedSeats');
   if (ends <= now) publishIssues.push('reviewSaleEnded');
 

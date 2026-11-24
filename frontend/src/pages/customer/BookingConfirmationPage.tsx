@@ -8,7 +8,12 @@ import { currency } from '../../data/formatters';
 import { useAuth } from '../../features/auth/AuthContext';
 import { concertTitle } from '../../features/concert/concertText';
 import { orderWindowExpired, type CheckoutEvent } from '../../features/ticket/checkoutPayment';
-import { CheckoutEventTime, CheckoutOrderLines, CheckoutOrderReference, CheckoutStatusPanel } from './CheckoutDetails';
+import {
+  CheckoutEventTime,
+  CheckoutOrderLines,
+  CheckoutOrderReference,
+  CheckoutStatusPanel,
+} from './CheckoutDetails';
 
 type ConfirmationState = {
   event?: CheckoutEvent;
@@ -22,7 +27,9 @@ export function BookingConfirmationPage() {
   // A previous version kept the order snapshot in browser history. Its ID remains a lookup hint.
   const orderId = state?.orderId ?? state?.order?.id;
   if (!user || typeof orderId !== 'string' || !orderId) return <UnconfirmedOrder />;
-  return <VerifyConfirmation key={user.id + ':' + orderId} orderId={orderId} event={state?.event} />;
+  return (
+    <VerifyConfirmation key={user.id + ':' + orderId} orderId={orderId} event={state?.event} />
+  );
 }
 
 function VerifyConfirmation({ orderId, event }: { orderId: string; event?: CheckoutEvent }) {
@@ -31,11 +38,13 @@ function VerifyConfirmation({ orderId, event }: { orderId: string; event?: Check
 
   useEffect(() => {
     const controller = new AbortController();
-    void getOrder(orderId, controller.signal).then((data) => {
-      if (!controller.signal.aborted) setOrder(data);
-    }).catch(() => {
-      if (!controller.signal.aborted) setOrder(null);
-    });
+    void getOrder(orderId, controller.signal)
+      .then((data) => {
+        if (!controller.signal.aborted) setOrder(data);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setOrder(null);
+      });
     return () => controller.abort();
   }, [orderId]);
 
@@ -55,7 +64,8 @@ function VerifyConfirmation({ orderId, event }: { orderId: string; event?: Check
     );
   }
 
-  if (order?.status !== 'PAID' || order.id !== orderId) return <UnconfirmedOrder expired={order !== null && orderWindowExpired(order)} />;
+  if (order?.status !== 'PAID' || order.id !== orderId)
+    return <UnconfirmedOrder expired={order !== null && orderWindowExpired(order)} />;
   return <ConfirmedOrder order={order} event={event} />;
 }
 
@@ -63,9 +73,11 @@ function UnconfirmedOrder({ expired }: { expired?: boolean }) {
   const { t } = useTranslation();
   return (
     <CheckoutStatusPanel
-      title={t(expired
-        ? 'customer:bookingConfirmationPage_donHangDaHetHan'
-        : 'customer:bookingConfirmationPage_chuaTheXacNhanDonHang')}
+      title={t(
+        expired
+          ? 'customer:bookingConfirmationPage_donHangDaHetHan'
+          : 'customer:bookingConfirmationPage_chuaTheXacNhanDonHang',
+      )}
       body={t('customer:bookingConfirmationPage_kiemTraTrangThaiMoiNhatTrong')}
     >
       <div className="purchase-status-actions">
@@ -85,29 +97,46 @@ function ConfirmedOrder({ order, event }: { order: Order; event?: CheckoutEvent 
   useEffect(() => {
     if (knownEvent?.date && knownEvent?.venue) return;
     const controller = new AbortController();
-    void getConcert(order.concertId, controller.signal).then((data) => {
-      if (!controller.signal.aborted) setConcert(data);
-    }).catch(() => {
-      // The order summary is available without Catalog enrichment.
-    });
+    void getConcert(order.concertId, controller.signal)
+      .then((data) => {
+        if (!controller.signal.aborted) setConcert(data);
+      })
+      .catch(() => {
+        // The order summary is available without Catalog enrichment.
+      });
     return () => controller.abort();
   }, [knownEvent?.date, knownEvent?.venue, order.concertId]);
 
-  const eventTitle = concert ? concertTitle(concert) : knownEvent ? concertTitle(knownEvent) : order.concertTitle;
+  const eventTitle = concert
+    ? concertTitle(concert)
+    : knownEvent
+      ? concertTitle(knownEvent)
+      : order.concertTitle;
 
   return (
-    <section className="buyer-page purchase-page page-width purchase-feedback" aria-labelledby="booking-confirmation-title">
+    <section
+      className="buyer-page purchase-page page-width purchase-feedback"
+      aria-labelledby="booking-confirmation-title"
+    >
       <header className="purchase-header purchase-confirmed-header">
         <CircleCheck size={32} aria-hidden="true" />
         <div>
-          <h1 id="booking-confirmation-title">{t('customer:bookingConfirmationPage_datVeThanhCong')}</h1>
+          <h1 id="booking-confirmation-title">
+            {t('customer:bookingConfirmationPage_datVeThanhCong')}
+          </h1>
           <p>{t('customer:bookingConfirmationPage_thanhToanDaDuocXacNhanBan')}</p>
         </div>
       </header>
 
-      <section className="purchase-panel purchase-confirmed-summary" aria-labelledby="confirmed-event-title">
+      <section
+        className="purchase-panel purchase-confirmed-summary"
+        aria-labelledby="confirmed-event-title"
+      >
         <h2 id="confirmed-event-title">{eventTitle}</h2>
-        <CheckoutEventTime date={concert?.eventDate ?? knownEvent?.date} venue={concert?.venueName ?? knownEvent?.venue} />
+        <CheckoutEventTime
+          date={concert?.eventDate ?? knownEvent?.date}
+          venue={concert?.venueName ?? knownEvent?.venue}
+        />
         <CheckoutOrderReference code={order.referenceCode} />
         <CheckoutOrderLines order={order} />
         <div className="purchase-order-total">

@@ -17,7 +17,7 @@ type AdminConfirmDialogProps = {
 export function AdminConfirmDialog({
   title,
   description,
-  confirmLabel = translate("shared:adminConfirmDialog_xoa"),
+  confirmLabel = translate('shared:adminConfirmDialog_xoa'),
   loading = false,
   destructive = true,
   onConfirm,
@@ -49,46 +49,51 @@ export function AdminConfirmDialog({
           if (event.target === event.currentTarget && !loading) onClose();
         }}
       >
-      <section
-        className="admin-confirm-dialog"
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        aria-describedby={descriptionId}
-      >
-        <header>
-          <span className="admin-confirm-icon">
-            <AlertTriangle aria-hidden="true" size={21} />
-          </span>
-          <button type="button" aria-label={translate("shared:adminConfirmDialog_dong")} onClick={onClose} disabled={loading}>
-            <X aria-hidden="true" size={19} />
-          </button>
-        </header>
-        <div className="admin-confirm-content">
-          <span>{translate("shared:adminConfirmDialog_yeuCauXacNhan")}</span>
-          <h2 id={titleId}>{title}</h2>
-          <p id={descriptionId}>{description}</p>
-        </div>
-        <footer>
-          <button
-            ref={cancelRef}
-            className="admin-secondary-action"
-            type="button"
-            onClick={onClose}
-            disabled={loading}
-          >
-            {translate("shared:adminConfirmDialog_huy")}
-          </button>
-          <button
-            className={destructive ? 'admin-danger-action' : 'admin-primary-action'}
-            type="button"
-            onClick={onConfirm}
-            disabled={loading}
-          >
-            {loading ? translate("shared:adminConfirmDialog_dangXuLy") : confirmLabel}
-          </button>
-        </footer>
-      </section>
+        <section
+          className="admin-confirm-dialog"
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          aria-describedby={descriptionId}
+        >
+          <header>
+            <span className="admin-confirm-icon">
+              <AlertTriangle aria-hidden="true" size={21} />
+            </span>
+            <button
+              type="button"
+              aria-label={translate('shared:adminConfirmDialog_dong')}
+              onClick={onClose}
+              disabled={loading}
+            >
+              <X aria-hidden="true" size={19} />
+            </button>
+          </header>
+          <div className="admin-confirm-content">
+            <span>{translate('shared:adminConfirmDialog_yeuCauXacNhan')}</span>
+            <h2 id={titleId}>{title}</h2>
+            <p id={descriptionId}>{description}</p>
+          </div>
+          <footer>
+            <button
+              ref={cancelRef}
+              className="admin-secondary-action"
+              type="button"
+              onClick={onClose}
+              disabled={loading}
+            >
+              {translate('shared:adminConfirmDialog_huy')}
+            </button>
+            <button
+              className={destructive ? 'admin-danger-action' : 'admin-primary-action'}
+              type="button"
+              onClick={onConfirm}
+              disabled={loading}
+            >
+              {loading ? translate('shared:adminConfirmDialog_dangXuLy') : confirmLabel}
+            </button>
+          </footer>
+        </section>
       </div>
     </ModalPortal>
   );

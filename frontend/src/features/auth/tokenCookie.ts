@@ -23,7 +23,9 @@ export function saveAuthToken(token: string) {
     `Max-Age=${maxAge}`,
     'SameSite=Lax',
     location.protocol === 'https:' ? 'Secure' : '',
-  ].filter(Boolean).join('; ');
+  ]
+    .filter(Boolean)
+    .join('; ');
 }
 
 export function clearAuthToken() {
@@ -46,7 +48,9 @@ function secondsUntilExpiry(token: string) {
   try {
     const payloadPart = token.split('.')[1];
     if (!payloadPart) return fallbackSeconds;
-    const payload = JSON.parse(atob(payloadPart.replace(/-/g, '+').replace(/_/g, '/'))) as { exp?: number };
+    const payload = JSON.parse(atob(payloadPart.replace(/-/g, '+').replace(/_/g, '/'))) as {
+      exp?: number;
+    };
     if (!payload.exp) return fallbackSeconds;
     return Math.max(60, Math.floor(payload.exp - Date.now() / 1000));
   } catch {

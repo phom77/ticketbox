@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router-dom';
-import { CalendarDays, ChevronDown, MapPin, RefreshCw, Ticket as TicketIcon, X } from 'lucide-react';
+import {
+  CalendarDays,
+  ChevronDown,
+  MapPin,
+  RefreshCw,
+  Ticket as TicketIcon,
+  X,
+} from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { ApiClientError, isRequestCanceled } from '../../api/client';
 import { getConcert, type ConcertDetail } from '../../api/concerts';
@@ -39,7 +46,12 @@ export function MyTicketsPage() {
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const preferredConcertId = searchParams.get('concertId');
-  return <TicketWallet key={JSON.stringify([user?.id, preferredConcertId])} preferredConcertId={preferredConcertId} />;
+  return (
+    <TicketWallet
+      key={JSON.stringify([user?.id, preferredConcertId])}
+      preferredConcertId={preferredConcertId}
+    />
+  );
 }
 
 function TicketWallet({ preferredConcertId }: { preferredConcertId: string | null }) {
@@ -61,7 +73,9 @@ function TicketWallet({ preferredConcertId }: { preferredConcertId: string | nul
   useLayoutEffect(() => {
     // A reordered event can move its focused control in the DOM.
     if (rememberedFocus.current && document.activeElement === document.body) {
-      const target = rememberedFocus.current.isConnected ? rememberedFocus.current : heading.current;
+      const target = rememberedFocus.current.isConnected
+        ? rememberedFocus.current
+        : heading.current;
       target?.focus({ preventScroll: true });
     }
     rememberedFocus.current = null;
@@ -84,18 +98,20 @@ function TicketWallet({ preferredConcertId }: { preferredConcertId: string | nul
         if (signal.aborted) return;
         rememberFocus();
         setTickets(data);
-        setSelectedId((id) => id && data.some((ticket) => ticket.id === id) ? id : null);
+        setSelectedId((id) => (id && data.some((ticket) => ticket.id === id) ? id : null));
         setError(false);
         setLoading(false);
 
         for (const id of new Set(data.map((ticket) => ticket.concertId))) {
-          void getConcert(id, signal).then((concert) => {
-            if (signal.aborted) return;
-            rememberFocus();
-            setConcerts((previous) => new Map(previous).set(id, concert));
-          }).catch(() => {
-            // Catalog adds display details. Issued tickets remain usable without it.
-          });
+          void getConcert(id, signal)
+            .then((concert) => {
+              if (signal.aborted) return;
+              rememberFocus();
+              setConcerts((previous) => new Map(previous).set(id, concert));
+            })
+            .catch(() => {
+              // Catalog adds display details. Issued tickets remain usable without it.
+            });
         }
       } catch (requestError) {
         if (signal.aborted || isRequestCanceled(requestError)) return;
@@ -113,9 +129,16 @@ function TicketWallet({ preferredConcertId }: { preferredConcertId: string | nul
     return () => controller.abort();
   }, [reloadKey]);
 
-  const groups = useMemo(() => groupTickets(tickets ?? [], concerts, preferredConcertId), [tickets, concerts, preferredConcertId]);
-  const selectedTicket = selectedId ? tickets?.find((ticket) => ticket.id === selectedId) : undefined;
-  const selectedGroup = selectedTicket ? groups.find(({ id }) => id === selectedTicket.concertId) : undefined;
+  const groups = useMemo(
+    () => groupTickets(tickets ?? [], concerts, preferredConcertId),
+    [tickets, concerts, preferredConcertId],
+  );
+  const selectedTicket = selectedId
+    ? tickets?.find((ticket) => ticket.id === selectedId)
+    : undefined;
+  const selectedGroup = selectedTicket
+    ? groups.find(({ id }) => id === selectedTicket.concertId)
+    : undefined;
 
   function reload() {
     if (loading) return;
@@ -130,16 +153,24 @@ function TicketWallet({ preferredConcertId }: { preferredConcertId: string | nul
       trigger.focus();
       return;
     }
-    const group = openingGroup.current && document.getElementById(groupControlId(openingGroup.current));
+    const group =
+      openingGroup.current && document.getElementById(groupControlId(openingGroup.current));
     (group || heading.current)?.focus();
   }, []);
 
   return (
     <div className="buyer-page page-width wallet-page" ref={page}>
       <header className="buyer-page-header">
-        <h1 ref={heading} tabIndex={-1}>{t('customer:myTicketsPage_myTickets')}</h1>
+        <h1 ref={heading} tabIndex={-1}>
+          {t('customer:myTicketsPage_myTickets')}
+        </h1>
         {tickets?.length ? (
-          <button className="button button-secondary" type="button" onClick={reload} aria-disabled={loading}>
+          <button
+            className="button button-secondary"
+            type="button"
+            onClick={reload}
+            aria-disabled={loading}
+          >
             <RefreshCw size={17} aria-hidden="true" />
             {t('customer:myTicketsPage_lamMoi')}
           </button>
@@ -155,7 +186,13 @@ function TicketWallet({ preferredConcertId }: { preferredConcertId: string | nul
       {error ? (
         <div className="buyer-state wallet-state" role="alert">
           <h2>{t('customer:myTicketsPage_ticketsUnavailable')}</h2>
-          <p>{t(tickets ? 'customer:myTicketsPage_refreshFailed' : 'customer:myTicketsPage_khongTheTaiVeCuaBan')}</p>
+          <p>
+            {t(
+              tickets
+                ? 'customer:myTicketsPage_refreshFailed'
+                : 'customer:myTicketsPage_khongTheTaiVeCuaBan',
+            )}
+          </p>
           <button className="button button-secondary" type="button" onClick={reload}>
             {t('customer:myTicketsPage_thuLai')}
           </button>
@@ -166,13 +203,19 @@ function TicketWallet({ preferredConcertId }: { preferredConcertId: string | nul
         <section className="buyer-state wallet-state">
           <h2>{t('customer:myTicketsPage_empty')}</h2>
           <p>{t('customer:myTicketsPage_tatCaETicketCuaBanSe')}</p>
-          <Link className="button button-primary" to="/">{t('customer:myTicketsPage_browseEvents')}</Link>
+          <Link className="button button-primary" to="/">
+            {t('customer:myTicketsPage_browseEvents')}
+          </Link>
         </section>
       ) : null}
 
       {tickets?.length ? (
         <>
-          <div className="buyer-filters" role="group" aria-label={t('customer:myTicketsPage_trangThaiVe')}>
+          <div
+            className="buyer-filters"
+            role="group"
+            aria-label={t('customer:myTicketsPage_trangThaiVe')}
+          >
             {filters.map(([value, key]) => (
               <button
                 id={value === 'all' ? 'wallet-filter-all' : undefined}
@@ -189,7 +232,8 @@ function TicketWallet({ preferredConcertId }: { preferredConcertId: string | nul
           {filter === 'all' || tickets.some((ticket) => ticket.status === filter) ? (
             <div className="wallet-groups">
               {groups.map((group) => {
-                const visible = group.tickets.map((ticket, index) => ({ ticket, position: index + 1 }))
+                const visible = group.tickets
+                  .map((ticket, index) => ({ ticket, position: index + 1 }))
                   .filter(({ ticket }) => filter === 'all' || ticket.status === filter);
                 if (!visible.length) return null;
 
@@ -199,7 +243,7 @@ function TicketWallet({ preferredConcertId }: { preferredConcertId: string | nul
                     tickets={visible}
                     key={group.id}
                     open={openConcertId === group.id}
-                    onToggle={() => setOpenConcertId((id) => id === group.id ? null : group.id)}
+                    onToggle={() => setOpenConcertId((id) => (id === group.id ? null : group.id))}
                     onOpenTicket={(ticketId, control) => {
                       openingControl.current = control;
                       openingGroup.current = group.id;
@@ -258,7 +302,9 @@ function ConcertTicketCard({
   const detailsId = useId();
   const name = group.concert ? concertTitle(group.concert) : group.tickets[0].concertTitle;
   const timestamp = concertTimestamp(group.concert);
-  const groupAction = t(open ? 'customer:myTicketsPage_hideTickets' : 'customer:myTicketsPage_viewTickets');
+  const groupAction = t(
+    open ? 'customer:myTicketsPage_hideTickets' : 'customer:myTicketsPage_viewTickets',
+  );
 
   return (
     <article className="wallet-group" aria-labelledby={headingId}>
@@ -279,7 +325,10 @@ function ConcertTicketCard({
               </time>
             ) : null}
             {group.concert?.venueName ? (
-              <span><MapPin size={16} aria-hidden="true" />{group.concert.venueName}</span>
+              <span>
+                <MapPin size={16} aria-hidden="true" />
+                {group.concert.venueName}
+              </span>
             ) : null}
             <span>{t('customer:myTicketsPage_ticketCount', { count: tickets.length })}</span>
           </div>
@@ -299,14 +348,16 @@ function ConcertTicketCard({
       </div>
 
       <ul className="wallet-ticket-list" id={detailsId} hidden={!open}>
-        {open ? tickets.map(({ ticket, position }) => (
-          <TicketRow
-            key={ticket.id}
-            ticket={ticket}
-            position={position}
-            onOpen={onOpenTicket}
-          />
-        )) : null}
+        {open
+          ? tickets.map(({ ticket, position }) => (
+              <TicketRow
+                key={ticket.id}
+                ticket={ticket}
+                position={position}
+                onOpen={onOpenTicket}
+              />
+            ))
+          : null}
       </ul>
     </article>
   );
@@ -329,21 +380,34 @@ function EventPoster({ src }: { src: string }) {
 }
 
 function TicketRow({
-  ticket, position, onOpen,
+  ticket,
+  position,
+  onOpen,
 }: {
   ticket: Ticket;
   position: number;
   onOpen: (ticketId: string, control: HTMLButtonElement) => void;
 }) {
   const { t } = useTranslation();
-  const action = t(ticket.status === 'VALID' ? 'customer:myTicketsPage_openQr' : 'customer:myTicketsPage_viewDetails');
-  const description = ticket.referenceCode || seatDescription(ticket) || t('customer:myTicketsPage_ticketNumber', { position });
+  const action = t(
+    ticket.status === 'VALID'
+      ? 'customer:myTicketsPage_openQr'
+      : 'customer:myTicketsPage_viewDetails',
+  );
+  const description =
+    ticket.referenceCode ||
+    seatDescription(ticket) ||
+    t('customer:myTicketsPage_ticketNumber', { position });
   const name = ticket.referenceCode || [ticket.ticketTypeName, description].join(' · ');
   return (
     <li className="wallet-ticket-row">
       <div className="wallet-ticket-info">
         <strong>{ticket.ticketTypeName}</strong>
-        <span>{ticket.referenceCode ? t('customer:myTicketsPage_maVe') + ' ' + description : description}</span>
+        <span>
+          {ticket.referenceCode
+            ? t('customer:myTicketsPage_maVe') + ' ' + description
+            : description}
+        </span>
       </div>
       <TicketStatusLabel status={ticket.status} />
       <button
@@ -360,11 +424,19 @@ function TicketRow({
 
 function TicketStatusLabel({ status }: { status: TicketStatus }) {
   const { t } = useTranslation();
-  return <span className={`wallet-ticket-status wallet-status-${status.toLowerCase()}`}>{t(statusKeys[status])}</span>;
+  return (
+    <span className={`wallet-ticket-status wallet-status-${status.toLowerCase()}`}>
+      {t(statusKeys[status])}
+    </span>
+  );
 }
 
 function TicketDetail({
-  ticket, position, concert, onClose, restoreFocus,
+  ticket,
+  position,
+  concert,
+  onClose,
+  restoreFocus,
 }: {
   ticket: Ticket;
   position: number;
@@ -416,8 +488,12 @@ function TicketDetail({
             <h2 id={headingId}>{name}</h2>
             <div className="wallet-dialog-ticket">
               <strong>{ticket.ticketTypeName}</strong>
-              {!ticket.referenceCode && !location && <span>{t('customer:myTicketsPage_ticketNumber', { position })}</span>}
-              <span role="status"><TicketStatusLabel status={ticket.status} /></span>
+              {!ticket.referenceCode && !location && (
+                <span>{t('customer:myTicketsPage_ticketNumber', { position })}</span>
+              )}
+              <span role="status">
+                <TicketStatusLabel status={ticket.status} />
+              </span>
             </div>
           </div>
           <button
@@ -444,7 +520,9 @@ function TicketDetail({
               role="img"
               title={t('customer:myTicketsPage_ticketQrCodeFor', { arg1: name })}
             />
-            <p><strong>{t('customer:myTicketsPage_xuatTrinhTaiCong')}</strong></p>
+            <p>
+              <strong>{t('customer:myTicketsPage_xuatTrinhTaiCong')}</strong>
+            </p>
             <p>{t('customer:myTicketsPage_giuQrRiengTuNeuChiaSe')}</p>
           </div>
         ) : (
@@ -455,15 +533,34 @@ function TicketDetail({
           {timestamp !== null ? (
             <div>
               <dt>{t('customer:myTicketsPage_eventDate')}</dt>
-              <dd><time dateTime={concert?.eventDate}>{eventDateTime.format(timestamp)}</time></dd>
+              <dd>
+                <time dateTime={concert?.eventDate}>{eventDateTime.format(timestamp)}</time>
+              </dd>
             </div>
           ) : null}
-          {concert?.venueName ? <div><dt>{t('customer:myTicketsPage_venue')}</dt><dd>{concert.venueName}</dd></div> : null}
-          {ticket.referenceCode && <div><dt>{t('customer:myTicketsPage_maVe')}</dt><dd>{ticket.referenceCode}</dd></div>}
-          {location && <div><dt>{t('customer:myTicketsPage_ticketLocation')}</dt><dd>{location}</dd></div>}
+          {concert?.venueName ? (
+            <div>
+              <dt>{t('customer:myTicketsPage_venue')}</dt>
+              <dd>{concert.venueName}</dd>
+            </div>
+          ) : null}
+          {ticket.referenceCode && (
+            <div>
+              <dt>{t('customer:myTicketsPage_maVe')}</dt>
+              <dd>{ticket.referenceCode}</dd>
+            </div>
+          )}
+          {location && (
+            <div>
+              <dt>{t('customer:myTicketsPage_ticketLocation')}</dt>
+              <dd>{location}</dd>
+            </div>
+          )}
           <div>
             <dt>{t('customer:myTicketsPage_issued')}</dt>
-            <dd><time dateTime={ticket.issuedAt}>{issuedDate.format(new Date(ticket.issuedAt))}</time></dd>
+            <dd>
+              <time dateTime={ticket.issuedAt}>{issuedDate.format(new Date(ticket.issuedAt))}</time>
+            </dd>
           </div>
         </dl>
       </dialog>
@@ -480,20 +577,29 @@ function concertTimestamp(concert?: ConcertDetail) {
   return Number.isFinite(timestamp) ? timestamp : null;
 }
 
-function groupTickets(tickets: Ticket[], concerts: Map<string, ConcertDetail>, preferredConcertId: string | null) {
+function groupTickets(
+  tickets: Ticket[],
+  concerts: Map<string, ConcertDetail>,
+  preferredConcertId: string | null,
+) {
   const groups = new Map<string, ConcertTicketGroup>();
   for (const ticket of tickets) {
     const current = groups.get(ticket.concertId);
     if (current) current.tickets.push(ticket);
-    else groups.set(ticket.concertId, {
-      id: ticket.concertId, concert: concerts.get(ticket.concertId), tickets: [ticket],
-    });
+    else
+      groups.set(ticket.concertId, {
+        id: ticket.concertId,
+        concert: concerts.get(ticket.concertId),
+        tickets: [ticket],
+      });
   }
 
   const now = Date.now();
   function upcoming(group: ConcertTicketGroup) {
     const timestamp = concertTimestamp(group.concert);
-    return timestamp !== null && timestamp >= now && group.tickets.some((ticket) => ticket.status === 'VALID')
+    return timestamp !== null &&
+      timestamp >= now &&
+      group.tickets.some((ticket) => ticket.status === 'VALID')
       ? timestamp
       : Infinity;
   }

@@ -17,7 +17,12 @@ interface AuthContextType {
   token: string | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<UserSummary>;
-  register: (email: string, password: string, fullName: string, phone: string | null) => Promise<void>;
+  register: (
+    email: string,
+    password: string,
+    fullName: string,
+    phone: string | null,
+  ) => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<UserSummary | null>;
   updateUserSummary: (nextUser: UserSummary, expectedToken: string | null) => void;
@@ -48,7 +53,7 @@ function decodeJwt(token: string): TokenPayload | null {
         .atob(base64)
         .split('')
         .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join('')
+        .join(''),
     );
     return JSON.parse(jsonPayload);
   } catch {
@@ -115,7 +120,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return data.user;
   };
 
-  const register = async (email: string, password: string, fullName: string, phone: string | null): Promise<void> => {
+  const register = async (
+    email: string,
+    password: string,
+    fullName: string,
+    phone: string | null,
+  ): Promise<void> => {
     await api.post('/api/auth/register', { email, password, fullName, phone });
   };
 
@@ -125,9 +135,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const admission = JSON.parse(raw);
         if (admission && admission.concertId) {
-          api.post(`/api/queue/concerts/${encodeURIComponent(admission.concertId)}/leave`).catch(() => {});
+          api
+            .post(`/api/queue/concerts/${encodeURIComponent(admission.concertId)}/leave`)
+            .catch(() => {});
         }
-      } catch { /* Invalid stored admission must not prevent logout. */ }
+      } catch {
+        /* Invalid stored admission must not prevent logout. */
+      }
     }
     sessionStorage.removeItem('ticketbox.queue-admission');
     clearAuthToken();
@@ -144,7 +158,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const updateUserSummary = (nextUser: UserSummary, expectedToken: string | null) => {
     if (!expectedToken || getAuthToken() !== expectedToken) return;
-    setUser((current) => current?.id === nextUser.id ? nextUser : current);
+    setUser((current) => (current?.id === nextUser.id ? nextUser : current));
   };
 
   const value = useMemo(

@@ -10,12 +10,22 @@ import { buyerInformationLinks } from '../../features/ticket/buyerInformation';
 import { LanguageSelect } from '../LanguageSelect';
 import './PublicLayout.css';
 
-export function Logo({ to = '/', label = translate("shared:publicLayout_trangChuTicketbox") }: { to?: string; label?: string }) {
+export function Logo({
+  to = '/',
+  label = translate('shared:publicLayout_trangChuTicketbox'),
+}: {
+  to?: string;
+  label?: string;
+}) {
   useTranslation();
   return (
     <Link className="logo" to={to} aria-label={label}>
-      <span className="logo-mark" aria-hidden="true">T</span>
-      <span>ticket<span>box</span></span>
+      <span className="logo-mark" aria-hidden="true">
+        T
+      </span>
+      <span>
+        ticket<span>box</span>
+      </span>
     </Link>
   );
 }
@@ -33,11 +43,16 @@ function initials(name: string) {
 function NotificationLabel({ count }: { count: number }) {
   return (
     <span className="notification-link-label">
-      {translate("shared:publicLayout_thongBao")}
+      {translate('shared:publicLayout_thongBao')}
       {count > 0 ? (
         <>
-          <span className="notification-badge" aria-hidden="true">{count > 99 ? '99+' : count}</span>
-          <span className="sr-only"> {translate("shared:publicLayout_thongBaoChuaDoc", { count })}</span>
+          <span className="notification-badge" aria-hidden="true">
+            {count > 99 ? '99+' : count}
+          </span>
+          <span className="sr-only">
+            {' '}
+            {translate('shared:publicLayout_thongBaoChuaDoc', { count })}
+          </span>
         </>
       ) : null}
     </span>
@@ -46,7 +61,11 @@ function NotificationLabel({ count }: { count: number }) {
 
 function WorkspaceLink({ user, close }: { user: UserSummary | null; close?: () => void }) {
   if (!user || user.role === 'AUDIENCE') return null;
-  return <NavLink to={getRoleHome(user.role)} onClick={close}>{getRoleHomeLabel(user.role)}</NavLink>;
+  return (
+    <NavLink to={getRoleHome(user.role)} onClick={close}>
+      {getRoleHomeLabel(user.role)}
+    </NavLink>
+  );
 }
 
 function AccountMenuLinks({
@@ -72,19 +91,29 @@ function AccountMenuLinks({
       </div>
       {user.role === 'AUDIENCE' ? (
         <>
-          <Link to="/profile" aria-current={onProfile && !onOrders ? 'page' : undefined} onClick={close}>
-            {translate("shared:publicLayout_hoSo")}
+          <Link
+            to="/profile"
+            aria-current={onProfile && !onOrders ? 'page' : undefined}
+            onClick={close}
+          >
+            {translate('shared:publicLayout_hoSo')}
           </Link>
-          <Link to="/profile?tab=orders" aria-current={onOrders ? 'page' : undefined} onClick={close}>
-            {translate("shared:publicLayout_lichSuDonHang")}
+          <Link
+            to="/profile?tab=orders"
+            aria-current={onOrders ? 'page' : undefined}
+            onClick={close}
+          >
+            {translate('shared:publicLayout_lichSuDonHang')}
           </Link>
           <NavLink to="/notifications" onClick={close}>
             <NotificationLabel count={unreadNotifications} />
           </NavLink>
         </>
-      ) : <WorkspaceLink user={user} close={close} />}
+      ) : (
+        <WorkspaceLink user={user} close={close} />
+      )}
       <button type="button" onClick={onLogout}>
-        <LogOut size={17} aria-hidden="true" /> {translate("shared:publicLayout_dangXuat")}
+        <LogOut size={17} aria-hidden="true" /> {translate('shared:publicLayout_dangXuat')}
       </button>
     </>
   );
@@ -99,7 +128,7 @@ function HeaderSearch({
   query: string;
   inputRef?: React.RefObject<HTMLInputElement>;
 }) {
-  const label = translate("shared:publicLayout_timSuKien");
+  const label = translate('shared:publicLayout_timSuKien');
   return (
     <form className="public-header-search" role="search" aria-label={label} onSubmit={onSubmit}>
       <input
@@ -112,7 +141,7 @@ function HeaderSearch({
         autoComplete="off"
         placeholder={label}
       />
-      <button type="submit" aria-label={translate("shared:publicLayout_timKiem")}>
+      <button type="submit" aria-label={translate('shared:publicLayout_timKiem')}>
         <Search aria-hidden="true" size={20} />
       </button>
     </form>
@@ -170,7 +199,7 @@ function PublicHeader({
 
   function toggle(next: Disclosure, button: HTMLButtonElement) {
     trigger.current = button;
-    setOpen((current) => current === next ? null : next);
+    setOpen((current) => (current === next ? null : next));
   }
 
   function close() {
@@ -196,14 +225,18 @@ function PublicHeader({
               <button
                 className="public-header-action public-search-trigger"
                 type="button"
-                aria-label={translate("shared:publicLayout_timSuKien")}
+                aria-label={translate('shared:publicLayout_timSuKien')}
                 aria-expanded={open === 'search'}
                 aria-controls="public-header-search"
                 onClick={(event) => toggle('search', event.currentTarget)}
               >
                 <Search size={20} aria-hidden="true" />
               </button>
-              <div id="public-header-search" className="public-search-panel" data-open={open === 'search'}>
+              <div
+                id="public-header-search"
+                className="public-search-panel"
+                data-open={open === 'search'}
+              >
                 <HeaderSearch onSubmit={submitSearch} query={searchQuery} inputRef={searchInput} />
               </div>
             </>
@@ -211,37 +244,53 @@ function PublicHeader({
           {user ? (
             <nav
               className={isAudience ? 'public-main-nav' : 'public-main-nav public-workspace-nav'}
-              aria-label={translate("shared:publicLayout_dieuHuongChinh")}
+              aria-label={translate('shared:publicLayout_dieuHuongChinh')}
             >
               {isAudience ? (
-                <NavLink to="/my-tickets" aria-label={translate("shared:publicLayout_veCuaToi")}>
+                <NavLink to="/my-tickets" aria-label={translate('shared:publicLayout_veCuaToi')}>
                   <Ticket size={20} aria-hidden="true" />
-                  <span className="public-wallet-label">{translate("shared:publicLayout_veCuaToi")}</span>
-                  <span className="public-wallet-short-label" aria-hidden="true">{translate("shared:publicLayout_veNgan")}</span>
+                  <span className="public-wallet-label">
+                    {translate('shared:publicLayout_veCuaToi')}
+                  </span>
+                  <span className="public-wallet-short-label" aria-hidden="true">
+                    {translate('shared:publicLayout_veNgan')}
+                  </span>
                 </NavLink>
-              ) : <WorkspaceLink user={user} />}
+              ) : (
+                <WorkspaceLink user={user} />
+              )}
             </nav>
           ) : null}
           <div className="public-account">
             <button
               className="public-header-action public-account-trigger"
               type="button"
-              aria-label={translate("shared:publicLayout_moMenuTaiKhoan")}
+              aria-label={translate('shared:publicLayout_moMenuTaiKhoan')}
               aria-expanded={open === 'account'}
               aria-controls={open === 'account' ? 'public-account-panel' : undefined}
               aria-describedby={unreadNotifications > 0 ? 'public-unread-notifications' : undefined}
               onClick={(event) => toggle('account', event.currentTarget)}
             >
               {user ? (
-                <span className="public-account-initials" aria-hidden="true">{initials(user.fullName)}</span>
-              ) : <CircleUserRound size={21} aria-hidden="true" />}
-              <span className="public-account-name">{user?.fullName ?? translate("shared:publicLayout_taiKhoan")}</span>
+                <span className="public-account-initials" aria-hidden="true">
+                  {initials(user.fullName)}
+                </span>
+              ) : (
+                <CircleUserRound size={21} aria-hidden="true" />
+              )}
+              <span className="public-account-name">
+                {user?.fullName ?? translate('shared:publicLayout_taiKhoan')}
+              </span>
               <ChevronDown className="public-account-chevron" size={16} aria-hidden="true" />
               {unreadNotifications > 0 ? (
                 <>
-                  <span className="notification-badge" aria-hidden="true">{unreadNotifications > 99 ? '99+' : unreadNotifications}</span>
+                  <span className="notification-badge" aria-hidden="true">
+                    {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                  </span>
                   <span className="sr-only" id="public-unread-notifications">
-                    {translate("shared:publicLayout_thongBaoChuaDoc", { count: unreadNotifications })}
+                    {translate('shared:publicLayout_thongBaoChuaDoc', {
+                      count: unreadNotifications,
+                    })}
                   </span>
                 </>
               ) : null}
@@ -249,15 +298,24 @@ function PublicHeader({
             {open === 'account' ? (
               <div id="public-account-panel" className="public-account-panel public-menu-links">
                 {user ? (
-                  <AccountMenuLinks user={user} close={close} onLogout={logout} unreadNotifications={unreadNotifications} />
+                  <AccountMenuLinks
+                    user={user}
+                    close={close}
+                    onLogout={logout}
+                    unreadNotifications={unreadNotifications}
+                  />
                 ) : !loading ? (
                   <>
-                    <Link to="/login" onClick={close}>{translate("shared:publicLayout_dangNhap")}</Link>
-                    <Link to="/register" onClick={close}>{translate("shared:publicLayout_taoTaiKhoan")}</Link>
+                    <Link to="/login" onClick={close}>
+                      {translate('shared:publicLayout_dangNhap')}
+                    </Link>
+                    <Link to="/register" onClick={close}>
+                      {translate('shared:publicLayout_taoTaiKhoan')}
+                    </Link>
                   </>
                 ) : null}
                 <label className="public-account-language">
-                  {translate("common:language")}
+                  {translate('common:language')}
                   <LanguageSelect />
                 </label>
               </div>
@@ -287,12 +345,16 @@ export function PublicLayout() {
 
   const audienceId = user?.role === 'AUDIENCE' && !loading ? user.id : null;
   const notificationSession = useMemo(
-    () => audienceId && token ? { audienceId, token } : null,
+    () => (audienceId && token ? { audienceId, token } : null),
     [audienceId, token],
   );
-  const [unreadResult, setUnreadResult] = useState<{ session: typeof notificationSession; count: number }>();
+  const [unreadResult, setUnreadResult] = useState<{
+    session: typeof notificationSession;
+    count: number;
+  }>();
   const unreadRequest = useRef<AbortController>();
-  const unreadNotifications = unreadResult?.session === notificationSession ? unreadResult.count : 0;
+  const unreadNotifications =
+    unreadResult?.session === notificationSession ? unreadResult.count : 0;
 
   const refreshUnreadNotifications = useCallback(() => {
     if (!notificationSession) return;
@@ -300,11 +362,14 @@ export function PublicLayout() {
     const controller = new AbortController();
     unreadRequest.current = controller;
 
-    void getUnreadNotificationCount(controller.signal).then(({ count }) => {
-      if (!controller.signal.aborted) setUnreadResult({ session: notificationSession, count });
-    }).catch((error) => {
-      if (!controller.signal.aborted && isNotificationAccessDenied(error)) setUnreadResult(undefined);
-    });
+    void getUnreadNotificationCount(controller.signal)
+      .then(({ count }) => {
+        if (!controller.signal.aborted) setUnreadResult({ session: notificationSession, count });
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted && isNotificationAccessDenied(error))
+          setUnreadResult(undefined);
+      });
   }, [notificationSession]);
 
   const clearUnreadNotifications = useCallback(() => {
@@ -326,9 +391,13 @@ export function PublicLayout() {
   return (
     <div className={isBookingFlow ? 'site-shell' : 'site-shell public-shell'}>
       <a className="skip-link" href="#main-content">
-        {translate("shared:publicLayout_boQuaDenNoiDung")}
+        {translate('shared:publicLayout_boQuaDenNoiDung')}
       </a>
-      {isBookingFlow ? <div className="page-width booking-language"><LanguageSelect /></div> : (
+      {isBookingFlow ? (
+        <div className="page-width booking-language">
+          <LanguageSelect />
+        </div>
+      ) : (
         <PublicHeader
           key={location.key}
           user={user}
@@ -339,7 +408,11 @@ export function PublicLayout() {
       )}
       <main id="main-content" tabIndex={-1}>
         <div key={location.pathname} className="route-transition">
-          <Outlet context={{ refreshUnreadNotifications, clearUnreadNotifications } satisfies PublicLayoutContext} />
+          <Outlet
+            context={
+              { refreshUnreadNotifications, clearUnreadNotifications } satisfies PublicLayoutContext
+            }
+          />
         </div>
       </main>
       {!isBookingFlow ? <Footer user={user} /> : null}
@@ -358,23 +431,41 @@ function Footer({ user }: { user: UserSummary | null }) {
           <small>© 2026 TicketBox Vietnam</small>
         </div>
         {canBrowse || buyerInformationLinks.length > 0 ? (
-          <nav aria-label={translate("shared:publicLayout_dieuHuongCuoiTrang")}>
+          <nav aria-label={translate('shared:publicLayout_dieuHuongCuoiTrang')}>
             <ul className="footer-links">
-              {canBrowse ? <li><Link to="/events">{translate("shared:publicLayout_khamPhaSuKien")}</Link></li> : null}
+              {canBrowse ? (
+                <li>
+                  <Link to="/events">{translate('shared:publicLayout_khamPhaSuKien')}</Link>
+                </li>
+              ) : null}
               {user?.role === 'AUDIENCE' ? (
                 <>
-                  <li><Link to="/profile?tab=orders">{translate("shared:publicLayout_lichSuDonHang")}</Link></li>
-                  <li><Link to="/my-tickets">{translate("shared:publicLayout_veCuaToi")}</Link></li>
+                  <li>
+                    <Link to="/profile?tab=orders">
+                      {translate('shared:publicLayout_lichSuDonHang')}
+                    </Link>
+                  </li>
+                  <li>
+                    <Link to="/my-tickets">{translate('shared:publicLayout_veCuaToi')}</Link>
+                  </li>
                 </>
               ) : null}
               {!user ? (
                 <>
-                  <li><Link to="/login">{translate("shared:publicLayout_dangNhap")}</Link></li>
-                  <li><Link to="/register">{translate("shared:publicLayout_taoTaiKhoan")}</Link></li>
+                  <li>
+                    <Link to="/login">{translate('shared:publicLayout_dangNhap')}</Link>
+                  </li>
+                  <li>
+                    <Link to="/register">{translate('shared:publicLayout_taoTaiKhoan')}</Link>
+                  </li>
                 </>
               ) : null}
               {buyerInformationLinks.map(({ label, url }) => (
-                <li key={label}><a href={url} target="_blank" rel="noreferrer">{translate(label)}</a></li>
+                <li key={label}>
+                  <a href={url} target="_blank" rel="noreferrer">
+                    {translate(label)}
+                  </a>
+                </li>
               ))}
             </ul>
           </nav>

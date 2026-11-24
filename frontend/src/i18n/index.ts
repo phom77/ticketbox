@@ -29,12 +29,16 @@ const catalogs = import.meta.glob<Record<string, string>>('./*/*.json', {
   eager: true,
   import: 'default',
 });
-const resources = Object.fromEntries(languages.map(({ code }) => [
-  code,
-  Object.fromEntries(Object.entries(catalogs)
-    .filter(([path]) => path.startsWith(`./${code}/`))
-    .map(([path, messages]) => [path.slice(code.length + 3, -5), messages])),
-]));
+const resources = Object.fromEntries(
+  languages.map(({ code }) => [
+    code,
+    Object.fromEntries(
+      Object.entries(catalogs)
+        .filter(([path]) => path.startsWith(`./${code}/`))
+        .map(([path, messages]) => [path.slice(code.length + 3, -5), messages]),
+    ),
+  ]),
+);
 
 void i18next.use(initReactI18next).init({
   resources,

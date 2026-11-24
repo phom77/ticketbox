@@ -1,7 +1,7 @@
 import type { DraftLayout, ManagedPerformance, SaleDraft } from '../../api/performanceManagement';
 
 export const sellingModels = ['admission', 'zones', 'reserved', 'mixed'] as const;
-export type SellingModel = typeof sellingModels[number];
+export type SellingModel = (typeof sellingModels)[number];
 
 export const sellingModelLabels = {
   admission: 'performances:sellingModelAdmission',
@@ -18,7 +18,11 @@ export function getSaleSetup(layout: DraftLayout | null, sale: SaleDraft) {
   const assignedSeats = new Set<string>();
   let orphanedPools = 0;
   for (const group of sale.groups) {
-    if ((group.sectionId ? sectionKinds.get(group.sectionId) === group.kind : !layout && group.kind === 'GA')) {
+    if (
+      group.sectionId
+        ? sectionKinds.get(group.sectionId) === group.kind
+        : !layout && group.kind === 'GA'
+    ) {
       for (const seat of group.seats) assignedSeats.add(seat.id);
     } else {
       orphanedPools += 1;
@@ -37,14 +41,25 @@ export function getSaleSetup(layout: DraftLayout | null, sale: SaleDraft) {
     }
   }
 
-  const model: SellingModel | null = zoneCount && seatSections.length ? 'mixed'
-    : zoneCount ? 'zones'
-    : seatSections.length ? 'reserved'
-    : sale.groups.some((group) => group.kind === 'GA' && !group.sectionId) ? 'admission' : null;
+  const model: SellingModel | null =
+    zoneCount && seatSections.length
+      ? 'mixed'
+      : zoneCount
+        ? 'zones'
+        : seatSections.length
+          ? 'reserved'
+          : sale.groups.some((group) => group.kind === 'GA' && !group.sectionId)
+            ? 'admission'
+            : null;
 
   return {
-    model, sectionCount: sections.length, zoneCount, seatCount, unassignedSeats,
-    activeOffers: sale.offers.filter((offer) => offer.active).length, orphanedPools,
+    model,
+    sectionCount: sections.length,
+    zoneCount,
+    seatCount,
+    unassignedSeats,
+    activeOffers: sale.offers.filter((offer) => offer.active).length,
+    orphanedPools,
   };
 }
 
@@ -58,12 +73,17 @@ export function canPriceSellingModel(
   return selected === 'zones' || setup.seatCount > 0;
 }
 
-export function performanceStatusKey(performance: Pick<ManagedPerformance,
-  'status' | 'salesSuspended' | 'saleStartAt' | 'saleEndAt'>, now = Date.now()) {
+export function performanceStatusKey(
+  performance: Pick<ManagedPerformance, 'status' | 'salesSuspended' | 'saleStartAt' | 'saleEndAt'>,
+  now = Date.now(),
+) {
   switch (performance.status) {
-    case 'DRAFT': return 'performances:draftStatus';
-    case 'CANCELLED': return 'performances:setupStatusCancelled';
-    case 'COMPLETED': return 'performances:setupStatusCompleted';
+    case 'DRAFT':
+      return 'performances:draftStatus';
+    case 'CANCELLED':
+      return 'performances:setupStatusCancelled';
+    case 'COMPLETED':
+      return 'performances:setupStatusCompleted';
   }
   if (performance.salesSuspended) return 'performances:setupStatusPaused';
   if (performance.status === 'SOLD_OUT') return 'performances:setupStatusSoldOut';

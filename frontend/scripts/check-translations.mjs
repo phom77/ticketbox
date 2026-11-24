@@ -6,7 +6,8 @@ import { fileURLToPath } from 'node:url';
 const source = fileURLToPath(new URL('../src/', import.meta.url));
 const resources = join(source, 'i18n');
 const languages = readdirSync(resources, { withFileTypes: true })
-  .filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+  .filter((entry) => entry.isDirectory())
+  .map((entry) => entry.name);
 const catalogs = new Map();
 const categories = ['zero', 'one', 'two', 'few', 'many', 'other'];
 const pluralSuffix = new RegExp(`_(?:${categories.join('|')})$`);
@@ -23,13 +24,19 @@ for (const language of languages) {
       const base = key.replace(pluralSuffix, '');
       if (base !== key) {
         for (const form of requiredForms) {
-          assert(entries[`${base}_${form}`], `${language}/${namespace}/${base} is missing form ${form}`);
+          assert(
+            entries[`${base}_${form}`],
+            `${language}/${namespace}/${base} is missing form ${form}`,
+          );
         }
       }
       const id = `${namespace}:${base}`;
-      const placeholders = [...new Set([...text.matchAll(/{{\s*(\w+)\s*}}/g)].map((match) => match[1]))].sort();
+      const placeholders = [
+        ...new Set([...text.matchAll(/{{\s*(\w+)\s*}}/g)].map((match) => match[1])),
+      ].sort();
       const expected = messages.get(id);
-      if (expected) assert.deepEqual(placeholders, expected, `${language}/${id} plural placeholders differ`);
+      if (expected)
+        assert.deepEqual(placeholders, expected, `${language}/${id} plural placeholders differ`);
       messages.set(id, placeholders);
     }
   }
@@ -39,7 +46,11 @@ for (const language of languages) {
 const english = catalogs.get('en');
 assert(english?.size, 'English source catalog is missing');
 for (const [language, messages] of catalogs) {
-  assert.deepEqual([...messages.keys()].sort(), [...english.keys()].sort(), `${language} translation keys differ`);
+  assert.deepEqual(
+    [...messages.keys()].sort(),
+    [...english.keys()].sort(),
+    `${language} translation keys differ`,
+  );
   for (const [key, placeholders] of messages) {
     assert.deepEqual(placeholders, english.get(key), `${language}/${key} placeholders differ`);
   }

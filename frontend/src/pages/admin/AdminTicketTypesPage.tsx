@@ -101,7 +101,11 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
         );
       } catch (requestError) {
         if (!isRequestCanceled(requestError)) {
-          setError(requestError instanceof Error ? requestError.message : translate("admin:adminTicketTypesPage_khongTheTaiConcert"));
+          setError(
+            requestError instanceof Error
+              ? requestError.message
+              : translate('admin:adminTicketTypesPage_khongTheTaiConcert'),
+          );
         }
       } finally {
         if (!controller.signal.aborted) setLoadingConcerts(false);
@@ -123,7 +127,11 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
         setTicketTypes(await getAdminTicketTypes(selectedConcertId, signal, apiScope));
       } catch (requestError) {
         if (!isRequestCanceled(requestError)) {
-          setError(requestError instanceof Error ? requestError.message : translate("admin:adminTicketTypesPage_khongTheTaiHangVe"));
+          setError(
+            requestError instanceof Error
+              ? requestError.message
+              : translate('admin:adminTicketTypesPage_khongTheTaiHangVe'),
+          );
         }
       } finally {
         if (!signal?.aborted) setLoadingTickets(false);
@@ -189,15 +197,19 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
       const payload = toPayload(form);
       if (editing) {
         await updateTicketType(editing.id, payload, apiScope);
-        toast.success(translate("admin:adminTicketTypesPage_daCapNhatHangVe"));
+        toast.success(translate('admin:adminTicketTypesPage_daCapNhatHangVe'));
       } else {
         await createTicketType(selectedConcertId, payload, apiScope);
-        toast.success(translate("admin:adminTicketTypesPage_daTaoHangVe"));
+        toast.success(translate('admin:adminTicketTypesPage_daTaoHangVe'));
       }
       setFormOpen(false);
       await loadTicketTypes();
     } catch (requestError) {
-      toast.error(requestError instanceof Error ? requestError.message : translate("admin:adminTicketTypesPage_khongTheLuuHangVe"));
+      toast.error(
+        requestError instanceof Error
+          ? requestError.message
+          : translate('admin:adminTicketTypesPage_khongTheLuuHangVe'),
+      );
     } finally {
       setSaving(false);
     }
@@ -207,12 +219,16 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
     setBusyId(ticketType.id);
     try {
       await updateTicketTypeStatus(ticketType.id, !ticketType.isActive, apiScope);
-      const fallback = ticketType.isActive ? translate("admin:adminTicketTypesPage_daTamNgungHangVe") : translate("admin:adminTicketTypesPage_daKichHoatHangVe");
+      const fallback = ticketType.isActive
+        ? translate('admin:adminTicketTypesPage_daTamNgungHangVe')
+        : translate('admin:adminTicketTypesPage_daKichHoatHangVe');
       toast.success(fallback);
       await loadTicketTypes();
     } catch (requestError) {
       toast.error(
-        requestError instanceof Error ? requestError.message : translate("admin:adminTicketTypesPage_khongTheDoiTrangThaiHangVe"),
+        requestError instanceof Error
+          ? requestError.message
+          : translate('admin:adminTicketTypesPage_khongTheDoiTrangThaiHangVe'),
       );
     } finally {
       setBusyId('');
@@ -224,14 +240,14 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
     setBusyId(deleteTarget.id);
     try {
       await deleteTicketType(deleteTarget.id, apiScope);
-      toast.success(translate("admin:adminTicketTypesPage_daXoaHangVe"));
+      toast.success(translate('admin:adminTicketTypesPage_daXoaHangVe'));
       setDeleteTarget(null);
       await loadTicketTypes();
     } catch (requestError) {
       toast.error(
         requestError instanceof Error
           ? requestError.message
-          : translate("admin:adminTicketTypesPage_khongTheXoaHangVeDaPhat"),
+          : translate('admin:adminTicketTypesPage_khongTheXoaHangVeDaPhat'),
       );
     } finally {
       setBusyId('');
@@ -241,15 +257,18 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
   return (
     <>
       <AdminPageHeader
-        title={translate("admin:adminTicketTypesPage_quanLyHangVe")}
+        title={translate('admin:adminTicketTypesPage_quanLyHangVe')}
         actions={
           <>
-            <Link className="admin-secondary-action" to={apiScope === 'admin' ? '/admin/events' : '/organizer/events'}>
+            <Link
+              className="admin-secondary-action"
+              to={apiScope === 'admin' ? '/admin/events' : '/organizer/events'}
+            >
               {translate('performances:manageConcerts')}
             </Link>
             {safeReturnTo ? (
               <Link className="admin-secondary-action" to={safeReturnTo}>
-                {translate("admin:adminTicketTypesPage_quayVeConcert")}
+                {translate('admin:adminTicketTypesPage_quayVeConcert')}
               </Link>
             ) : null}
             <button
@@ -259,23 +278,26 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
               disabled={!selectedConcertId}
             >
               <Plus aria-hidden="true" size={17} />
-              {translate("admin:adminTicketTypesPage_themHangVe")}
+              {translate('admin:adminTicketTypesPage_themHangVe')}
             </button>
           </>
         }
       />
 
-      <section className="admin-inline-stats" aria-label={translate("admin:adminTicketTypesPage_tomTatHangVe")}>
+      <section
+        className="admin-inline-stats"
+        aria-label={translate('admin:adminTicketTypesPage_tomTatHangVe')}
+      >
         <div>
-          <span>{translate("admin:adminTicketTypesPage_soHangVe")}</span>
+          <span>{translate('admin:adminTicketTypesPage_soHangVe')}</span>
           <strong>{ticketTypes.length}</strong>
         </div>
         <div>
-          <span>{translate("admin:adminTicketTypesPage_tongTonKho")}</span>
+          <span>{translate('admin:adminTicketTypesPage_tongTonKho')}</span>
           <strong>{totals.inventory}</strong>
         </div>
         <div>
-          <span>{translate("admin:adminTicketTypesPage_conKhaDung")}</span>
+          <span>{translate('admin:adminTicketTypesPage_conKhaDung')}</span>
           <strong>{totals.available}</strong>
         </div>
       </section>
@@ -300,7 +322,7 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
           />
           {selectedConcert ? (
             <div className="admin-context-summary">
-              <span>{translate("admin:adminTicketTypesPage_thoiGianMoBan")}</span>
+              <span>{translate('admin:adminTicketTypesPage_thoiGianMoBan')}</span>
               <strong>
                 {dateFormatter({ dateStyle: 'medium', timeStyle: 'short' }).format(
                   new Date(selectedConcert.saleStartAt),
@@ -309,35 +331,48 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
             </div>
           ) : null}
         </div>
-        {ticketTypes.length ? <>
-          <label className="admin-search-control">
-            <Search aria-hidden="true" size={16} />
-            <span className="sr-only">{translate("admin:adminTicketTypesPage_timHangVe")}</span>
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={translate("admin:adminTicketTypesPage_timTheoTenHangVe")}
-            />
-          </label>
-          <label>
-            <span className="sr-only">{translate("admin:adminTicketTypesPage_locTrangThaiHangVe")}</span>
-            <WorkspaceSelect label={translate('admin:adminTicketTypesPage_locTrangThaiHangVe')} value={availability}
-              onChange={(value) => setAvailability(value as typeof availability)} options={[
-                { value: 'all', label: translate('admin:adminTicketTypesPage_tatCaHangVe') },
-                { value: 'active', label: translate('admin:adminTicketTypesPage_dangHoatDong') },
-                { value: 'paused', label: translate('admin:adminTicketTypesPage_tamNgung') },
-                { value: 'sold', label: translate('admin:adminTicketTypesPage_daPhatSinhBan') },
-              ]} />
-          </label>
-          <span className="admin-filter-count">
-            {translate("admin:adminTicketTypesPage_hienThi")} {visibleTicketTypes.length} / {ticketTypes.length}
-          </span>
-        </> : null}
+        {ticketTypes.length ? (
+          <>
+            <label className="admin-search-control">
+              <Search aria-hidden="true" size={16} />
+              <span className="sr-only">{translate('admin:adminTicketTypesPage_timHangVe')}</span>
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder={translate('admin:adminTicketTypesPage_timTheoTenHangVe')}
+              />
+            </label>
+            <label>
+              <span className="sr-only">
+                {translate('admin:adminTicketTypesPage_locTrangThaiHangVe')}
+              </span>
+              <WorkspaceSelect
+                label={translate('admin:adminTicketTypesPage_locTrangThaiHangVe')}
+                value={availability}
+                onChange={(value) => setAvailability(value as typeof availability)}
+                options={[
+                  { value: 'all', label: translate('admin:adminTicketTypesPage_tatCaHangVe') },
+                  { value: 'active', label: translate('admin:adminTicketTypesPage_dangHoatDong') },
+                  { value: 'paused', label: translate('admin:adminTicketTypesPage_tamNgung') },
+                  { value: 'sold', label: translate('admin:adminTicketTypesPage_daPhatSinhBan') },
+                ]}
+              />
+            </label>
+            <span className="admin-filter-count">
+              {translate('admin:adminTicketTypesPage_hienThi')} {visibleTicketTypes.length} /{' '}
+              {ticketTypes.length}
+            </span>
+          </>
+        ) : null}
       </div>
 
       <section className="admin-data-panel">
         {loadingTickets ? (
-          <div className="admin-row-skeleton" aria-label={translate("admin:adminTicketTypesPage_dangTaiHangVe")} aria-live="polite">
+          <div
+            className="admin-row-skeleton"
+            aria-label={translate('admin:adminTicketTypesPage_dangTaiHangVe')}
+            aria-live="polite"
+          >
             {[1, 2, 3].map((item) => (
               <span key={item} />
             ))}
@@ -347,12 +382,14 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
             <table className="admin-table">
               <thead>
                 <tr>
-                  <th>{translate("admin:adminTicketTypesPage_hangVe")}</th>
-                  <th>{translate("admin:adminTicketTypesPage_gia")}</th>
-                  <th>{translate("admin:adminTicketTypesPage_tonKho")}</th>
-                  <th>{translate("admin:adminTicketTypesPage_trangThai")}</th>
+                  <th>{translate('admin:adminTicketTypesPage_hangVe')}</th>
+                  <th>{translate('admin:adminTicketTypesPage_gia')}</th>
+                  <th>{translate('admin:adminTicketTypesPage_tonKho')}</th>
+                  <th>{translate('admin:adminTicketTypesPage_trangThai')}</th>
                   <th>
-                    <span className="sr-only">{translate("admin:adminTicketTypesPage_thaoTac")}</span>
+                    <span className="sr-only">
+                      {translate('admin:adminTicketTypesPage_thaoTac')}
+                    </span>
                   </th>
                 </tr>
               </thead>
@@ -367,7 +404,11 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
                           <i style={{ backgroundColor: ticketType.zoneColor }} />
                           <div>
                             <strong>{ticketType.name}</strong>
-                            <span>{translate("admin:adminTicketTypesPage_toiDa")} {ticketType.maxPerAccount} {translate("admin:adminTicketTypesPage_veTaiKhoan")}</span>
+                            <span>
+                              {translate('admin:adminTicketTypesPage_toiDa')}{' '}
+                              {ticketType.maxPerAccount}{' '}
+                              {translate('admin:adminTicketTypesPage_veTaiKhoan')}
+                            </span>
                           </div>
                         </div>
                       </td>
@@ -380,7 +421,9 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
                         <strong className="admin-table-primary">
                           {ticketType.availableQty} / {ticketType.totalQuantity}
                         </strong>
-                        <span className="admin-table-secondary">{sold} {translate("admin:adminTicketTypesPage_daBan")}</span>
+                        <span className="admin-table-secondary">
+                          {sold} {translate('admin:adminTicketTypesPage_daBan')}
+                        </span>
                       </td>
                       <td>
                         <button
@@ -391,14 +434,18 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
                           disabled={busyId === ticketType.id}
                         >
                           <span />
-                          {ticketType.isActive ? translate("admin:adminTicketTypesPage_dangHoatDong") : translate("admin:adminTicketTypesPage_tamNgung")}
+                          {ticketType.isActive
+                            ? translate('admin:adminTicketTypesPage_dangHoatDong')
+                            : translate('admin:adminTicketTypesPage_tamNgung')}
                         </button>
                       </td>
                       <td>
                         <div className="admin-row-actions">
                           <button
                             type="button"
-                            aria-label={translate("admin:adminTicketTypesPage_sua", { arg1: ticketType.name })}
+                            aria-label={translate('admin:adminTicketTypesPage_sua', {
+                              arg1: ticketType.name,
+                            })}
                             disabled={!editable || busyId === ticketType.id}
                             onClick={() => openEdit(ticketType)}
                           >
@@ -406,7 +453,9 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
                           </button>
                           <button
                             type="button"
-                            aria-label={translate("admin:adminTicketTypesPage_xoa", { arg1: ticketType.name })}
+                            aria-label={translate('admin:adminTicketTypesPage_xoa', {
+                              arg1: ticketType.name,
+                            })}
                             disabled={!editable || busyId === ticketType.id}
                             onClick={() => setDeleteTarget(ticketType)}
                           >
@@ -425,17 +474,17 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
             <Ticket aria-hidden="true" size={28} />
             <h2>
               {ticketTypes.length
-                ? translate("admin:adminTicketTypesPage_khongCoHangVePhuHop")
+                ? translate('admin:adminTicketTypesPage_khongCoHangVePhuHop')
                 : selectedConcertId
-                  ? translate("admin:adminTicketTypesPage_concertChuaCoHangVe")
-                  : translate("admin:adminTicketTypesPage_chuaCoConcertDeQuanLy")}
+                  ? translate('admin:adminTicketTypesPage_concertChuaCoHangVe')
+                  : translate('admin:adminTicketTypesPage_chuaCoConcertDeQuanLy')}
             </h2>
             <p>
               {ticketTypes.length
-                ? translate("admin:adminTicketTypesPage_thuDoiTuKhoaHoacBoLoc")
+                ? translate('admin:adminTicketTypesPage_thuDoiTuKhoaHoacBoLoc')
                 : selectedConcertId
-                  ? translate("admin:adminTicketTypesPage_taoHangVeDauTienDeChuan")
-                  : translate("admin:adminTicketTypesPage_taoConcertTruocSauDoQuayLai")}
+                  ? translate('admin:adminTicketTypesPage_taoHangVeDauTienDeChuan')
+                  : translate('admin:adminTicketTypesPage_taoConcertTruocSauDoQuayLai')}
             </p>
             {ticketTypes.length ? (
               <button
@@ -446,11 +495,11 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
                   setAvailability('all');
                 }}
               >
-                {translate("admin:adminTicketTypesPage_xoaBoLoc")}
+                {translate('admin:adminTicketTypesPage_xoaBoLoc')}
               </button>
             ) : selectedConcertId ? (
               <button className="admin-primary-action" type="button" onClick={openCreate}>
-                {translate("admin:adminTicketTypesPage_themHangVe")}
+                {translate('admin:adminTicketTypesPage_themHangVe')}
               </button>
             ) : null}
           </div>
@@ -470,9 +519,9 @@ export function AdminTicketTypesPage({ apiScope = 'admin' }: { apiScope?: Manage
 
       {deleteTarget ? (
         <AdminConfirmDialog
-          title={translate("admin:adminTicketTypesPage_xoaHangVe", { arg1: deleteTarget.name })}
-          description={translate("admin:adminTicketTypesPage_hangVeSeBiXoaVinhVien")}
-          confirmLabel={translate("admin:adminTicketTypesPage_xoaHangVe_2")}
+          title={translate('admin:adminTicketTypesPage_xoaHangVe', { arg1: deleteTarget.name })}
+          description={translate('admin:adminTicketTypesPage_hangVeSeBiXoaVinhVien')}
+          confirmLabel={translate('admin:adminTicketTypesPage_xoaHangVe_2')}
           loading={busyId === deleteTarget.id}
           onClose={() => setDeleteTarget(null)}
           onConfirm={() => void removeTicketType()}
@@ -507,76 +556,88 @@ function TicketTypeForm({
   return (
     <ModalPortal>
       <div className="admin-dialog-backdrop" role="presentation">
-      <section
-        className="admin-dialog admin-dialog-compact"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="ticket-form-title"
-      >
-        <header>
-          <div>
-            <span>{translate("admin:adminTicketTypesPage_tonKhoVe")}</span>
-            <h2 id="ticket-form-title">{editing ? translate("admin:adminTicketTypesPage_sua", { arg1: editing.name }) : translate("admin:adminTicketTypesPage_themHangVe")}</h2>
-          </div>
-          <button type="button" aria-label={translate("admin:adminTicketTypesPage_dong")} onClick={onClose}>
-            <X size={20} />
-          </button>
-        </header>
-        <form onSubmit={onSubmit}>
-          <div className="admin-form-grid">
-            <label className="admin-field admin-field-wide">
-              <span>{translate("admin:adminTicketTypesPage_tenHangVe")}</span>
-              <input required maxLength={100} {...field('name')} />
-            </label>
-            <label className="admin-field">
-              <span>{translate("admin:adminTicketTypesPage_giaVe")}</span>
-              <input
-                required
-                min="0"
-                step="1000"
-                type="number"
-                inputMode="numeric"
-                {...field('price')}
-              />
-            </label>
-            <label className="admin-field">
-              <span>{translate("admin:adminTicketTypesPage_mauVung")}</span>
-              <span className="admin-color-field">
-                <input type="color" {...field('zoneColor')} />
-                <input required pattern="^#[A-Fa-f0-9]{6}$" {...field('zoneColor')} />
-              </span>
-            </label>
-            <label className="admin-field">
-              <span>{translate("admin:adminTicketTypesPage_tongSoLuong")}</span>
-              <input
-                required
-                min="1"
-                type="number"
-                inputMode="numeric"
-                {...field('totalQuantity')}
-              />
-            </label>
-            <label className="admin-field">
-              <span>{translate("admin:adminTicketTypesPage_toiDaMoiTaiKhoan")}</span>
-              <input
-                required
-                min="1"
-                type="number"
-                inputMode="numeric"
-                {...field('maxPerAccount')}
-              />
-            </label>
-          </div>
-          <footer>
-            <button className="admin-secondary-action" type="button" onClick={onClose}>
-              {translate("admin:adminTicketTypesPage_huy")}
+        <section
+          className="admin-dialog admin-dialog-compact"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="ticket-form-title"
+        >
+          <header>
+            <div>
+              <span>{translate('admin:adminTicketTypesPage_tonKhoVe')}</span>
+              <h2 id="ticket-form-title">
+                {editing
+                  ? translate('admin:adminTicketTypesPage_sua', { arg1: editing.name })
+                  : translate('admin:adminTicketTypesPage_themHangVe')}
+              </h2>
+            </div>
+            <button
+              type="button"
+              aria-label={translate('admin:adminTicketTypesPage_dong')}
+              onClick={onClose}
+            >
+              <X size={20} />
             </button>
-            <button className="admin-primary-action" type="submit" disabled={saving}>
-              {saving ? translate("admin:adminTicketTypesPage_dangLuu") : editing ? translate("admin:adminTicketTypesPage_luuThayDoi") : translate("admin:adminTicketTypesPage_taoHangVe")}
-            </button>
-          </footer>
-        </form>
-      </section>
+          </header>
+          <form onSubmit={onSubmit}>
+            <div className="admin-form-grid">
+              <label className="admin-field admin-field-wide">
+                <span>{translate('admin:adminTicketTypesPage_tenHangVe')}</span>
+                <input required maxLength={100} {...field('name')} />
+              </label>
+              <label className="admin-field">
+                <span>{translate('admin:adminTicketTypesPage_giaVe')}</span>
+                <input
+                  required
+                  min="0"
+                  step="1000"
+                  type="number"
+                  inputMode="numeric"
+                  {...field('price')}
+                />
+              </label>
+              <label className="admin-field">
+                <span>{translate('admin:adminTicketTypesPage_mauVung')}</span>
+                <span className="admin-color-field">
+                  <input type="color" {...field('zoneColor')} />
+                  <input required pattern="^#[A-Fa-f0-9]{6}$" {...field('zoneColor')} />
+                </span>
+              </label>
+              <label className="admin-field">
+                <span>{translate('admin:adminTicketTypesPage_tongSoLuong')}</span>
+                <input
+                  required
+                  min="1"
+                  type="number"
+                  inputMode="numeric"
+                  {...field('totalQuantity')}
+                />
+              </label>
+              <label className="admin-field">
+                <span>{translate('admin:adminTicketTypesPage_toiDaMoiTaiKhoan')}</span>
+                <input
+                  required
+                  min="1"
+                  type="number"
+                  inputMode="numeric"
+                  {...field('maxPerAccount')}
+                />
+              </label>
+            </div>
+            <footer>
+              <button className="admin-secondary-action" type="button" onClick={onClose}>
+                {translate('admin:adminTicketTypesPage_huy')}
+              </button>
+              <button className="admin-primary-action" type="submit" disabled={saving}>
+                {saving
+                  ? translate('admin:adminTicketTypesPage_dangLuu')
+                  : editing
+                    ? translate('admin:adminTicketTypesPage_luuThayDoi')
+                    : translate('admin:adminTicketTypesPage_taoHangVe')}
+              </button>
+            </footer>
+          </form>
+        </section>
       </div>
     </ModalPortal>
   );

@@ -1,8 +1,14 @@
 import type { SaleGroup } from '../../api/performanceManagement';
 import type { Point } from '../../api/performances';
 
-export function assignSeatsToGroup(groups: SaleGroup[], sectionId: string, seats: SaleGroup['seats'], targetId: string | null) {
-  const inSection = (group: SaleGroup) => group.kind === 'ASSIGNED' && group.sectionId === sectionId;
+export function assignSeatsToGroup(
+  groups: SaleGroup[],
+  sectionId: string,
+  seats: SaleGroup['seats'],
+  targetId: string | null,
+) {
+  const inSection = (group: SaleGroup) =>
+    group.kind === 'ASSIGNED' && group.sectionId === sectionId;
   if (targetId && !groups.some((group) => inSection(group) && group.id === targetId)) return groups;
   const assignable = new Map(seats.filter((seat) => !seat.blocked).map((seat) => [seat.id, seat]));
 
@@ -10,7 +16,11 @@ export function assignSeatsToGroup(groups: SaleGroup[], sectionId: string, seats
     if (!inSection(group)) return group;
     const nextSeats = group.seats.filter((seat) => !assignable.has(seat.id));
     if (group.id === targetId) nextSeats.push(...assignable.values());
-    return { ...group, seats: nextSeats, capacity: nextSeats.filter((seat) => !seat.blocked).length };
+    return {
+      ...group,
+      seats: nextSeats,
+      capacity: nextSeats.filter((seat) => !seat.blocked).length,
+    };
   });
 }
 
@@ -27,12 +37,18 @@ export function sectionViewBox({ x, y, width, height }: ReturnType<typeof mapBou
   return `${x - padding} ${y - padding} ${width + padding * 2} ${height + padding * 2}`;
 }
 
-export function mapSeatRadius(rows: { seats: Point[] }[], { width, height }: ReturnType<typeof mapBounds>) {
-  let radius = Math.min(Math.max(width, height) / 40, height / (rows.length + 1) * .42);
+export function mapSeatRadius(
+  rows: { seats: Point[] }[],
+  { width, height }: ReturnType<typeof mapBounds>,
+) {
+  let radius = Math.min(Math.max(width, height) / 40, (height / (rows.length + 1)) * 0.42);
   for (const { seats } of rows) {
     for (let index = 1; index < seats.length; index++) {
-      const distance = Math.hypot(seats[index].x - seats[index - 1].x, seats[index].y - seats[index - 1].y);
-      if (distance > 0) radius = Math.min(radius, distance * .36);
+      const distance = Math.hypot(
+        seats[index].x - seats[index - 1].x,
+        seats[index].y - seats[index - 1].y,
+      );
+      if (distance > 0) radius = Math.min(radius, distance * 0.36);
     }
   }
   return radius;
@@ -45,11 +61,11 @@ export function seatsAlongRow(first: Point, last: Point, count: number, curve: n
   const length = Math.hypot(last.x - first.x, last.y - first.y);
   if (!Number.isFinite(length) || length === 0) throw new RangeError('Invalid row dimensions');
   const midpoint = {
-    x: (first.x + last.x) / 2 - curve * (last.y - first.y) / length,
-    y: (first.y + last.y) / 2 + curve * (last.x - first.x) / length,
+    x: (first.x + last.x) / 2 - (curve * (last.y - first.y)) / length,
+    y: (first.y + last.y) / 2 + (curve * (last.x - first.x)) / length,
   };
   return Array.from({ length: count }, (_, index) => {
-    const t = count === 1 ? .5 : index / (count - 1);
+    const t = count === 1 ? 0.5 : index / (count - 1);
     const start = (1 - t) ** 2;
     const middle = 2 * t * (1 - t);
     return {
@@ -83,8 +99,13 @@ export function readSeatCsv(text: string): SeatCsvEntry[] {
     }
     const [section, row, seat, x, y] = fields;
     const key = JSON.stringify([section, row, seat]);
-    if (fields.length !== 5 || fields.some((entry) => !entry) || labels.has(key)
-      || !Number.isFinite(Number(x)) || !Number.isFinite(Number(y))) {
+    if (
+      fields.length !== 5 ||
+      fields.some((entry) => !entry) ||
+      labels.has(key) ||
+      !Number.isFinite(Number(x)) ||
+      !Number.isFinite(Number(y))
+    ) {
       throw new Error(String(index + 2));
     }
     labels.add(key);

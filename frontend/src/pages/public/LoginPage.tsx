@@ -14,7 +14,8 @@ export function LoginPage() {
   const { state } = useLocation();
   const authState = state as AuthPageState | null;
   const returnState = { from: authReturnPath(authState) };
-  const registeredEmail = typeof authState?.registeredEmail === 'string' ? authState.registeredEmail : '';
+  const registeredEmail =
+    typeof authState?.registeredEmail === 'string' ? authState.registeredEmail : '';
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,7 +35,9 @@ export function LoginPage() {
       await login(String(data.get('email')).trim(), String(data.get('password')));
     } catch (requestError) {
       setError(
-        requestError instanceof Error ? requestError.message : translate("public:loginPage_emailHoacMatKhauKhongDung"),
+        requestError instanceof Error
+          ? requestError.message
+          : translate('public:loginPage_emailHoacMatKhauKhongDung'),
       );
     } finally {
       setSubmitting(false);
@@ -43,15 +46,19 @@ export function LoginPage() {
 
   return (
     <AuthLayout
-      title={translate("public:loginPage_dangNhap")}
-      description={registeredEmail
-        ? <p role="status">{translate("public:loginPage_taiKhoanDaTao")}</p>
-        : <p>{translate("public:loginPage_dangNhapDeXemVeDonHang")}</p>}
+      title={translate('public:loginPage_dangNhap')}
+      description={
+        registeredEmail ? (
+          <p role="status">{translate('public:loginPage_taiKhoanDaTao')}</p>
+        ) : (
+          <p>{translate('public:loginPage_dangNhapDeXemVeDonHang')}</p>
+        )
+      }
     >
       <form className="auth-form" onSubmit={submit}>
         <AuthError message={error} />
         <label className="field">
-          <span>{translate("public:loginPage_diaChiEmail")}</span>
+          <span>{translate('public:loginPage_diaChiEmail')}</span>
           <input
             type="email"
             name="email"
@@ -62,7 +69,7 @@ export function LoginPage() {
           />
         </label>
         <div className="field">
-          <label htmlFor="login-password">{translate("public:loginPage_matKhau")}</label>
+          <label htmlFor="login-password">{translate('public:loginPage_matKhau')}</label>
           <div className="password-field">
             <input
               id="login-password"
@@ -73,24 +80,36 @@ export function LoginPage() {
             />
             <button
               type="button"
-              aria-label={showPassword ? translate("public:loginPage_anMatKhau") : translate("public:loginPage_hienMatKhau")}
+              aria-label={
+                showPassword
+                  ? translate('public:loginPage_anMatKhau')
+                  : translate('public:loginPage_hienMatKhau')
+              }
               aria-controls="login-password"
               onClick={() => setShowPassword((value) => !value)}
             >
-              {showPassword ? translate("public:loginPage_an") : translate("public:loginPage_hien")}
+              {showPassword ? translate('public:loginPage_an') : translate('public:loginPage_hien')}
             </button>
           </div>
         </div>
         <Link className="buyer-auth-recovery" to="/forgot-password" state={returnState}>
-          {translate("public:loginPage_quenMatKhau")}
+          {translate('public:loginPage_quenMatKhau')}
         </Link>
-        <button className="button button-primary button-block" type="submit" disabled={loading || submitting}>
-          {submitting ? translate("public:loginPage_dangDangNhap") : translate("public:loginPage_dangNhap")}
+        <button
+          className="button button-primary button-block"
+          type="submit"
+          disabled={loading || submitting}
+        >
+          {submitting
+            ? translate('public:loginPage_dangDangNhap')
+            : translate('public:loginPage_dangNhap')}
         </button>
       </form>
       <p className="buyer-auth-alternate">
-        {translate("public:loginPage_moiDungTicketbox")}{' '}
-        <Link to="/register" state={returnState}>{translate("public:loginPage_taoTaiKhoan")}</Link>
+        {translate('public:loginPage_moiDungTicketbox')}{' '}
+        <Link to="/register" state={returnState}>
+          {translate('public:loginPage_taoTaiKhoan')}
+        </Link>
       </p>
     </AuthLayout>
   );

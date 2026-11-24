@@ -46,7 +46,7 @@ export function ActionMenu<T extends string>({
       </button>
       {open ? (
         <div className="action-menu-popover" role="menu">
-          <span>{translate("shared:actionMenu_chonTrangThaiTiepTheo")}</span>
+          <span>{translate('shared:actionMenu_chonTrangThaiTiepTheo')}</span>
           {options.map((option) => (
             <button
               key={option.value}

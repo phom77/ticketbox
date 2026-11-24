@@ -14,7 +14,14 @@ export type EventDisruption = {
 };
 
 export type DisruptionImpactPage = {
-  content: { orderId: string; referenceCode?: string | null; status: string; paymentState: string | null; amount: number; casePrepared: boolean }[];
+  content: {
+    orderId: string;
+    referenceCode?: string | null;
+    status: string;
+    paymentState: string | null;
+    amount: number;
+    casePrepared: boolean;
+  }[];
   page: number;
   size: number;
   totalElements: number;
@@ -51,5 +58,8 @@ export function startDisruption(concertId: string, command: DisruptionCommand) {
 }
 
 export function resumeDisruption(concertId: string, operationId: string) {
-  return apiCommand<EventDisruption>('POST', `${disruptionPath(concertId)}/${encodeURIComponent(operationId)}/resume`);
+  return apiCommand<EventDisruption>(
+    'POST',
+    `${disruptionPath(concertId)}/${encodeURIComponent(operationId)}/resume`,
+  );
 }

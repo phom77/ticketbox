@@ -13,7 +13,14 @@ type Result<T> =
 
 const dashboardNumber = numberFormatter();
 
-export function DashboardMetric<T>({ title, to, load, description, empty, renderItem }: {
+export function DashboardMetric<T>({
+  title,
+  to,
+  load,
+  description,
+  empty,
+  renderItem,
+}: {
   title: string;
   to: string;
   load: (signal: AbortSignal) => Promise<{ totalElements: number; content: T[] }>;
@@ -29,18 +36,28 @@ export function DashboardMetric<T>({ title, to, load, description, empty, render
 
   useEffect(() => {
     const controller = new AbortController();
-    void load(controller.signal).then((data) => {
-      if (!controller.signal.aborted) setResult({ status: 'ready', data });
-    }).catch((error: unknown) => {
-      if (!controller.signal.aborted) {
-        setResult({ status: 'error', forbidden: error instanceof ApiClientError && error.status === 403 });
-      }
-    });
+    void load(controller.signal)
+      .then((data) => {
+        if (!controller.signal.aborted) setResult({ status: 'ready', data });
+      })
+      .catch((error: unknown) => {
+        if (!controller.signal.aborted) {
+          setResult({
+            status: 'error',
+            forbidden: error instanceof ApiClientError && error.status === 403,
+          });
+        }
+      });
     return () => controller.abort();
   }, [attempt, load]);
 
   return (
-    <section ref={region} className="operations-dashboard-metric" aria-labelledby={titleId} tabIndex={-1}>
+    <section
+      ref={region}
+      className="operations-dashboard-metric"
+      aria-labelledby={titleId}
+      tabIndex={-1}
+    >
       <h3>
         {result.status === 'ready' ? (
           <Link className="operations-dashboard-total" to={to}>
@@ -48,18 +65,36 @@ export function DashboardMetric<T>({ title, to, load, description, empty, render
             <strong>{dashboardNumber.format(result.data.totalElements)}</strong>
             <ArrowUpRight size={18} aria-hidden="true" />
           </Link>
-        ) : <span id={titleId}>{title}</span>}
+        ) : (
+          <span id={titleId}>{title}</span>
+        )}
       </h3>
       {description && <p className="operations-dashboard-caption">{description}</p>}
-      {result.status === 'loading' && <p className="operations-dashboard-caption" role="status">{t('operations-dashboard:loading')}</p>}
+      {result.status === 'loading' && (
+        <p className="operations-dashboard-caption" role="status">
+          {t('operations-dashboard:loading')}
+        </p>
+      )}
       {result.status === 'error' && (
         <div className="operations-dashboard-error">
-          <p role="alert">{t(result.forbidden ? 'operations-dashboard:forbidden' : 'operations-dashboard:loadError')}</p>
-          <button className="admin-secondary-action" type="button" onClick={() => {
-            region.current?.focus();
-            setResult({ status: 'loading' });
-            setAttempt((value) => value + 1);
-          }}>{t('operations-dashboard:retry')}</button>
+          <p role="alert">
+            {t(
+              result.forbidden
+                ? 'operations-dashboard:forbidden'
+                : 'operations-dashboard:loadError',
+            )}
+          </p>
+          <button
+            className="admin-secondary-action"
+            type="button"
+            onClick={() => {
+              region.current?.focus();
+              setResult({ status: 'loading' });
+              setAttempt((value) => value + 1);
+            }}
+          >
+            {t('operations-dashboard:retry')}
+          </button>
         </div>
       )}
       {result.status === 'ready' && empty && result.data.totalElements === 0 && (

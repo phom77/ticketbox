@@ -3,7 +3,12 @@ import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { isRequestCanceled } from '../../api/client';
 import { getOrder, getPaymentStatus, type Order } from '../../api/orders';
-import { clearPendingPayment, orderWindowExpired, paymentNeedsReview, paymentStillVerifying } from '../../features/ticket/checkoutPayment';
+import {
+  clearPendingPayment,
+  orderWindowExpired,
+  paymentNeedsReview,
+  paymentStillVerifying,
+} from '../../features/ticket/checkoutPayment';
 import { CheckoutStatusPanel } from './CheckoutDetails';
 
 const resultCopy = {
@@ -59,10 +64,22 @@ type Result = keyof typeof resultCopy;
 export function PaymentResultPage() {
   const [searchParams] = useSearchParams();
   const orderId = searchParams.get('orderId') ?? searchParams.get('vnp_TxnRef');
-  return <PaymentResult key={orderId} orderId={orderId} awaitingSession={searchParams.get('pending') === 'true'} />;
+  return (
+    <PaymentResult
+      key={orderId}
+      orderId={orderId}
+      awaitingSession={searchParams.get('pending') === 'true'}
+    />
+  );
 }
 
-function PaymentResult({ orderId, awaitingSession }: { orderId: string | null; awaitingSession: boolean }) {
+function PaymentResult({
+  orderId,
+  awaitingSession,
+}: {
+  orderId: string | null;
+  awaitingSession: boolean;
+}) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [result, setResult] = useState<Result>(orderId ? 'checking' : 'missing');
@@ -116,7 +133,11 @@ function PaymentResult({ orderId, awaitingSession }: { orderId: string | null; a
             navigate(`${checkout}&payment=failed`, { replace: true });
             return;
           }
-          if (awaitingSession && (payment.attemptState === 'CREATED' || (payment.attemptState === 'READY' && payment.paymentUrl))) {
+          if (
+            awaitingSession &&
+            (payment.attemptState === 'CREATED' ||
+              (payment.attemptState === 'READY' && payment.paymentUrl))
+          ) {
             navigate(checkout, { replace: true });
             return;
           }
@@ -140,12 +161,22 @@ function PaymentResult({ orderId, awaitingSession }: { orderId: string | null; a
   const checkOrderPath = orderId ? '/checkout?orderId=' + encodeURIComponent(orderId) : null;
   const canCheckOrder = copy.canCheckOrder && checkOrderPath && verifiedOrder?.id;
   return (
-    <CheckoutStatusPanel announce title={t(copy.title)} body={t(copy.body)} referenceCode={verifiedOrder?.referenceCode}>
+    <CheckoutStatusPanel
+      announce
+      title={t(copy.title)}
+      body={t(copy.body)}
+      referenceCode={verifiedOrder?.referenceCode}
+    >
       <div className="purchase-status-actions">
         {canCheckOrder && (
-          <Link className="button button-primary" to={checkOrderPath}>{t('customer:paymentResultPage_quayLaiDonThanhToan')}</Link>
+          <Link className="button button-primary" to={checkOrderPath}>
+            {t('customer:paymentResultPage_quayLaiDonThanhToan')}
+          </Link>
         )}
-        <Link className={canCheckOrder ? 'button button-secondary' : 'button button-primary'} to="/profile?tab=orders">
+        <Link
+          className={canCheckOrder ? 'button button-secondary' : 'button button-primary'}
+          to="/profile?tab=orders"
+        >
           {t('customer:paymentResultPage_xemLichSuDonHang')}
         </Link>
       </div>
