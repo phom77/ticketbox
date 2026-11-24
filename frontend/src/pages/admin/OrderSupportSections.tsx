@@ -106,8 +106,8 @@ export function OrderSupportSections(props: DetailScope) {
             empty={translate("admin:orderSupportSections_chuaCoLanThanhToanNao")}
           />
           <DetailTable
-            columns={[translate("admin:orderSupportSections_hoSoNgoaiLe"), translate("admin:orderSupportSections_trangThai"), translate("admin:orderSupportSections_soTien"), translate("admin:orderSupportSections_maThamChieu"), translate("admin:orderSupportSections_ghiNhanLuc")]}
-            rows={cases.map((item) => ({ id: item.id, values: [item.id, paymentLabels[item.state] ?? item.state,
+            columns={[translate("admin:orderSupportSections_trangThai"), translate("admin:orderSupportSections_soTien"), translate("admin:orderSupportSections_maThamChieu"), translate("admin:orderSupportSections_ghiNhanLuc")]}
+            rows={cases.map((item) => ({ id: item.id, values: [paymentLabels[item.state] ?? item.state,
               currency.format(item.amount), item.externalReference || '—', date(item.recordedAt)] }))}
             empty={translate("admin:orderSupportSections_chuaCoHoSoNgoaiLe")}
           />
@@ -122,14 +122,14 @@ export function OrderSupportSections(props: DetailScope) {
       <OrderSupportSection {...props} section="tickets" title={translate("admin:orderSupportSections_veDaPhatHanh")}>
         {(tickets) => <DetailTable
           columns={[translate("admin:orderSupportSections_maVe"), translate("admin:orderSupportSections_trangThai"), translate("admin:orderSupportSections_phatHanhLuc")]}
-          rows={tickets.map((ticket) => ({ id: ticket.id, values: [ticket.id, ticketLabels[ticket.status] ?? ticket.status, date(ticket.issuedAt)] }))}
+          rows={tickets.map((ticket) => ({ id: ticket.id, values: [ticket.referenceCode ?? '—', ticketLabels[ticket.status] ?? ticket.status, date(ticket.issuedAt)] }))}
           empty={translate("admin:orderSupportSections_chuaCoVeDuocPhatHanh")}
         />}
       </OrderSupportSection>
       <OrderSupportSection {...props} section="delivery" title={translate("admin:orderSupportSections_guiEmail")}>
         {(deliveries) => <DetailTable
-          columns={[translate("admin:orderSupportSections_maThongBao"), translate("admin:orderSupportSections_trangThai"), translate("admin:orderSupportSections_capNhatLuc")]}
-          rows={deliveries.map((item) => ({ id: item.id, values: [item.id, deliveryLabels[item.status] ?? item.status, date(item.updatedAt)] }))}
+          columns={[translate("admin:orderSupportSections_trangThai"), translate("admin:orderSupportSections_capNhatLuc")]}
+          rows={deliveries.map((item) => ({ id: item.id, values: [deliveryLabels[item.status] ?? item.status, date(item.updatedAt)] }))}
           empty={translate("admin:orderSupportSections_chuaCoEmailChoDonNay")}
         />}
       </OrderSupportSection>

@@ -74,6 +74,8 @@ class OrderConcurrencyIntegrationTest {
 
     @Autowired private PerformanceCatalog performanceCatalog;
     @Autowired private PerformanceHolds performanceHolds;
+    @Autowired private org.ticketbox.ticketing.issuance.application.TicketService issuedTickets;
+    @Autowired private org.ticketbox.ticketing.order.web.OrderSupportController supportController;
 
     @Test
     void hybridCheckoutAllocatesBothKindsAndVerifiedPaymentIssuesOneTicketForEach() {
@@ -91,11 +93,15 @@ class OrderConcurrencyIntegrationTest {
                         assertThat(err.getErrorCode()).isEqualTo(ErrorCode.DUPLICATE_IDEMPOTENCY_KEY));
 
         var order = orderService.createPerformanceOrder(sale.id(), buyer.userId(), hold.version(), "checkout", token);
+        var reference = json.valueToTree(order).path("referenceCode").asText();
+        assertThat(reference).matches("DH-\\d+");
         assertThat(order.performanceId()).isEqualTo(sale.id());
         assertThat(order.performanceVenueName()).isEqualTo("Hybrid venue");
         assertThat(order.items()).anySatisfy(line -> assertThat(line.seatLabel()).isEqualTo("12"));
         assertThat(orderService.createPerformanceOrder(sale.id(), buyer.userId(), hold.version(), "checkout", token).id())
                 .isEqualTo(order.id());
+        assertThat(json.valueToTree(orderService.getOrderDetail(order.id(), buyer.userId()))
+                .path("referenceCode").asText()).isEqualTo(reference);
         assertThat(inventoryJdbc.queryForObject("SELECT allocated FROM performance_groups WHERE performance_id=? AND kind='GA'",
                 Integer.class, sale.id())).isEqualTo(1);
         assertThat(inventoryJdbc.queryForObject("SELECT status FROM performance_seats WHERE performance_id=?",
@@ -108,6 +114,9 @@ class OrderConcurrencyIntegrationTest {
         assertThat(inventoryJdbc.queryForObject("""
                 SELECT count(*) FROM tickets t JOIN order_items i ON i.id=t.order_item_id WHERE i.order_id=?
                 """, Integer.class,order.id())).isEqualTo(2);
+        var wallet = json.valueToTree(issuedTickets.listUserTickets(buyer.userId()));
+        assertThat(List.of(wallet.get(0).path("referenceCode").asText(), wallet.get(1).path("referenceCode").asText()))
+                .allSatisfy(code -> assertThat(code).matches("VE-\\d+")).doesNotHaveDuplicates();
         assertThat(orderService.getOrderDetail(order.id(), buyer.userId()).items())
                 .anySatisfy(line -> assertThat(line.rowLabel()).isEqualTo("B"));
         assertThat(inventoryJdbc.queryForObject("""
@@ -116,6 +125,33 @@ class OrderConcurrencyIntegrationTest {
                    AND CAST(replay_order(o.id) ->> 'paid_at' AS timestamptz) = o.paid_at
                 FROM orders o WHERE o.id=?
                 """, Boolean.class, order.id())).isTrue();
+    }
+
+    @Test
+    void orderSupportResolvesExactReferenceInsideOrganizationAndConcert() throws Exception {
+        var sale = createHybrid();
+        var buyer = new Scope(sale.id(), UUID.randomUUID());
+        String token = admitPerformance(buyer);
+        var hold = performanceHolds.replace(buyer, token, "initial", 1L, 0, hybridPicks(sale));
+        var order = orderService.createPerformanceOrder(sale.id(), buyer.userId(), hold.version(), "support-ref", token);
+        var code = json.valueToTree(order).path("referenceCode").asText().toLowerCase(java.util.Locale.ROOT);
+        var web = org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(supportController)
+                .setControllerAdvice(new org.ticketbox.ticketing.web.GlobalExceptionHandler()).build();
+        String path = "/api/organizer/manage/orders/support";
+        var found = web.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(path)
+                .requestAttr(org.ticketbox.ticketing.web.security.OrganizationAccess.ORGANIZATION, sale.organizationId())
+                .param("referenceCode", code).param("concertId", sale.id().toString()).param("size", "1"))
+                .andReturn().getResponse();
+        assertThat(found.getStatus()).isEqualTo(200);
+        var result = json.readTree(found.getContentAsByteArray()).path("data");
+        assertThat(result.path("totalElements").asLong()).isEqualTo(1);
+        assertThat(result.path("content").get(0).path("id").asText()).isEqualTo(order.id().toString());
+
+        var outside = web.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(path)
+                .requestAttr(org.ticketbox.ticketing.web.security.OrganizationAccess.ORGANIZATION, UUID.randomUUID())
+                .param("referenceCode", code).param("size", "1")).andReturn().getResponse();
+        assertThat(outside.getStatus()).isEqualTo(200);
+        assertThat(json.readTree(outside.getContentAsByteArray()).path("data").path("totalElements").asLong()).isZero();
     }
 
     @Test
@@ -607,6 +643,15 @@ SELECT count(*) FROM tickets t JOIN order_items i ON t.order_item_id=i.id WHERE 
                                                     order))
                                     .isEqualTo(1);
                         });
+        org.mockito.Mockito.verify(confirmedPublisher).publish(
+                org.mockito.ArgumentMatchers.eq("notification.commands.v1"),
+                org.mockito.ArgumentMatchers.argThat(payload ->
+                        payload instanceof com.ticketbox.shared.event.RemoteNotificationRequested message
+                                && order.equals(message.aggregateId())
+                                && order.equals(message.payload().get("orderId"))
+                                && message.payload().get("orderReference") instanceof String reference
+                                && reference.matches("DH-[A-Z0-9]{1,24}")),
+                org.mockito.ArgumentMatchers.eq(paidEvent.eventId().toString()));
     }
 
     private UUID insertBaselinePublication(String listener, Object event) throws Exception {

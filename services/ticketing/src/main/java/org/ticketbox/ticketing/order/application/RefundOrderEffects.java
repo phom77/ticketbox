@@ -16,7 +16,9 @@ import org.ticketbox.ticketing.order.application.port.RefundPreparationStore.Sta
 import org.ticketbox.ticketing.order.domain.Order;
 
 import java.time.OffsetDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -102,9 +104,10 @@ public class RefundOrderEffects {
         } else {
             refunds.finish(result.caseId(), State.CONFIRMED, result.reference());
         }
+        var payload = new HashMap<String, Object>(Map.of("orderId", order.getId(), "amount", result.amount()));
+        if (order.getReferenceCode() != null) payload.put("orderReference", order.getReferenceCode());
         publications.publishEvent(new com.ticketbox.shared.event.RemoteNotificationRequested(1, "ticketing.order-refunded",
-                result.caseId(), order.getId(), order.getUserId(), result.occurredAt(), result.caseId().toString(),
-                java.util.Map.of("orderId", order.getId(), "amount", result.amount())));
+                result.caseId(), order.getId(), order.getUserId(), result.occurredAt(), result.caseId().toString(), payload));
     }
 
     private Order locked(UUID id) {

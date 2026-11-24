@@ -159,10 +159,6 @@ export function AdminUsersPage() {
                         <span className="admin-table-secondary">
                           {user.phone}
                         </span>
-                        <details className="admin-table-secondary">
-                          <summary>{translate("admin:adminUsersPage_maTaiKhoan")}</summary>
-                          <code>{user.id}</code>
-                        </details>
                       </td>
                       <td>
                         <WorkspaceSelect label={`${translate('admin:adminUsersPage_vaiTro')} · ${user.fullName}`}

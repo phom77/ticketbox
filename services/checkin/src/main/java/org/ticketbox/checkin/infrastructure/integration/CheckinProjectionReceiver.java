@@ -146,6 +146,15 @@ ON CONFLICT(id) DO UPDATE SET %3$s
             }
         }
         upsert(Row.TICKET, ticket);
+        String reference = optionalLabel(ticket, "reference_code");
+        String ticketTypeName = optionalLabel(ticket, "ticket_type_name");
+        if (reference != null && reference.length() > 32) throw invalidSnapshot();
+        if (reference != null || ticketTypeName != null) {
+            jdbc.update("""
+                    UPDATE tickets SET reference_code=COALESCE(?,reference_code),
+                        ticket_type_name=COALESCE(?,ticket_type_name) WHERE id=?
+                    """, reference, ticketTypeName, id);
+        }
         if (performance) {
             jdbc.update("UPDATE tickets SET section_label=?,row_label=?,seat_label=? WHERE id=?",
                     optionalLabel(ticket, "section_label"), optionalLabel(ticket, "row_label"),

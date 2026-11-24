@@ -142,6 +142,7 @@ public class OrderConcurrencyTest {
                         });
 
         // Mock order savings
+        when(orderRepository.nextReferenceCode()).thenReturn("DH-10000000");
         when(orderRepository.save(any(Order.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -204,6 +205,7 @@ public class OrderConcurrencyTest {
         when(ticketHoldRepository.findByUserIdAndConcertId(any(), any()))
                 .thenReturn(Collections.emptyList());
         when(inventory.reserve(eq(ticketTypeId), anyInt())).thenReturn(true);
+        when(orderRepository.nextReferenceCode()).thenReturn("DH-10000000");
         when(orderRepository.save(any(Order.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 

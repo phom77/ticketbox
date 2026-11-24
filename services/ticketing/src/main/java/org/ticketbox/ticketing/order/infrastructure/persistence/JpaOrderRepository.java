@@ -25,6 +25,7 @@ public interface JpaOrderRepository
             WHERE (CAST(:organizationId AS uuid) IS NULL OR o.organization_id = :organizationId)
               AND (CAST(:concertId AS uuid) IS NULL OR o.concert_id = :concertId)
               AND (CAST(:orderId AS uuid) IS NULL OR o.id = :orderId)
+              AND (CAST(:referenceCode AS text) IS NULL OR o.reference_code = :referenceCode)
               AND (CAST(:buyerId AS uuid) IS NULL OR o.user_id = :buyerId)
               AND (CAST(:transactionRef AS text) IS NULL OR EXISTS (
                   SELECT 1 FROM payment_reconciliation p JOIN ticketing_payment_intents i
@@ -38,7 +39,11 @@ public interface JpaOrderRepository
     @Query(value = "SELECT o.* " + SUPPORT_FILTER + " ORDER BY o.created_at DESC, o.id",
             countQuery = "SELECT count(*) " + SUPPORT_FILTER, nativeQuery = true)
     org.springframework.data.domain.Page<Order> searchSupport(UUID organizationId, UUID concertId,
-            UUID orderId, UUID buyerId, String transactionRef, Pageable pageable);
+            UUID orderId, String referenceCode, UUID buyerId, String transactionRef, Pageable pageable);
+
+    @Override
+    @Query(value = "SELECT 'DH-' || nextval('order_reference_code_seq')", nativeQuery = true)
+    String nextReferenceCode();
 
     @Query(
             value =

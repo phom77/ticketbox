@@ -50,7 +50,8 @@ public class StaffAdmission {
         requireAssigned(organization, staff, performance);
         var source = checkin.getCheckinDataset(performance);
         var entries = source.tickets().stream()
-                .map(ticket -> new DatasetTicket(ticket.ticketId(), ticket.qrCode(), ticket.ticketTypeId()))
+                .map(ticket -> new DatasetTicket(ticket.ticketId(), ticket.qrCode(), ticket.ticketTypeId(),
+                        ticket.referenceCode(), ticket.ticketTypeName()))
                 .toList();
         return new Dataset(performance, source.generatedAt(), source.totalCount(), entries);
     }
@@ -115,5 +116,6 @@ public class StaffAdmission {
 
     public record Dataset(UUID concertId, OffsetDateTime generatedAt, int totalCount, List<DatasetTicket> tickets) {}
 
-    public record DatasetTicket(UUID ticketId, String qrCode, UUID ticketTypeId) {}
+    public record DatasetTicket(UUID ticketId, String qrCode, UUID ticketTypeId,
+                                String referenceCode, String ticketTypeName) {}
 }

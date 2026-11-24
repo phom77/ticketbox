@@ -39,6 +39,8 @@ public class Order extends BaseEntity {
 
     private String idempotencyKey;
 
+    private String referenceCode;
+
     private PaymentProvider paymentProvider;
 
     private String paymentRef;
@@ -57,6 +59,11 @@ public class Order extends BaseEntity {
 
     public UUID getPerformanceId() {
         return performanceEventId == null ? null : concertId;
+    }
+
+    public void assignReferenceCode(String code) {
+        if (referenceCode != null) throw new IllegalStateException("Order already has a reference code");
+        referenceCode = java.util.Objects.requireNonNull(code);
     }
 
     public void snapshotPerformance(UUID eventId, String title, String venueName,

@@ -25,7 +25,8 @@ class NotificationRulesTest {
                         "Đêm nhạc",
                         BigDecimal.TEN,
                         "",
-                        "");
+                        "",
+                        null);
         var email = Notification.compose(command, Notification.Channel.EMAIL, "Subject", "Body");
         assertEquals(
                 email.messageId(),
@@ -50,6 +51,7 @@ class NotificationRulesTest {
                                 "Concert",
                                 BigDecimal.TEN.negate(),
                                 "",
-                                ""));
+                                "",
+                                null));
     }
 }

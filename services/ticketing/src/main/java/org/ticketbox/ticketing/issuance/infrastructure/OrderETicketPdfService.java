@@ -66,7 +66,7 @@ public class OrderETicketPdfService implements ETicketDocumentPort {
                         .collect(Collectors.toMap(TicketTypeView::id, TicketTypeView::name));
         return Optional.of(
                 new ETicketDocument(
-                        "TicketBox-" + orderId.toString().substring(0, 8).toUpperCase() + ".pdf",
+                        (order.getReferenceCode() == null ? "TicketBox" : "TicketBox-" + order.getReferenceCode()) + ".pdf",
                         "application/pdf",
                         render(concert, tickets, typeNames, places.forTickets(tickets.stream().map(Ticket::getId).toList()))));
     }
@@ -120,9 +120,11 @@ public class OrderETicketPdfService implements ETicketDocumentPort {
                     location.setAlignment(Element.ALIGN_CENTER);
                     document.add(location);
                 }
-                Paragraph id = new Paragraph("Ticket ID: " + ticket.getId(), body);
-                id.setAlignment(Element.ALIGN_CENTER);
-                document.add(id);
+                if (ticket.getReferenceCode() != null) {
+                    Paragraph reference = new Paragraph("Ticket reference: " + ticket.getReferenceCode(), body);
+                    reference.setAlignment(Element.ALIGN_CENTER);
+                    document.add(reference);
+                }
                 Paragraph count =
                         new Paragraph("Ticket " + (index + 1) + " / " + tickets.size(), body);
                 count.setAlignment(Element.ALIGN_CENTER);

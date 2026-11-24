@@ -14,7 +14,7 @@ export type EventDisruption = {
 };
 
 export type DisruptionImpactPage = {
-  content: { orderId: string; status: string; paymentState: string | null; amount: number; casePrepared: boolean }[];
+  content: { orderId: string; referenceCode?: string | null; status: string; paymentState: string | null; amount: number; casePrepared: boolean }[];
   page: number;
   size: number;
   totalElements: number;

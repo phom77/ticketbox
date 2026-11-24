@@ -36,12 +36,14 @@ public class TicketPublisher {
                 jdbc.queryForList(
                         """
 SELECT jsonb_build_object('id',o.ticket_id,'version',o.version,'ticket',
-    CASE WHEN i.group_id IS NULL THEN to_jsonb(t)
-    ELSE to_jsonb(t) || jsonb_build_object('performance_id',t.concert_id,
+    to_jsonb(t) || jsonb_build_object('ticket_type_name',COALESCE(i.offer_name,ty.name)) ||
+    CASE WHEN i.group_id IS NULL THEN '{}'::jsonb
+    ELSE jsonb_build_object('performance_id',t.concert_id,
         'section_label',i.section_label,'row_label',i.row_label,'seat_label',i.seat_label)
     END)::text
 FROM checkin_ticket_outbox o JOIN tickets t ON t.id=o.ticket_id
 JOIN order_items i ON i.id=t.order_item_id
+LEFT JOIN ticket_types ty ON ty.id=t.ticket_type_id
 WHERE o.delivered_version<o.version ORDER BY o.ticket_id LIMIT 100
 """,
                         String.class)) {

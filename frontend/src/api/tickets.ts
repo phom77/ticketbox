@@ -4,6 +4,7 @@ export type TicketStatus = 'VALID' | 'USED' | 'CANCELLED' | 'TRANSFERRED';
 
 export type Ticket = {
   id: string;
+  referenceCode?: string | null;
   concertId: string;
   concertTitle: string;
   ticketTypeId: string;

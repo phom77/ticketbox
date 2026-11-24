@@ -39,6 +39,12 @@ export function getOrganizationMembers(id: string, signal?: AbortSignal) {
   return apiGet<OrganizationMember[]>(`/api/organizations/${id}/members`, signal);
 }
 
+export type AdmissionStaff = Pick<OrganizationMember, 'accountId' | 'email' | 'fullName'>;
+
+export function getAdmissionStaff(id: string, signal?: AbortSignal) {
+  return apiGet<AdmissionStaff[]>(`/api/organizations/${encodeURIComponent(id)}/admission-staff`, signal);
+}
+
 export type InviteResult = { email: string; outcome: 'INVALID' | 'UNAVAILABLE' | 'MEMBER' | 'PENDING' | 'QUEUED' };
 export type PendingOrganizerInvite = { id: string; email: string; expiresAt: string; delivered: boolean };
 export type OrganizerApplication = {
@@ -98,6 +104,6 @@ export function setOrganizationMemberActivity(id: string, accountId: string, act
   return api.put(`/api/admin/organizations/${id}/members/${accountId}/status`, { active });
 }
 
-export function recoverOrganizationManager(id: string, accountId: string) {
-  return api.put(`/api/admin/organizations/${id}/manager`, { accountId });
+export function recoverOrganizationManager(id: string, email: string) {
+  return api.put(`/api/admin/organizations/${id}/manager`, { email });
 }

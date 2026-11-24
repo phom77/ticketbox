@@ -184,6 +184,47 @@ class ScopedCheckinIntegrationTest {
                 .isEqualTo("USED");
     }
 
+    @Test
+    void staffCanFindATicketByReferenceWhileAdmissionStillRequiresItsQr() throws Exception {
+        UUID org = UUID.randomUUID();
+        UUID manager = UUID.randomUUID();
+        UUID staff = UUID.randomUUID();
+        UUID performance = UUID.randomUUID();
+        UUID offer = UUID.randomUUID();
+        UUID id = UUID.randomUUID();
+        identity.allow(org, manager, "EVENTS", staff, "ADMISSION");
+        publish(performance, org, offer);
+        mvc.perform(actor(put(assignment(performance, staff)), org, manager, "ORGANIZER"))
+                .andExpect(status().isNoContent());
+
+        var snapshot = ticket(id, performance, offer);
+        var payload = (ObjectNode) snapshot.path("ticket");
+        String qr = payload.path("qr_code").asText();
+        payload.put("reference_code", "VE-10000007").put("ticket_type_name", "Balcony admission");
+        mvc.perform(service(put(TICKETS + id), snapshot)).andExpect(status().isNoContent());
+
+        // A delivery from a compatible older producer omits optional display fields.
+        payload.remove(List.of("reference_code", "ticket_type_name"));
+        mvc.perform(service(put(TICKETS + id), snapshot.put("version", 2))).andExpect(status().isNoContent());
+
+        mvc.perform(actor(get(STAFF + "/" + performance + "/tickets").param("query", "ve-10000007"),
+                        org, staff, "STAFF"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].referenceCode").value("VE-10000007"))
+                .andExpect(jsonPath("$.data.content[0].ticketTypeName").value("Balcony admission"));
+        mvc.perform(actor(get(STAFF + "/" + performance + "/checkin-dataset"), org, staff, "STAFF"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.tickets[0].referenceCode").value("VE-10000007"))
+                .andExpect(jsonPath("$.data.tickets[0].ticketTypeName").value("Balcony admission"));
+        mvc.perform(actor(scan(performance, "VE-10000007", "reader"), org, staff, "STAFF"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.status").value("FAILED"));
+        mvc.perform(actor(scan(performance, qr, "reader"), org, staff, "STAFF"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.status").value("SUCCESS"));
+        mvc.perform(actor(get(STAFF + "/" + performance + "/checkins"), org, staff, "STAFF"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].referenceCode").value("VE-10000007"));
+    }
+
     private String sendOffline(UUID performance, String qr, String device, UUID org, UUID actor)
             throws Exception {
         return json.readTree(mvc.perform(actor(sync(performance, qr, device), org, actor, "STAFF"))

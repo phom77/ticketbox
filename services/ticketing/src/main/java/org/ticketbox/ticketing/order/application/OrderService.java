@@ -155,6 +155,7 @@ public class OrderService {
         var order = Order.awaitingPayment(scope.userId(), scope.performanceId(), new Money(total),
                 claim.clientKey(), checkout.now().plusMinutes(15));
         order.snapshotPerformance(sale.eventId(), sale.title(), sale.venueName(), sale.startsAt(), holdVersion);
+        order.assignReferenceCode(orderRepository.nextReferenceCode());
         var saved = orderRepository.save(order);
         saved.addItems(lines);
         orderRepository.save(saved);
@@ -333,6 +334,7 @@ public class OrderService {
                         claim.clientKey(),
                         now.plusMinutes(15));
 
+        order.assignReferenceCode(orderRepository.nextReferenceCode());
         Order savedOrder = orderRepository.save(order);
 
         savedOrder.addItems(orderItems);

@@ -23,6 +23,7 @@ export type OrderItem = {
 
 export type Order = {
   id: string;
+  referenceCode?: string | null;
   concertId: string;
   concertTitle: string;
   performanceId?: string | null;

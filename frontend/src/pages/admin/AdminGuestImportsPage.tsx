@@ -548,7 +548,6 @@ export function AdminGuestImportsPage({
                         <strong className="admin-table-primary">
                           {log.fileName ?? translate("admin:adminGuestImportsPage_khongCoTenFile")}
                         </strong>
-                        <span className="admin-table-secondary">{log.id.slice(0, 8)}</span>
                       </td>
                       <td>
                         <strong className="admin-table-primary">
@@ -574,7 +573,9 @@ export function AdminGuestImportsPage({
                         <div className="admin-row-actions">
                           <button
                             type="button"
-                            aria-label={translate("admin:adminGuestImportsPage_xemChiTiet", { arg1: log.fileName ?? log.id })}
+                            aria-label={translate("admin:adminGuestImportsPage_xemChiTiet", {
+                              arg1: log.fileName ?? translate('admin:adminGuestImportsPage_khongCoTenFile'),
+                            })}
                             onClick={() => void openDetail(log)}
                           >
                             <Eye aria-hidden="true" size={16} />

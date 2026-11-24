@@ -247,7 +247,6 @@ export function StaffCheckInPage() {
               <CheckCircle2 aria-hidden="true" size={18} />
               <div>
                 <strong>Đã đọc được QR</strong>
-                <span>{decodedQr}</span>
               </div>
             </div>
           ) : null}
@@ -283,11 +282,7 @@ export function StaffCheckInPage() {
               {scanResult.status === 'SUCCESS' ? 'Check-in thành công' : 'Máy chủ từ chối'}
             </span>
             <h2>{scanResult.message}</h2>
-            <p>
-              {scanResult.ticketId ? `Vé ${scanResult.ticketId}` : 'Không tìm thấy vé phù hợp'}
-              {' - '}
-              {staffDateTime.format(new Date(scanResult.checkAt))}
-            </p>
+            <p>{staffDateTime.format(new Date(scanResult.checkAt))}</p>
           </div>
         </section>
       ) : null}

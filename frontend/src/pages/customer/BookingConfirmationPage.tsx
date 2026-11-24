@@ -8,7 +8,7 @@ import { currency } from '../../data/formatters';
 import { useAuth } from '../../features/auth/AuthContext';
 import { concertTitle } from '../../features/concert/concertText';
 import { orderWindowExpired, type CheckoutEvent } from '../../features/ticket/checkoutPayment';
-import { CheckoutEventTime, CheckoutOrderLines, CheckoutStatusPanel } from './CheckoutDetails';
+import { CheckoutEventTime, CheckoutOrderLines, CheckoutOrderReference, CheckoutStatusPanel } from './CheckoutDetails';
 
 type ConfirmationState = {
   event?: CheckoutEvent;
@@ -108,10 +108,7 @@ function ConfirmedOrder({ order, event }: { order: Order; event?: CheckoutEvent 
       <section className="purchase-panel purchase-confirmed-summary" aria-labelledby="confirmed-event-title">
         <h2 id="confirmed-event-title">{eventTitle}</h2>
         <CheckoutEventTime date={concert?.eventDate ?? knownEvent?.date} venue={concert?.venueName ?? knownEvent?.venue} />
-        <p className="purchase-order-reference">
-          <span>{t('customer:bookingConfirmationPage_orderReference')}</span>
-          <b title={order.id}>{order.id.slice(0, 8).toUpperCase()}</b>
-        </p>
+        <CheckoutOrderReference code={order.referenceCode} />
         <CheckoutOrderLines order={order} />
         <div className="purchase-order-total">
           <span>{t('customer:bookingConfirmationPage_paidAmount')}</span>

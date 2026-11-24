@@ -60,6 +60,8 @@ export async function saveCheckinDataset(accountId: string, dataset: SaveDataset
       ticketId: ticket.ticketId,
       qrCode: ticket.qrCode,
       ticketTypeId: ticket.ticketTypeId,
+      referenceCode: ticket.referenceCode ?? null,
+      ticketTypeName: ticket.ticketTypeName ?? null,
       downloadedAt,
     };
     store.tickets.set(ticketKey(snapshot.concertId, snapshot.ticketId), snapshot);

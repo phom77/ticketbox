@@ -7,6 +7,7 @@ import java.util.UUID;
 
 public record OrderNotificationView(
         UUID orderId,
+        String referenceCode,
         UUID userId,
         UUID concertId,
         String concertTitle,

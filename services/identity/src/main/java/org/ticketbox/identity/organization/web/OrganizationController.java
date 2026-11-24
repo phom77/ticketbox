@@ -1,6 +1,7 @@
 package org.ticketbox.identity.organization.web;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -17,6 +18,8 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
+import org.ticketbox.identity.application.error.AppException;
+import org.ticketbox.identity.application.error.ErrorCode;
 import org.ticketbox.identity.organization.application.OrganizationService;
 import org.ticketbox.identity.organization.application.port.OrganizationStore.Member;
 import org.ticketbox.identity.organization.application.port.OrganizationStore.Membership;
@@ -60,7 +63,13 @@ class OrganizationController {
     ApiResponse<Void> recover(
             @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
             @PathVariable UUID id, @Valid @RequestBody Manager request) {
-        organizations.recover(sessions.requirePlatformAdmin(authorization), id, request.accountId());
+        UUID actor = sessions.requirePlatformAdmin(authorization);
+        boolean hasEmail = request.email() != null && !request.email().isBlank();
+        if ((request.accountId() != null) == hasEmail) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "error.invalid-request");
+        }
+        if (hasEmail) organizations.recoverByEmail(actor, id, request.email());
+        else organizations.recover(actor, id, request.accountId());
         return ApiResponse.success(null);
     }
 
@@ -87,6 +96,13 @@ class OrganizationController {
     ApiResponse<List<Member>> members(
             @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization, @PathVariable UUID id) {
         return ApiResponse.success(organizations.members(sessions.requireOrganizer(authorization), id));
+    }
+
+    @GetMapping("/api/organizations/{id}/admission-staff")
+    ResponseEntity<ApiResponse<List<OrganizationService.AdmissionStaff>>> admissionStaff(
+            @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization, @PathVariable UUID id) {
+        var staff = organizations.admissionStaff(sessions.requireOrganizer(authorization), id);
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(ApiResponse.success(staff));
     }
 
     @PostMapping("/api/organizations/{id}/invitations")
@@ -118,7 +134,7 @@ class OrganizationController {
 
     record Approval(@NotBlank @Size(max = 160) String name, @NotNull UUID initialManagerId) {}
 
-    record Manager(@NotNull UUID accountId) {}
+    record Manager(UUID accountId, @Email @Size(max = 254) String email) {}
 
     record Invitation(@NotNull UUID accountId, @NotEmpty Set<@NotNull OrganizationGrant> grants) {}
 

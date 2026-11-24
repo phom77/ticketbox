@@ -134,7 +134,7 @@ function OrderDetailModal({ order, scope, onClose }: { order: Order; scope: Mana
         </header>
         <div style={{ padding: 24, display: 'grid', gap: 20 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            <InfoRow label={translate("admin:adminOrdersPage_maDon")} value={order.id} />
+            {order.referenceCode && <InfoRow label={translate("admin:adminOrdersPage_maDon")} value={order.referenceCode} />}
             <InfoRow label={translate("admin:adminOrdersPage_trangThai")}>
               <StatusBadge label={order.status} variant={orderStatusVariant(order.status)} />
             </InfoRow>
@@ -334,7 +334,7 @@ function TicketTab({
                   )}
                   {tickets.map((t) => (
                     <tr key={t.id}>
-                      <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{t.id.slice(0, 8)}…</td>
+                      <td>{t.referenceCode ?? '—'}</td>
                       <td
                         style={{
                           fontFamily: 'monospace',
@@ -378,11 +378,12 @@ function TicketTab({
 // ---- Main page ----
 
 type TabId = 'orders' | 'tickets';
+type OrderLookupField = Exclude<OrderSupportLookup['field'], 'orderId'>;
 const orderLookupLabels = {
-  get orderId() { return translate("admin:adminOrdersPage_maDonHang"); },
+  get referenceCode() { return translate("admin:adminOrdersPage_maDonHang"); },
   get buyerEmail() { return translate("admin:adminOrdersPage_emailNguoiMua"); },
   get transactionRef() { return translate("admin:adminOrdersPage_maGiaoDich"); },
-} satisfies Record<OrderSupportLookup['field'], string>;
+} satisfies Record<OrderLookupField, string>;
 
 function orderLoadMessage(error: unknown, lookup: OrderSupportLookup | null) {
   if (error instanceof ApiClientError && error.status === 403) {
@@ -390,7 +391,8 @@ function orderLoadMessage(error: unknown, lookup: OrderSupportLookup | null) {
   }
   if (!lookup) return translate("admin:adminOrdersPage_khongTheTaiDanhSachDonHang");
   if (error instanceof ApiClientError && error.status === 400) {
-    return translate("admin:adminOrdersPage_hayKiemTraRoiTraCuuLai", { arg1: orderLookupLabels[lookup.field].toLowerCase() });
+    const field = lookup.field === 'orderId' ? 'referenceCode' : lookup.field;
+    return translate("admin:adminOrdersPage_hayKiemTraRoiTraCuuLai", { arg1: orderLookupLabels[field].toLowerCase() });
   }
   return translate("admin:adminOrdersPage_traCuuDonHangTamThoiKhong");
 }
@@ -427,8 +429,8 @@ function OrderDirectory({ apiScope }: { apiScope: ManagementApiScope }) {
   const [statusFilter, setStatusFilter] = useState<OrderStatus | ''>('');
   const [concertFilter, setConcertFilter] = useState(() => searchParams.get('concertId') ?? '');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [lookupField, setLookupField] = useState<OrderSupportLookup['field']>('orderId');
-  const [lookupValue, setLookupValue] = useState(initialOrderId ?? '');
+  const [lookupField, setLookupField] = useState<OrderLookupField>('referenceCode');
+  const [lookupValue, setLookupValue] = useState('');
   const [lookup, setLookup] = useState<OrderSupportLookup | null>(
     () => initialOrderId ? { field: 'orderId', value: initialOrderId } : null,
   );
@@ -563,7 +565,7 @@ function OrderDirectory({ apiScope }: { apiScope: ManagementApiScope }) {
           <form className="admin-toolbar admin-order-support-form" role="search" aria-label={translate("admin:adminOrdersPage_traCuuDonHang")} onSubmit={submitLookup}>
             <WorkspaceSelect label={translate('admin:adminOrdersPage_timTheo')} value={lookupField}
               onChange={(value) => {
-                setLookupField(value as OrderSupportLookup['field']);
+                setLookupField(value as OrderLookupField);
                 setLookupValue('');
               }}
               options={Object.entries(orderLookupLabels).map(([value, label]) => ({ value, label }))} />
@@ -653,9 +655,7 @@ function OrderDirectory({ apiScope }: { apiScope: ManagementApiScope }) {
                   )}
                   {orders.map((order) => (
                     <tr key={order.id}>
-                      <td style={{ fontFamily: 'monospace', fontSize: 12 }}>
-                        {order.id.slice(0, 8)}…
-                      </td>
+                      <td>{order.referenceCode ?? '—'}</td>
                       <td
                         style={{
                           maxWidth: 200,

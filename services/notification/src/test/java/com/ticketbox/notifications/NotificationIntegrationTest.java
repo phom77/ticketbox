@@ -17,6 +17,7 @@ import io.jsonwebtoken.security.Keys;
 
 import jakarta.mail.Session;
 import jakarta.mail.internet.MimeMessage;
+import jakarta.mail.internet.MimeMultipart;
 
 import org.junit.jupiter.api.*;
 import org.springframework.amqp.core.*;
@@ -231,6 +232,8 @@ class NotificationIntegrationTest {
                                 user))
                 .containsExactly(
                         "Your tickets for Fixture are ready", "Your tickets for Fixture are ready");
+        assertThat(db.queryForList("SELECT body FROM notifications WHERE user_id=?", String.class, user))
+                .allSatisfy(body -> assertThat(body).contains("250000 VND").doesNotContain(command.get("aggregateId").toString()));
         worker.deliver();
         assertThat(
                         db.queryForObject(
@@ -251,6 +254,62 @@ class NotificationIntegrationTest {
         verify(smtp, times(1)).send(delivered.capture());
         assertThat(delivered.getValue().getSubject())
                 .isEqualTo("Your tickets for Fixture are ready");
+        var parts = (MimeMultipart) delivered.getValue().getContent();
+        assertThat(parts.getBodyPart(parts.getCount() - 1).getFileName())
+                .isEqualTo("TicketBox-e-ticket.pdf");
+    }
+
+    @Test
+    void brokerUsesOrderCodeForPaymentAndRefundMessages() throws Exception {
+        UUID user = UUID.randomUUID();
+        for (String type : List.of("ticketing.order-confirmed", "ticketing.order-refunded")) {
+            var command = new HashMap<>(event(UUID.randomUUID(), user));
+            Object orderId = command.get("aggregateId");
+            command.put("eventType", type);
+            command.put("payload", Map.of("orderId", orderId, "amount", 250000,
+                    "concertTitle", "Fixture", "orderReference", "DH-10000017"));
+            publish(command);
+
+            await().atMost(Duration.ofSeconds(15)).untilAsserted(() ->
+                    assertThat(db.queryForList("SELECT body FROM notifications WHERE reference_id=?", String.class, orderId))
+                            .hasSize(2)
+                            .allSatisfy(body -> assertThat(body).contains("DH-10000017", "250000 VND")
+                                    .doesNotContain(orderId.toString())));
+        }
+    }
+
+    @Test
+    void existingTemplatedOrderBodiesAreCleanedOnReadAndRetry() throws Exception {
+        UUID user = UUID.randomUUID(), order = UUID.randomUUID(), staff = UUID.randomUUID();
+        String payment = "Order " + order + " was paid successfully. Total: 250000 VND. Open My Tickets to view your tickets and QR codes.";
+        String refund = "TicketBox đã ghi nhận khoản hoàn 250000 VND cho đơn " + order
+                + ". Mở lịch sử đơn hàng để xem trạng thái mới nhất.";
+        String unrelated = "Existing reminder for " + order;
+        UUID app = UUID.randomUUID(), mail = UUID.randomUUID(), reminder = UUID.randomUUID();
+        db.update("""
+                INSERT INTO notifications(id,user_id,channel,event_type,body,status,reference_id)
+                VALUES (?,?,'APP','ORDER_REFUNDED',?,'SENT',?),
+                       (?,?,'EMAIL','PAYMENT_SUCCEEDED',?,'FAILED',?),
+                       (?,?,'APP','CONCERT_REMINDER',?,'SENT',?)
+                """, app, user, refund, order, mail, user, payment, order, reminder, user, unrelated, order);
+
+        api.perform(patch("/api/notifications/" + app + "/read")
+                        .header("Authorization", "Bearer " + jwt(user, "AUDIENCE")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.body", org.hamcrest.Matchers.allOf(
+                        org.hamcrest.Matchers.containsString("250000 VND"),
+                        org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString(order.toString())))));
+        api.perform(get("/api/notifications").header("Authorization", "Bearer " + jwt(user, "AUDIENCE")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[*].body", org.hamcrest.Matchers.hasItem(unrelated)));
+        api.perform(post("/api/admin/notifications/" + mail + "/retry")
+                        .header("Authorization", "Bearer " + jwt(staff, "ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.body", org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString(order.toString()))));
+        var retry = repository.claim();
+        assertThat(retry.body()).contains("250000 VND").doesNotContain(order.toString());
+        assertThat(retry.order()).isEqualTo(order);
+        assertThat(db.queryForObject("SELECT body FROM notifications WHERE id=?", String.class, mail)).isEqualTo(payment);
     }
 
     @Test

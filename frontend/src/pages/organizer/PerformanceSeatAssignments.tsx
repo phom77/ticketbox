@@ -120,7 +120,7 @@ export function PerformanceSeatAssignments({ sections, sale, setSale, performanc
           <WorkspaceSelect label={t('performances:assignSeatsTo')} value={activeGroup?.id ?? ''} onChange={(value) => {
             setGroupId(value);
             setAssignmentMessage('');
-          }} options={groups.map(({ id }) => ({ value: id, label: groupLabels.get(id) ?? id }))} />
+          }} options={Array.from(groupLabels, ([value, label]) => ({ value, label }))} />
         </label>
       </div>
       <p>{t('performances:seatAssignmentHelp')}</p>

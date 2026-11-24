@@ -370,6 +370,54 @@ class IdentityIntegrationTest {
                 .andExpect(status().isForbidden());
     }
 
+    @Test
+    void eventsGrantCanListOnlyActiveAdmissionStaffInItsOrganization() throws Exception {
+        String admin = login("admin@ticketbox.com");
+        UUID manager = accountId("organizer@ticketbox.com");
+        UUID organization = createOrganization(admin, "Staff directory fixture", manager);
+        UUID another = createOrganization(admin, "Other staff directory", manager);
+        String coordinator = fixtureOrganizer();
+        String memberManager = fixtureOrganizer();
+        UUID availableStaff = accountId("staff@ticketbox.com");
+        UUID inactiveStaff = addDirectoryFixtureStaff(false);
+        UUID otherStaff = addDirectoryFixtureStaff(true);
+        jdbc.update("INSERT INTO organization_members(organization_id,account_id,grants) VALUES (?,?,ARRAY['EVENTS'])",
+                organization, accountId(coordinator));
+        jdbc.update("INSERT INTO organization_members(organization_id,account_id,grants) VALUES (?,?,ARRAY['MEMBERS'])",
+                organization, accountId(memberManager));
+        for (UUID account : java.util.List.of(availableStaff, inactiveStaff)) {
+            jdbc.update("INSERT INTO organization_members(organization_id,account_id,grants) VALUES (?,?,ARRAY['ADMISSION'])",
+                    organization, account);
+        }
+        jdbc.update("INSERT INTO organization_members(organization_id,account_id,grants) VALUES (?,?,ARRAY['ADMISSION'])",
+                another, otherStaff);
+        String path = "/api/organizations/{id}/admission-staff";
+        mvc.perform(get(path, organization).header("Authorization", login(coordinator)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].accountId").value(availableStaff.toString()))
+                .andExpect(jsonPath("$.data[0].email").value("staff@ticketbox.com"))
+                .andExpect(jsonPath("$.data[0].fullName").isNotEmpty())
+                .andExpect(jsonPath("$.data[0].grants").doesNotExist());
+        mvc.perform(get(path, another).header("Authorization", login(coordinator)))
+                .andExpect(status().isForbidden());
+        mvc.perform(get(path, organization).header("Authorization", login(memberManager)))
+                .andExpect(status().isForbidden());
+        mvc.perform(get(path, organization).header("Authorization", login("staff@ticketbox.com")))
+                .andExpect(status().isForbidden());
+        mvc.perform(get(path, organization))
+                .andExpect(status().isUnauthorized());
+    }
+
+    private UUID addDirectoryFixtureStaff(boolean active) {
+        UUID id = UUID.randomUUID();
+        jdbc.update("""
+            INSERT INTO users(id, email, full_name, password_hash, role, is_active)
+            VALUES (?, ?, 'Directory staff fixture', 'fixture-only', 'STAFF', ?)
+            """, id, "staff-directory-" + id + "@example.test", active);
+        return id;
+    }
+
     private void setActive(String admin, UUID organization, UUID account, boolean active) throws Exception {
         mvc.perform(put("/api/admin/organizations/{id}/members/{accountId}/status", organization, account).header("Authorization", admin)
                         .contentType(MediaType.APPLICATION_JSON).content("{\"active\":" + active + "}"))
@@ -390,6 +438,7 @@ class IdentityIntegrationTest {
         String admin = login("admin@ticketbox.com");
         UUID organization = createOrganization(admin, "Recovery fixture", organizer);
         String body = json.writeValueAsString(java.util.Map.of("accountId", replacement));
+        String emailBody = json.writeValueAsString(java.util.Map.of("email", replacementEmail.toUpperCase(java.util.Locale.ROOT)));
 
         mvc.perform(put("/api/admin/organizations/{id}/manager", organization)
                         .header("Authorization", admin).contentType(MediaType.APPLICATION_JSON).content(body))
@@ -397,7 +446,7 @@ class IdentityIntegrationTest {
         setActive(admin, organization, organizer, false);
         try {
             mvc.perform(put("/api/admin/organizations/{id}/manager", organization)
-                            .header("Authorization", admin).contentType(MediaType.APPLICATION_JSON).content(body))
+                            .header("Authorization", admin).contentType(MediaType.APPLICATION_JSON).content(emailBody))
                     .andExpect(status().isOk());
             mvc.perform(get("/api/organizations/{id}/members", organization)
                             .header("Authorization", login(replacementEmail)))

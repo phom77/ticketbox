@@ -18,15 +18,15 @@ public class SmtpNotificationMail implements NotificationMail {
 
     public void send(NotificationRepository.Delivery delivery, String email, byte[] document)
             throws Exception {
-        send(email, delivery.subject(), delivery.body(), delivery.order(), document);
+        send(email, delivery.subject(), delivery.body(), document);
     }
 
     @Override
     public void sendPlain(String email, String subject, String body) throws Exception {
-        send(email, subject, body, null, null);
+        send(email, subject, body, null);
     }
 
-    private void send(String email, String subject, String body, java.util.UUID order, byte[] document)
+    private void send(String email, String subject, String body, byte[] document)
             throws Exception {
         var message = smtp.createMimeMessage();
         var mail = new MimeMessageHelper(message, document != null, "UTF-8");
@@ -36,7 +36,7 @@ public class SmtpNotificationMail implements NotificationMail {
         mail.setText(body, false);
         if (document != null)
             mail.addAttachment(
-                    "ticket-" + order + ".pdf",
+                    "TicketBox-e-ticket.pdf",
                     new ByteArrayResource(document),
                     "application/pdf");
         smtp.send(message);

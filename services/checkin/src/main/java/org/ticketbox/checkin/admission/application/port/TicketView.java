@@ -15,4 +15,6 @@ public record TicketView(
         OffsetDateTime usedAt,
         String sectionLabel,
         String rowLabel,
-        String seatLabel) {}
+        String seatLabel,
+        String referenceCode,
+        String ticketTypeName) {}

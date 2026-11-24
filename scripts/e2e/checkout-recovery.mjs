@@ -28,9 +28,10 @@ const jwt='eyJhbGciOiJIUzI1NiJ9.'+Buffer.from(JSON.stringify({...user,sub:user.i
 const concertId='22222222-2222-4222-8222-222222222222';
 const typeId='33333333-3333-4333-8333-333333333333';
 const orderId='44444444-4444-4444-8444-444444444444';
+const orderCode='DH-005107';
 const expiresAt=new Date(Date.now()+900000).toISOString();
 const concert={id:concertId,title:'Checkout recovery',venueName:'Test venue',venueAddress:'Local',eventDate:new Date(Date.now()+86400000).toISOString(),saleStartAt:new Date(Date.now()-60000).toISOString(),saleEndAt:expiresAt,status:'ON_SALE',posterUrl:null,ticketTypes:[]};
-const order={id:orderId,concertId,concertTitle:concert.title,status:'AWAITING_PAYMENT',totalAmount:250000,paymentUrl:null,expiresAt,createdAt:new Date().toISOString(),items:[{id:typeId,ticketTypeId:typeId,ticketTypeName:'GA',unitPrice:250000,quantity:1,subtotal:250000}]};
+const order={id:orderId,referenceCode:orderCode,concertId,concertTitle:concert.title,status:'AWAITING_PAYMENT',totalAmount:250000,paymentUrl:null,expiresAt,createdAt:new Date().toISOString(),items:[{id:typeId,ticketTypeId:typeId,ticketTypeName:'GA',unitPrice:250000,quantity:1,subtotal:250000}]};
 const basketState={event:{id:concertId,title:concert.title,venue:concert.venueName,date:concert.eventDate,image:null},selection:[{id:typeId,name:'GA',price:250000,quantity:1}],queueAccessToken:'queue-fixture'};
 
 async function fixture(options={}) {
@@ -99,6 +100,13 @@ async function startCreate(page) {
 }
 const failedHeading=page=>page.getByRole('heading',{name:'Phiên thanh toán đã thất bại'});
 const waitFor=async check=>{for(let n=0;n<100;n++){if(await check())return;await new Promise(r=>setTimeout(r,50));}throw Error('Timed out waiting for test condition');};
+async function assertOrderReference(page, expected) {
+ const main=page.getByRole('main');
+ assert.equal(await main.getByText(orderCode,{exact:true}).count(),expected?1:0,'Use the issued order code when available.');
+ const prefix=orderId.slice(0,8);
+ assert.doesNotMatch(await main.innerText(),new RegExp(prefix,'i'));
+ assert.equal(await main.locator(`[title*="${prefix}" i], [aria-label*="${prefix}" i]`).count(),0);
+}
 async function checkBuyerInformation(destination) {
  for(const [name,value] of [['Hỗ trợ TicketBox',process.env.VITE_SUPPORT_URL],['Điều kiện mua và hoàn vé',process.env.VITE_TERMS_URL]]) {
   const link=destination.getByRole('link',{name,exact:true});
@@ -136,6 +144,7 @@ try {
   await f.page.goto(origin+`/checkout?orderId=${orderId}`);
   const pay=f.page.getByRole('button',{name:'Tiếp tục với thanh toán demo'});
   await pay.waitFor();
+  await assertOrderReference(f.page,true);
   assert.equal(await f.page.getByText(/^(Hạn|Thời gian) thanh toán$/i).count(),1,'Checkout must show one payment deadline');
   const amountLabel=new Intl.NumberFormat('vi-VN',{style:'currency',currency:'VND'}).format(amount);
   const action=f.page.locator('.purchase-action-bar');
@@ -158,18 +167,22 @@ try {
  {
   const f=await fixture({attempt:'PROCESSING'});
   await f.page.goto(origin+`/checkout?orderId=${orderId}`);
+  await f.page.getByRole('heading',{name:'Đang xác nhận thanh toán'}).waitFor();
+  await assertOrderReference(f.page,true);
   await f.page.getByRole('link',{name:'Kiểm tra trạng thái đơn'}).click();
   await f.page.waitForURL(`**/payment/result?orderId=${orderId}`);
-  await f.page.getByRole('heading',{name:'Đang xác nhận thanh toán'}).waitFor();
+  await f.page.getByText(orderCode,{exact:true}).waitFor();
+  await assertOrderReference(f.page,true);
   assert.equal(await f.page.getByRole('button',{name:/Tiếp tục với/}).count(),0);
   assert.equal(f.state.paymentAttempts,0);
   checks.push('A restored attempt under verification offers the same order and never initializes again');await f.close();
  }
  {
-  const f=await fixture({attempt:'UNKNOWN'});
+  const f=await fixture({attempt:'UNKNOWN',orderDetails:{referenceCode:undefined}});
   await f.page.setViewportSize({width:390,height:844});
   await f.page.goto(origin+`/payment/result?orderId=${orderId}`);
   await f.page.getByText(/Cổng thanh toán chưa trả kết quả rõ ràng/).waitFor();
+  await assertOrderReference(f.page,false);
   await f.page.screenshot({path:resolve(output,'checkout-verifying.png'),fullPage:true});
   f.state.orderDetails={expiresAt:new Date(Date.now()-1000).toISOString()};
   await f.page.getByRole('heading',{name:'Đã qua hạn thanh toán'}).waitFor();
@@ -189,7 +202,7 @@ try {
   await f.page.getByRole('heading',{name:concert.title}).waitFor();
   assert.equal(await f.page.locator('.mini-qr').count(),0);
   assert.equal(await f.page.getByLabel('Minh họa mã QR vé').count(),0);
-  assert.equal(await f.page.getByText(orderId.slice(0,8).toUpperCase(),{exact:true}).count(),1);
+  await assertOrderReference(f.page,true);
   await f.page.screenshot({path:resolve(output,'checkout-confirmed.png'),fullPage:true});
   await f.page.reload();
   await f.page.getByRole('link',{name:'Xem vé của tôi'}).click();

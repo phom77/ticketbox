@@ -22,18 +22,22 @@ const concerts = {
   },
 };
 
-function ticket(id, concertId, concertTitle, status = 'VALID') {
+function ticket(id, concertId, concertTitle, status = 'VALID', details = {}) {
   return {
     id, concertId, concertTitle, status, ticketTypeId: 'ga', ticketTypeName: 'GA',
-    issuedAt: eventDate(-1), qrCode: `${payload}-${id}`,
+    issuedAt: eventDate(-1), qrCode: `${payload}-${id}`, ...details,
   };
 }
 
+const firstId = 'd861b58f-1123-4c5c-a098-228392f8fbe0';
+const secondId = 'd861b58f-3fc8-4e0c-afae-0338c50358b8';
+const usedId = '15a994d3-1a9b-4d0c-bb96-16f426c84aa0';
+const ticketCode = 'VE-004398';
 const ownedTickets = [
   ticket('far-0001', 'far', concerts.far.title),
-  ticket('near-001', 'near', fallbackTitle),
-  ticket('near-002', 'near', fallbackTitle),
-  ticket('near-003', 'near', fallbackTitle, 'USED'),
+  ticket(firstId, 'near', fallbackTitle, 'VALID', { referenceCode: ticketCode }),
+  ticket(secondId, 'near', fallbackTitle),
+  ticket(usedId, 'near', fallbackTitle, 'USED', { referenceCode: null, sectionLabel: 'Ban công', rowLabel: 'A', seatLabel: '7' }),
   ...Array.from({ length: 24 }, (_, index) =>
     ticket(`archive-${index}`, 'archive', 'Chương trình trước đây', index === 23 ? 'USED' : 'CANCELLED')),
 ];
@@ -85,6 +89,14 @@ async function assertFocused(locator) {
   assert(await locator.evaluate((node) => document.activeElement === node));
 }
 
+async function assertNoTicketId(scope) {
+  for (const id of [firstId, secondId, usedId]) {
+    const prefix = id.slice(0, 8);
+    assert.doesNotMatch(await scope.innerText(), new RegExp(prefix, 'i'));
+    assert.equal(await scope.locator(`[title*="${prefix}" i], [aria-label*="${prefix}" i]`).count(), 0);
+  }
+}
+
 try {
   const { context, page, state, consoleMessages } = await fixture();
   const catalog = Promise.withResolvers();
@@ -97,8 +109,11 @@ try {
   await main.getByRole('heading', { name: fallbackTitle, exact: true }).waitFor();
   assert.equal(await main.getByRole('img', { name: /mã QR/i }).count(), 0);
   await main.getByRole('button', { name: `Xem vé · ${fallbackTitle}` }).click();
-  const firstQr = main.getByRole('button', { name: 'Mở mã QR · NEAR-001' });
-  await main.getByRole('button', { name: 'Mở mã QR · NEAR-002' }).waitFor();
+  assert.equal(await main.getByText(`Mã vé ${ticketCode}`, { exact: true }).count(), 1, 'Wallet shows the issued code independent of the UUID.');
+  const firstQr = main.getByRole('button', { name: `Mở mã QR · ${ticketCode}` });
+  const legacyQr = main.getByRole('button', { name: 'Mở mã QR · GA · Vé 2' });
+  await legacyQr.waitFor();
+  await assertNoTicketId(main);
   await firstQr.focus();
   catalog.resolve();
   await main.getByRole('heading', { name: eventTitle }).waitFor();
@@ -120,6 +135,8 @@ try {
 
   const dialog = page.getByRole('dialog', { name: eventTitle });
   await dialog.waitFor();
+  await dialog.getByText(ticketCode, { exact: true }).waitFor();
+  await assertNoTicketId(dialog);
   const qr = dialog.getByRole('img', { name: /mã QR vé/i });
   const bounds = await qr.boundingBox();
   const panel = await dialog.boundingBox();
@@ -134,9 +151,11 @@ try {
   await dialog.waitFor({ state: 'hidden' });
   await assertFocused(firstQr);
 
-  const usedTicket = main.getByRole('button', { name: 'Xem chi tiết · NEAR-003' });
+  const usedTicket = main.getByRole('button', { name: /Xem chi tiết · GA · Ban công/ });
   await usedTicket.click();
   await dialog.getByText('Đã dùng', { exact: true }).waitFor();
+  await dialog.getByText(/Ban công/).waitFor();
+  await assertNoTicketId(dialog);
   assert.equal(await qr.count(), 0);
   await close.click();
 
@@ -148,7 +167,7 @@ try {
 
   const archive = main.getByRole('article', { name: 'Chương trình trước đây' });
   await archive.getByRole('button', { name: 'Xem vé · Chương trình trước đây' }).click();
-  const archivedTicket = archive.getByRole('button', { name: 'Xem chi tiết · ARCHIVE-–24' });
+  const archivedTicket = archive.getByRole('button', { name: 'Xem chi tiết · GA · Vé 24' });
   await archivedTicket.waitFor();
   await main.getByRole('button', { name: 'Đã dùng', exact: true }).click();
   assert.equal(await archive.getByRole('listitem').count(), 1);
@@ -167,7 +186,7 @@ try {
   await refresh.click();
   await firstQr.click();
   await qr.waitFor();
-  state.tickets = ownedTickets.map((item) => item.id === 'near-001' ? { ...item, status: 'CANCELLED' } : item);
+  state.tickets = ownedTickets.map((item) => item.id === firstId ? { ...item, status: 'CANCELLED' } : item);
   changed.resolve();
   await dialog.getByText('Đã hủy', { exact: true }).waitFor();
   assert.equal(await qr.count(), 0);
@@ -176,9 +195,11 @@ try {
   const removed = Promise.withResolvers();
   state.listGate = removed.promise;
   await refresh.click();
-  await main.getByRole('button', { name: 'Mở mã QR · NEAR-002' }).click();
+  await legacyQr.click();
   await qr.waitFor();
-  state.tickets = state.tickets.filter((item) => item.id !== 'near-002');
+  await dialog.getByText('Vé 2', { exact: true }).waitFor();
+  await assertNoTicketId(dialog);
+  state.tickets = state.tickets.filter((item) => item.id !== secondId);
   removed.resolve();
   await dialog.waitFor({ state: 'hidden' });
   await assertFocused(groupButton);
@@ -197,11 +218,11 @@ try {
   state.tickets = ownedTickets;
   state.listGate = null;
   await main.getByRole('button', { name: 'Refresh' }).click();
-  await main.getByRole('button', { name: 'Show QR code · NEAR-001' }).waitFor();
+  await main.getByRole('button', { name: `Show QR code · ${ticketCode}` }).waitFor();
   state.listStatus = 401;
   state.listGate = expired.promise;
   await main.getByRole('button', { name: 'Refresh' }).click();
-  await main.getByRole('button', { name: 'Show QR code · NEAR-001' }).click();
+  await main.getByRole('button', { name: `Show QR code · ${ticketCode}` }).click();
   await page.getByRole('dialog', { name: 'Riverside concert' }).waitFor();
   expired.resolve();
   await page.waitForURL('**/login');

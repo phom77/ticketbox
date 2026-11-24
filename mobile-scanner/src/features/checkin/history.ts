@@ -1,10 +1,11 @@
-import type { ServerCheckinHistory } from '../../api';
-import type { LocalCheckinLog, LocalTicketListItem } from '../../database';
+import type { ServerCheckinHistory, StaffTicket } from '../../api';
+import type { LocalCheckinLog } from '../../database';
 import { localAdmissionStatus } from './status';
 
 export type HistoryEntry = {
   id: string;
-  ticketId?: string;
+  referenceCode?: string | null;
+  ticketTypeName?: string | null;
   qrCode?: string;
   gate: string | null;
   checkedAt: string;
@@ -12,32 +13,47 @@ export type HistoryEntry = {
   source: 'device' | 'server';
 };
 
+export type HistoryTicket = Pick<StaffTicket, 'qrCode' | 'ticketId' | 'referenceCode' | 'ticketTypeName'>;
+
 export function mergeHistory(
   local: LocalCheckinLog[],
   server: ServerCheckinHistory[],
-  tickets: Pick<LocalTicketListItem, 'qrCode' | 'ticketId'>[],
+  tickets: HistoryTicket[],
 ): HistoryEntry[] {
-  const ticketIds = new Map(tickets.map((item) => [item.qrCode, item.ticketId]));
+  const ticketIndex = new Map<string, HistoryTicket>();
+  for (const ticket of tickets) {
+    const saved = ticketIndex.get(ticket.qrCode);
+    ticketIndex.set(ticket.qrCode, {
+      ...ticket,
+      referenceCode: ticket.referenceCode ?? saved?.referenceCode,
+      ticketTypeName: ticket.ticketTypeName ?? saved?.ticketTypeName,
+    });
+  }
   const serverTicketIds = new Set(server.map((entry) => entry.ticketId));
   const serverCodes = new Set(server.map((entry) => entry.qrCode));
-  const entries: HistoryEntry[] = server.map((entry) => ({
-    id: `server:${entry.id}`,
-    ticketId: entry.ticketId,
-    qrCode: entry.qrCode ?? undefined,
-    gate: entry.gate,
-    checkedAt: entry.checkedAt,
-    status: 'confirmed',
-    source: 'server',
-  }));
+  const entries: HistoryEntry[] = server.map((entry) => {
+    const saved = entry.qrCode ? ticketIndex.get(entry.qrCode) : undefined;
+    return {
+      id: `server:${entry.id}`,
+      referenceCode: entry.referenceCode ?? saved?.referenceCode,
+      ticketTypeName: entry.ticketTypeName ?? saved?.ticketTypeName,
+      qrCode: entry.qrCode ?? undefined,
+      gate: entry.gate,
+      checkedAt: entry.checkedAt,
+      status: 'confirmed',
+      source: 'server',
+    };
+  });
 
   for (const entry of local) {
-    const ticketId = ticketIds.get(entry.qrCode);
+    const ticket = ticketIndex.get(entry.qrCode);
     if (entry.status === 'SYNCED' && (
-      serverCodes.has(entry.qrCode) || (ticketId && serverTicketIds.has(ticketId))
+      serverCodes.has(entry.qrCode) || (ticket && serverTicketIds.has(ticket.ticketId))
     )) continue;
     entries.push({
       id: `device:${entry.localId}`,
-      ticketId,
+      referenceCode: ticket?.referenceCode,
+      ticketTypeName: ticket?.ticketTypeName,
       qrCode: entry.qrCode,
       gate: entry.gate,
       checkedAt: entry.checkedAt,
@@ -57,7 +73,7 @@ export function filterHistory(entries: HistoryEntry[], filter: HistoryFilter, qu
     const status = entry.status;
     const matchesStatus = filter === 'all' || status === filter ||
       (filter === 'error' && (status === 'conflict' || status === 'failed'));
-    return matchesStatus && (!phrase || [entry.ticketId, entry.qrCode].some(
+    return matchesStatus && (!phrase || [entry.referenceCode, entry.qrCode].some(
       (code) => code?.toLowerCase().includes(phrase),
     ));
   });

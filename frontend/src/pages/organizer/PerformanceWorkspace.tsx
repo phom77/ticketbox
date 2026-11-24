@@ -461,7 +461,7 @@ export function PerformanceWorkspace({
         </dl>
         {pendingSync && <button type="button" className="button button-secondary" disabled={busy}
           onClick={() => void run(async () => setPublication(await getPublication(id)))}>{t('performances:refresh')}</button>}
-        <p>{t('performances:disruptionSupport')} <span>{t('performances:performanceId')} {performance.id}</span></p>
+        <p>{t('performances:disruptionSupport')}</p>
         {publication.ticketingAcknowledged && performance.publicVisible && <Link to={eventPath(performance.eventId)}>{t('performances:publicView')}</Link>}
       </section>}
     </>}

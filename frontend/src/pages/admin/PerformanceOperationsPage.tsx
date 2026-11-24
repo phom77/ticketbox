@@ -335,7 +335,9 @@ function PerformanceImpact({ id, revision, state, onAvailability }: {
       </tr></thead>
       <tbody>{current.content.map(order => <tr key={order.orderId}>
         <th scope="row">
-          <Link to={'/admin/orders?' + new URLSearchParams({ orderId: order.orderId })} title={order.orderId}>{order.orderId}</Link>
+          <Link to={'/admin/orders?' + new URLSearchParams({ orderId: order.orderId })}>
+            {order.referenceCode ?? t('admin:adminOrdersPage_openOrder')}
+          </Link>
           <small>{t(`order_${order.status}`, { defaultValue: t('performance-operations:unknown') })}</small>
         </th>
         <td data-column={t('performance-operations:payment')}>

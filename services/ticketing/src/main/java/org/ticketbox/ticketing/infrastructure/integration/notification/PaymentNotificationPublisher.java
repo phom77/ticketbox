@@ -20,6 +20,7 @@ public class PaymentNotificationPublisher {
             var order = orders.findNotificationViewByOrderId(event.orderId()).orElseThrow();
             var payload = new java.util.HashMap<String, Object>();
             payload.put("orderId", event.orderId());
+            if (order.referenceCode() != null) payload.put("orderReference", order.referenceCode());
             payload.put("amount", event.amount());
             payload.put("concertTitle", order.concertTitle());
             payload.put("eventDate", order.eventDate());

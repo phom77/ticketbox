@@ -31,6 +31,8 @@ public class Ticket extends BaseEntity {
 
     private String qrSecret;
 
+    private String referenceCode;
+
     private Status status = Status.VALID;
 
     private OffsetDateTime issuedAt;

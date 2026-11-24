@@ -281,7 +281,11 @@ export function ReconciliationPage({ scope, embedded = false }: { scope: Managem
               <tbody>
                 {report.content.map((row) => (
                   <tr key={`${row.intentId}:${row.orderId}`}>
-                    <td>{row.concertTitle ?? translate("organizer:reconciliationPage_buoiDienChuaXacDinh")}<br /><code>{row.orderId}</code><br />{row.provider} · {row.transactionId ?? translate("organizer:reconciliationPage_chuaCoMaGiaoDich")}</td>
+                    <td>
+                      {row.concertTitle ?? translate("organizer:reconciliationPage_buoiDienChuaXacDinh")}
+                      {row.referenceCode && <><br />{row.referenceCode}</>}
+                      <br />{row.provider} · {row.transactionId ?? translate("organizer:reconciliationPage_chuaCoMaGiaoDich")}
+                    </td>
                     <td>{paymentStatus[row.paymentState] ?? row.paymentState}<br />{row.orderStatus ? orderStatus[row.orderStatus] ?? row.orderStatus : translate("organizer:reconciliationPage_chuaCoDonDoiChieu")}</td>
                     <td>{date(row.attemptedAt)}</td><td>{date(row.verifiedAt)}</td>
                     <td>{row.collectedAmount == null ? '—' : currency.format(row.collectedAmount)}</td>

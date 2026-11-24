@@ -35,6 +35,9 @@
             <basic name="idempotencyKey">
                 <column name="idempotency_key" length="255" />
             </basic>
+            <basic name="referenceCode">
+                <column name="reference_code" length="32" nullable="false" updatable="false" />
+            </basic>
             <basic name="paymentProvider">
                 <column name="payment_provider" length="20" />
                 <enumerated>STRING</enumerated>
@@ -134,6 +137,9 @@
             </basic>
             <basic name="qrSecret">
                 <column name="qr_secret" nullable="false" length="255" />
+            </basic>
+            <basic name="referenceCode">
+                <column name="reference_code" length="32" nullable="false" insertable="false" updatable="false" />
             </basic>
             <basic name="status">
                 <column name="status" nullable="false" length="20" />

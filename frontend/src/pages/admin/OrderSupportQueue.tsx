@@ -143,7 +143,9 @@ export function OrderSupportQueue({ initialKind = 'UNKNOWN_PAYMENT', onFilterCha
           {result.content.map((item) => (
             <li key={item.sourceId}>
               <div>
-                <Link to={`/admin/orders?${new URLSearchParams({ orderId: item.orderId })}`}>{item.orderId}</Link>
+                <Link to={`/admin/orders?${new URLSearchParams({ orderId: item.orderId })}`}>
+                  {item.referenceCode ?? translate('admin:adminOrdersPage_openOrder')}
+                </Link>
                 <p>{states[item.state] ?? item.state} · <time dateTime={item.updatedAt}>{dateTime.format(new Date(item.updatedAt))}</time></p>
               </div>
               {label && item.retryable && (

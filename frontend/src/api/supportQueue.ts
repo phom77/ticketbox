@@ -4,6 +4,7 @@ export type SupportQueueKind = 'UNKNOWN_PAYMENT' | 'MISSING_TICKETS' | 'PENDING_
 
 export type SupportQueueItem = {
   orderId: string;
+  referenceCode?: string | null;
   sourceId: string;
   state: string;
   updatedAt: string;

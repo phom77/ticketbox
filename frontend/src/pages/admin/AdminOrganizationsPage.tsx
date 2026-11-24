@@ -157,8 +157,8 @@ export function AdminOrganizationsPage() {
               setRevision((value) => value + 1);
             });
           }}>
-            <label className="admin-field">{t('admin:adminOrganizationsPage_maTaiKhoanQuanLyMoi')}
-              <input required minLength={36} maxLength={36} value={replacement} onChange={(event) => setReplacement(event.target.value)} />
+            <label className="admin-field">{t('admin:adminOrganizationsPage_emailQuanLyMoi')}
+              <input type="email" required maxLength={254} value={replacement} onChange={(event) => setReplacement(event.target.value)} />
             </label>
             <button className="admin-secondary-action" disabled={busy}>{t('admin:adminOrganizationsPage_khoiPhucQuyenQuanLy')}</button>
           </form>

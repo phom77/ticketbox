@@ -182,8 +182,8 @@ export function StaffHistoryPage() {
                       </span>
                     </td>
                     <td>
-                      <strong className="admin-table-primary">{item.ticketId}</strong>
-                      <span className="admin-table-secondary">{item.id.slice(0, 8)}</span>
+                      <strong className="admin-table-primary">{item.referenceCode ?? 'Vé đã quét'}</strong>
+                      {item.ticketTypeName ? <span className="admin-table-secondary">{item.ticketTypeName}</span> : null}
                     </td>
                     <td>
                       <span
@@ -191,7 +191,6 @@ export function StaffHistoryPage() {
                       >
                         {item.offline ? 'Offline sync' : 'Online'}
                       </span>
-                      <span className="admin-table-secondary">{item.deviceId}</span>
                     </td>
                     <td>
                       <strong className="admin-table-primary">{item.gate ?? 'Không rõ'}</strong>

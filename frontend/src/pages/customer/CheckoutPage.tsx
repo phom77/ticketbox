@@ -29,7 +29,7 @@ import {
 import { checkoutRequestKey, clearCheckoutRequest, createOrRecoverOrder } from '../../features/ticket/checkoutRecovery';
 import { currency } from '../../data/formatters';
 import { useCountdown } from '../../hooks/useCountdown';
-import { CheckoutEventTime, CheckoutOrderLines, CheckoutStatusPanel } from './CheckoutDetails';
+import { CheckoutEventTime, CheckoutOrderLines, CheckoutOrderReference, CheckoutStatusPanel } from './CheckoutDetails';
 import type { CheckoutSelection } from './SeatSelectionPage';
 
 type CheckoutState = {
@@ -313,7 +313,7 @@ export function CheckoutPage() {
     }[resumeUnavailable];
 
     return (
-      <CheckoutStatusPanel title={title} body={body} orderId={createdOrder?.id}>
+      <CheckoutStatusPanel title={title} body={body} referenceCode={createdOrder?.referenceCode}>
         <div className="purchase-status-actions">
           {resumeUnavailable === 'pending' && (
             <Link className="button button-primary" to={`/payment/result?orderId=${encodeURIComponent(resumeOrderId ?? '')}`}>
@@ -351,7 +351,7 @@ export function CheckoutPage() {
       <CheckoutStatusPanel
         title={translate("customer:checkoutPage_phienThanhToanDaThatBai")}
         body={translate("customer:checkoutPage_congThanhToanDaBaoGiaoDich")}
-        orderId={createdOrder.id}
+        referenceCode={createdOrder.referenceCode}
       >
         {error && <p className="purchase-error" role="alert">{error}</p>}
         <div className="purchase-status-actions">
@@ -627,6 +627,7 @@ export function CheckoutPage() {
 
         <aside className="purchase-panel purchase-order-summary" aria-labelledby="checkout-summary-title">
           <h2 id="checkout-summary-title">{translate("customer:checkoutPage_orderSummary")}</h2>
+          <CheckoutOrderReference code={createdOrder?.referenceCode} />
           <CheckoutOrderLines order={createdOrder} selection={selection} />
           <div className="purchase-action-bar">
             <div className="purchase-order-total">

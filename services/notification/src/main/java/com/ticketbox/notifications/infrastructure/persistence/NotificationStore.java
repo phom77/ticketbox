@@ -1,5 +1,7 @@
 package com.ticketbox.notifications.infrastructure.persistence;
 
+import com.ticketbox.notifications.infrastructure.messaging.NotificationMessageBundle;
+
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -10,9 +12,11 @@ import java.util.UUID;
 public class NotificationStore
         implements com.ticketbox.notifications.application.port.NotificationRepository {
     private final JdbcTemplate db;
+    private final NotificationMessageBundle content;
 
-    public NotificationStore(JdbcTemplate db) {
+    public NotificationStore(JdbcTemplate db, NotificationMessageBundle content) {
         this.db = db;
+        this.content = content;
     }
 
     @Transactional
@@ -54,7 +58,8 @@ public class NotificationStore
 UPDATE notifications SET delivery_owner=?,delivery_lease_until=now()+interval '2 minutes',updated_at=now()
 WHERE id=(SELECT id FROM notifications WHERE channel='EMAIL' AND status='PENDING' AND next_attempt_at<=now()
  AND (delivery_lease_until IS NULL OR delivery_lease_until<now()) ORDER BY next_attempt_at,id FOR UPDATE SKIP LOCKED LIMIT 1)
-RETURNING id,user_id,CASE WHEN event_type='PAYMENT_SUCCEEDED' THEN reference_id END AS document_order_id,subject,body
+RETURNING id,user_id,CASE WHEN event_type='PAYMENT_SUCCEEDED' THEN reference_id END AS document_order_id,
+    event_type,reference_id,subject,body
 """,
                         (rs, n) ->
                                 new Delivery(
@@ -62,7 +67,8 @@ RETURNING id,user_id,CASE WHEN event_type='PAYMENT_SUCCEEDED' THEN reference_id 
                                         rs.getObject("user_id", UUID.class),
                                         rs.getObject("document_order_id", UUID.class),
                                         rs.getString("subject"),
-                                        rs.getString("body"),
+                                        content.visibleBody(rs.getString("event_type"),
+                                                rs.getObject("reference_id", UUID.class), rs.getString("body")),
                                         owner),
                         owner);
         return rows.isEmpty() ? null : rows.getFirst();

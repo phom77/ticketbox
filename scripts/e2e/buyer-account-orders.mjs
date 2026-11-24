@@ -18,16 +18,21 @@ const orderItem = { id: 'item', ticketTypeId: 'standard', ticketTypeName: 'Vé t
 
 const holdDuration = 10 * 60_000;
 
-function order(id, status, concertTitle, expiresAt = date(holdDuration), concertId = 'event-main') {
-  return { id, status, concertTitle, expiresAt, concertId, totalAmount: 840_000, createdAt: date(-60_000), items: [orderItem] };
+function order(id, status, concertTitle, overrides = {}) {
+  return { id, status, concertTitle, expiresAt: date(holdDuration), concertId: 'event-main',
+    totalAmount: 840_000, createdAt: date(-60_000), items: [orderItem], ...overrides };
 }
 
+const awaitingId = 'c8b470fa-b98c-491e-85a4-5be64c98c221';
+const elapsedId = '2cf357c0-001e-4a5c-bd90-72afe5303b05';
+const unknownId = '0f310f9a-ba06-4f0a-ae59-fa93fc500236';
+const orderCode = 'DH-005271';
 const orders = [
-  order('awaiting-00a1-47b4', 'AWAITING_PAYMENT', mainEvent),
-  order('paid-00000-47b4', 'PAID', paidEvent, date(-600_000), 'event-paid'),
-  order('elapsed-00-47b4', 'AWAITING_PAYMENT', 'Chương trình đã hết thời gian giữ vé', date(-1_000)),
+  order(awaitingId, 'AWAITING_PAYMENT', mainEvent, { referenceCode: orderCode }),
+  order('paid-00000-47b4', 'PAID', paidEvent, { expiresAt: date(-600_000), concertId: 'event-paid' }),
+  order(elapsedId, 'AWAITING_PAYMENT', 'Chương trình đã hết thời gian giữ vé', { expiresAt: date(-1_000) }),
   order('refunded-0-47b4', 'REFUNDED', 'Sự kiện đã hoàn tiền'),
-  order('unknown-00-47b4', 'AWAITING_PAYMENT', 'Giao dịch đang chờ kết quả', null),
+  order(unknownId, 'AWAITING_PAYMENT', 'Giao dịch đang chờ kết quả', { expiresAt: null, referenceCode: null }),
   order('canceled-0-47b4', 'CANCELLED', 'Chương trình đã hủy'),
 ];
 
@@ -156,13 +161,19 @@ try {
   const refund = history.getByRole('article', { name: 'Sự kiện đã hoàn tiền' });
   const unknown = history.getByRole('article', { name: 'Giao dịch đang chờ kết quả' });
   await awaiting.waitFor();
+  assert.equal(await awaiting.getByText(orderCode, { exact: true }).count(), 1, 'Order history uses the issued reference code.');
+  for (const id of [awaitingId, elapsedId, unknownId]) {
+    const prefix = id.slice(0, 8);
+    assert.doesNotMatch(await history.innerText(), new RegExp(prefix, 'i'));
+    assert.equal(await history.locator(`[title*="${prefix}" i], [aria-label*="${prefix}" i]`).count(), 0);
+  }
   const continuePayment = 'Tiếp tục thanh toán';
   const checkPayment = 'Kiểm tra thanh toán';
-  assert.equal(await awaiting.getByRole('link', { name: continuePayment }).getAttribute('href'), '/checkout?orderId=awaiting-00a1-47b4');
+  assert.equal(await awaiting.getByRole('link', { name: continuePayment }).getAttribute('href'), `/checkout?orderId=${awaitingId}`);
   assert.equal(await expired.getByRole('link', { name: continuePayment }).count(), 0);
   await expired.getByText('Hết hạn', { exact: true }).waitFor();
-  assert.equal(await expired.getByRole('link', { name: checkPayment }).getAttribute('href'), '/payment/result?orderId=elapsed-00-47b4');
-  assert.equal(await unknown.getByRole('link', { name: checkPayment }).getAttribute('href'), '/payment/result?orderId=unknown-00-47b4');
+  assert.equal(await expired.getByRole('link', { name: checkPayment }).getAttribute('href'), `/payment/result?orderId=${elapsedId}`);
+  assert.equal(await unknown.getByRole('link', { name: checkPayment }).getAttribute('href'), `/payment/result?orderId=${unknownId}`);
   await refund.getByText('Đã hoàn tiền', { exact: true }).waitFor();
   assert.equal(await refund.getByRole('link').count(), 0);
   await history.getByRole('button', { name: 'Cần xử lý' }).click();

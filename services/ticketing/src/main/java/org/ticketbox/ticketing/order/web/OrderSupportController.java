@@ -27,9 +27,10 @@ public class OrderSupportController {
     @GetMapping("/api/admin/orders/support")
     ResponseEntity<ApiResponse<SearchPage>> admin(
             @RequestParam(required = false) UUID concertId, @RequestParam(required = false) UUID orderId,
+            @RequestParam(required = false) String referenceCode,
             @RequestParam(required = false) String buyerEmail, @RequestParam(required = false) String transactionRef,
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
-        return search(null, concertId, orderId, buyerEmail, transactionRef, page, size);
+        return search(null, concertId, orderId, referenceCode, buyerEmail, transactionRef, page, size);
     }
 
     @GetMapping("/api/organizer/manage/orders/support")
@@ -37,15 +38,16 @@ public class OrderSupportController {
     ResponseEntity<ApiResponse<SearchPage>> organizer(
             @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID organization,
             @RequestParam(required = false) UUID concertId, @RequestParam(required = false) UUID orderId,
+            @RequestParam(required = false) String referenceCode,
             @RequestParam(required = false) String buyerEmail, @RequestParam(required = false) String transactionRef,
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
-        return search(organization, concertId, orderId, buyerEmail, transactionRef, page, size);
+        return search(organization, concertId, orderId, referenceCode, buyerEmail, transactionRef, page, size);
     }
 
     private ResponseEntity<ApiResponse<SearchPage>> search(UUID organization, UUID concert, UUID order,
-            String email, String transaction, int page, int size) {
+            String referenceCode, String email, String transaction, int page, int size) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
-                .body(ApiResponse.success(support.search(organization, concert, order, email, transaction, page, size)));
+                .body(ApiResponse.success(support.search(organization, concert, order, referenceCode, email, transaction, page, size)));
     }
 
     @GetMapping("/api/admin/orders/{id}/support/{section}")

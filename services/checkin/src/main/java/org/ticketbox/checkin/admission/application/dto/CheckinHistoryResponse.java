@@ -15,4 +15,6 @@ public record CheckinHistoryResponse(
         String gate,
         String notes,
         String qrCode,
-        String ticketStatus) {}
+        String ticketStatus,
+        String referenceCode,
+        String ticketTypeName) {}

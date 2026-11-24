@@ -43,6 +43,8 @@ export type TicketDatasetEntry = {
   ticketId: string;
   qrCode: string;
   ticketTypeId: string;
+  referenceCode?: string | null;
+  ticketTypeName?: string | null;
 };
 
 export type CheckinDatasetResponse = {
@@ -134,6 +136,8 @@ export type StaffTicket = {
   sectionLabel?: string | null;
   rowLabel?: string | null;
   seatLabel?: string | null;
+  referenceCode?: string | null;
+  ticketTypeName?: string | null;
 };
 
 export type ServerCheckinHistory = {
@@ -149,6 +153,8 @@ export type ServerCheckinHistory = {
   notes: string | null;
   qrCode: string | null;
   ticketStatus: string | null;
+  referenceCode?: string | null;
+  ticketTypeName?: string | null;
 };
 
 export type StaffGuestListEntry = {

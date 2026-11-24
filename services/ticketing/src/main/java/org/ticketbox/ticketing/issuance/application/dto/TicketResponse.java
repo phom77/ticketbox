@@ -19,4 +19,5 @@ public record TicketResponse(
         @JsonInclude(JsonInclude.Include.NON_NULL) OffsetDateTime performanceStartsAt,
         @JsonInclude(JsonInclude.Include.NON_NULL) String sectionLabel,
         @JsonInclude(JsonInclude.Include.NON_NULL) String rowLabel,
-        @JsonInclude(JsonInclude.Include.NON_NULL) String seatLabel) {}
+        @JsonInclude(JsonInclude.Include.NON_NULL) String seatLabel,
+        @JsonInclude(JsonInclude.Include.NON_NULL) String referenceCode) {}

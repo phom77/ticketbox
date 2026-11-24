@@ -16,6 +16,7 @@ const concerts = [
 const tickets = Object.values(code).map((qrCode, i) => ({
   ticketId: `b0000000-0000-4000-8000-00000000000${i}`,
   ticketTypeId: firstId, qrCode,
+  ...(i === 2 ? {} : { referenceCode: `VE-1000000${i}`, ticketTypeName: i ? 'VIP' : 'Tiêu chuẩn' }),
 }));
 const page = (content) => ({
   content, totalElements: content.length, totalPages: 1, size: 100, number: 0,
@@ -30,7 +31,8 @@ export function scannerFixture({ denyStaff = false } = {}) {
     history.push({
       id: ticket.ticketId, ticketId: ticket.ticketId, staffId: staff.id,
       deviceId: null, gate, concertId, checkedAt, syncAt: null, offline: false,
-      notes: null, qrCode, ticketStatus: 'USED',
+      notes: null, qrCode, ticketStatus: 'USED', referenceCode: ticket.referenceCode,
+      ticketTypeName: ticket.ticketTypeName,
     });
     return ticket.ticketId;
   }

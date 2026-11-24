@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { isRequestCanceled } from '../../api/client';
-import { getOrder, getPaymentStatus } from '../../api/orders';
+import { getOrder, getPaymentStatus, type Order } from '../../api/orders';
 import { clearPendingPayment, orderWindowExpired, paymentNeedsReview, paymentStillVerifying } from '../../features/ticket/checkoutPayment';
 import { CheckoutStatusPanel } from './CheckoutDetails';
 
@@ -66,7 +66,7 @@ function PaymentResult({ orderId, awaitingSession }: { orderId: string | null; a
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [result, setResult] = useState<Result>(orderId ? 'checking' : 'missing');
-  const [verifiedOrderId, setVerifiedOrderId] = useState<string>();
+  const [verifiedOrder, setVerifiedOrder] = useState<Pick<Order, 'id' | 'referenceCode'>>();
 
   useEffect(() => {
     if (!orderId) return;
@@ -81,7 +81,7 @@ function PaymentResult({ orderId, awaitingSession }: { orderId: string | null; a
           const paymentRequest = getPaymentStatus(id, signal).catch(() => null);
           const order = await getOrder(id, signal);
           if (signal.aborted) return;
-          setVerifiedOrderId(order.id);
+          setVerifiedOrder({ id: order.id, referenceCode: order.referenceCode });
 
           // The provider's browser return identifies the order. Only the order API confirms it was paid.
           if (order.status === 'PAID') {
@@ -138,9 +138,9 @@ function PaymentResult({ orderId, awaitingSession }: { orderId: string | null; a
 
   const copy = resultCopy[result];
   const checkOrderPath = orderId ? '/checkout?orderId=' + encodeURIComponent(orderId) : null;
-  const canCheckOrder = copy.canCheckOrder && checkOrderPath && verifiedOrderId;
+  const canCheckOrder = copy.canCheckOrder && checkOrderPath && verifiedOrder?.id;
   return (
-    <CheckoutStatusPanel announce title={t(copy.title)} body={t(copy.body)} orderId={verifiedOrderId}>
+    <CheckoutStatusPanel announce title={t(copy.title)} body={t(copy.body)} referenceCode={verifiedOrder?.referenceCode}>
       <div className="purchase-status-actions">
         {canCheckOrder && (
           <Link className="button button-primary" to={checkOrderPath}>{t('customer:paymentResultPage_quayLaiDonThanhToan')}</Link>

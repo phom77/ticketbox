@@ -84,6 +84,8 @@ def main():
             if table not in TABLES[service]:
                 raise RuntimeError("Unexpected preflight table")
             row_expression = "(to_jsonb(t)-'updated_at')" if table == "ticket_inventory" else "to_jsonb(t)"
+            if service == "ticketing" and table in {"orders", "tickets"}:
+                row_expression = "(to_jsonb(t)-'reference_code')"
             actual = sql(target, service, database,
                          f"SELECT md5(COALESCE(string_agg({row_expression}::text,E'\\n' ORDER BY {row_expression}::text),'')) FROM {table} t")
             if actual != expected:
@@ -117,10 +119,16 @@ def main():
             predicate = ""
             if table == "event_publication":
                 predicate = " WHERE listener_id LIKE '%module.ai.%'" if service == "catalog" else " WHERE listener_id NOT LIKE '%module.ai.%'"
-            query = f"COPY (SELECT * FROM public.{table}{predicate}) TO STDOUT WITH CSV"
+            columns = sql(source, "core", "ticketbox_core",
+                          "SELECT string_agg(quote_ident(column_name), ',' ORDER BY ordinal_position) "
+                          f"FROM information_schema.columns WHERE table_schema='public' AND table_name='{table}'",
+                          source=True)
+            if not columns:
+                raise RuntimeError(f"No source columns found for {table}")
+            query = f"COPY (SELECT {columns} FROM public.{table}{predicate}) TO STDOUT WITH CSV"
             data = compose(source, LEGACY_COMPOSE, "exec", "-T", "core-db", "psql",
                            "-X", "-q", "-v", "ON_ERROR_STOP=1", "-U", "core_owner", "-d", "ticketbox_core", "-c", query)
-            exported.append((table, data))
+            exported.append((table, columns, predicate, data))
         exports[service] = exported
 
     for service, exported in exports.items():
@@ -128,7 +136,7 @@ def main():
         backup = compose(target, "compose.yaml", "exec", "-T", service + "-db", "pg_dump",
                          "-U", service + "_owner", "-d", database, "-Fc")
         (directory / (service + "-before.dump")).write_bytes(backup)
-        tables = [table for table, _ in exported]
+        tables = [table for table, _, _, _ in exported]
         extra = ["sale_config_outbox", "catalog_availability"] if service == "catalog" else (
             ["checkin_ticket_outbox", "projection_versions"] if service == "ticketing" else (
                 ["projection_versions", "admission_outbox"] if service == "checkin" else []))
@@ -138,8 +146,8 @@ def main():
         statements.append("TRUNCATE " + ",".join(tables + extra) + " CASCADE;")
         body = ("\n".join(statements) + "\n").encode()
         counts = {}
-        for table, data in exported:
-            body += f"COPY public.{table} FROM STDIN WITH CSV;\n".encode() + data + b"\\.\n"
+        for table, columns, _, data in exported:
+            body += f"COPY public.{table} ({columns}) FROM STDIN WITH CSV;\n".encode() + data + b"\\.\n"
 
         for table in tables:
             body += f"ALTER TABLE {table} ENABLE TRIGGER USER;\n".encode()
@@ -169,14 +177,13 @@ END $$;
         compose(target, "compose.yaml", "exec", "-T", service + "-db", "psql", "-X",
                 "-v", "ON_ERROR_STOP=1", "-U", service + "_owner", "-d", database, input=body)
         # Exact row comparison covers UUIDs, deadlines, idempotency keys and order stream payloads.
-        for table, data in exported:
-            # Exported row order is unspecified. Use a canonical PostgreSQL digest instead of CSV line sorting.
-            predicate = ""
-            if table == "event_publication":
-                predicate = " WHERE listener_id LIKE '%module.ai.%'" if service == "catalog" else " WHERE listener_id NOT LIKE '%module.ai.%'"
-            fingerprint = f"SELECT md5(COALESCE(string_agg(to_jsonb(t)::text,E'\\n' ORDER BY to_jsonb(t)::text),'')) FROM public.{table} t"
-            expected = sql(source, "core", "ticketbox_core", fingerprint + predicate, source=True)
-            actual = sql(target, service, database, fingerprint)
+        for table, columns, predicate, _ in exported:
+            # Hash the original columns. Split-only columns are initialized by their target defaults.
+            digest_rows = "SELECT md5(COALESCE(string_agg(to_jsonb(t)::text,E'\\n' ORDER BY to_jsonb(t)::text),''))"
+            expected = sql(source, "core", "ticketbox_core",
+                           f"{digest_rows} FROM (SELECT {columns} FROM public.{table}{predicate}) t", source=True)
+            actual = sql(target, service, database,
+                         f"{digest_rows} FROM (SELECT {columns} FROM public.{table}) t")
             if actual != expected:
                 raise RuntimeError(f"Imported data differs in {service}.{table}. Writers remain stopped.")
             counts[table] = sql(target, service, database, f"SELECT count(*) FROM public.{table}")

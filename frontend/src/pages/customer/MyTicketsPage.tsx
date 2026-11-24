@@ -11,6 +11,7 @@ import { RemoteImage } from '../../components/RemoteImage';
 import { dateFormatter } from '../../data/formatters';
 import { useAuth } from '../../features/auth/AuthContext';
 import { concertTitle } from '../../features/concert/concertText';
+import { seatDescription } from '../../features/performance/checkoutPresentation';
 import './MyTicketsPage.css';
 
 type TicketFilter = 'all' | TicketStatus;
@@ -114,6 +115,7 @@ function TicketWallet({ preferredConcertId }: { preferredConcertId: string | nul
 
   const groups = useMemo(() => groupTickets(tickets ?? [], concerts, preferredConcertId), [tickets, concerts, preferredConcertId]);
   const selectedTicket = selectedId ? tickets?.find((ticket) => ticket.id === selectedId) : undefined;
+  const selectedGroup = selectedTicket ? groups.find(({ id }) => id === selectedTicket.concertId) : undefined;
 
   function reload() {
     if (loading) return;
@@ -187,7 +189,8 @@ function TicketWallet({ preferredConcertId }: { preferredConcertId: string | nul
           {filter === 'all' || tickets.some((ticket) => ticket.status === filter) ? (
             <div className="wallet-groups">
               {groups.map((group) => {
-                const visible = filter === 'all' ? group.tickets : group.tickets.filter((ticket) => ticket.status === filter);
+                const visible = group.tickets.map((ticket, index) => ({ ticket, position: index + 1 }))
+                  .filter(({ ticket }) => filter === 'all' || ticket.status === filter);
                 if (!visible.length) return null;
 
                 return (
@@ -224,9 +227,10 @@ function TicketWallet({ preferredConcertId }: { preferredConcertId: string | nul
         </>
       ) : null}
 
-      {selectedTicket ? (
+      {selectedTicket && selectedGroup ? (
         <TicketDetail
           ticket={selectedTicket}
+          position={selectedGroup.tickets.indexOf(selectedTicket) + 1}
           concert={concerts.get(selectedTicket.concertId)}
           onClose={() => setSelectedId(null)}
           restoreFocus={restoreTicketFocus}
@@ -244,7 +248,7 @@ function ConcertTicketCard({
   onOpenTicket,
 }: {
   group: ConcertTicketGroup;
-  tickets: Ticket[];
+  tickets: Array<{ ticket: Ticket; position: number }>;
   open: boolean;
   onToggle: () => void;
   onOpenTicket: (ticketId: string, control: HTMLButtonElement) => void;
@@ -295,11 +299,11 @@ function ConcertTicketCard({
       </div>
 
       <ul className="wallet-ticket-list" id={detailsId} hidden={!open}>
-        {open ? tickets.map((ticket) => (
+        {open ? tickets.map(({ ticket, position }) => (
           <TicketRow
             key={ticket.id}
             ticket={ticket}
-            reference={rowReference(ticket, group.tickets)}
+            position={position}
             onOpen={onOpenTicket}
           />
         )) : null}
@@ -325,25 +329,27 @@ function EventPoster({ src }: { src: string }) {
 }
 
 function TicketRow({
-  ticket, reference, onOpen,
+  ticket, position, onOpen,
 }: {
   ticket: Ticket;
-  reference: string;
+  position: number;
   onOpen: (ticketId: string, control: HTMLButtonElement) => void;
 }) {
   const { t } = useTranslation();
   const action = t(ticket.status === 'VALID' ? 'customer:myTicketsPage_openQr' : 'customer:myTicketsPage_viewDetails');
+  const description = ticket.referenceCode || seatDescription(ticket) || t('customer:myTicketsPage_ticketNumber', { position });
+  const name = ticket.referenceCode || [ticket.ticketTypeName, description].join(' · ');
   return (
     <li className="wallet-ticket-row">
       <div className="wallet-ticket-info">
         <strong>{ticket.ticketTypeName}</strong>
-        <span>{t('customer:myTicketsPage_maVe')} {reference}</span>
+        <span>{ticket.referenceCode ? t('customer:myTicketsPage_maVe') + ' ' + description : description}</span>
       </div>
       <TicketStatusLabel status={ticket.status} />
       <button
         className={`button ${ticket.status === 'VALID' ? 'button-primary' : 'button-secondary'}`}
         type="button"
-        aria-label={t('customer:myTicketsPage_namedAction', { action, name: reference })}
+        aria-label={t('customer:myTicketsPage_namedAction', { action, name })}
         onClick={(event) => onOpen(ticket.id, event.currentTarget)}
       >
         {action}
@@ -358,9 +364,10 @@ function TicketStatusLabel({ status }: { status: TicketStatus }) {
 }
 
 function TicketDetail({
-  ticket, concert, onClose, restoreFocus,
+  ticket, position, concert, onClose, restoreFocus,
 }: {
   ticket: Ticket;
+  position: number;
   concert?: ConcertDetail;
   onClose: () => void;
   restoreFocus: () => void;
@@ -368,6 +375,7 @@ function TicketDetail({
   const { t } = useTranslation();
   const name = concert ? concertTitle(concert) : ticket.concertTitle;
   const timestamp = concertTimestamp(concert);
+  const location = seatDescription(ticket);
   const headingId = useId();
   const dialog = useRef<HTMLDialogElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
@@ -408,6 +416,7 @@ function TicketDetail({
             <h2 id={headingId}>{name}</h2>
             <div className="wallet-dialog-ticket">
               <strong>{ticket.ticketTypeName}</strong>
+              {!ticket.referenceCode && !location && <span>{t('customer:myTicketsPage_ticketNumber', { position })}</span>}
               <span role="status"><TicketStatusLabel status={ticket.status} /></span>
             </div>
           </div>
@@ -450,10 +459,8 @@ function TicketDetail({
             </div>
           ) : null}
           {concert?.venueName ? <div><dt>{t('customer:myTicketsPage_venue')}</dt><dd>{concert.venueName}</dd></div> : null}
-          <div>
-            <dt>{t('customer:myTicketsPage_ticketId')}</dt>
-            <dd>{ticket.id}</dd>
-          </div>
+          {ticket.referenceCode && <div><dt>{t('customer:myTicketsPage_maVe')}</dt><dd>{ticket.referenceCode}</dd></div>}
+          {location && <div><dt>{t('customer:myTicketsPage_ticketLocation')}</dt><dd>{location}</dd></div>}
           <div>
             <dt>{t('customer:myTicketsPage_issued')}</dt>
             <dd><time dateTime={ticket.issuedAt}>{issuedDate.format(new Date(ticket.issuedAt))}</time></dd>
@@ -466,17 +473,6 @@ function TicketDetail({
 
 function groupControlId(concertId: string) {
   return `wallet-event-${encodeURIComponent(concertId)}`;
-}
-
-function shortTicketId(ticket: Ticket) {
-  return ticket.id.slice(0, 8).toUpperCase();
-}
-
-function rowReference(ticket: Ticket, allTickets: Ticket[]) {
-  const shortId = shortTicketId(ticket);
-  return allTickets.some((other) => other.id !== ticket.id && shortTicketId(other) === shortId)
-    ? `${shortId}–${allTickets.findIndex((item) => item.id === ticket.id) + 1}`
-    : shortId;
 }
 
 function concertTimestamp(concert?: ConcertDetail) {

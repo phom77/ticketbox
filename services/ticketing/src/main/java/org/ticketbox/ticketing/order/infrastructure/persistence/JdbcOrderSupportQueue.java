@@ -36,11 +36,12 @@ class JdbcOrderSupportQueue implements OrderSupportQueue {
                 JOIN orders o ON o.id=i.order_id WHERE
                 """ + condition;
         long count = db.queryForObject("SELECT count(*) " + source, Long.class);
-        var rows = db.query("SELECT o.id,p.intent_id,p.state,p.changed_at " + source
+        var rows = db.query("SELECT o.id,o.reference_code,p.intent_id,p.state,p.changed_at " + source
                         + " ORDER BY p.changed_at DESC,p.intent_id LIMIT ? OFFSET ?",
                 (row, n) -> new Item(row.getObject("id", UUID.class), row.getObject("intent_id", UUID.class),
                         row.getString("state"), row.getObject("changed_at", OffsetDateTime.class),
-                        kind == Kind.UNKNOWN_PAYMENT && "REVIEW_REQUIRED".equals(row.getString("state"))),
+                        kind == Kind.UNKNOWN_PAYMENT && "REVIEW_REQUIRED".equals(row.getString("state")),
+                        row.getString("reference_code")),
                 size, (long) page * size);
         return new Page(rows, page, size, count, (int) ((count + size - 1) / size));
     }

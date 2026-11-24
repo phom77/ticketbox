@@ -44,7 +44,7 @@ try {
   await page.getByRole('button', { name: 'Update ticket data', exact: true }).waitFor();
   await page.getByRole('button', { name: 'Start scanning' }).click();
   await page.getByRole('button', { name: 'Enter code manually' }).click();
-  await page.getByRole('textbox', { name: 'Ticket or QR code' }).fill('TB-PENDING');
+  await page.getByRole('textbox', { name: 'QR code contents' }).fill('TB-PENDING');
   await page.getByRole('button', { name: 'Check ticket', exact: true }).click();
   await page.getByText('Saved on this device. Wait for Check-in to confirm before admitting the guest.', { exact: true }).waitFor();
   assert.equal(scanLanguage, 'en');

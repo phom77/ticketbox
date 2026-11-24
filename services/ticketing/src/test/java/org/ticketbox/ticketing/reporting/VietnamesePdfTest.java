@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.ticketbox.ticketing.application.port.catalog.ConcertOrderPort;
 import org.ticketbox.ticketing.application.port.catalog.ConcertView;
 import org.ticketbox.ticketing.application.port.catalog.TicketTypeView;
@@ -42,10 +43,12 @@ class VietnamesePdfTest {
         var order = new Order();
         order.setStatus(Order.Status.PAID);
         order.setConcertId(concertId);
+        ReflectionTestUtils.setField(order, "referenceCode", "DH-10000000");
         var ticket = new Ticket();
         ticket.setId(UUID.randomUUID());
         ticket.setTicketTypeId(typeId);
         ticket.setQrCode("qr-fixture");
+        ReflectionTestUtils.setField(ticket, "referenceCode", "VE-10000000");
         when(orders.findById(orderId)).thenReturn(Optional.of(order));
         when(tickets.findByOrderId(orderId)).thenReturn(List.of(ticket));
         when(concerts.findConcertById(concertId))
@@ -69,6 +72,11 @@ class VietnamesePdfTest {
                         .createForOrder(orderId)
                         .orElseThrow();
         verifyPdf(document.content());
+        assertThat(document.filename()).isEqualTo("TicketBox-DH-10000000.pdf");
+        try (var pdf = Loader.loadPDF(document.content())) {
+            assertThat(new PDFTextStripper().getText(pdf))
+                    .contains("VE-10000000").doesNotContain(ticket.getId().toString());
+        }
     }
 
     @Test

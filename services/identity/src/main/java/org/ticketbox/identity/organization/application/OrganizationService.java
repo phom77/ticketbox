@@ -18,6 +18,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Set;
@@ -68,6 +69,13 @@ public class OrganizationService {
         store.audit(organization, actor, manager, "MANAGER_RECOVERED", INITIAL_GRANTS);
     }
 
+    @Transactional
+    public void recoverByEmail(UUID actor, UUID organization, String email) {
+        var matches = accounts.findTop2ByEmailIgnoreCase(email.strip());
+        if (matches.size() != 1) throw notFound();
+        recover(actor, organization, matches.getFirst().getId());
+    }
+
     public List<Membership> memberships(UUID actor) {
         return store.memberships(actor);
     }
@@ -91,6 +99,21 @@ public class OrganizationService {
         requireManager(actor, organization);
         return store.members(organization);
     }
+
+    public List<AdmissionStaff> admissionStaff(UUID actor, UUID organization) {
+        if (!access(actor, organization).contains(OrganizationGrant.EVENTS)) {
+            throw forbidden();
+        }
+        return store.members(organization).stream()
+                .filter(member -> member.active() && User.Role.STAFF.name().equals(member.role())
+                        && member.grants().contains(OrganizationGrant.ADMISSION))
+                .map(member -> new AdmissionStaff(member.accountId(), member.email(), member.fullName()))
+                .sorted(Comparator.comparing(AdmissionStaff::fullName, String.CASE_INSENSITIVE_ORDER)
+                        .thenComparing(AdmissionStaff::email))
+                .toList();
+    }
+
+    public record AdmissionStaff(UUID accountId, String email, String fullName) {}
 
     public List<Member> platformMembers(UUID organization) {
         if (store.displayName(organization).isEmpty()) throw notFound();

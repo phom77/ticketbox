@@ -14,7 +14,21 @@
     "payload": {"type": "object"}
   },
   "allOf": [
-    {"if": {"properties": {"eventType": {"enum": ["ticketing.order-confirmed", "ticketing.order-refunded"]}}}, "then": {"properties": {"payload": {"required": ["orderId", "amount"], "properties": {"orderId": {"type": "string", "format": "uuid"}, "amount": {"type": "number", "minimum": 0}}}}}},
+    {
+      "if": {"properties": {"eventType": {"enum": ["ticketing.order-confirmed", "ticketing.order-refunded"]}}},
+      "then": {
+        "properties": {
+          "payload": {
+            "required": ["orderId", "amount"],
+            "properties": {
+              "orderId": {"type": "string", "format": "uuid"},
+              "amount": {"type": "number", "minimum": 0},
+              "orderReference": {"type": "string", "pattern": "^DH-[0-9]{8,19}$"}
+            }
+          }
+        }
+      }
+    },
     {"if": {"properties": {"eventType": {"enum": ["concert.reminder-requested", "ticketing.event-postponed"]}}}, "then": {"properties": {"payload": {"required": ["concertId", "concertTitle", "eventDate"], "properties": {"concertId": {"type": "string", "format": "uuid"}, "eventDate": {"type": "string", "format": "date-time"}}}}}},
     {"if": {"properties": {"eventType": {"const": "ticketing.event-cancelled"}}}, "then": {"properties": {"payload": {"required": ["concertId", "concertTitle"], "properties": {"concertId": {"type": "string", "format": "uuid"}}}}}}
   ]

@@ -153,6 +153,7 @@ public class OrderAdapter implements OrderPort {
                             return Optional.of(
                                     new OrderNotificationView(
                                             order.getId(),
+                                            order.getReferenceCode(),
                                             order.getUserId(),
                                             order.getConcertId(),
                                             concert.title(),

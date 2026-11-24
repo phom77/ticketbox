@@ -17,7 +17,8 @@ public record NotificationCommand(
         String concertTitle,
         BigDecimal amount,
         String eventDate,
-        String venueName) {
+        String venueName,
+        String orderReference) {
     public NotificationCommand {
         if (schemaVersion != 1) throw new IllegalArgumentException("Unsupported schema version");
         Objects.requireNonNull(eventId);
@@ -39,6 +40,9 @@ public record NotificationCommand(
         if (("ticketing.order-confirmed".equals(eventType) || "ticketing.order-refunded".equals(eventType))
                 && (amount == null || amount.signum() < 0)) {
             throw new IllegalArgumentException("Invalid order payload");
+        }
+        if (orderReference != null && !orderReference.matches("DH-[0-9]{8,19}")) {
+            throw new IllegalArgumentException("Invalid order reference code");
         }
     }
 

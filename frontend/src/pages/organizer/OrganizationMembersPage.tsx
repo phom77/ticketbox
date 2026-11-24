@@ -62,8 +62,8 @@ function MemberEditor({
       void save(value);
     }}>
       <div className="workspace-records-account">
-        <span>{translate('organizer:organizationMembersPage_accountId')}</span>
-        <code>{member.accountId}</code>
+        <span>{member.fullName}</span>
+        <small>{member.email}</small>
       </div>
       {removing ? (
         <p ref={confirmation} tabIndex={-1} className="workspace-records-callout">
@@ -107,7 +107,7 @@ export function OrganizationMembersPage() {
     : translate('organizer:organizationMembersPage_editPermissions');
   const filter = query.trim().toLocaleLowerCase(formatLanguage());
   const memberRows = members.filter((member) =>
-    [member.accountId, member.fullName, member.email].some((value) => value.toLocaleLowerCase(formatLanguage()).includes(filter)));
+    [member.fullName, member.email].some((value) => value.toLocaleLowerCase(formatLanguage()).includes(filter)));
   const showingPanel = panel?.kind === 'invite' || Boolean(selectedMember);
 
   const load = useCallback(async (signal?: AbortSignal) => {

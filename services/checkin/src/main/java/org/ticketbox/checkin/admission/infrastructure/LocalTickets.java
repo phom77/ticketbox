@@ -33,7 +33,9 @@ public class LocalTickets implements TicketCheckinPort {
                 rs.getObject("used_at", OffsetDateTime.class),
                 rs.getString("section_label"),
                 rs.getString("row_label"),
-                rs.getString("seat_label"));
+                rs.getString("seat_label"),
+                rs.getString("reference_code"),
+                rs.getString("ticket_type_name"));
     }
 
     public Optional<TicketView> findByQrCode(String qr, UUID concert) {
@@ -51,8 +53,8 @@ public class LocalTickets implements TicketCheckinPort {
     public Page<TicketView> findByConcertId(
             UUID concert, String query, String status, Pageable page) {
         String filter =
-                " FROM tickets WHERE concert_id=? AND (?='' OR status=?) AND (?='' OR qr_code ILIKE"
-                        + " ?)";
+                " FROM tickets WHERE concert_id=? AND (?='' OR status=?)"
+                        + " AND (?='' OR qr_code ILIKE ? OR upper(reference_code)=upper(?))";
         String search = query == null ? "" : query.trim();
         String state = status == null ? "" : status;
         List<TicketView> rows =
@@ -64,6 +66,7 @@ public class LocalTickets implements TicketCheckinPort {
                         state,
                         search,
                         "%" + search + "%",
+                        search,
                         page.getPageSize(),
                         page.getOffset());
         long total =
@@ -74,7 +77,8 @@ public class LocalTickets implements TicketCheckinPort {
                         state,
                         state,
                         search,
-                        "%" + search + "%");
+                        "%" + search + "%",
+                        search);
         return new PageImpl<>(rows, page, total);
     }
 

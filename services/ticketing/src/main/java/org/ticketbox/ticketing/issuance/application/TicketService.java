@@ -180,7 +180,8 @@ public class TicketService {
                 ticket.getStatus().name(), ticket.getIssuedAt(), place == null ? null : place.performanceId(),
                 place == null ? null : place.eventId(), place == null ? null : place.venueName(),
                 place == null ? null : place.startsAt(), place == null ? null : place.sectionLabel(),
-                place == null ? null : place.rowLabel(), place == null ? null : place.seatLabel());
+                place == null ? null : place.rowLabel(), place == null ? null : place.seatLabel(),
+                ticket.getReferenceCode());
     }
 
     private void requireOwnedConcert(UUID concertId, UUID organizerId) {

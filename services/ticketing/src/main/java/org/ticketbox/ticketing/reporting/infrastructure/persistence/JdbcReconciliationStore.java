@@ -19,7 +19,7 @@ class JdbcReconciliationStore implements ReconciliationStore {
     private static final String ROWS = """
             SELECT coalesce(p.intent_id, i.intent_id) AS intent_id,
                    coalesce(p.order_id, i.order_id) AS order_id, o.organization_id, o.concert_id,
-                   c.title AS concert_title, coalesce(p.provider, i.provider) AS provider,
+                   o.reference_code, c.title AS concert_title, coalesce(p.provider, i.provider) AS provider,
                    coalesce(p.state, 'PENDING_REPORT') AS payment_state,
                    o.status AS order_status, coalesce(p.requested_amount, i.amount) AS requested_amount,
                    CASE WHEN o.status = 'PAID' THEN o.total_amount ELSE 0 END AS sales_amount,
@@ -39,7 +39,7 @@ class JdbcReconciliationStore implements ReconciliationStore {
             amount(r, "collected_amount"), r.getObject("attempted_at", OffsetDateTime.class),
             r.getObject("verified_at", OffsetDateTime.class), amount(r, "refund_amount"),
             r.getString("refund_reference"), r.getObject("changed_at", OffsetDateTime.class),
-            r.getObject("received_at", OffsetDateTime.class));
+            r.getObject("received_at", OffsetDateTime.class), r.getString("reference_code"));
 
     private final NamedParameterJdbcTemplate jdbc;
 

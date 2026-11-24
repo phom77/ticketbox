@@ -15,6 +15,10 @@ public final class NotificationCommands {
         JsonNode payload = event.path("payload");
         String type = event.path("eventType").asText();
         boolean order = "ticketing.order-confirmed".equals(type) || "ticketing.order-refunded".equals(type);
+        JsonNode reference = payload.path("orderReference");
+        if (order && !reference.isMissingNode() && !reference.isTextual()) {
+            throw new IllegalArgumentException("Invalid order reference code");
+        }
         return new NotificationCommand(
                 event.path("schemaVersion").asInt(),
                 UUID.fromString(event.path("eventId").asText()),
@@ -27,6 +31,7 @@ public final class NotificationCommands {
                 payload.path("concertTitle").asText("TicketBox"),
                 payload.path("amount").isNumber() ? payload.path("amount").decimalValue() : null,
                 payload.path("eventDate").asText(),
-                payload.path("venueName").asText());
+                payload.path("venueName").asText(),
+                order ? reference.textValue() : null);
     }
 }

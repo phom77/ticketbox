@@ -246,7 +246,9 @@ export function EventDisruptionPanel({ concertId, concertStatus, onChanged }: {
         {!impactLoading && !impactError && impact && (impact.content.length ? (
           <ul className="event-disruption-orders">
             {impact.content.map((order) => <li key={order.orderId}>
-              <Link to={`/admin/orders?${new URLSearchParams({ orderId: order.orderId })}`}>{order.orderId}</Link>
+              <Link to={`/admin/orders?${new URLSearchParams({ orderId: order.orderId })}`}>
+                {order.referenceCode ?? translate('admin:adminOrdersPage_openOrder')}
+              </Link>
               <span>{orderStates[order.status] ?? order.status}
                 {order.paymentState && <> · {paymentStates[order.paymentState] ?? order.paymentState}</>}
               </span>

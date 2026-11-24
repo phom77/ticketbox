@@ -75,6 +75,18 @@ try {
   await page.getByPlaceholder('A, B, VIP...').fill('A');
   await page.getByRole('button', { name: 'Tải dữ liệu vé', exact: true }).click();
   await page.getByRole('button', { name: 'Cập nhật dữ liệu vé', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Mở menu' }).click();
+  await page.getByText('Danh sách vé', { exact: true }).click();
+  await page.getByText('Mã vé VE-10000000', { exact: true }).waitFor();
+  await page.getByText('Loại vé Tiêu chuẩn', { exact: true }).waitFor();
+  await page.getByText('Vé chưa có mã tra cứu', { exact: true }).waitFor();
+  assert.equal(await page.getByText(/b0000000-0000-4000/).count(), 0);
+  assert.equal(await page.getByText(/a0000000-0000-4000/).count(), 0);
+  await page.getByRole('textbox', { name: 'Tìm trong danh sách vé' }).fill('ve-10000001');
+  await page.getByText('Mã vé VE-10000001', { exact: true }).waitFor();
+  assert.equal(await page.getByText('Mã vé VE-10000000', { exact: true }).count(), 0);
+  await page.getByRole('button', { name: 'Mở menu' }).click();
+  await page.getByText('Tổng quan và cổng', { exact: true }).click();
   await page.getByRole('button', { name: 'Bắt đầu quét' }).click();
   if (cameraVideo) {
     const permission = page.getByRole('button', { name: 'Cho phép camera' });
@@ -101,7 +113,7 @@ try {
     await page.keyboard.press('Enter');
     await page.getByRole('button', { name: 'Đóng menu', exact: true }).click();
     await page.getByRole('button', { name: 'Nhập mã thủ công' }).click();
-    const entry = page.getByRole('textbox', { name: 'Mã vé hoặc nội dung QR' });
+    const entry = page.getByRole('textbox', { name: 'Nội dung mã QR' });
     async function submit(value, label) {
       await entry.fill(value);
       await page.getByRole('button', { name: 'Soát vé', exact: true }).click();
@@ -109,6 +121,7 @@ try {
     }
     await submit('TB-UNKNOWN', 'Vé không được chấp nhận');
     assert.equal(await entry.inputValue(), 'TB-UNKNOWN');
+    await submit('VE-10000000', 'Vé không được chấp nhận');
     await submit('TB-DENIED', 'Không có quyền soát vé');
     await submit('TB-EXPIRED', 'Phiên đăng nhập hết hạn');
     await submit('TB-PENDING', 'Chờ xác nhận');
@@ -147,6 +160,11 @@ try {
     await page.getByText('Không có lượt nào khớp', { exact: true }).waitFor();
     await page.getByRole('button', { name: 'Đã xác nhận', exact: true }).click();
     assert.equal(await page.getByText('Đã xác nhận', { exact: true }).count(), 3);
+    await page.getByRole('textbox', { name: 'Tìm trong lịch sử' }).fill('ve-10000000');
+    await page.getByText('Mã vé VE-10000000', { exact: true }).waitFor();
+    await page.getByText('Loại vé Tiêu chuẩn', { exact: true }).waitFor();
+    assert.equal(await page.getByText('Mã vé VE-10000001', { exact: true }).count(), 0);
+    await page.getByRole('textbox', { name: 'Tìm trong lịch sử' }).clear();
     await page.getByRole('button', { name: 'Lỗi', exact: true }).click();
     await page.getByText('Xung đột đồng bộ', { exact: true }).waitFor();
     await capture('history');

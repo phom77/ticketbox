@@ -10,5 +10,6 @@ public record CheckinDatasetResponse(
         int totalCount,
         List<TicketDatasetEntry> tickets) {
     public record TicketDatasetEntry(
-            UUID ticketId, String qrCode, String qrSecret, UUID ticketTypeId, UUID userId) {}
+            UUID ticketId, String qrCode, String qrSecret, UUID ticketTypeId, UUID userId,
+            String referenceCode, String ticketTypeName) {}
 }

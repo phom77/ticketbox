@@ -13,6 +13,7 @@ export type ReconciliationFilters = {
 export type ReconciliationRow = {
   intentId: string;
   orderId: string;
+  referenceCode?: string | null;
   organizationId: string | null;
   concertTitle: string | null;
   provider: string;

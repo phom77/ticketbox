@@ -44,11 +44,12 @@ class JdbcEventDisruptionStore implements EventDisruptionStore {
         if (cutoff == null) return new Impact(List.of(), page, size, 0, 0);
         long count = db.queryForObject("SELECT count(*) " + IMPACT, Long.class, concert, cutoff);
         var rows = db.query("""
-                SELECT o.id,o.status,coalesce(p.state,i.state) AS payment_state,o.total_amount,
+                SELECT o.id,o.reference_code,o.status,coalesce(p.state,i.state) AS payment_state,o.total_amount,
                     EXISTS (SELECT 1 FROM event_disruption_refunds r WHERE r.operation_id=? AND r.order_id=o.id AND r.resolved) AS case_prepared
                 """ + IMPACT + " ORDER BY o.created_at DESC,o.id LIMIT ? OFFSET ?",
                 (row, n) -> new Item(row.getObject("id", UUID.class), row.getString("status"), row.getString("payment_state"),
-                        row.getLong("total_amount"), row.getBoolean("case_prepared")), operation, concert, cutoff, size, (long) page * size);
+                        row.getLong("total_amount"), row.getBoolean("case_prepared"), row.getString("reference_code")),
+                operation, concert, cutoff, size, (long) page * size);
         return new Impact(rows, page, size, count, (int) ((count + size - 1) / size));
     }
 

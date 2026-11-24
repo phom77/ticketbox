@@ -77,7 +77,7 @@ export function AdminNotificationsPage() {
       setNotifications((current) =>
         current.map((existing) => (existing.id === item.id ? result.data : existing)),
       );
-      setNotice(translate("admin:adminNotificationsPage_daDuaThongBaoVaoHangCho", { arg1: item.id.slice(0, 8) }));
+      setNotice(translate("admin:adminNotificationsPage_daDuaThongBaoVaoHangCho"));
     } catch (requestError) {
       setError(
         requestError instanceof Error ? requestError.message : translate("admin:adminNotificationsPage_khongTheThuGuiLaiThongBao"),
@@ -188,7 +188,7 @@ export function AdminNotificationsPage() {
                     <td>
                       <strong className="admin-table-primary">{item.subject}</strong>
                       <span className="admin-table-secondary">
-                        {item.eventType} / {item.id.slice(0, 8)}
+                        {item.eventType}
                       </span>
                     </td>
                     <td>

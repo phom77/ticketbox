@@ -30,17 +30,23 @@ const browser = await chromium.launch();
 const concertId = '22222222-2222-4222-8222-222222222222';
 const order = (id, concertTitle) => ({ id, concertId, concertTitle, status: 'PAID',
   totalAmount: 250000, createdAt: '2026-11-12T00:00:00Z', expiresAt: '2026-11-12T00:30:00Z', items: [] });
-const first = order('11111111-1111-4111-8111-111111111111', 'Buổi diễn A');
-const second = order('22222222-2222-4222-8222-222222222222', 'Buổi diễn B');
+const first = { ...order('11111111-1111-4111-8111-111111111111', 'Buổi diễn A'), referenceCode: 'DH-10000041' };
+const second = { ...order('22222222-2222-4222-8222-222222222222', 'Buổi diễn B'), referenceCode: 'DH-10000042' };
 const legacy = order('33333333-3333-4333-8333-333333333333', 'Danh sách cũ');
+const ticketId = '44444444-4444-4444-8444-444444444444';
+const ticketReference = 'VE-10000123';
 const organizations = [{ id: 'org-a', name: 'Tổ chức A', grants: ['FINANCE'] },
   { id: 'org-b', name: 'Tổ chức B', grants: ['FINANCE'] }];
 const checks = [];
+let passed = false;
 
 const requesterId = '00000000-0000-4000-8000-000000000000';
 const approverId = '00000000-0000-4000-8000-000000000001';
+const performanceId = '55555555-5555-4555-8555-555555555555';
+const missingStaffId = '66666666-6666-4666-8666-666666666666';
+const staffCandidate = { accountId: '77777777-7777-4777-8777-777777777777', fullName: 'Lan at North Gate', email: 'lan.gate@example.test' };
 
-async function fixture(role, { actor = requesterId, refund, disruption } = {}) {
+async function fixture(role, { actor = requesterId, refund, disruption, staffDirectory } = {}) {
   const user = { sub: actor, email: 'fixture@test.invalid',
     fullName: 'Quản trị thử', role, exp: Math.floor(Date.now() / 1000) + 3600 };
   const token = `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringify(user)).toString('base64url')}.fixture`;
@@ -59,8 +65,38 @@ async function fixture(role, { actor = requesterId, refund, disruption } = {}) {
     if (!url.pathname.startsWith('/api/')) return url.origin === origin ? route.continue() : route.abort();
     if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
     if (url.pathname === '/api/auth/me') return reply({ ...user, id: user.sub });
-    if (url.pathname === '/api/organizations') return reply(disruption
+    if (url.pathname === '/api/organizations') return reply(staffDirectory ? [{ ...organizations[0], grants: ['EVENTS'] }] : disruption
       ? organizations.map((org) => ({ ...org, grants: [...org.grants, 'EVENTS'] })) : organizations);
+    if (staffDirectory) {
+      const root = '/api/organizer/manage/v2';
+      const performance = root + '/performances/' + performanceId;
+      if (url.pathname === root + '/events/' + concertId) {
+        const startsAt = new Date(Date.now() + 86_400_000).toISOString();
+        return reply({ id: concertId, title: 'Buổi diễn soát vé', draftVersion: 1, performances: [{
+          id: performanceId, eventId: concertId, status: 'ON_SALE', startsAt, endsAt: startsAt,
+          venueName: 'North Gate', timezone: 'Asia/Ho_Chi_Minh', saleStartAt: startsAt, saleEndAt: startsAt,
+        }] });
+      }
+      if (url.pathname === root + '/venues') return reply([]);
+      if (url.pathname === performance + '/layout') return reply({ version: 0, layout: null });
+      if (url.pathname === performance + '/sale') return reply({ version: 1, groups: [], offers: [] });
+      if (url.pathname === performance + '/publication') {
+        return reply({ status: 'ON_SALE', ticketingAcknowledged: true, checkinAcknowledged: true });
+      }
+      if (url.pathname === '/api/organizations/org-a/admission-staff') {
+        return staffDirectory.unavailable ? reply(null, 503) : reply([staffCandidate]);
+      }
+      if (url.pathname === performance + '/staff') return reply(staffDirectory.assignments.map((staffId) => ({
+        staffId, grantedAt: '2026-11-12T00:06:00Z',
+      })));
+      if (url.pathname.startsWith(performance + '/staff/')) {
+        const account = url.pathname.split('/').at(-1);
+        staffDirectory.actions.push({ method: request.method(), account, scope: request.headers()['x-organization-id'] });
+        if (request.method() === 'PUT') staffDirectory.assignments.push(account);
+        else staffDirectory.assignments = staffDirectory.assignments.filter((id) => id !== account);
+        return route.fulfill({ status: 204, headers: cors });
+      }
+    }
     if (disruption && [`/api/admin/concerts/${concertId}`, `/api/organizer/manage/concerts/${concertId}`].includes(url.pathname)) {
       return reply({ id: concertId, title: 'Buổi diễn thử', venueName: 'Hội trường',
         eventDate: new Date(Date.now() + 86_400_000).toISOString(), saleStartAt: new Date().toISOString(),
@@ -70,7 +106,7 @@ async function fixture(role, { actor = requesterId, refund, disruption } = {}) {
       disruption.requests.push(url.pathname + url.search);
       if (url.pathname.endsWith('/impact')) {
         const page = Number(url.searchParams.get('page'));
-        return reply({ content: [{ orderId: page ? second.id : first.id, status: 'PAID',
+        return reply({ content: [{ orderId: page ? second.id : first.id, referenceCode: page ? second.referenceCode : first.referenceCode, status: 'PAID',
           paymentState: 'SUCCEEDED', amount: 250000, casePrepared: !!disruption.current?.processed }],
         page, size: Number(url.searchParams.get('size')), totalElements: 11, totalPages: 2 });
       }
@@ -117,7 +153,7 @@ async function fixture(role, { actor = requesterId, refund, disruption } = {}) {
       const { kind, page, size } = Object.fromEntries(url.searchParams);
       queueState.requests.push({ kind, page, size });
       if (queueState.loadUnavailable) return reply(null, 503);
-      const row = { orderId: first.id, sourceId: second.id, state: 'REVIEW_REQUIRED',
+      const row = { orderId: first.id, sourceId: second.id, referenceCode: first.referenceCode, state: 'REVIEW_REQUIRED',
         updatedAt: '2026-11-12T00:06:00Z', retryable: true };
       if (kind === 'FAILED_EMAIL') row.state = 'FAILED';
       if (kind === 'PENDING_REFUND') row.state = 'RECONCILIATION_REQUIRED';
@@ -138,7 +174,7 @@ async function fixture(role, { actor = requesterId, refund, disruption } = {}) {
       const [, orderId, section] = detail;
       state.sections.push({ orderId, section, scope: request.headers()['x-organization-id'] });
       if (section === 'tickets') {
-        return reply([{ id: 'ticket-001', status: 'VALID', issuedAt: '2026-11-12T00:04:00Z' }]);
+        return reply([{ id: ticketId, referenceCode: ticketReference, status: 'VALID', issuedAt: '2026-11-12T00:04:00Z' }]);
       }
       if (section === 'payment') {
         if (refund) return reply({ attempt: { state: 'SUCCEEDED', provider: 'VNPAY', transactionId: 'vnp-9034',
@@ -180,6 +216,7 @@ try {
   const admin = await fixture('ADMIN');
   await admin.page.goto(`${origin}/admin/orders?concertId=${concertId}`);
   await admin.page.getByText(legacy.concertTitle).waitFor();
+  assert.equal(await admin.page.getByText(legacy.id.slice(0, 8) + '…', { exact: true }).count(), 0);
   await search(admin.page, 'buyerEmail', 'buyer@test.invalid', true);
   await admin.page.getByText(first.concertTitle, { exact: true }).waitFor();
   assert.deepEqual(admin.state.searches[0], { path: '/api/admin/orders/support',
@@ -200,12 +237,14 @@ try {
   admin.state.deliveryUnavailable = true;
   await admin.page.getByRole('button', { name: 'Chi tiết', exact: true }).click();
   await admin.page.getByRole('heading', { name: second.concertTitle }).waitFor();
-  await admin.page.getByText(second.id, { exact: true }).waitFor();
+  await admin.page.getByRole('dialog').getByText(second.referenceCode, { exact: true }).waitFor();
+  assert.equal(await admin.page.getByText(second.id, { exact: true }).count(), 0);
   checks.push('Admin exact email search preserves concert scope, pages results and opens the existing detail');
-  await admin.page.getByRole('region', { name: 'Vé đã phát hành' }).getByText('ticket-001', { exact: true }).waitFor();
+  await admin.page.getByRole('region', { name: 'Vé đã phát hành' }).getByText(ticketReference, { exact: true }).waitFor();
+  assert.equal(await admin.page.getByText(ticketId, { exact: true }).count(), 0);
   const payment = admin.page.getByRole('region', { name: 'Thanh toán và ngoại lệ' });
   await payment.getByText('vnp-9034', { exact: true }).waitFor();
-  await payment.getByText('review-001', { exact: true }).waitFor();
+  assert.equal(await payment.getByText('review-001', { exact: true }).count(), 0);
   const delivery = admin.page.getByRole('region', { name: 'Gửi email' });
   await delivery.getByRole('alert').waitFor();
   admin.state.deliveryUnavailable = false;
@@ -231,15 +270,15 @@ try {
 
   const organizer = await fixture('ORGANIZER');
   await organizer.page.goto(`${origin}/organizer/orders`);
-  await search(organizer.page, 'orderId', first.id);
+  await search(organizer.page, 'referenceCode', first.referenceCode);
   await organizer.page.getByText(first.concertTitle, { exact: true }).waitFor();
   assert.equal(organizer.state.searches.at(-1).scope, 'org-a');
   await selectWorkspaceOption(organizer.page.getByLabel('Tổ chức đang làm việc'), { value: 'org-b' });
   await organizer.page.goto(`${origin}/organizer/orders`);
-  await search(organizer.page, 'orderId', second.id);
+  await search(organizer.page, 'referenceCode', second.referenceCode);
   await organizer.page.getByText(second.concertTitle, { exact: true }).waitFor();
   assert.deepEqual(organizer.state.searches.at(-1), { path: '/api/organizer/manage/orders/support',
-    query: { orderId: second.id, page: '0', size: '20' }, scope: 'org-b' });
+    query: { referenceCode: second.referenceCode, page: '0', size: '20' }, scope: 'org-b' });
   assert.equal(await organizer.page.getByText(first.concertTitle, { exact: true }).count(), 0);
   organizer.state.errorStatus = 403;
   await organizer.page.getByRole('button', { name: 'Làm mới' }).click();
@@ -247,6 +286,33 @@ try {
   assert.equal(await organizer.page.getByText(second.concertTitle, { exact: true }).count(), 0);
   await organizer.close();
   checks.push('Organizer search uses the selected organization header and clears prior results on switch or revoked access');
+
+  const staffDirectory = { unavailable: true, assignments: [missingStaffId], actions: [] };
+  const eventManager = await fixture('ORGANIZER', { staffDirectory });
+  await eventManager.page.goto(`${origin}/organizer/events/${concertId}?step=review&show=${performanceId}`);
+  const staff = eventManager.page.getByRole('region', { name: 'Nhân viên soát vé' });
+  await staff.getByRole('alert').getByText('Không thể tải danh sách nhân viên.').waitFor();
+  assert.equal(await staff.getByText(missingStaffId, { exact: true }).count(), 0);
+  await staff.getByRole('button', { name: 'Thu hồi quyền' }).click();
+  await staff.getByRole('button', { name: 'Thu hồi quyền' }).waitFor({ state: 'hidden' });
+  staffDirectory.unavailable = false;
+  await staff.getByRole('button', { name: 'Tải lại' }).click();
+  const queryStaff = staff.getByRole('searchbox', { name: 'Tìm theo tên hoặc email' });
+  await queryStaff.fill(staffCandidate.email);
+  await selectWorkspaceOption(staff.getByRole('combobox', { name: 'Nhân viên' }), { value: staffCandidate.accountId });
+  await staff.getByRole('button', { name: 'Phân công', exact: true }).click();
+  await staff.getByText(staffCandidate.email, { exact: true }).waitFor();
+  assert.equal(await staff.getByText(staffCandidate.accountId, { exact: true }).count(), 0);
+  assert.deepEqual(staffDirectory.actions, [
+    { method: 'DELETE', account: missingStaffId, scope: 'org-a' },
+    { method: 'PUT', account: staffCandidate.accountId, scope: 'org-a' },
+  ]);
+  for (const width of [1440, 768, 390]) {
+    await eventManager.page.setViewportSize({ width, height: 850 });
+    assert(await eventManager.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+  }
+  await eventManager.close();
+  checks.push('An EVENTS organizer can find staff by email and revoke stale assignments even if the directory fails');
 
   const operator = await fixture('ADMIN');
   operator.queueState.loadUnavailable = true;
@@ -256,7 +322,7 @@ try {
   assert.deepEqual(operator.queueState.requests[0], { kind: 'UNKNOWN_PAYMENT', page: '0', size: '10' });
   operator.queueState.loadUnavailable = false;
   await queue.getByRole('button', { name: 'Tải lại danh sách' }).press('Enter');
-  await queue.getByRole('link', { name: first.id }).waitFor();
+  await queue.getByRole('link', { name: first.referenceCode }).waitFor();
   await queue.getByRole('button', { name: 'Trang sau' }).click();
   await queue.getByText('Trang 2 / 2', { exact: true }).waitFor();
   assert.equal(operator.queueState.requests.at(-1).page, '1');
@@ -281,7 +347,7 @@ try {
   checks.push('Payment and email actions keep the same identity when the first response is lost');
 
   await selectWorkspaceOption(queue.getByLabel('Loại ngoại lệ'), { value: 'PENDING_REFUND' });
-  await queue.getByRole('link', { name: first.id }).waitFor();
+  await queue.getByRole('link', { name: first.referenceCode }).waitFor();
   assert.equal(await queue.getByRole('button', { name: /Gửi lại|Kiểm tra lại/ }).count(), 0);
   for (const width of [1440, 768, 390]) {
     await operator.page.setViewportSize({ width, height: 850 });
@@ -289,9 +355,10 @@ try {
     await operator.page.evaluate(() => window.scrollTo(0, 0));
     await operator.page.screenshot({ path: resolve(output, `exception-queue-${width}.png`), animations: 'disabled' });
   }
-  await queue.getByRole('link', { name: first.id }).click();
+  await queue.getByRole('link', { name: first.referenceCode }).click();
   await operator.page.getByText(first.concertTitle, { exact: true }).waitFor();
   assert.deepEqual(operator.state.searches.at(-1)?.query, { orderId: first.id, page: '0', size: '20' });
+  assert.equal(await operator.page.getByRole('search', { name: 'Tra cứu đơn hàng' }).getByRole('textbox').inputValue(), '');
   await operator.close();
   checks.push('Refund exceptions are read-only and the order link opens an exact prefilled search at all viewport sizes');
 
@@ -386,9 +453,9 @@ try {
   const eventAdmin = await fixture('ADMIN', { disruption });
   await eventAdmin.page.goto(`${origin}/admin/concerts/${concertId}?tab=operations`);
   const panel = eventAdmin.page.getByRole('region', { name: 'Hoãn hoặc hủy buổi diễn' });
-  await panel.getByRole('link', { name: first.id }).waitFor();
+  await panel.getByRole('link', { name: first.referenceCode }).waitFor();
   await panel.getByRole('button', { name: 'Trang sau' }).click();
-  await panel.getByRole('link', { name: second.id }).waitFor();
+  await panel.getByRole('link', { name: second.referenceCode }).waitFor();
   assert(disruption.requests.some((path) => path.endsWith('/impact?page=1&size=10')));
   await selectWorkspaceOption(panel.getByLabel('Quyết định'), { value: 'CANCEL' });
   await panel.getByLabel('Lý do').fill('Hội trường không thể mở cửa');
@@ -409,7 +476,7 @@ try {
   const postponeAdmin = await fixture('ADMIN', { disruption: postponed });
   await postponeAdmin.page.goto(`${origin}/admin/concerts/${concertId}?tab=operations`);
   const postponement = postponeAdmin.page.getByRole('region', { name: 'Hoãn hoặc hủy buổi diễn' });
-  await postponement.getByRole('link', { name: first.id }).waitFor();
+  await postponement.getByRole('link', { name: first.referenceCode }).waitFor();
   await selectWorkspaceOption(postponement.getByLabel('Quyết định'), { value: 'POSTPONE' });
   await postponement.getByLabel('Lý do').fill('Dời lịch do thời tiết');
   const newDate = new Date(Date.now() + 172_800_000).toISOString().slice(0, 16);
@@ -443,9 +510,10 @@ try {
   assert.deepEqual(organizerDisruption.requests, []);
   await eventOrganizer.close();
   checks.push('Postponement sends the revised Vietnam schedule and resumes only from paused state, with admin-only controls');
+  passed = true;
 } finally {
   await mkdir(output, { recursive: true });
-  await writeFile(resolve(output, 'results.json'), JSON.stringify({ passed: checks.length === 12, checks }, null, 2));
+  await writeFile(resolve(output, 'results.json'), JSON.stringify({ passed, checks }, null, 2));
   await browser.close();
   server.close();
 }

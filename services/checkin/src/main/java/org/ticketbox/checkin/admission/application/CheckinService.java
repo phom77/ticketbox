@@ -104,7 +104,8 @@ public class CheckinService {
                                         ticket.qrCode(),
                                         ticket.status(),
                                         ticket.issuedAt(),
-                                        ticket.usedAt(), ticket.sectionLabel(), ticket.rowLabel(), ticket.seatLabel()));
+                                        ticket.usedAt(), ticket.sectionLabel(), ticket.rowLabel(), ticket.seatLabel(),
+                                        ticket.referenceCode(), ticket.ticketTypeName()));
     }
 
     @Transactional
@@ -157,7 +158,9 @@ public class CheckinService {
                                                 t.qrCode(),
                                                 t.qrSecret(),
                                                 t.ticketTypeId(),
-                                                t.userId()))
+                                                t.userId(),
+                                                t.referenceCode(),
+                                                t.ticketTypeName()))
                         .toList();
 
         return new CheckinDatasetResponse(concertId, OffsetDateTime.now(), entries.size(), entries);
@@ -185,7 +188,9 @@ public class CheckinService {
                             log.getGate(),
                             log.getNotes(),
                             ticket == null ? null : ticket.qrCode(),
-                            ticket == null ? null : ticket.status());
+                            ticket == null ? null : ticket.status(),
+                            ticket == null ? null : ticket.referenceCode(),
+                            ticket == null ? null : ticket.ticketTypeName());
                 });
     }
 

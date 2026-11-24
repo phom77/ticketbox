@@ -2,6 +2,7 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 import json
+import re
 import uuid
 
 from split import approve_performance_fixture, REPORT_DIRECTORY, login, request, sql, until
@@ -126,7 +127,9 @@ def main():
         order_headers = {"Queue-Access-Token": token, "Idempotency-Key": new_id()}
         checkout = {"holdVersion": hold["version"]}
         order = request("POST", sale_path + "/orders", buyer, checkout, expected=(201,), headers=order_headers)
-        assert request("GET", "/api/orders/by-idempotency-key", buyer, headers=order_headers)["id"] == order["id"]
+        recovered = request("GET", "/api/orders/by-idempotency-key", buyer, headers=order_headers)
+        assert re.fullmatch(r"DH-[0-9]{8,19}", order["referenceCode"])
+        assert recovered["id"] == order["id"] and recovered["referenceCode"] == order["referenceCode"]
         assert order["performanceId"] == show["id"]
         order_id = order["id"]
         until(lambda: request("POST", f"/api/payments/{order_id}/initiate", buyer,
@@ -147,6 +150,14 @@ def main():
                                dict(offerId=hybrid_offers[1]["id"], seatId=seat)], 1)
     tickets = [ticket for ticket in request("GET", "/api/tickets", buyer) if ticket.get("performanceId") == hybrid["id"]]
     assert len(tickets) == 2
+    assert all(re.fullmatch(r"VE-[0-9]{8,19}", ticket["referenceCode"]) for ticket in tickets)
+    assert len({ticket["referenceCode"] for ticket in tickets}) == len(tickets)
+    order_code = hybrid_order["referenceCode"]
+    support = request("GET", f"/api/admin/orders/support?referenceCode={order_code.lower()}", admin)
+    assert [order["id"] for order in support["content"]] == [hybrid_order["id"]]
+    notice = until(lambda: next((entry for entry in request("GET", "/api/notifications", buyer)["content"]
+                                 if order_code in entry["body"]), None))
+    assert hybrid_order["id"] not in notice["body"]
     assigned = next(ticket for ticket in tickets if ticket.get("seatLabel") == "12")
     assert assigned["sectionLabel"] == "Balcony" and assigned["rowLabel"] == "A"
     assert not request("GET", v2 + f"/availability/sections/{balcony}")["seats"][0]["available"]
@@ -156,6 +167,8 @@ def main():
         "accountId": staff_id, "grants": ["ADMISSION"],
     }, expected=(201,))
     request("POST", "/api/organizations/invitations/accept", staff, {"code": invite["code"]})
+    directory = request("GET", f"/api/organizations/{organization}/admission-staff", manager)
+    assert [member["accountId"] for member in directory] == [staff_id]
     performances = "/api/v2/staff/performances"
     assert not request("GET", performances, staff, headers=scope)["content"]
     request("PUT", hybrid_path + f"/staff/{staff_id}", manager, expected=(204,), headers=scope)
@@ -163,6 +176,10 @@ def main():
     dataset_path = performances + f"/{hybrid['id']}/checkin-dataset"
     dataset = until(lambda: (data if (data := request("GET", dataset_path, staff, headers=scope))["totalCount"] == 2 else None))
     assert all("qrSecret" not in item for item in dataset["tickets"])
+    assert {entry["ticketId"]: entry["referenceCode"] for entry in dataset["tickets"]} == {
+        entry["id"]: entry["referenceCode"] for entry in tickets
+    }
+    assert all(entry["ticketTypeName"] for entry in dataset["tickets"])
 
     def scan(device_id):
         return request("POST", performances + f"/{hybrid['id']}/scan", staff, {

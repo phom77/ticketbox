@@ -486,11 +486,9 @@ export function AdminArtistBioPage({ apiScope = 'admin' }: { apiScope?: Manageme
                     <tr key={job.id}>
                       <td>
                         <strong className="admin-table-primary">{job.originalFileName}</strong>
-                        <span className="admin-table-secondary">
-                          {job.extractedCharCount == null
-                            ? job.id.slice(0, 8)
-                            : translate("admin:adminArtistBioPage_kyTu", { arg1: job.extractedCharCount.toLocaleString(formatLanguage()) })}
-                        </span>
+                        {job.extractedCharCount != null && <span className="admin-table-secondary">
+                          {translate("admin:adminArtistBioPage_kyTu", { arg1: job.extractedCharCount.toLocaleString(formatLanguage()) })}
+                        </span>}
                       </td>
                       <td>
                         <strong className="admin-table-primary">

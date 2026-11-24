@@ -26,8 +26,8 @@ export function ScanHistoryRow({ item, compact = false }: { item: HistoryEntry; 
         <Text style={styles.meta}>
           {time}{item.gate ? ` · ${t('gate', { value: item.gate })}` : ''}
         </Text>
-        {!compact && item.ticketId ? <Text style={styles.meta}>{t('ticketId', { value: item.ticketId })}</Text> : null}
-        {!compact && !item.ticketId && item.qrCode ? <Text style={styles.meta}>{t('hiddenQr')}</Text> : null}
+        {!compact && item.referenceCode ? <Text style={styles.meta}>{t('ticketId', { value: item.referenceCode })}</Text> : null}
+        {!compact && item.ticketTypeName ? <Text style={styles.meta}>{t('ticketType', { value: item.ticketTypeName })}</Text> : null}
         {!compact && (item.status === 'conflict' || item.status === 'failed') ? (
           <Text style={styles.meta}>{t(item.status === 'conflict' ? 'syncReasonConflict' : 'syncReasonFailed')}</Text>
         ) : null}

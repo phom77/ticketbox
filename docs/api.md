@@ -48,6 +48,14 @@ Send `Queue-Access-Token` on hold/order mutations and `Idempotency-Key` on order
 
 Initiation accepts `{ "provider": "MOCK" }` (or `MOMO` / `VNPAY`). Remote dispatch can return pending/202 before a payment URL exists; poll status until the attempt is ready or terminal. The frontend return URL is not proof of payment: provider verification and Core settlement determine whether tickets are issued.
 
+## Order and ticket references
+
+Ticketing responses include a persisted `referenceCode` for each order (`DH-…`) and issued ticket (`VE-…`). Use this code in customer-visible text. Keep using `id` for existing route and API parameters, payment recovery, and admission data.
+
+`GET /api/admin/orders/support` and `GET /api/organizer/manage/orders/support` accept one exact `referenceCode`, matched case-insensitively. Existing searches by `orderId`, `buyerEmail`, and `transactionRef` remain available. Organizer search continues to require FINANCE and applies the organization scope before pagination.
+
+Notification commands can carry `orderReference`. Ticket snapshots can carry `reference_code` and `ticket_type_name`, exposed as `referenceCode` and `ticketTypeName` to staff clients when available. These display fields are optional when reading older messages or scanner data. Scan and offline sync continue to validate the existing QR payload.
+
 ## Realtime and callbacks
 
 - STOMP/SockJS endpoint: `/ws`; send the JWT in CONNECT headers.
@@ -68,6 +76,10 @@ Concert create and update requests accept optional `translations` and `original`
 New events require publication review. Submit a draft to `POST /api/organizer/manage/concerts/{id}/publication` or the corresponding Admin route with an explicit offset-aware `publishAt`. TicketBox displays both the release and sale times in ICT. Platform Admin reviews the current revision under `/api/admin/concerts/{id}/publication/decision` and can place a hold under `/api/admin/concerts/{id}/publication/hold`. Admin lists the review queue at `/api/admin/concerts/publication-queue`. Review and technical readiness are observable from the concert publication endpoint. If Ticketing is unavailable at the scheduled time, Catalog retries while the approved window is still eligible. A missed schedule needs resubmission. Keep the current paid-order disruption and support flows for an active sale.
 
 Admin creates partner application links under `/api/admin/organizations/applications`. Identity provisions an Organizer after approval, and Notification emails the activation link to the work email. Organization managers invite one or more employees under `/api/organizations/{id}/invitations/email`. Migrate existing buyer-role grants from the organization's Admin detail by inviting a verified work address. The buyer account and its order history stay attached to the original identity.
+
+`GET /api/organizations/{id}/admission-staff` requires EVENTS in the selected organization. It returns account ID, name and email for active staff with ADMISSION in that organization. Use the name and email as picker labels. The account ID remains the input to the existing performance assignment API.
+
+Platform admins can recover an organization without an active manager via `PUT /api/admin/organizations/{id}/manager` with the replacement organizer's `email`. Integrations may continue to send `accountId`. Send exactly one of the two fields.
 
 ## Performance purchase v2
 

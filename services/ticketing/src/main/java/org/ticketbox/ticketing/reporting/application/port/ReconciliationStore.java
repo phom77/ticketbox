@@ -18,7 +18,7 @@ public interface ReconciliationStore {
                String provider, String paymentState, String orderStatus, long requestedAmount,
                String transactionId, Long collectedAmount, OffsetDateTime attemptedAt,
                OffsetDateTime verifiedAt, Long refundAmount, String refundReference,
-               OffsetDateTime changedAt, OffsetDateTime receivedAt) {}
+               OffsetDateTime changedAt, OffsetDateTime receivedAt, String referenceCode) {}
 
     record Totals(long transactions, long paidOrderSales, long verifiedCollections,
                   long missingSnapshots, OffsetDateTime latestSnapshot) {}

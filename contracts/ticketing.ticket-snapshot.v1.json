@@ -26,7 +26,11 @@
         "qr_code",
         "qr_secret",
         "status"
-      ]
+      ],
+      "properties": {
+        "reference_code": { "type": ["string", "null"], "maxLength": 32 },
+        "ticket_type_name": { "type": ["string", "null"], "maxLength": 500 }
+      }
     }
   }
 }

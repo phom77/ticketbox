@@ -46,7 +46,7 @@ import {
   performOnlineCheckin,
 } from './src/features/checkin';
 import type { ManualCheckinResult } from './src/features/checkin';
-import { mergeHistory } from './src/features/checkin/history';
+import { mergeHistory, type HistoryTicket } from './src/features/checkin/history';
 import { downloadCheckinDataset, syncPendingLogs } from './src/features/sync';
 import type { PendingSyncSummary } from './src/features/sync';
 import {
@@ -341,7 +341,7 @@ function ConcertWorkspace({
   const [gateError, setGateError] = useState<MessageKey | null>(null);
 
   const [localTickets, setLocalTickets] = useState<LocalTicketListItem[]>([]);
-  const [localTicketIndex, setLocalTicketIndex] = useState<Pick<LocalTicketListItem, 'qrCode' | 'ticketId'>[]>([]);
+  const [localTicketIndex, setLocalTicketIndex] = useState<HistoryTicket[]>([]);
   const [serverTickets, setServerTickets] = useState<StaffTicket[]>([]);
   const [localLogs, setLocalLogs] = useState<LocalCheckinLog[]>([]);
   const [serverHistory, setServerHistory] = useState<ServerCheckinHistory[]>([]);
@@ -510,7 +510,8 @@ function ConcertWorkspace({
 
   async function loadLocalTicketIndex() {
     const tickets = await listLocalTickets(accountId, selectedConcert.id);
-    setLocalTicketIndex(tickets.map(({ qrCode, ticketId }) => ({ qrCode, ticketId })));
+    setLocalTicketIndex(tickets.map(({ qrCode, ticketId, referenceCode, ticketTypeName }) =>
+      ({ qrCode, ticketId, referenceCode, ticketTypeName })));
   }
 
   async function handleSync() {

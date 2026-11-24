@@ -13,8 +13,12 @@ public interface OrderRepository {
 
     List<UUID> expiredOrderIds();
 
+    String nextReferenceCode();
+
+    List<Order> findAllById(Iterable<UUID> ids);
+
     org.springframework.data.domain.Page<Order> searchSupport(UUID organizationId, UUID concertId,
-            UUID orderId, UUID buyerId, String transactionRef, Pageable pageable);
+            UUID orderId, String referenceCode, UUID buyerId, String transactionRef, Pageable pageable);
 
     List<Order> findByUserIdOrderByCreatedAtDesc(UUID userId);
 

@@ -9,7 +9,8 @@ public interface EventDisruptionStore {
     record Operation(UUID id, UUID concertId, Kind kind, String reason, UUID actorId, OffsetDateTime eventDate) {}
     record Notice(Operation operation, UUID userId, String title) {}
     record PendingRefund(Operation operation, UUID orderId) {}
-    record Item(UUID orderId, String status, String paymentState, long amount, boolean casePrepared) {}
+    record Item(UUID orderId, String status, String paymentState, long amount, boolean casePrepared,
+                String referenceCode) {}
     record Impact(List<Item> content, int page, int size, long totalElements, int totalPages) {}
 
     boolean accept(Operation operation);

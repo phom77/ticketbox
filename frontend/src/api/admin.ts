@@ -86,6 +86,8 @@ export type StaffCheckinHistory = {
   notes: string | null;
   qrCode: string | null;
   ticketStatus: string | null;
+  referenceCode?: string | null;
+  ticketTypeName?: string | null;
 };
 
 export type BatchLogStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'PARTIAL' | 'FAILED' | 'SKIPPED';
@@ -541,7 +543,7 @@ export function getAdminOrders(
 }
 
 export type OrderSupportLookup = {
-  field: 'orderId' | 'buyerEmail' | 'transactionRef';
+  field: 'referenceCode' | 'orderId' | 'buyerEmail' | 'transactionRef';
   value: string;
 };
 
@@ -563,7 +565,7 @@ export function searchAdminOrders(
 }
 
 export type OrderSupportDetails = {
-  tickets: Array<Pick<Ticket, 'id' | 'status' | 'issuedAt'>>;
+  tickets: Array<Pick<Ticket, 'id' | 'referenceCode' | 'status' | 'issuedAt'>>;
   payment: {
     attempt: { state: string; provider: string; requestedAmount: number; transactionId: string | null; verifiedAt: string | null } | null;
     cases: RefundReview[];

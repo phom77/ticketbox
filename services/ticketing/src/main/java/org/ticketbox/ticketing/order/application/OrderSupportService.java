@@ -11,17 +11,24 @@ import org.ticketbox.ticketing.order.application.dto.OrderResponse;
 import org.ticketbox.ticketing.order.application.port.OrderRepository;
 import org.ticketbox.ticketing.order.application.port.OrderDeliveryStatus;
 import org.ticketbox.ticketing.order.application.port.OrderSupportQueue;
+import org.ticketbox.ticketing.order.domain.Order;
 import org.ticketbox.ticketing.issuance.application.port.TicketRepository;
 import org.ticketbox.ticketing.payment.application.port.PaymentGatewayClient;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @Service
 public class OrderSupportService {
+    private static final Pattern ORDER_REFERENCE = Pattern.compile("DH-[0-9]{8,19}");
+
     public record SearchPage(List<OrderResponse> content, int page, int size, long totalElements, int totalPages) {}
-    public record TicketStatus(UUID id, String status, java.time.OffsetDateTime issuedAt) {}
+    public record TicketStatus(UUID id, String status, java.time.OffsetDateTime issuedAt, String referenceCode) {}
 
     private final OrderRepository orders;
     private final OrderService orderService;
@@ -44,11 +51,15 @@ public class OrderSupportService {
     }
 
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
-    public SearchPage search(UUID organization, UUID concert, UUID order, String email, String transaction, int page, int size) {
+    public SearchPage search(UUID organization, UUID concert, UUID order, String referenceCode,
+            String email, String transaction, int page, int size) {
+        String reference = referenceCode == null || referenceCode.isBlank()
+                ? null : referenceCode.strip().toUpperCase(Locale.ROOT);
         boolean byEmail = email != null && !email.isBlank();
         boolean byTransaction = transaction != null && !transaction.isBlank();
-        int methods = (order == null ? 0 : 1) + (byEmail ? 1 : 0) + (byTransaction ? 1 : 0);
+        int methods = (order == null ? 0 : 1) + (reference == null ? 0 : 1) + (byEmail ? 1 : 0) + (byTransaction ? 1 : 0);
         if (methods != 1 || page < 0 || size < 1 || size > 100
+                || (reference != null && !ORDER_REFERENCE.matcher(reference).matches())
                 || (byEmail && email.length() > 254) || (byTransaction && transaction.length() > 255)) {
             throw new AppException(ErrorCode.INVALID_REQUEST, "error.invalid-request");
         }
@@ -57,19 +68,20 @@ public class OrderSupportService {
             buyer = identity.findAccountIdByEmail(email).orElse(null);
             if (buyer == null) return new SearchPage(List.of(), page, size, 0, 0);
         }
-        var found = orders.searchSupport(organization, concert, order, buyer,
+        var found = orders.searchSupport(organization, concert, order, reference, buyer,
                 byTransaction ? transaction.strip() : null, PageRequest.of(page, size));
         return new SearchPage(orderService.toOrderResponses(found.getContent()), page, size,
                 found.getTotalElements(), found.getTotalPages());
     }
 
     public Object detail(UUID organization, UUID order, String section) {
-        if (orders.searchSupport(organization, null, order, null, null, PageRequest.of(0, 1)).isEmpty()) {
+        if (orders.searchSupport(organization, null, order, null, null, null, PageRequest.of(0, 1)).isEmpty()) {
             throw new AppException(ErrorCode.ORDER_NOT_FOUND);
         }
         return switch (section) {
             case "tickets" -> tickets.findByOrderId(order).stream()
-                    .map(ticket -> new TicketStatus(ticket.getId(), ticket.getStatus().name(), ticket.getIssuedAt()))
+                    .map(ticket -> new TicketStatus(ticket.getId(), ticket.getStatus().name(),
+                            ticket.getIssuedAt(), ticket.getReferenceCode()))
                     .toList();
             case "delivery" -> delivery.emails(order);
             case "payment" -> paymentDetail(organization, order);
@@ -89,10 +101,22 @@ public class OrderSupportService {
     public OrderSupportQueue.Page queue(OrderSupportQueue.Kind kind, int page, int size) {
         if (page < 0 || size < 1 || size > 100) throw new AppException(ErrorCode.INVALID_REQUEST);
         return switch (kind) {
-            case FAILED_EMAIL -> delivery.failedEmails(page, size);
-            case PENDING_REFUND -> payment.map(provider -> provider.pendingRefunds(page, size))
-                    .orElseThrow(() -> new AppException(ErrorCode.SUPPORT_SOURCE_UNAVAILABLE));
+            case FAILED_EMAIL -> withOrderReferences(delivery.failedEmails(page, size));
+            case PENDING_REFUND -> withOrderReferences(payment.map(provider -> provider.pendingRefunds(page, size))
+                    .orElseThrow(() -> new AppException(ErrorCode.SUPPORT_SOURCE_UNAVAILABLE)));
             case UNKNOWN_PAYMENT, MISSING_TICKETS -> queue.list(kind, page, size);
         };
+    }
+
+    private OrderSupportQueue.Page withOrderReferences(OrderSupportQueue.Page results) {
+        if (results.content().isEmpty()) return results;
+
+        var orderIds = results.content().stream().map(OrderSupportQueue.Item::orderId)
+                .filter(Objects::nonNull).distinct().toList();
+        var references = orders.findAllById(orderIds).stream()
+                .collect(Collectors.toMap(Order::getId, Order::getReferenceCode));
+        var enriched = results.content().stream().map(item -> new OrderSupportQueue.Item(item.orderId(),
+                item.sourceId(), item.state(), item.updatedAt(), item.retryable(), references.get(item.orderId()))).toList();
+        return new OrderSupportQueue.Page(enriched, results.page(), results.size(), results.totalElements(), results.totalPages());
     }
 }

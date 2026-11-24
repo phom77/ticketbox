@@ -2,6 +2,7 @@ package com.ticketbox.notifications.infrastructure.persistence;
 
 import com.ticketbox.notifications.application.NotificationRejection;
 import com.ticketbox.notifications.application.port.NotificationQueries;
+import com.ticketbox.notifications.infrastructure.messaging.NotificationMessageBundle;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -12,9 +13,11 @@ import java.util.*;
 @Component
 public class NotificationQueryAdapter implements NotificationQueries {
     private final JdbcTemplate db;
+    private final NotificationMessageBundle content;
 
-    public NotificationQueryAdapter(JdbcTemplate db) {
+    public NotificationQueryAdapter(JdbcTemplate db, NotificationMessageBundle content) {
         this.db = db;
+        this.content = content;
     }
 
     private Map<String, Object> view(Map<String, Object> row) {
@@ -42,6 +45,8 @@ public class NotificationQueryAdapter implements NotificationQueries {
             if (item instanceof java.sql.Timestamp time) item = time.toInstant();
             value.put(name, item);
         }
+        value.put("body", content.visibleBody((String) row.get("event_type"), (UUID) row.get("reference_id"),
+                (String) row.get("body")));
         value.put("read", row.get("read_at") != null);
         return value;
     }

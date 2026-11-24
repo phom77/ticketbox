@@ -364,7 +364,7 @@ function OrderCard({ order, status }: { order: Order; status: OrderStatus }) {
         <span className={`buyer-order-status status-${status.toLowerCase()}`}>{t(orderStatusKeys[status])}</span>
       </header>
       <dl className="buyer-order-facts">
-        <div><dt>{t('customer:profilePage_order')}</dt><dd>{order.id}</dd></div>
+        {order.referenceCode && <div><dt>{t('customer:profilePage_order')}</dt><dd>{order.referenceCode}</dd></div>}
         <div><dt>{t('customer:profilePage_orderDate')}</dt><dd><time dateTime={order.createdAt}>{dateTime.format(new Date(order.createdAt))}</time></dd></div>
         {canResume ? (
           <div><dt>{t('customer:profilePage_reservedUntil')}</dt><dd><time dateTime={order.expiresAt}>{dateTime.format(deadline)}</time></dd></div>

@@ -21,4 +21,5 @@ public record OrderResponse(
         @JsonInclude(JsonInclude.Include.NON_NULL) UUID eventId,
         @JsonInclude(JsonInclude.Include.NON_NULL) String performanceTitle,
         @JsonInclude(JsonInclude.Include.NON_NULL) String performanceVenueName,
-        @JsonInclude(JsonInclude.Include.NON_NULL) OffsetDateTime performanceStartsAt) {}
+        @JsonInclude(JsonInclude.Include.NON_NULL) OffsetDateTime performanceStartsAt,
+        @JsonInclude(JsonInclude.Include.NON_NULL) String referenceCode) {}

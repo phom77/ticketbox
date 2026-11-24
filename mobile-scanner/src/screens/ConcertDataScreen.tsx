@@ -35,11 +35,11 @@ export function ConcertDataScreen(props: Props) {
   const tickets = useMemo(() => {
     const source = props.localTickets.length ? props.localTickets : props.serverTickets;
     return source.filter((item) => {
-      const { qrCode, ticketId } = item;
+      const { qrCode, referenceCode } = item;
       const matchesQuery =
         !normalizedQuery ||
         qrCode.toLowerCase().includes(normalizedQuery) ||
-        ticketId.toLowerCase().includes(normalizedQuery);
+        referenceCode?.toLowerCase().includes(normalizedQuery);
       return matchesQuery && matchesTicketStatus(item, ticketStatus);
     });
   }, [normalizedQuery, props.localTickets, props.serverTickets, ticketStatus]);
@@ -157,8 +157,11 @@ function TicketRow({ item }: { item: LocalTicketListItem | StaffTicket }) {
   return (
     <View style={styles.row}>
       <View style={styles.rowCopy}>
-        <Text style={styles.code}>{t('ticketId', { value: item.ticketId })}</Text>
-        <Text style={styles.meta}>{t('ticketType', { value: item.ticketTypeId })}</Text>
+        <Text style={styles.code}>{item.referenceCode ? t('ticketId', { value: item.referenceCode })
+          : item.ticketTypeName ?? t('ticketWithoutReference')}</Text>
+        {item.referenceCode && item.ticketTypeName ? (
+          <Text style={styles.meta}>{t('ticketType', { value: item.ticketTypeName })}</Text>
+        ) : null}
       </View>
       <StatusBadge label={t(ticketLabels[status])} tone={ticketTone(status)} />
     </View>

@@ -55,14 +55,23 @@ export function CheckoutEventTime({ date, venue }: { date?: string; venue?: stri
   );
 }
 
-export function CheckoutStatusPanel({ title, body, orderId, announce, children }: {
+export function CheckoutOrderReference({ code }: { code?: string | null }) {
+  const { t } = useTranslation();
+  if (!code) return null;
+  return (
+    <p className="purchase-order-reference">
+      <span>{t('customer:checkoutPage_orderReference')}</span> <b>{code}</b>
+    </p>
+  );
+}
+
+export function CheckoutStatusPanel({ title, body, referenceCode, announce, children }: {
   title: string;
   body: string;
-  orderId?: string;
+  referenceCode?: string | null;
   announce?: boolean;
   children?: ReactNode;
 }) {
-  const { t } = useTranslation();
   return (
     <section className="buyer-page purchase-page page-width purchase-feedback" aria-labelledby="purchase-status-title">
       <div className="purchase-panel purchase-status-panel">
@@ -70,11 +79,7 @@ export function CheckoutStatusPanel({ title, body, orderId, announce, children }
           <h1 id="purchase-status-title">{title}</h1>
           <p>{body}</p>
         </div>
-        {orderId && (
-          <p className="purchase-order-reference">
-            <span>{t('customer:checkoutPage_orderReference')}</span> <b>{orderId}</b>
-          </p>
-        )}
+        <CheckoutOrderReference code={referenceCode} />
         {children}
       </div>
     </section>

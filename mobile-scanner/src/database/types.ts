@@ -8,6 +8,8 @@ export type TicketSnapshot = {
   ticketId: string;
   qrCode: string;
   ticketTypeId: string;
+  referenceCode: string | null;
+  ticketTypeName: string | null;
   downloadedAt: string;
 };
 

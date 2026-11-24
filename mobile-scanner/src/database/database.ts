@@ -38,6 +38,8 @@ async function initializeDatabase(db: SQLiteDatabase) {
       ticket_id TEXT NOT NULL,
       qr_code TEXT NOT NULL,
       ticket_type_id TEXT NOT NULL,
+      reference_code TEXT,
+      ticket_type_name TEXT,
       downloaded_at TEXT NOT NULL,
       PRIMARY KEY (concert_id, ticket_id)
     );
@@ -81,6 +83,14 @@ async function initializeDatabase(db: SQLiteDatabase) {
       cached_at TEXT NOT NULL
     );
   `);
+
+  const ticketColumns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(ticket_snapshots)');
+  if (!ticketColumns.some(({ name }) => name === 'reference_code')) {
+    await db.execAsync('ALTER TABLE ticket_snapshots ADD COLUMN reference_code TEXT');
+  }
+  if (!ticketColumns.some(({ name }) => name === 'ticket_type_name')) {
+    await db.execAsync('ALTER TABLE ticket_snapshots ADD COLUMN ticket_type_name TEXT');
+  }
 
   return db;
 }
@@ -154,12 +164,16 @@ export async function saveCheckinDataset(accountId: string, dataset: SaveDataset
           ticket_id,
           qr_code,
           ticket_type_id,
+          reference_code,
+          ticket_type_name,
           downloaded_at
-        ) VALUES (?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
         dataset.concertId,
         ticket.ticketId,
         ticket.qrCode,
         ticket.ticketTypeId,
+        ticket.referenceCode ?? null,
+        ticket.ticketTypeName ?? null,
         downloadedAt,
       );
     }
@@ -178,6 +192,8 @@ export async function getTicketByQrCode(accountId: string, concertId: string, qr
       ticket_id AS ticketId,
       qr_code AS qrCode,
       ticket_type_id AS ticketTypeId,
+      reference_code AS referenceCode,
+      ticket_type_name AS ticketTypeName,
       downloaded_at AS downloadedAt
     FROM ticket_snapshots
     WHERE concert_id = ? AND qr_code = ?
@@ -195,6 +211,8 @@ export async function listLocalTickets(accountId: string, concertId: string) {
       ticket.ticket_id AS ticketId,
       ticket.qr_code AS qrCode,
       ticket.ticket_type_id AS ticketTypeId,
+      ticket.reference_code AS referenceCode,
+      ticket.ticket_type_name AS ticketTypeName,
       ticket.downloaded_at AS downloadedAt,
       log.status AS checkinStatus,
       log.checked_at AS checkedAt
