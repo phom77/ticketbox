@@ -10,7 +10,8 @@ import java.time.temporal.TemporalAdjusters;
 import java.util.Locale;
 
 public record DiscoveryQuery(String words, OffsetDateTime now, OffsetDateTime startsFrom,
-                             OffsetDateTime startsBefore, SaleStatus status, boolean saleStartFirst) {
+                             OffsetDateTime startsBefore, SaleStatus status, boolean saleStartFirst, String city, String category,
+                             Long minPrice, Long maxPrice) {
     private static final ZoneId VIETNAM = ZoneId.of("Asia/Ho_Chi_Minh");
 
     public enum DatePreset { ANY, TODAY, WEEKEND, NEXT_30, CUSTOM }
@@ -18,7 +19,8 @@ public record DiscoveryQuery(String words, OffsetDateTime now, OffsetDateTime st
     public enum SaleStatus { ON_SALE, UPCOMING, SOLD_OUT, CLOSED }
 
     public static DiscoveryQuery of(String query, DatePreset preset, LocalDate from, LocalDate to,
-                                    SaleStatus status, boolean saleStartFirst) {
+                                    SaleStatus status, boolean saleStartFirst, String city, String category,
+                                    Long minPrice, Long maxPrice) {
         var now = OffsetDateTime.now(ZoneOffset.UTC);
         var today = now.atZoneSameInstant(VIETNAM).toLocalDate();
         switch (preset) {
@@ -42,7 +44,9 @@ public record DiscoveryQuery(String words, OffsetDateTime now, OffsetDateTime st
         if (startsFrom == null && startsBefore == null && query.isEmpty() && status == null) startsFrom = now;
         var words = Normalizer.normalize(query, Normalizer.Form.NFD).replaceAll("\\p{M}+", "")
                 .toLowerCase(Locale.ROOT).replace('\u0111', 'd').replaceAll("(?U)\\s+", " ").strip();
-        return new DiscoveryQuery(words, now, startsFrom, startsBefore, status, saleStartFirst);
+        return new DiscoveryQuery(words, now, startsFrom, startsBefore, status, saleStartFirst,
+                city == null || city.isBlank() ? null : city.strip(),
+                category == null || category.isBlank() ? null : category.strip(), minPrice, maxPrice);
     }
 
     private static OffsetDateTime atMidnight(LocalDate date) {

@@ -382,7 +382,7 @@ export function CheckoutPage() {
           )}
           <Link
             className={`button ${pending && !expired ? 'button-secondary' : 'button-primary'}`}
-            to="/profile?tab=orders"
+            to="/account/orders"
           >
             {translate('customer:orderOutcome_viewOrderHistory')}
           </Link>
@@ -644,7 +644,7 @@ export function CheckoutPage() {
             >
               {translate('customer:orderOutcome_checkStatus')}
             </button>
-            <Link className="button button-secondary" to="/profile?tab=orders">
+            <Link className="button button-secondary" to="/account/orders">
               {translate('customer:orderOutcome_viewOrderHistory')}
             </Link>
           </div>
@@ -653,7 +653,7 @@ export function CheckoutPage() {
       {paymentCountdown.isExpired && (
         <div className="purchase-panel purchase-checkout-notice">
           <p role="alert">{translate('customer:checkoutPage_thoiGianThanhToanDaHetVui')}</p>
-          <Link className="button button-secondary" to="/profile?tab=orders">
+          <Link className="button button-secondary" to="/account/orders">
             {translate('customer:orderOutcome_viewOrderHistory')}
           </Link>
         </div>
@@ -671,7 +671,7 @@ export function CheckoutPage() {
               >
                 {translate('customer:checkoutPage_kiemTraLaiDon')}
               </button>
-              <Link className="button button-secondary" to="/profile?tab=orders">
+              <Link className="button button-secondary" to="/account/orders">
                 {translate('customer:orderOutcome_viewOrderHistory')}
               </Link>
             </div>

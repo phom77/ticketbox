@@ -58,7 +58,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
               {homeLabel}
             </Link>
             {user.role === 'AUDIENCE' ? (
-              <Link className="button button-secondary" to="/profile">
+              <Link className="button button-secondary" to="/account">
                 {t('viewProfile')}
               </Link>
             ) : null}

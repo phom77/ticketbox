@@ -107,7 +107,7 @@ const results = [];
 try {
   const { context, page, state } = await fixture();
   state.ordersStatus = 503;
-  await page.goto(origin + '/profile');
+  await page.goto(origin + '/account');
   const main = page.getByRole('main');
   await main.getByText(buyer.email, { exact: true }).waitFor();
   const profileReads = state.profileReads;
@@ -154,6 +154,7 @@ try {
   results.push('Save failure retains the form, retry updates the header and restores edit focus');
 
   await page.goto(origin + '/profile?tab=orders');
+  await page.waitForURL('**/account/orders');
   const history = main.getByRole('region', { name: 'Lịch sử đơn hàng' });
   const awaiting = history.getByRole('article', { name: mainEvent });
   const expired = history.getByRole('article', { name: 'Chương trình đã hết thời gian giữ vé' });
@@ -175,7 +176,12 @@ try {
   assert.equal(await expired.getByRole('link', { name: checkPayment }).getAttribute('href'), `/payment/result?orderId=${elapsedId}`);
   assert.equal(await unknown.getByRole('link', { name: checkPayment }).getAttribute('href'), `/payment/result?orderId=${unknownId}`);
   await refund.getByText('Đã hoàn tiền', { exact: true }).waitFor();
-  assert.equal(await refund.getByRole('link').count(), 0);
+  assert.deepEqual(
+    await refund.getByRole('link').evaluateAll((links) => [...new Set(links.map((link) => link.getAttribute('href')))]),
+    ['/account/orders/refunded-0-47b4'],
+    'A refunded order only links to its detail page.',
+  );
+  assert.equal(await awaiting.getByRole('link', { name: 'Xem đơn hàng' }).getAttribute('href'), `/account/orders/${awaitingId}`);
   await history.getByRole('button', { name: 'Cần xử lý' }).click();
   assert.equal(await history.getByRole('article').count(), 2);
   await history.getByRole('button', { name: 'Đã đóng' }).click();
@@ -185,16 +191,14 @@ try {
   await paid.getByRole('link', { name: 'Xem vé của sự kiện' }).click();
   await page.waitForURL('**/my-tickets?concertId=event-paid');
   const group = main.getByRole('article', { name: paidEvent });
-  const expand = group.getByRole('button', { name: `Ẩn vé · ${paidEvent}` });
-  await expand.waitFor();
-  assert.equal(await expand.getAttribute('aria-expanded'), 'true');
+  const openTicket = group.getByRole('link', { name: /^Mở mã QR · Vé tiêu chuẩn/ });
+  await openTicket.waitFor();
+  assert.equal(await openTicket.getAttribute('href'), '/my-tickets/ticket-event-paid');
   assert.equal(await main.getByRole('article').first().getAttribute('aria-labelledby'), await group.getAttribute('aria-labelledby'));
-  assert.equal(await main.getByRole('img', { name: /mã QR/i }).count(), 0);
-  await expand.click();
-  await group.getByRole('button', { name: `Xem vé · ${paidEvent}` }).waitFor();
+  assert.equal(await main.getByRole('img', { name: /mã QR/i }).count(), 0, 'The wallet list does not render QR codes.');
   await page.goto(origin + '/my-tickets?concertId=does-not-exist');
   await main.getByRole('heading', { name: walletOtherEvent }).waitFor();
-  assert.equal(await main.getByRole('button', { name: /ẩn vé/i }).count(), 0);
+  assert.equal(await main.getByRole('article').count(), 2);
   await page.goto(origin + '/profile?tab=tickets');
   await page.waitForURL('**/my-tickets');
   assert.equal(state.paymentStarts, 0);
@@ -203,7 +207,7 @@ try {
 
   const expiry = await fixture();
   await expiry.page.clock.install({ time: new Date(now) });
-  await expiry.page.goto(origin + '/profile?tab=orders');
+  await expiry.page.goto(origin + '/account/orders');
   const expiring = expiry.page.getByRole('article', { name: mainEvent });
   await expiring.getByRole('link', { name: continuePayment }).waitFor();
   await expiry.page.clock.fastForward(holdDuration + 100);
@@ -215,7 +219,7 @@ try {
   const empty = await fixture();
   empty.state.orders = [];
   empty.state.profileStatus = 503;
-  await empty.page.goto(origin + '/profile?tab=orders');
+  await empty.page.goto(origin + '/account/orders');
   await empty.page.getByRole('heading', { name: 'Chưa có đơn hàng' }).waitFor();
   assert.equal(empty.state.profileReads, 0);
   assert.equal(empty.state.ticketReads, 0);
@@ -224,7 +228,7 @@ try {
   for (const [identity, sessionDescription] of [[nextBuyer, 'another buyer'], [{ ...buyer, fullName: 'Minh sau khi đăng nhập' }, 'a new session for the same buyer']]) {
     const swap = await fixture();
     swap.state.otherBuyer = identity;
-    await swap.page.goto(origin + '/profile');
+    await swap.page.goto(origin + '/account');
     const swapMain = swap.page.getByRole('main');
     await swapMain.getByRole('button', { name: 'Chỉnh sửa' }).click();
     await swapMain.getByRole('textbox', { name: 'Họ tên' }).fill('Lưu đến trễ');
@@ -236,14 +240,14 @@ try {
     await swap.page.getByRole('button', { name: 'Đăng xuất' }).click();
     await swap.page.waitForFunction(() => !document.cookie.includes('ticketbox_auth_token='));
     await swap.page.evaluate(() => {
-      history.replaceState(window.history.state, '', '/profile');
+      history.replaceState(window.history.state, '', '/account');
       dispatchEvent(new PopStateEvent('popstate'));
     });
     await swap.page.waitForURL('**/login');
     await swap.page.getByLabel(/email/i).fill(identity.email);
     await swap.page.getByLabel('Mật khẩu', { exact: true }).fill('test-password');
     await swap.page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
-    await swap.page.waitForURL('**/profile');
+    await swap.page.waitForURL('**/account');
     await swapMain.getByText(identity.fullName, { exact: true }).waitFor();
     swap.state.patchGate.resolve();
     await swapMain.getByRole('link', { name: 'Lịch sử đơn hàng' }).click();
@@ -258,8 +262,8 @@ try {
   for (const language of ['vi', 'en']) {
     const preview = await fixture({ language });
     for (const [pageName, path, title] of [
-      ['orders', '/profile?tab=orders', language === 'vi' ? 'Lịch sử đơn hàng' : 'Order history'],
-      ['profile', '/profile', language === 'vi' ? 'Thông tin cá nhân' : 'Personal details'],
+      ['orders', '/account/orders', language === 'vi' ? 'Lịch sử đơn hàng' : 'Order history'],
+      ['profile', '/account', language === 'vi' ? 'Thông tin cá nhân' : 'Personal details'],
     ]) {
       await preview.page.goto(origin + path);
       const previewMain = preview.page.getByRole('main');

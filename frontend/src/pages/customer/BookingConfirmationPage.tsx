@@ -65,7 +65,7 @@ function VerifyConfirmation({ orderId }: { orderId: string }) {
         body={t('customer:orderOutcome_verifyingOrderBody')}
       >
         <div className="purchase-status-actions">
-          <Link className="button button-secondary" to="/profile?tab=orders">
+          <Link className="button button-secondary" to="/account/orders">
             {t('customer:orderOutcome_viewOrderHistory')}
           </Link>
         </div>
@@ -91,7 +91,7 @@ function UnconfirmedOrder({ expired }: { expired?: boolean }) {
       body={t('customer:orderOutcome_checkHistoryBody')}
     >
       <div className="purchase-status-actions">
-        <Link className="button button-primary" to="/profile?tab=orders">
+        <Link className="button button-primary" to="/account/orders">
           {t('customer:orderOutcome_viewOrderHistory')}
         </Link>
       </div>
@@ -324,7 +324,10 @@ function ConfirmedOrder({ order }: { order: Order }) {
         <Link className="button button-primary" to="/my-tickets">
           {t('customer:bookingConfirmationPage_xemVeCuaToi')}
         </Link>
-        <Link className="button button-secondary" to="/profile?tab=orders">
+        <Link
+          className="button button-secondary"
+          to={`/account/orders/${encodeURIComponent(order.id)}`}
+        >
           {t('customer:confirm2_orderDetails')}
         </Link>
       </div>

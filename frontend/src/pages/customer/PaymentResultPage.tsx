@@ -246,7 +246,7 @@ function PaymentResult({
         )}
         <Link
           className={canCheckOrder ? 'button button-secondary' : 'button button-primary'}
-          to="/profile?tab=orders"
+          to="/account/orders"
         >
           {t('customer:orderOutcome_viewOrderHistory')}
         </Link>
