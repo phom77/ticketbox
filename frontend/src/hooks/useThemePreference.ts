@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useSyncExternalStore } from 'react';
+import { useCallback, useLayoutEffect, useSyncExternalStore } from 'react';
 
 export type Theme = 'light' | 'dark';
 
@@ -65,7 +65,8 @@ export function useThemePreference() {
  */
 export function useDocumentTheme() {
   const { theme } = useThemePreference();
-  useEffect(() => {
+  // A layout effect applies the theme before the first paint, avoiding a light flash.
+  useLayoutEffect(() => {
     const root = document.documentElement;
     root.dataset.theme = theme;
     return () => {
