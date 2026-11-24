@@ -87,13 +87,18 @@ pwsh -File scripts/ci/verify.ps1
 
 By default Maven/Java 21 run in Docker, with `host.docker.internal` mapped to the Docker host for Testcontainers. With Java 21 installed locally, use `-BackendMode Local`. Surefire writes XML under each application's `target/surefire-reports/`. CI records those results and JAR hashes in `.artifacts/verification/verification.json`. [Required suites by function](../scripts/ci/java-suites.json) identifies the required suites for each of the six services.
 
-Run these checks from the repository root.
+Run these checks from the repository root. Each service requires Java 21: the Maven enforcer stops a build on any other JDK before compiling. Without a local JDK 21, run the same Maven arguments through `scripts/mvnw-docker.sh`. It runs Maven in a Java 21 container as your user, shares `~/.m2` (set `TICKETBOX_MAVEN_HOME` to use another directory) and lets Testcontainers start sibling containers through the host Docker socket. It needs neither PowerShell nor a host JDK.
 
 ```sh
 ./mvnw -B -ntp clean verify
 ./mvnw -B -ntp -f services/ticketing/pom.xml clean verify
+./mvnw -B -ntp -f services/payment/pom.xml test -Dtest=PaymentIntegrationTest
+scripts/mvnw-docker.sh -B -ntp clean verify
+scripts/mvnw-docker.sh -B -ntp -f services/payment/pom.xml test -Dtest=PaymentIntegrationTest
 python3 scripts/ci/verify-service-boundaries.py --service ticketing
 ```
+
+Testcontainers reads `api.version=1.44` from each service's `src/test/resources/docker-java.properties`, the minimum API version Docker Engine 29 accepts. If `clean` cannot delete files in a `target/` directory, an earlier root container build created them. Remove that directory with root permissions, for example `docker run --rm --security-opt label=disable -v "$PWD/services/catalog:/svc" alpine:3 rm -rf /svc/target`.
 
 ```sh
 cd frontend

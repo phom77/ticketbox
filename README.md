@@ -117,12 +117,13 @@ legacy/core/       Manual Core deployment and cutover tools
 ## Verification and documentation
 
 ```sh
-./mvnw -B -ntp clean verify              # Six-service Maven reactor
+./mvnw -B -ntp clean verify              # Six-service Maven reactor (requires Java 21)
+scripts/mvnw-docker.sh -B -ntp clean verify   # The same reactor in a Java 21 container
 pwsh -File scripts/ci/verify.ps1          # Java, image ownership, web and scanner checks
 pwsh -File scripts/e2e/run.ps1 -Build     # Isolated distributed workflow and fault tests
 ```
 
-Java integration tests require Docker. PowerShell 7 runs the shared verification scripts; Python 3 runs split-service acceptance and cutover checks; Node.js 24 is used for local web/scanner development and smoke checks. See [development and testing](docs/development.md) for individual commands, browser regression, restore rehearsal and optional monitoring.
+Java integration tests require Docker. Services build on Java 21; `scripts/mvnw-docker.sh` runs Maven in a container when the host JDK differs. PowerShell 7 runs the shared verification scripts; Python 3 runs split-service acceptance and cutover checks; Node.js 24 is used for local web/scanner development and smoke checks. See [development and testing](docs/development.md) for individual commands, browser regression, restore rehearsal and optional monitoring.
 
 - [Architecture and consistency](docs/architecture.md)
 - [Development and testing](docs/development.md)
