@@ -68,6 +68,24 @@ export function HeaderSearch({
   const [date, setDate] = useState(initial.date);
   const [from, setFrom] = useState(initial.from);
   const [to, setTo] = useState(initial.to);
+  // Follow the URL when it changes elsewhere (browse row, catalogue filters, back/forward),
+  // so a later header search does not overwrite those filters with stale values.
+  const initialKey = JSON.stringify([
+    initial.where,
+    initial.what,
+    initial.date,
+    initial.from,
+    initial.to,
+  ]);
+  const [syncedKey, setSyncedKey] = useState(initialKey);
+  if (syncedKey !== initialKey) {
+    setSyncedKey(initialKey);
+    setWhere(initial.where);
+    setWhat(initial.what);
+    setDate(initial.date);
+    setFrom(initial.from);
+    setTo(initial.to);
+  }
   const [whenOpen, setWhenOpen] = useState(false);
   const [listOpen, setListOpen] = useState(false);
   const [active, setActive] = useState(-1);

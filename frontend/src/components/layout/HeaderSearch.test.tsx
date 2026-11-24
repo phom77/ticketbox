@@ -116,6 +116,27 @@ describe('HeaderSearch', () => {
     expect(onSearch).not.toHaveBeenCalled();
   });
 
+  it('follows filter changes made outside the header', () => {
+    const onSearch = vi.fn();
+    const { rerender } = render(
+      <HeaderSearch initial={empty} onSearch={onSearch} onOpenEvent={vi.fn()} />,
+    );
+    // The browse row or catalogue filters change the URL; the header must not keep stale values.
+    rerender(
+      <HeaderSearch
+        initial={{ ...empty, what: 'jazz', date: 'weekend' }}
+        onSearch={onSearch}
+        onOpenEvent={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole('combobox', { name: /Find events/ })).toHaveValue('jazz');
+    expect(screen.getByRole('button', { name: 'When: This weekend' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+    expect(onSearch).toHaveBeenCalledWith(
+      expect.objectContaining({ what: 'jazz', date: 'weekend' }),
+    );
+  });
+
   it('says when suggestions fail and still allows searching', async () => {
     getDiscoveryEvents.mockRejectedValue(new Error('down'));
     const { onSearch, what } = renderSearch();
