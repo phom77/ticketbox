@@ -97,7 +97,7 @@ export function purchasePaths(view: Pick<EventView, 'id' | 'eventId'>) {
   return {
     details: view.eventId ? eventPath(view.eventId) : base,
     waitingRoom: base + '/waiting-room',
-    selection: base + '/seats',
+    selection: (view.eventId ? base : '/events/' + encodeURIComponent(view.id)) + '/tickets',
   };
 }
 

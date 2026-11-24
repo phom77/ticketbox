@@ -119,12 +119,12 @@ describe('EventView adapter', () => {
     expect(purchasePaths({ id: 'concert 1' })).toEqual({
       details: '/concerts/concert%201',
       waitingRoom: '/concerts/concert%201/waiting-room',
-      selection: '/concerts/concert%201/seats',
+      selection: '/events/concert%201/tickets',
     });
     expect(purchasePaths({ id: 'show-1', eventId: 'event-1' })).toEqual({
       details: '/events/event-1',
       waitingRoom: '/events/event-1/performances/show-1/waiting-room',
-      selection: '/events/event-1/performances/show-1/seats',
+      selection: '/events/event-1/performances/show-1/tickets',
     });
   });
 

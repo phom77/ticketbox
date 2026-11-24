@@ -44,7 +44,7 @@ import {
   CheckoutOrderReference,
   CheckoutStatusPanel,
 } from './CheckoutDetails';
-import type { CheckoutSelection } from './SeatSelectionPage';
+import type { CheckoutSelection } from '../../features/ticketSelection/selection';
 
 type CheckoutState = {
   event: CheckoutEvent;

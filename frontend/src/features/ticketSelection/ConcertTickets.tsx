@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, CalendarDays, MapPin, Minus, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { ApiClientError, isRequestCanceled } from '../../api/client';
 import { getConcert, type ConcertDetail, type TicketType } from '../../api/concerts';
 import { clearStoredQueueAdmission, getStoredQueueAdmission, leaveQueue } from '../../api/queue';
@@ -12,37 +11,40 @@ import {
   reserveTicket,
 } from '../../api/reservations';
 import { ConcertSeatMap } from '../../components/ConcertSeatMap';
+import { BuyerState } from '../../components/feedback/BuyerState';
+import { PanelSkeleton } from '../../components/feedback/Skeleton';
 import { useToast } from '../../components/feedback/toast-context';
-import { dateFormatter } from '../../data/formatters';
 import { HoldTimer } from '../../components/purchase/HoldTimer';
-import { PurchaseProgress } from '../../components/purchase/PurchaseProgress';
-import { purchasePaths } from '../../features/event/eventView';
-import { AllInPriceNote } from '../../features/price/AllInPrice';
-import { formatPrice } from '../../features/price/price';
-import { useAuth } from '../../features/auth/AuthContext';
-import { concertTitle } from '../../features/concert/concertText';
-import { useTicketAvailability } from '../../features/concert/useTicketAvailability';
+import { dateFormatter } from '../../data/formatters';
+import { formatPrice } from '../price/price';
+import { concertTitle } from '../concert/concertText';
+import { useTicketAvailability } from '../concert/useTicketAvailability';
 import { translate } from '../../i18n';
-import './SeatSelectionPage.css';
-
-export type CheckoutSelection = Pick<TicketType, 'id' | 'name' | 'price'> & {
-  quantity: number;
-  sectionLabel?: string | null;
-  rowLabel?: string | null;
-  seatLabel?: string | null;
-};
+import { purchasePaths } from '../event/eventView';
+import { MapViewport } from './MapViewport';
+import {
+  FilterBar,
+  Legend,
+  OfferRowView,
+  SelectionSummary,
+  Stepper,
+  type SummaryItem,
+} from './SelectionParts';
+import { TicketSelectionShell } from './TicketSelectionShell';
+import {
+  defaultFilters,
+  parseQuantity,
+  visibleRows,
+  type OfferRow,
+  type SelectionFilters,
+} from './selection';
 
 type HoldAction = 'reserve' | 'release' | 'verify';
 type HoldFeedback = { kind: 'error' | 'confirmed' | 'unverified'; message: string };
 const eventDateTime = dateFormatter({ dateStyle: 'medium', timeStyle: 'short' });
 
-export function SeatSelectionPage() {
-  const { id } = useParams();
-  const { user } = useAuth();
-  return id ? <SeatSelection key={`${user?.id ?? ''}:${id}`} id={id} /> : null;
-}
-
-function SeatSelection({ id }: { id: string }) {
+/** Legacy zone-only concerts, adapted to the unified Choose tickets page. Holds change per click. */
+export function ConcertTickets({ id }: { id: string }) {
   useTranslation();
   const navigate = useNavigate();
   const toast = useToast();
@@ -56,6 +58,12 @@ function SeatSelection({ id }: { id: string }) {
   const [feedback, setFeedback] = useState<Record<string, HoldFeedback | null>>({});
   const [reloadKey, setReloadKey] = useState(0);
   const [leaving, setLeaving] = useState(false);
+  const { search } = useLocation();
+  const [filters, setFilters] = useState<SelectionFilters>(() => ({
+    ...defaultFilters,
+    quantity: parseQuantity(search),
+  }));
+  const [tip, setTip] = useState<string | null>(null);
   const inFlight = useRef(new Set<string>());
   const active = useRef(false);
   const token = admission?.queueAccessToken;
@@ -335,6 +343,24 @@ function SeatSelection({ id }: { id: string }) {
     navigate(purchasePaths({ id }).details, { replace: true });
   }
 
+  const rows: OfferRow[] = pickerTypes.map((type) => ({
+    key: type.id,
+    sectionId: null,
+    sectionLabel: type.name,
+    sectionOrder: null,
+    offerId: type.id,
+    offerName: type.name,
+    price: type.price,
+    available: type.availableQty,
+    kind: 'ZONE',
+    maxPerAccount: type.maxPerAccount,
+  }));
+  const listed = visibleRows(
+    rows,
+    filters,
+    (row) => (heldQuantities[row.key] ?? 0) > 0 || Boolean(zoneLoading[row.key]),
+  );
+
   if (
     !admission ||
     concertStatus === 'loading' ||
@@ -343,10 +369,13 @@ function SeatSelection({ id }: { id: string }) {
   ) {
     return (
       <div className="buyer-page purchase-page page-width">
-        <div className="buyer-state" role="status">
-          <h1>{translate('customer:seatSelectionPage_chonVe')}</h1>
-          <p>{translate('customer:seatSelectionPage_loading')}</p>
-        </div>
+        <BuyerState
+          tone="loading"
+          headingLevel={1}
+          title={translate('customer:seatSelectionPage_chonVe')}
+        >
+          <PanelSkeleton label={translate('customer:seatSelectionPage_loading')} />
+        </BuyerState>
       </div>
     );
   }
@@ -354,271 +383,191 @@ function SeatSelection({ id }: { id: string }) {
   if (!concert || concertStatus === 'failed' || initialLoadFailed || holdsStatus === 'failed') {
     return (
       <div className="buyer-page purchase-page page-width">
-        <div className="buyer-state purchase-seat-error" role="alert">
-          <h1>{translate('customer:seatSelectionPage_loadFailed')}</h1>
-          <p>{translate('customer:seatSelectionPage_loadFailedHelp')}</p>
-          <div>
-            <button
-              className="button button-primary"
-              type="button"
-              onClick={() => setReloadKey((value) => value + 1)}
-            >
-              {translate('customer:seatSelectionPage_thuLai')}
-            </button>
-            <button
-              className="button button-secondary"
-              type="button"
-              disabled={leaving}
-              onClick={() => void leaveSelection()}
-            >
-              {translate('customer:seatSelectionPage_chiTietSuKien')}
-            </button>
-          </div>
-        </div>
+        <BuyerState
+          tone="error"
+          headingLevel={1}
+          title={translate('customer:seatSelectionPage_loadFailed')}
+          actions={
+            <>
+              <button
+                className="button button-primary"
+                type="button"
+                onClick={() => setReloadKey((value) => value + 1)}
+              >
+                {translate('customer:seatSelectionPage_thuLai')}
+              </button>
+              <button
+                className="button button-secondary"
+                type="button"
+                disabled={leaving}
+                onClick={() => void leaveSelection()}
+              >
+                {translate('customer:seatSelectionPage_chiTietSuKien')}
+              </button>
+            </>
+          }
+        >
+          {translate('customer:seatSelectionPage_loadFailedHelp')}
+        </BuyerState>
       </div>
     );
   }
 
+  const summaryItems: SummaryItem[] = selection.map((item) => ({
+    key: item.id,
+    title: item.name,
+    detail: '× ' + item.quantity,
+    price: item.price * item.quantity,
+  }));
+  const updating = Object.keys(zoneLoading).length > 0;
+  const zoneTip = (typeId: string | null) => {
+    const type = typeId ? pickerTypes.find((entry) => entry.id === typeId) : null;
+    setTip(
+      type
+        ? `${type.name} · ${formatPrice(type.price)} · ${
+            type.availableQty > 0
+              ? translate('customer:seatSelectionPage_conVe')
+              : translate('customer:seatSelectionPage_hetVe')
+          }`
+        : null,
+    );
+  };
+
   return (
-    <div className="buyer-page purchase-page page-width purchase-seat-page">
-      <header className="purchase-header purchase-seat-header">
-        <button
-          className="back-link purchase-seat-back"
-          type="button"
-          disabled={leaving || Object.keys(zoneLoading).length > 0}
-          onClick={() => void leaveSelection()}
-        >
-          <ArrowLeft size={16} aria-hidden="true" />
-          {translate('customer:seatSelectionPage_chiTietSuKien')}
-        </button>
-        <div className="purchase-seat-context">
-          <PurchaseProgress current="tickets" />
-          <h1>{concertTitle(concert)}</h1>
-          <p className="purchase-seat-event">
-            <span>
-              <CalendarDays size={16} aria-hidden="true" />
-              {eventDateTime.format(new Date(concert.eventDate))}
-            </span>
-            {concert.venueName ? (
-              <span>
-                <MapPin size={16} aria-hidden="true" />
-                {concert.venueName}
-              </span>
-            ) : null}
-          </p>
-        </div>
-        <SelectionDeadline expiresAt={admission.sessionExpiresAt} />
-      </header>
-
-      <div className="purchase-columns">
-        <section
-          className="purchase-panel purchase-seat-map"
-          aria-labelledby="purchase-seat-map-title"
-        >
-          <h2 id="purchase-seat-map-title">{translate('customer:seatSelectionPage_map')}</h2>
-          <ConcertSeatMap
-            svg={concert.seatMapSvg}
-            selectedTicketTypeId={currentType?.id ?? null}
-            disabledTicketTypeIds={disabledZoneIds}
-            ticketTypeLabels={typeLabels}
-            onZoneSelect={setSelectedZone}
-          />
+    <TicketSelectionShell
+      title={concertTitle(concert)}
+      subtitle={
+        <>
+          <time dateTime={concert.eventDate}>
+            {eventDateTime.format(new Date(concert.eventDate))}
+          </time>
+          {concert.venueName ? <> · {concert.venueName}</> : null}
+        </>
+      }
+      backLabel={translate('customer:seatSelectionPage_chiTietSuKien')}
+      backDisabled={leaving || updating}
+      onBack={() => void leaveSelection()}
+      filters={<FilterBar rows={rows} filters={filters} maxQuantity={10} onChange={setFilters} />}
+      map={
+        <>
+          <div className="ts-pane-head">
+            <h2>{translate('customer:seatSelectionPage_map')}</h2>
+          </div>
+          <MapViewport tip={tip}>
+            <ConcertSeatMap
+              svg={concert.seatMapSvg}
+              selectedTicketTypeId={currentType?.id ?? null}
+              disabledTicketTypeIds={disabledZoneIds}
+              ticketTypeLabels={typeLabels}
+              onZoneSelect={setSelectedZone}
+              onZoneHover={zoneTip}
+            />
+          </MapViewport>
+          <Legend />
           {concert.seatMapSvg ? (
-            <p>{translate('customer:seatSelectionPage_chonPhanKhuTrenSoDoHoac')}</p>
+            <p className="ts-hint">
+              {translate('customer:seatSelectionPage_chonPhanKhuTrenSoDoHoac')}
+            </p>
           ) : null}
-        </section>
-
-        <aside
-          className="purchase-panel purchase-ticket-picker"
-          aria-labelledby="purchase-ticket-picker-title"
-        >
-          <h2 id="purchase-ticket-picker-title">
-            {translate('customer:seatSelectionPage_chonHangVe')}
-          </h2>
+        </>
+      }
+      list={
+        <>
+          <div className="ts-pane-head">
+            <h2>{translate('customer:seatSelectionPage_chonHangVe')}</h2>
+          </div>
           {updatesDelayed ? (
-            <p className="purchase-seat-feedback" role="status">
+            <p className="ts-notice" role="status">
               {translate('customer:seatSelectionPage_availabilityDelayed')}
             </p>
           ) : null}
-          {pickerTypes.length ? (
-            <div className="purchase-zone-list">
-              {pickerTypes.map((type) => (
-                <TicketTypeRow
-                  key={type.id}
-                  type={type}
-                  selected={currentType?.id === type.id}
-                  quantity={heldQuantities[type.id] ?? 0}
-                  updating={zoneLoading[type.id]}
-                  feedback={feedback[type.id]}
-                  leaving={leaving}
-                  onSelect={() => setSelectedZone(type.id)}
-                  onUpdate={(action) => void updateQuantity(type, action)}
-                />
-              ))}
-            </div>
-          ) : (
-            <p className="purchase-seat-feedback">
-              {translate('customer:seatSelectionPage_noTypes')}
-            </p>
-          )}
           {hasUnknownHold ? (
-            <p role="alert" className="purchase-seat-feedback">
+            <p role="alert" className="ts-notice">
               {translate('customer:seatSelectionPage_missingHeldType')}
             </p>
           ) : null}
-          <div className="purchase-action-bar">
-            <div className="purchase-seat-total">
-              <span>
-                {translate('customer:seatSelectionPage_veDangGiu', { count: ticketCount })}
-              </span>
-              <strong>
-                {hasUnknownHold ? (
-                  translate('customer:seatSelectionPage_subtotalUnavailable')
-                ) : (
-                  <>
-                    {translate('customer:seatSelectionPage_subtotal')} {formatPrice(subtotal)}
-                  </>
-                )}
-              </strong>
-              <AllInPriceNote />
-            </div>
-            <button
-              className="button button-primary"
-              type="button"
-              disabled={checkoutDisabled}
-              onClick={continueToCheckout}
+          {listed.length ? (
+            <ul className="ts-rows">
+              {listed.map((row) => {
+                const type = pickerTypes.find((entry) => entry.id === row.key)!;
+                const note = feedback[row.key];
+                const pending = zoneLoading[row.key];
+                const locked = Boolean(pending) || note?.kind === 'unverified' || leaving;
+                return (
+                  <OfferRowView key={row.key} row={row} selected={currentType?.id === row.key}>
+                    <Stepper
+                      row={row}
+                      quantity={heldQuantities[row.key] ?? 0}
+                      busy={locked}
+                      onAdd={() => void updateQuantity(type, 'reserve')}
+                      onRemove={() => void updateQuantity(type, 'release')}
+                    />
+                    {pending ? (
+                      <small role="status">
+                        {translate(
+                          pending === 'reserve'
+                            ? 'customer:seatSelectionPage_dangGiu'
+                            : pending === 'release'
+                              ? 'customer:seatSelectionPage_dangGiaiPhong'
+                              : 'customer:seatSelectionPage_holdVerifying',
+                        )}
+                      </small>
+                    ) : note ? (
+                      <small
+                        className="ts-reason"
+                        role={note.kind === 'confirmed' ? 'status' : 'alert'}
+                      >
+                        {note.message}
+                        {note.kind === 'unverified' ? (
+                          <button
+                            className="button button-secondary"
+                            type="button"
+                            disabled={leaving}
+                            onClick={() => void updateQuantity(type, 'verify')}
+                          >
+                            {translate('customer:seatSelectionPage_holdRetry')}
+                          </button>
+                        ) : null}
+                      </small>
+                    ) : null}
+                  </OfferRowView>
+                );
+              })}
+            </ul>
+          ) : (
+            <BuyerState
+              tone="empty"
+              title={translate(
+                rows.length
+                  ? 'customer:ticketSelection_noMatchTitle'
+                  : 'customer:seatSelectionPage_noTypes',
+              )}
             >
-              {translate('customer:seatSelectionPage_tiepTucThanhToan')}{' '}
-              <ArrowRight size={17} aria-hidden="true" />
-            </button>
-          </div>
-        </aside>
-      </div>
-    </div>
-  );
-}
-
-function SelectionDeadline({ expiresAt }: { expiresAt: string }) {
-  return (
-    <div className="purchase-seat-time">
-      <HoldTimer
-        expiresAt={expiresAt}
-        label={translate('customer:seatSelectionPage_thoiGianChonVe')}
-        warningMessage={translate('customer:seatSelectionPage_phienMuaVe10PhutCuaBan')}
-      />
-    </div>
-  );
-}
-
-function TicketTypeRow({
-  type,
-  selected,
-  quantity,
-  updating,
-  feedback,
-  leaving,
-  onSelect,
-  onUpdate,
-}: {
-  type: TicketType;
-  selected: boolean;
-  quantity: number;
-  updating?: HoldAction;
-  feedback: HoldFeedback | null;
-  leaving: boolean;
-  onSelect: () => void;
-  onUpdate: (action: HoldAction) => void;
-}) {
-  const soldOut = type.availableQty <= 0;
-  const locked = Boolean(updating) || feedback?.kind === 'unverified' || leaving;
-  const canAdd = !locked && !soldOut && quantity < type.maxPerAccount;
-  const canRemove = !locked && quantity > 0;
-  const row = useRef<HTMLElement>(null);
-  const headingId = `purchase-zone-${type.id}`;
-  const pendingLabel = {
-    reserve: 'customer:seatSelectionPage_dangGiu',
-    release: 'customer:seatSelectionPage_dangGiaiPhong',
-    verify: 'customer:seatSelectionPage_holdVerifying',
-  } as const;
-
-  return (
-    <article
-      className="purchase-zone"
-      data-selected={selected}
-      aria-labelledby={headingId}
-      ref={row}
-      tabIndex={-1}
-    >
-      <div className="purchase-zone-info">
-        <h3 id={headingId}>
-          <button
-            type="button"
-            aria-pressed={selected}
-            disabled={soldOut && !quantity}
-            onClick={onSelect}
-          >
-            {type.name}
-          </button>
-        </h3>
-        <p className="purchase-zone-price">
-          <strong>{formatPrice(type.price)}</strong>
-        </p>
-        <p>
-          {translate('customer:seatSelectionPage_toiDaVeTaiKhoan', { arg1: type.maxPerAccount })}
-        </p>
-      </div>
-      <div className="purchase-zone-actions">
-        <p className="purchase-zone-availability" data-sold-out={soldOut}>
-          {soldOut
-            ? translate('customer:seatSelectionPage_hetVe')
-            : translate('customer:seatSelectionPage_conVe')}
-        </p>
-        <div className="purchase-zone-quantity" aria-busy={Boolean(updating)}>
-          <button
-            type="button"
-            aria-label={translate('customer:seatSelectionPage_boMotVe', { arg1: type.name })}
-            aria-disabled={!canRemove}
-            onClick={() => {
-              if (canRemove) onUpdate('release');
-            }}
-          >
-            <Minus size={16} aria-hidden="true" />
-          </button>
-          <span aria-live="polite">{quantity}</span>
-          <button
-            type="button"
-            aria-label={translate('customer:seatSelectionPage_themMotVe', { arg1: type.name })}
-            aria-disabled={!canAdd}
-            onClick={() => {
-              if (canAdd) onUpdate('reserve');
-            }}
-          >
-            <Plus size={16} aria-hidden="true" />
-          </button>
-        </div>
-      </div>
-      {updating ? (
-        <p className="purchase-zone-feedback" role="status">
-          {translate(pendingLabel[updating])}
-        </p>
-      ) : feedback ? (
-        <div className="purchase-zone-feedback" data-error={feedback.kind !== 'confirmed'}>
-          <p role={feedback.kind === 'confirmed' ? 'status' : 'alert'}>{feedback.message}</p>
-          {feedback.kind === 'unverified' ? (
-            <button
-              className="button button-secondary"
-              type="button"
-              disabled={leaving}
-              onClick={() => {
-                row.current?.focus();
-                onUpdate('verify');
-              }}
-            >
-              {translate('customer:seatSelectionPage_holdRetry')}
-            </button>
-          ) : null}
-        </div>
-      ) : null}
-    </article>
+              {rows.length ? translate('customer:ticketSelection_noMatch') : undefined}
+            </BuyerState>
+          )}
+        </>
+      }
+      summary={
+        <SelectionSummary
+          items={summaryItems}
+          total={hasUnknownHold ? null : subtotal}
+          wanted={filters.quantity}
+          held={ticketCount}
+          busy={updating}
+          leaving={leaving}
+          continueDisabled={checkoutDisabled}
+          onContinue={continueToCheckout}
+          onLeave={() => void leaveSelection()}
+          timer={
+            <HoldTimer
+              expiresAt={admission.sessionExpiresAt}
+              label={translate('customer:seatSelectionPage_thoiGianChonVe')}
+              warningMessage={translate('customer:seatSelectionPage_phienMuaVe10PhutCuaBan')}
+            />
+          }
+        />
+      }
+    />
   );
 }

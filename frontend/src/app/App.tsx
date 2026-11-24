@@ -1,6 +1,4 @@
 import { EventDetailPage } from '../pages/public/EventDetailPage';
-import { PerformanceSelectionPage } from '../pages/customer/PerformanceSelectionPage';
-import '../pages/public/Performances.css';
 import { translate } from '../i18n';
 import { useTranslation } from 'react-i18next';
 import {
@@ -22,7 +20,8 @@ import { MyTicketsPage } from '../pages/customer/MyTicketsPage';
 import { NotificationsPage } from '../pages/customer/NotificationsPage';
 import { PaymentResultPage } from '../pages/customer/PaymentResultPage';
 import { ProfilePage } from '../pages/customer/ProfilePage';
-import { SeatSelectionPage } from '../pages/customer/SeatSelectionPage';
+import '../pages/public/Performances.css';
+import { TicketSelectionPage } from '../pages/customer/TicketSelectionPage';
 import { WaitingRoomPage } from '../pages/customer/WaitingRoomPage';
 import { EventCataloguePage, HomePage } from '../pages/public/HomePage';
 import { LoginPage } from '../pages/public/LoginPage';
@@ -139,6 +138,20 @@ function ConcertRedirect() {
   return <Navigate replace to={{ pathname: '/events/' + encodeURIComponent(id), search, hash }} />;
 }
 
+/** The earlier seat routes now land on Choose tickets. */
+function SeatsRedirect() {
+  const { id = '', eventId } = useParams();
+  const { search, hash } = useLocation();
+  const pathname = eventId
+    ? '/events/' +
+      encodeURIComponent(eventId) +
+      '/performances/' +
+      encodeURIComponent(id) +
+      '/tickets'
+    : '/events/' + encodeURIComponent(id) + '/tickets';
+  return <Navigate replace to={{ pathname, search, hash }} />;
+}
+
 const cataloguePage = (page: React.ReactNode) => <CatalogueRoute>{page}</CatalogueRoute>;
 const DiscoveryPreviewPage = import.meta.env.DEV
   ? lazy(() => import('../pages/public/DiscoveryPreviewPage'))
@@ -161,8 +174,13 @@ export function App() {
                 element={audiencePage(<WaitingRoomPage />)}
               />
               <Route
-                path="/events/:eventId/performances/:id/seats"
-                element={audiencePage(<PerformanceSelectionPage />)}
+                path="/events/:eventId/performances/:id/tickets"
+                element={audiencePage(<TicketSelectionPage />)}
+              />
+              <Route path="/events/:eventId/performances/:id/seats" element={<SeatsRedirect />} />
+              <Route
+                path="/events/:eventId/tickets"
+                element={audiencePage(<TicketSelectionPage />)}
               />
               {DiscoveryPreviewPage ? (
                 <Route
@@ -179,7 +197,7 @@ export function App() {
                 path="/concerts/:id/waiting-room"
                 element={audiencePage(<WaitingRoomPage />)}
               />
-              <Route path="/concerts/:id/seats" element={audiencePage(<SeatSelectionPage />)} />
+              <Route path="/concerts/:id/seats" element={<SeatsRedirect />} />
               <Route path="/checkout" element={audiencePage(<CheckoutPage />)} />
               <Route
                 path="/booking-confirmation"

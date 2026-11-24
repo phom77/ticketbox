@@ -11,7 +11,15 @@ type ConcertSeatMapProps = {
   disabledTicketTypeIds?: ReadonlySet<string>;
   ticketTypeLabels?: ReadonlyMap<string, string>;
   onZoneSelect: (ticketTypeId: string) => void;
+  /** Hover or focus on a zone; null when it leaves. */
+  onZoneHover?: (ticketTypeId: string | null) => void;
 };
+
+function zoneId(target: EventTarget | null) {
+  return target instanceof Element
+    ? (target.closest<SVGElement>('[data-ticket-type-id]')?.dataset.ticketTypeId ?? null)
+    : null;
+}
 
 export function ConcertSeatMap({
   svg,
@@ -19,6 +27,7 @@ export function ConcertSeatMap({
   disabledTicketTypeIds = EMPTY_DISABLED_TICKET_TYPES,
   ticketTypeLabels,
   onZoneSelect,
+  onZoneHover,
 }: ConcertSeatMapProps) {
   useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -83,6 +92,10 @@ export function ConcertSeatMap({
       ref={containerRef}
       className="concert-seat-map"
       onClick={(event) => selectFromTarget(event.target)}
+      onMouseOver={(event) => onZoneHover?.(zoneId(event.target))}
+      onMouseLeave={() => onZoneHover?.(null)}
+      onFocus={(event) => onZoneHover?.(zoneId(event.target))}
+      onBlur={() => onZoneHover?.(null)}
       onKeyDown={(event) => {
         if ((event.key === 'Enter' || event.key === ' ') && selectFromTarget(event.target)) {
           event.preventDefault();

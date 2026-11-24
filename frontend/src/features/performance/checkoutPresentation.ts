@@ -2,7 +2,7 @@ import type { Order } from '../../api/orders';
 import { hasPerformanceDetails, loadConcertView, orderView } from '../event/eventView';
 import { translate } from '../../i18n';
 import type { CheckoutEvent } from '../ticket/checkoutPayment';
-import type { CheckoutSelection } from '../../pages/customer/SeatSelectionPage';
+import type { CheckoutSelection } from '../ticketSelection/selection';
 
 export function seatDescription(item: {
   sectionLabel?: string | null;

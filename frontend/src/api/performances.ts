@@ -184,6 +184,14 @@ export function replaceHold(
   });
 }
 
+/** Releases every item of the buyer's hold on a performance. */
+export function releaseHold(id: string, token: string) {
+  return api.delete<unknown, void>(inventory(id) + '/hold', {
+    timeout: 12_000,
+    headers: { 'Queue-Access-Token': token },
+  });
+}
+
 export function checkoutPerformance(id: string, token: string, key: string, holdVersion: number) {
   return api.post<unknown, Order>(
     inventory(id) + '/orders',
