@@ -442,6 +442,9 @@ export function PerformanceTickets({ id, eventId }: { id: string; eventId: strin
         backToWaitingRoom(t('customer:ticketSelection_sessionExpired'));
         return;
       }
+      // A stale hold version means the hold changed elsewhere: reload it before another try.
+      if (requestError instanceof ApiClientError && requestError.status === 409)
+        setRefresh((value) => value + 1);
       setNotice(
         requestError instanceof ApiClientError && requestError.status < 500
           ? t(problemKeys[holdProblem(requestError)])
