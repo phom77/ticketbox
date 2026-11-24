@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import { test } from 'vitest';
 import { inspectSaleDraft } from '../src/pages/organizer/performanceSaleReview.ts';
 
 const performance = { saleStartAt: '2027-06-01T00:00:00Z', saleEndAt: '2027-06-20T00:00:00Z' };
