@@ -24,11 +24,13 @@ const dateTime = dateFormatter({
 });
 
 export function EventCard({
-  event, priority = false, preview = false, linkId, onOpen,
+  event, priority = false, preview = false, action, heading: Heading = 'h3', linkId, onOpen,
 }: {
   event: EventCardItem;
   priority?: boolean;
   preview?: boolean;
+  action?: string;
+  heading?: 'h2' | 'h3';
   linkId?: string;
   onOpen?: MouseEventHandler<HTMLAnchorElement>;
 }) {
@@ -43,14 +45,16 @@ export function EventCard({
       </div>
       <div className="concert-card-body">
         <span className="concert-card-status" data-sale-state={event.status}>{t(eventSaleLabels[event.status])}</span>
-        <h3>{event.title}</h3>
+        <Heading>{event.title}</Heading>
         <p>
           <CalendarDays aria-hidden="true" />
           {Number.isFinite(date) ? <time dateTime={event.eventDate}>{dateTime.format(date)}</time> : t('public:discovery_dateToBeAnnounced')}
         </p>
         <p><MapPin aria-hidden="true" />{event.venue || t('public:discovery_venueToBeAnnounced')}</p>
         {event.supportingText ? <p className="concert-card-support">{event.supportingText}</p> : null}
-        {!preview ? <ArrowUpRight className="concert-card-link-icon" aria-hidden="true" /> : null}
+        {!preview && action ? (
+          <span className="concert-card-action">{action} <ArrowUpRight aria-hidden="true" /></span>
+        ) : !preview ? <ArrowUpRight className="concert-card-link-icon" aria-hidden="true" /> : null}
       </div>
     </>
   );
@@ -58,7 +62,8 @@ export function EventCard({
   return (
     <article className="concert-card">
       {preview ? <div>{details}</div> : (
-        <Link aria-label={event.title} id={linkId} onClick={onOpen} to={event.href ?? `/concerts/${encodeURIComponent(event.id)}`}>
+        <Link aria-label={action ? `${event.title} · ${action}` : event.title}
+          id={linkId} onClick={onOpen} to={event.href ?? `/concerts/${encodeURIComponent(event.id)}`}>
           {details}
         </Link>
       )}

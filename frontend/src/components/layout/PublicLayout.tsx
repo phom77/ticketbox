@@ -1,7 +1,7 @@
 import { translate } from '../../i18n';
 import { useTranslation } from 'react-i18next';
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, LogOut, Menu, Search, Ticket } from 'lucide-react';
+import { ChevronDown, CircleUserRound, LogOut, Search, Ticket } from 'lucide-react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { getUnreadNotificationCount, isNotificationAccessDenied } from '../../api/notifications';
 import { useAuth, type UserSummary } from '../../features/auth/AuthContext';
@@ -53,12 +53,12 @@ function AccountMenuLinks({
   user,
   close,
   onLogout,
-  children,
+  unreadNotifications,
 }: {
   user: UserSummary;
   close: () => void;
   onLogout: () => void;
-  children?: React.ReactNode;
+  unreadNotifications: number;
 }) {
   const location = useLocation();
   const onProfile = location.pathname === '/profile';
@@ -70,7 +70,6 @@ function AccountMenuLinks({
         <strong>{user.fullName}</strong>
         <small>{user.email}</small>
       </div>
-      {children}
       {user.role === 'AUDIENCE' ? (
         <>
           <Link to="/profile" aria-current={onProfile && !onOrders ? 'page' : undefined} onClick={close}>
@@ -79,11 +78,11 @@ function AccountMenuLinks({
           <Link to="/profile?tab=orders" aria-current={onOrders ? 'page' : undefined} onClick={close}>
             {translate("shared:publicLayout_lichSuDonHang")}
           </Link>
+          <NavLink to="/notifications" onClick={close}>
+            <NotificationLabel count={unreadNotifications} />
+          </NavLink>
         </>
-      ) : null}
-      {user.role === 'ORGANIZER' ? (
-        <Link to="/organizer" onClick={close}>{translate("shared:publicLayout_khongGianNhaToChuc")}</Link>
-      ) : null}
+      ) : <WorkspaceLink user={user} close={close} />}
       <button type="button" onClick={onLogout}>
         <LogOut size={17} aria-hidden="true" /> {translate("shared:publicLayout_dangXuat")}
       </button>
@@ -108,18 +107,19 @@ function HeaderSearch({
         defaultValue={query}
         type="search"
         name="q"
+        maxLength={160}
         aria-label={label}
         autoComplete="off"
         placeholder={label}
       />
-      <button type="submit" aria-label={label}>
+      <button type="submit" aria-label={translate("shared:publicLayout_timKiem")}>
         <Search aria-hidden="true" size={20} />
       </button>
     </form>
   );
 }
 
-type Disclosure = 'account' | 'menu' | 'search';
+type Disclosure = 'account' | 'search';
 
 function PublicHeader({
   user,
@@ -136,17 +136,18 @@ function PublicHeader({
   const [open, setOpen] = useState<Disclosure | null>(null);
   const header = useRef<HTMLElement>(null);
   const trigger = useRef<HTMLButtonElement>();
-  const mobileSearch = useRef<HTMLInputElement>(null);
+  const searchInput = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const location = useLocation();
   const canBrowseCatalogue = !user || user.role === 'AUDIENCE' || user.role === 'ORGANIZER';
   const isAudience = user?.role === 'AUDIENCE';
-  const catalogParams = new URLSearchParams(location.pathname === '/' ? location.search : '');
+  const onCatalogue = location.pathname === '/events' || location.pathname === '/events/';
+  const catalogParams = new URLSearchParams(onCatalogue ? location.search : '');
   const searchQuery = catalogParams.get('q') ?? '';
 
   useEffect(() => {
     if (!open) return;
-    if (open === 'search') mobileSearch.current?.focus();
+    if (open === 'search') searchInput.current?.focus();
 
     function escape(event: KeyboardEvent) {
       if (event.key !== 'Escape' || event.defaultPrevented) return;
@@ -182,121 +183,88 @@ function PublicHeader({
     if (query) catalogParams.set('q', query);
     else catalogParams.delete('q');
     close();
-    navigate({ pathname: '/', search: catalogParams.toString(), hash: '#discover-concerts' });
+    navigate({ pathname: '/events', search: catalogParams.toString(), hash: '#discover-concerts' });
   }
 
   return (
     <header className="public-header" ref={header}>
       <div className="public-topbar page-width">
         <Logo to={getRoleHome(user?.role)} label={getRoleHomeLabel(user?.role)} />
-        <nav className="public-main-nav" aria-label={translate("shared:publicLayout_dieuHuongChinh")}>
-          {canBrowseCatalogue ? <NavLink to="/" end>{translate("shared:publicLayout_khamPha")}</NavLink> : null}
-          {canBrowseCatalogue && <NavLink to="/events">{translate("performances:events")}</NavLink>}
-          {isAudience ? (
-            <>
-              <NavLink to="/my-tickets">{translate("shared:publicLayout_veCuaToi")}</NavLink>
-              <NavLink to="/notifications"><NotificationLabel count={unreadNotifications} /></NavLink>
-            </>
-          ) : null}
-          <WorkspaceLink user={user} />
-        </nav>
         <div className="public-header-actions">
           {canBrowseCatalogue ? (
             <>
-              <div className="public-desktop-control">
-                <HeaderSearch onSubmit={submitSearch} query={searchQuery} />
-              </div>
               <button
-                className="public-header-action public-mobile-control"
+                className="public-header-action public-search-trigger"
                 type="button"
                 aria-label={translate("shared:publicLayout_timSuKien")}
                 aria-expanded={open === 'search'}
-                aria-controls={open === 'search' ? 'public-mobile-search' : undefined}
+                aria-controls="public-header-search"
                 onClick={(event) => toggle('search', event.currentTarget)}
               >
                 <Search size={20} aria-hidden="true" />
               </button>
+              <div id="public-header-search" className="public-search-panel" data-open={open === 'search'}>
+                <HeaderSearch onSubmit={submitSearch} query={searchQuery} inputRef={searchInput} />
+              </div>
             </>
           ) : null}
-          {isAudience ? (
-            <NavLink className="public-mobile-wallet public-mobile-control" to="/my-tickets" aria-label={translate("shared:publicLayout_veCuaToi")}>
-              <Ticket size={21} aria-hidden="true" />
-              <span aria-hidden="true">{translate("shared:publicLayout_veNgan")}</span>
-            </NavLink>
-          ) : null}
-          <LanguageSelect compact />
           {user ? (
-            <div className="public-account public-desktop-control">
-              <button
-                className="public-account-trigger"
-                type="button"
-                aria-label={translate("shared:publicLayout_moMenuTaiKhoan")}
-                aria-expanded={open === 'account'}
-                aria-controls={open === 'account' ? 'public-account-panel' : undefined}
-                onClick={(event) => toggle('account', event.currentTarget)}
-              >
-                <span className="public-account-initials" aria-hidden="true">{initials(user.fullName)}</span>
-                <span className="public-account-name">{user.fullName}</span>
-                <ChevronDown size={16} aria-hidden="true" />
-              </button>
-              {open === 'account' ? (
-                <div id="public-account-panel" className="public-account-panel public-menu-links">
-                  <AccountMenuLinks user={user} close={close} onLogout={logout} />
-                </div>
-              ) : null}
-            </div>
-          ) : !loading ? (
-            <div className="public-desktop-control">
-              <Link className="button button-primary public-sign-in" to="/login">
-                {translate("shared:publicLayout_dangNhap")}
-              </Link>
-            </div>
+            <nav
+              className={isAudience ? 'public-main-nav' : 'public-main-nav public-workspace-nav'}
+              aria-label={translate("shared:publicLayout_dieuHuongChinh")}
+            >
+              {isAudience ? (
+                <NavLink to="/my-tickets" aria-label={translate("shared:publicLayout_veCuaToi")}>
+                  <Ticket size={20} aria-hidden="true" />
+                  <span className="public-wallet-label">{translate("shared:publicLayout_veCuaToi")}</span>
+                  <span className="public-wallet-short-label" aria-hidden="true">{translate("shared:publicLayout_veNgan")}</span>
+                </NavLink>
+              ) : <WorkspaceLink user={user} />}
+            </nav>
           ) : null}
-          <button
-            className="public-header-action public-mobile-control"
-            type="button"
-            aria-label={translate("shared:publicLayout_batTatDieuHuong")}
-            aria-expanded={open === 'menu'}
-            aria-controls={open === 'menu' ? 'public-mobile-menu' : undefined}
-            aria-describedby={unreadNotifications > 0 ? 'public-mobile-unread' : undefined}
-            onClick={(event) => toggle('menu', event.currentTarget)}
-          >
-            <Menu size={21} aria-hidden="true" />
-            {unreadNotifications > 0 ? (
-              <>
-                <span className="public-menu-notification" aria-hidden="true" />
-                <span className="sr-only" id="public-mobile-unread">
-                  {translate("shared:publicLayout_thongBaoChuaDoc", { count: unreadNotifications })}
-                </span>
-              </>
+          <div className="public-account">
+            <button
+              className="public-header-action public-account-trigger"
+              type="button"
+              aria-label={translate("shared:publicLayout_moMenuTaiKhoan")}
+              aria-expanded={open === 'account'}
+              aria-controls={open === 'account' ? 'public-account-panel' : undefined}
+              aria-describedby={unreadNotifications > 0 ? 'public-unread-notifications' : undefined}
+              onClick={(event) => toggle('account', event.currentTarget)}
+            >
+              {user ? (
+                <span className="public-account-initials" aria-hidden="true">{initials(user.fullName)}</span>
+              ) : <CircleUserRound size={21} aria-hidden="true" />}
+              <span className="public-account-name">{user?.fullName ?? translate("shared:publicLayout_taiKhoan")}</span>
+              <ChevronDown className="public-account-chevron" size={16} aria-hidden="true" />
+              {unreadNotifications > 0 ? (
+                <>
+                  <span className="notification-badge" aria-hidden="true">{unreadNotifications > 99 ? '99+' : unreadNotifications}</span>
+                  <span className="sr-only" id="public-unread-notifications">
+                    {translate("shared:publicLayout_thongBaoChuaDoc", { count: unreadNotifications })}
+                  </span>
+                </>
+              ) : null}
+            </button>
+            {open === 'account' ? (
+              <div id="public-account-panel" className="public-account-panel public-menu-links">
+                {user ? (
+                  <AccountMenuLinks user={user} close={close} onLogout={logout} unreadNotifications={unreadNotifications} />
+                ) : !loading ? (
+                  <>
+                    <Link to="/login" onClick={close}>{translate("shared:publicLayout_dangNhap")}</Link>
+                    <Link to="/register" onClick={close}>{translate("shared:publicLayout_taoTaiKhoan")}</Link>
+                  </>
+                ) : null}
+                <label className="public-account-language">
+                  {translate("common:language")}
+                  <LanguageSelect />
+                </label>
+              </div>
             ) : null}
-          </button>
+          </div>
         </div>
       </div>
-      {open === 'search' && canBrowseCatalogue ? (
-        <div id="public-mobile-search" className="public-mobile-panel">
-          <div className="page-width"><HeaderSearch onSubmit={submitSearch} query={searchQuery} inputRef={mobileSearch} /></div>
-        </div>
-      ) : null}
-      {open === 'menu' ? (
-        <div id="public-mobile-menu" className="public-mobile-panel">
-          <nav className="page-width public-menu-links" aria-label={translate("shared:publicLayout_dieuHuongDiDong")}>
-            {canBrowseCatalogue ? <NavLink to="/" onClick={close} end>{translate("shared:publicLayout_khamPha")}</NavLink> : null}
-            {canBrowseCatalogue && <NavLink to="/events" onClick={close}>{translate("performances:events")}</NavLink>}
-            {user ? (
-              <AccountMenuLinks user={user} close={close} onLogout={logout}>
-                {isAudience ? <NavLink to="/notifications" onClick={close}><NotificationLabel count={unreadNotifications} /></NavLink> : null}
-                <WorkspaceLink user={user} close={close} />
-              </AccountMenuLinks>
-            ) : !loading ? (
-              <>
-                <NavLink to="/login" onClick={close}>{translate("shared:publicLayout_dangNhap")}</NavLink>
-                <NavLink to="/register" onClick={close}>{translate("shared:publicLayout_taoTaiKhoan")}</NavLink>
-              </>
-            ) : null}
-          </nav>
-        </div>
-      ) : null}
     </header>
   );
 }
@@ -312,9 +280,10 @@ export function PublicLayout() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const path = location.pathname.replace(/\/$/, '');
   const isBookingFlow =
-    /^\/concerts\/[^/]+\/(waiting-room|seats)$/.test(location.pathname) ||
-    ['/checkout', '/booking-confirmation', '/payment/result'].includes(location.pathname);
+    /^\/(?:concerts\/[^/]+|events\/[^/]+\/performances\/[^/]+)\/(waiting-room|seats)$/.test(path) ||
+    ['/checkout', '/booking-confirmation', '/payment/result'].includes(path);
 
   const audienceId = user?.role === 'AUDIENCE' && !loading ? user.id : null;
   const notificationSession = useMemo(
@@ -391,7 +360,7 @@ function Footer({ user }: { user: UserSummary | null }) {
         {canBrowse || buyerInformationLinks.length > 0 ? (
           <nav aria-label={translate("shared:publicLayout_dieuHuongCuoiTrang")}>
             <ul className="footer-links">
-              {canBrowse ? <li><Link to="/">{translate("shared:publicLayout_khamPhaSuKien")}</Link></li> : null}
+              {canBrowse ? <li><Link to="/events">{translate("shared:publicLayout_khamPhaSuKien")}</Link></li> : null}
               {user?.role === 'AUDIENCE' ? (
                 <>
                   <li><Link to="/profile?tab=orders">{translate("shared:publicLayout_lichSuDonHang")}</Link></li>

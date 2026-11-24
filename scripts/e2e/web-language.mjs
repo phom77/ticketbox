@@ -39,14 +39,14 @@ try {
   const unsupported = await browser.newContext({ baseURL, locale: 'fr-FR' });
   const publicPage = await unsupported.newPage();
   let publicLanguage;
-  const publicConcerts = (url) => url.pathname === '/api/concerts';
-  await publicPage.route(publicConcerts, (route) => {
+  const publicDiscovery = (url) => url.pathname === '/api/v2/events/discovery';
+  await publicPage.route(publicDiscovery, (route) => {
     publicLanguage = route.request().headers()['accept-language'];
-    return route.fulfill({ json: { code: 200, data: { content: [], totalPages: 0 } } });
+    return route.fulfill({ json: { code: 200, data: { content: [], totalPages: 0, totalElements: 0, last: true } } });
   });
-  const concerts = publicPage.waitForResponse((response) => publicConcerts(new URL(response.url())));
+  const discovery = publicPage.waitForResponse((response) => publicDiscovery(new URL(response.url())));
   await publicPage.goto('/');
-  await concerts;
+  await discovery;
   assert.equal(await publicPage.locator('html').getAttribute('lang'), 'vi');
   assert.equal(publicLanguage, 'vi');
   await unsupported.close();
@@ -82,7 +82,7 @@ try {
     },
   };
   let detailReads = 0;
-  await bilingualPage.route(publicConcerts, (route) =>
+  await bilingualPage.route((url) => url.pathname === '/api/concerts', (route) =>
     route.fulfill({ json: { code: 200, data: { content: [], totalPages: 0 } } }));
   await bilingualPage.route('**/api/concerts/bilingual-concert', (route) => {
     detailReads++;
@@ -94,6 +94,7 @@ try {
   await bilingualPage.getByRole('heading', { name: 'Summer show', exact: true }).waitFor({ timeout: 4000 });
   await bilingualPage.getByText('Mô tả duy nhất', { exact: true }).waitFor();
   const reads = detailReads;
+  await bilingualPage.getByRole('button', { name: 'Open account menu' }).click();
   await bilingualPage.locator('select[data-language-select]').selectOption('vi');
   await bilingualPage.getByRole('heading', { name: 'Đêm nhạc mùa hè', exact: true }).waitFor();
   assert.equal(detailReads, reads);

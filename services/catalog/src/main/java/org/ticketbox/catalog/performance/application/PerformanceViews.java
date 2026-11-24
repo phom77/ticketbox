@@ -2,6 +2,7 @@ package org.ticketbox.catalog.performance.application;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.ticketbox.catalog.performance.domain.PerformanceLayout;
 import org.ticketbox.catalog.performance.domain.PerformanceSale;
@@ -11,6 +12,12 @@ public final class PerformanceViews {
 
     public record Event(
             UUID id, String title, String description, String category, long draftVersion, List<Performance> performances) {}
+
+    public record DiscoveryCard(UUID id, UUID eventId, String title, String venueName, OffsetDateTime eventDate,
+                                OffsetDateTime saleStartAt, OffsetDateTime saleEndAt, String status, String posterUrl,
+                                boolean salesSuspended, Map<String, DiscoveryText> translations) {}
+
+    public record DiscoveryText(String title, String description) {}
 
     public record Performance(
             UUID id, UUID eventId, UUID venueSpaceId, String venueName, String venueAddress, String spaceName,

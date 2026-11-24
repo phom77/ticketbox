@@ -1,50 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { isRequestCanceled } from '../../api/client';
-import { eventPath, getEvent, listEvents, performancePath, type EventDetails } from '../../api/performances';
+import { getEvent, performancePath, type EventDetails } from '../../api/performances';
 import { useAuth } from '../../features/auth/AuthContext';
 import { performanceTime } from '../../features/performance/format';
-
-export function EventsPage() {
-  const { t } = useTranslation();
-  const [page, setPage] = useState(0);
-  const [result, setResult] = useState<{ page: number; events: EventDetails[]; last: boolean } | null>(null);
-  const [failed, setFailed] = useState(false);
-  useEffect(() => {
-    const controller = new AbortController();
-    listEvents(page, controller.signal)
-      .then((data) => {
-        if (!controller.signal.aborted) setResult({ page, events: data.content, last: data.last });
-      })
-      .catch((error) => {
-        if (!controller.signal.aborted && !isRequestCanceled(error)) setFailed(true);
-      });
-    return () => controller.abort();
-  }, [page]);
-
-  const events = result?.page === page ? result.events : null;
-  return (
-    <section className="page-width performance-page">
-      <h1>{t('performances:events')}</h1>
-      {failed ? <p role="alert">{t('performances:loadFailed')}</p>
-        : !events ? <p role="status">{t('performances:loading')}</p>
-        : events.length === 0 ? <p>{t('performances:noEvents')}</p>
-        : <ul className="performance-list">{events.map((event) => (
-          <li key={event.id}>
-            <Link to={eventPath(event.id)}>{event.title}</Link>
-            {event.description && <p>{event.description}</p>}
-          </li>
-        ))}</ul>}
-      {result?.page === page && (page > 0 || !result.last) && (
-        <div className="performance-actions">
-          <button type="button" className="button button-secondary" disabled={page === 0} onClick={() => { setFailed(false); setPage(page - 1); }}>{t('performances:previous')}</button>
-          <button type="button" className="button button-secondary" disabled={result.last} onClick={() => { setFailed(false); setPage(page + 1); }}>{t('performances:next')}</button>
-        </div>
-      )}
-    </section>
-  );
-}
 
 export function EventPage() {
   const { eventId } = useParams();
@@ -54,6 +14,9 @@ export function EventPage() {
 function EventDetailsPage({ id }: { id: string }) {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const { search } = useLocation();
+  const selectedId = new URLSearchParams(search).get('performance');
+  const selectedShow = useRef<HTMLLIElement>(null);
   const [event, setEvent] = useState<EventDetails | null>(null);
   const [failed, setFailed] = useState(false);
   const [now, setNow] = useState(Date.now);
@@ -66,6 +29,17 @@ function EventDetailsPage({ id }: { id: string }) {
     });
     return () => controller.abort();
   }, [id]);
+
+  useEffect(() => {
+    const show = selectedShow.current;
+    if (!show) return;
+    const frame = requestAnimationFrame(() => {
+      if (document.activeElement !== document.body) return;
+      show.scrollIntoView({ behavior: 'instant', block: 'nearest' });
+      show.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [event, selectedId]);
 
   useEffect(() => {
     const next = event?.performances.flatMap((performance) => [Date.parse(performance.saleStartAt), Date.parse(performance.saleEndAt)])
@@ -94,8 +68,10 @@ function EventDetailsPage({ id }: { id: string }) {
           const base = performance.legacyConcertId
             ? '/concerts/' + encodeURIComponent(performance.legacyConcertId)
             : performancePath(id, performance.id);
+          const selected = performance.id === selectedId;
           return (
-            <li key={performance.id} className="performance-show">
+            <li key={performance.id} className="performance-show" ref={selected ? selectedShow : undefined}
+              tabIndex={selected ? -1 : undefined} data-selected={selected || undefined}>
               <div>
                 <strong>{performance.venueName}</strong>
                 <p><time dateTime={performance.startsAt}>{performanceTime(performance)}</time></p>

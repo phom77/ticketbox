@@ -31,8 +31,8 @@ The token names are historical. The stylesheet loads Manrope, DM Sans and Playfa
 
 ## Buyer discovery and account
 
-- Use `PublicLayout` for buyer navigation and `AuthLayout` for sign-in, registration and recovery. Keep search and wallet access reachable on narrow screens. Use disclosure controls with visible focus and return focus after Escape.
-- Keep search near the top of discovery. Use text labels for sale status and applied filters. Show the featured event once and state how many events are loaded while the list has more pages.
+- Use `PublicLayout` for buyer navigation and `AuthLayout` for sign-in, registration and recovery. Use the same header gutter and search across public pages. Keep search and wallet access reachable on narrow screens. Place language and notifications in the account disclosure and return focus after Escape.
+- Use the homepage for featured and upcoming events. Use `/events` for the searchable catalogue. Show the featured event once, use text labels for sale status and applied filters, and use the total from Catalog for paginated results.
 - Use `.buyer-page` for account typography and status feedback. Keep profile details and order history independently usable. Pair order status with a visible next action when the buyer can continue, verify payment or open tickets.
 
 ## Maintenance

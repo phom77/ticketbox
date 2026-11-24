@@ -21,8 +21,10 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
+import org.ticketbox.catalog.performance.application.DiscoveryQuery;
 import org.ticketbox.catalog.performance.application.PerformanceStore;
 import org.ticketbox.catalog.performance.application.PerformanceViews.*;
 import org.ticketbox.catalog.performance.domain.PerformanceLayout;
@@ -33,8 +35,49 @@ public class JdbcPerformanceStore implements PerformanceStore {
     private static final TypeReference<List<PerformanceLayout.Point>> POINTS = new TypeReference<>() {};
     private static final TypeReference<List<PerformanceLayout.Shape>> SHAPES = new TypeReference<>() {};
     private static final TypeReference<List<Space>> SPACES = new TypeReference<>() {};
+    private static final TypeReference<Map<String, DiscoveryText>> TRANSLATIONS = new TypeReference<>() {};
     private static final String PUBLIC_EVENT = """
             EXISTS (SELECT 1 FROM catalog_performance_view p WHERE p.event_id = e.id AND p.discoverable)
+            """;
+
+    private static final String DISCOVERY = """
+            WITH matching AS (
+                SELECT e.id AS catalog_event_id, COALESCE(p.legacy_concert_id, p.id) AS id,
+                       CASE WHEN p.legacy_concert_id IS NULL THEN e.id END AS event_id,
+                       e.title, p.venue_name, p.starts_at AS event_date, p.sale_start_at, p.sale_end_at,
+                       p.status, p.sales_suspended, c.poster_url,
+                       CAST(c.localized_content AS jsonb)->'translations' AS translations,
+                       CASE WHEN :saleStartFirst THEN p.sale_start_at ELSE p.starts_at END AS sort_date
+                FROM catalog_event_view e JOIN catalog_performance_view p ON p.event_id=e.id
+                LEFT JOIN concerts c ON c.id=p.legacy_concert_id
+                WHERE p.discoverable
+                  AND (CAST(:startsFrom AS timestamptz) IS NULL OR p.starts_at >= :startsFrom)
+                  AND (CAST(:startsBefore AS timestamptz) IS NULL OR p.starts_at < :startsBefore)
+                  AND (CAST(:saleStatus AS text) IS NULL OR :saleStatus = CASE
+                      WHEN p.status='CANCELLED' THEN 'CANCELLED'
+                      WHEN p.legacy_concert_id IS NULL AND p.sales_suspended THEN 'CLOSED'
+                      WHEN p.status='COMPLETED' OR p.sale_end_at <= :now THEN 'CLOSED'
+                      WHEN p.status='SOLD_OUT' THEN 'SOLD_OUT'
+                      WHEN p.status<>'ON_SALE' OR p.sale_start_at IS NULL OR p.sale_start_at > :now THEN 'UPCOMING'
+                      ELSE 'ON_SALE'
+                  END)
+                  AND (:words = '' OR NOT EXISTS (
+                      SELECT 1 FROM regexp_split_to_table(:words, ' ') AS search(word)
+                      WHERE strpos(replace(regexp_replace(lower(normalize(concat_ws(' ', e.title, p.venue_name,
+                          (SELECT string_agg(translation.value->>'title', ' ')
+                           FROM jsonb_each(CAST(c.localized_content AS jsonb)->'translations') AS translation)), NFD)),
+                           U&'[\\0300-\\036f]', '', 'g'), U&'\\0111', 'd'), search.word) = 0
+                  ))
+            ), representatives AS (
+                SELECT DISTINCT ON (catalog_event_id) * FROM matching
+                ORDER BY catalog_event_id, sort_date, event_date, id
+            ), card_page AS (
+                SELECT * FROM representatives ORDER BY sort_date, event_date, id LIMIT :size OFFSET :offset
+            )
+            SELECT total.total_elements, card_page.*
+            FROM (SELECT count(*) AS total_elements FROM representatives) total
+            LEFT JOIN card_page ON TRUE
+            ORDER BY card_page.sort_date, card_page.event_date, card_page.id
             """;
 
     private static final String OPERATIONS_SHOWS = """
@@ -76,6 +119,34 @@ public class JdbcPerformanceStore implements PerformanceStore {
                 ORDER BY e.created_at DESC,e.id LIMIT :limit OFFSET :offset
                 """.formatted(where), params, (rs, n) -> readEvent(rs));
         return new PageImpl<>(withPerformances(rows, organizer == null), page, total);
+    }
+
+    @Override
+    public Page<DiscoveryCard> discover(DiscoveryQuery query, Pageable page) {
+        var parameters = new MapSqlParameterSource()
+                .addValue("words", query.words())
+                .addValue("now", query.now())
+                .addValue("startsFrom", query.startsFrom())
+                .addValue("startsBefore", query.startsBefore())
+                .addValue("saleStatus", query.status() == null ? null : query.status().name())
+                .addValue("saleStartFirst", query.saleStartFirst())
+                .addValue("size", page.getPageSize())
+                .addValue("offset", page.getOffset());
+        return named.query(DISCOVERY, parameters, rows -> {
+            long total = 0;
+            var cards = new ArrayList<DiscoveryCard>(page.getPageSize());
+            while (rows.next()) {
+                total = rows.getLong("total_elements");
+                var id = id(rows, "id");
+                if (id == null) continue;
+                var translations = rows.getString("translations");
+                cards.add(new DiscoveryCard(id, id(rows, "event_id"), rows.getString("title"),
+                        rows.getString("venue_name"), time(rows, "event_date"), time(rows, "sale_start_at"),
+                        time(rows, "sale_end_at"), rows.getString("status"), rows.getString("poster_url"),
+                        rows.getBoolean("sales_suspended"), translations == null ? Map.of() : read(translations, TRANSLATIONS)));
+            }
+            return new PageImpl<>(cards, page, total);
+        });
     }
 
     @Override

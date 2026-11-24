@@ -38,6 +38,11 @@ public class PerformanceCatalog {
     }
 
     @Transactional(readOnly = true)
+    public Page<DiscoveryCard> discover(DiscoveryQuery query, Pageable page) {
+        return store.discover(query, page);
+    }
+
+    @Transactional(readOnly = true)
     public Event event(UUID id, UUID owner) {
         return store.event(id, owner).orElseThrow(PerformanceCatalog::missing);
     }

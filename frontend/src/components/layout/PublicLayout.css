@@ -2,6 +2,7 @@
 .public-shell > main { min-width: 0; }
 
 .public-header {
+  --public-header-gutter: clamp(1rem, 3vw, 3.5rem);
   position: sticky;
   top: 0;
   z-index: 180;
@@ -10,7 +11,8 @@
   font: 600 .9375rem/1.4 "Manrope", ui-sans-serif, system-ui, sans-serif;
 }
 
-.public-topbar {
+.public-topbar.page-width {
+  width: calc(100% - 2 * var(--public-header-gutter));
   min-height: 68px;
   display: flex;
   align-items: center;
@@ -20,19 +22,20 @@
 
 .public-topbar .logo { min-height: 44px; flex-shrink: 0; }
 
-.public-main-nav,
 .public-header-actions {
   display: flex;
+  flex: 1;
   align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
   gap: 12px;
 }
 
-.public-main-nav { margin-inline-end: auto; }
-
-.public-main-nav a, .public-mobile-wallet {
+.public-main-nav a {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  min-width: 44px;
   min-height: 44px;
   padding: 0 10px;
   border-radius: 6px;
@@ -40,21 +43,12 @@
   white-space: nowrap;
 }
 
-.public-main-nav a:hover, .public-main-nav a.active,
-.public-mobile-wallet:hover, .public-mobile-wallet.active {
+.public-main-nav a:hover, .public-main-nav a.active {
   background: var(--surface-2);
   color: var(--violet);
 }
 
-.public-header-actions .language-select {
-  min-height: 44px;
-  min-width: 44px;
-  font: inherit;
-  font-size: .875rem;
-}
-
-.public-header-action,
-.public-account-trigger {
+.public-header-action {
   position: relative;
   display: inline-flex;
   min-width: 44px;
@@ -70,28 +64,28 @@
   font: inherit;
 }
 
-.public-header-action:hover, .public-account-trigger:hover {
+.public-header-action:hover {
   background: var(--surface-2);
 }
 
-.public-header-action[aria-expanded="true"], .public-account-trigger[aria-expanded="true"] {
+.public-header-action[aria-expanded="true"] {
   border-color: var(--coral);
   color: var(--violet);
 }
 
-.public-menu-notification {
-  position: absolute;
-  inset: 6px 6px auto auto;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--coral);
+.public-search-trigger, .public-wallet-short-label { display: none; }
+
+.public-search-panel {
+  flex: 1;
+  max-width: 36rem;
+  min-width: 0;
+  margin-inline: auto;
 }
 
 .public-header-search {
   display: flex;
   align-items: stretch;
-  width: clamp(11rem, 17vw, 18rem);
+  width: 100%;
   min-height: 44px;
   min-width: 0;
   border: 1px solid var(--line);
@@ -130,9 +124,16 @@
 
 .public-header-search button:hover { background: var(--surface-2); }
 
-.public-account { position: relative; }
+.public-account { position: relative; flex-shrink: 0; }
 .public-account-trigger { max-width: 12rem; }
 .public-account-trigger > svg { flex-shrink: 0; }
+
+.public-account-trigger > .notification-badge {
+  position: absolute;
+  inset-block-start: -4px;
+  inset-inline-end: -4px;
+  box-shadow: 0 0 0 2px var(--surface);
+}
 
 .public-account-initials {
   display: grid;
@@ -156,8 +157,10 @@
   position: absolute;
   inset-inline-end: 0;
   top: calc(100% + 9px);
-  width: 17rem;
+  width: min(17rem, calc(100vw - 2 * var(--public-header-gutter)));
+  max-height: min(70dvh, 28rem);
   padding: 8px;
+  overflow: auto;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--surface);
@@ -205,14 +208,17 @@
   font-weight: 500;
 }
 
-.public-sign-in.button {
-  min-height: 44px;
-  padding-inline: 14px;
-  font: inherit;
-  white-space: nowrap;
+.public-account-language {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px 2px;
+  margin-top: 4px;
+  border-top: 1px solid var(--line);
 }
 
-.public-mobile-control, .public-mobile-panel { display: none; }
+.public-account-language .language-select { min-height: 44px; font: inherit; }
 
 .public-footer {
   margin-block-start: auto;
@@ -252,38 +258,39 @@
   outline-offset: 2px;
 }
 
-@media (max-width: 1060px) {
-  .public-main-nav, .public-desktop-control { display: none; }
-  .public-mobile-control { display: inline-flex; }
+@media (max-width: 760px) {
+  .public-search-trigger { display: inline-flex; }
+  .public-workspace-nav, .public-account-name, .public-account-chevron { display: none; }
 
-  .public-mobile-panel {
-    display: block;
-    max-height: min(60dvh, 26rem);
-    overflow: auto;
-    border-top: 1px solid var(--line);
-    padding-block: 10px;
+  .public-search-panel {
+    display: none;
+    position: absolute;
+    inset-inline: 0;
+    inset-block-start: 100%;
+    max-width: none;
+    padding: 10px var(--public-header-gutter);
+    border-block: 1px solid var(--line);
+    background: var(--surface);
   }
 
-  .public-mobile-panel .public-header-search { width: 100%; }
-  .public-mobile-wallet {
+  .public-search-panel[data-open="true"] { display: block; }
+  .public-main-nav a {
     justify-content: center;
-    min-width: 44px;
     padding-inline: 6px;
     gap: 6px;
-    font-weight: 800;
   }
   .public-header-actions { gap: 8px; }
-  .public-topbar { min-height: 60px; gap: 8px; }
+  .public-topbar.page-width { min-height: 60px; gap: 8px; }
 }
 
 @media (max-width: 430px) {
   .public-topbar .logo { gap: 5px; font-size: 1.125rem; }
   .public-topbar .logo-mark { width: 25px; height: 25px; }
   .public-header-actions { gap: 4px; }
-  .public-header-actions .language-select { padding-inline: 4px; }
-  .public-topbar.page-width { width: calc(100% - 24px); }
+  .public-wallet-label { display: none; }
+  .public-wallet-short-label { display: inline; }
 }
 
 @media (max-width: 360px) {
-  .public-mobile-wallet svg { display: none; }
+  .public-main-nav a svg { display: none; }
 }

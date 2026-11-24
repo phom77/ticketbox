@@ -37,6 +37,10 @@
 .performance-show p {
   margin-top: .35rem;
 }
+.performance-list > .performance-show[data-selected] {
+  border-color: var(--coral);
+  scroll-margin-block-start: 6rem;
+}
 .performance-purchase {
   display: grid;
   grid-template-columns: minmax(0, 1.5fr) minmax(17rem, 1fr);

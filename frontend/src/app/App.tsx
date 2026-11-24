@@ -4,7 +4,7 @@ import { ConcertDirectoryPage } from '../pages/operations/ConcertDirectoryPage';
 import { AdminEventWorkspacePage } from '../pages/admin/AdminEventWorkspacePage';
 import { AdminSettingsPage } from '../pages/admin/AdminSettingsPage';
 import { OperationsReportsPage } from '../pages/operations/OperationsReportsPage';
-import { EventPage, EventsPage } from '../pages/public/EventsPage';
+import { EventPage } from '../pages/public/EventsPage';
 import { PerformanceSelectionPage } from '../pages/customer/PerformanceSelectionPage';
 import '../pages/public/Performances.css';
 import { translate } from '../i18n';
@@ -41,7 +41,7 @@ import { WaitingRoomPage } from '../pages/customer/WaitingRoomPage';
 import { OrganizerOverviewPage } from '../pages/organizer/OrganizerOverviewPage';
 import { OrganizerRevenuePage } from '../pages/organizer/OrganizerRevenuePage';
 import { ConcertDetailPage } from '../pages/public/ConcertDetailPage';
-import { HomePage } from '../pages/public/HomePage';
+import { EventCataloguePage, HomePage } from '../pages/public/HomePage';
 import { LoginPage } from '../pages/public/LoginPage';
 import { RequestPasswordResetPage, ResetPasswordPage } from '../pages/public/PasswordRecoveryPage';
 import { RegisterPage } from '../pages/public/RegisterPage';
@@ -64,7 +64,7 @@ export function App() {
           <Routes>
             <Route element={<PublicLayout />}>
               <Route path="/" element={cataloguePage(<HomePage />)} />
-              <Route path="/events" element={cataloguePage(<EventsPage />)} />
+              <Route path="/events" element={cataloguePage(<EventCataloguePage />)} />
               <Route path="/events/:eventId" element={cataloguePage(<EventPage />)} />
               <Route path="/events/:eventId/performances/:id/waiting-room" element={audiencePage(<WaitingRoomPage />)} />
               <Route path="/events/:eventId/performances/:id/seats" element={audiencePage(<PerformanceSelectionPage />)} />

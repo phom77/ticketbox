@@ -255,14 +255,13 @@ try {
   await organizer.page.goto(`/concerts/${concert.id}`);
   await organizer.page.getByRole('heading', { name: title }).waitFor();
   assert.equal(await organizer.page.getByRole('link', { name: /Mua ngay|Vào phòng chờ/ }).count(), 0);
-  await audience.page.goto('/');
-  await audience.page.getByRole('region', { name: 'Sắp mở bán', exact: true })
-    .getByRole('link', { name: title }).waitFor();
+  await audience.page.goto(`/events?status=upcoming&q=${encodeURIComponent(title)}`);
+  await audience.page.getByRole('main').getByRole('link', { name: `${title} · Xem sự kiện`, exact: true }).waitFor();
   compose('exec', '-T', 'catalog-db', 'psql', '-U', 'catalog_owner', '-d', 'ticketbox_catalog', '-c',
     `UPDATE concerts SET sale_start_at=now()-interval '1 minute' WHERE id='${concert.id}'`);
   await admin.page.waitForTimeout(4000);
   await audience.page.goto(`/?q=${encodeURIComponent(title)}`);
-  await audience.page.getByRole('main').getByRole('link', { name: title, exact: true }).click();
+  await audience.page.getByRole('main').getByRole('link', { name: `${title} · Tìm vé`, exact: true }).click();
   await audience.page.waitForURL(`**/concerts/${concert.id}`);
   await audience.page.getByRole('link', { name: /Mua ngay|Vào phòng chờ/ }).waitFor();
 
@@ -311,7 +310,9 @@ try {
   await ticket.getByRole('img', { name: `Mã QR vé cho ${title}`, exact: true }).waitFor();
   await fits(audience.page, 'Recovered ticket at 390px');
   await audience.page.getByRole('button', { name: 'Đóng chi tiết vé' }).click();
+  await audience.page.getByRole('banner').getByRole('button', { name: 'Mở menu tài khoản' }).click();
   await audience.page.getByRole('combobox', { name: 'Ngôn ngữ' }).selectOption('en');
+  await audience.page.keyboard.press('Escape');
   await audience.page.getByRole('article', { name: englishTitle, exact: true })
     .getByRole('button', { name: `Show QR code · ${ticketReference}`, exact: true }).click();
   const englishTicket = audience.page.getByRole('dialog', { name: englishTitle });

@@ -16,7 +16,7 @@
 }
 
 .concert-card > a:hover { box-shadow: 0 6px 20px rgb(24 33 51 / .12); }
-.concert-card > a:hover h3 { color: var(--violet); text-decoration: underline; text-underline-offset: .16em; }
+.concert-card > a:hover :is(h2, h3) { color: var(--violet); text-decoration: underline; text-underline-offset: .16em; }
 .concert-card-media {
   display: grid;
   place-items: center;
@@ -39,8 +39,8 @@
   padding: 1rem;
 }
 
-.concert-card:has(a) .concert-card-body { padding-inline-end: 2.625rem; }
-.concert-card .concert-card-body h3 {
+.concert-card-body:has(.concert-card-link-icon) { padding-inline-end: 2.625rem; }
+.concert-card .concert-card-body :is(h2, h3) {
   margin: 0 0 .125rem;
   color: var(--cream);
   font-family: inherit;
@@ -55,6 +55,15 @@
 .concert-card-body p svg { flex: none; inline-size: .9375rem; block-size: .9375rem; margin-block-start: .175em; }
 .concert-card-body .concert-card-support { display: block; margin-block-start: .375rem; }
 .concert-card-link-icon { position: absolute; inset-block-start: 1.075rem; inset-inline-end: 1rem; inline-size: 1.125rem; color: var(--violet); }
+.concert-card-action {
+  display: flex;
+  align-items: center;
+  gap: .375rem;
+  margin-block-start: .25rem;
+  color: var(--violet);
+  font-weight: 800;
+}
+.concert-card-action svg { flex: none; inline-size: 1rem; block-size: 1rem; }
 
 .concert-card-status {
   justify-self: start;
@@ -85,6 +94,6 @@
 
   .concert-card-media img { position: absolute; inset: 0; }
   .concert-card-body { padding: .875rem; }
-  .concert-card:has(a) .concert-card-body { padding-inline-end: 2rem; }
+  .concert-card-body:has(.concert-card-link-icon) { padding-inline-end: 2rem; }
   .concert-card-link-icon { inset-block-start: .95rem; inset-inline-end: .625rem; }
 }

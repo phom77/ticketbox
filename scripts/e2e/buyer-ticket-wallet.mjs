@@ -209,7 +209,9 @@ try {
   assert(await page.evaluate((secret) => [localStorage, sessionStorage].every((storage) =>
     Object.values(storage).every((item) => !item.includes(secret))), payload));
 
+  await page.getByRole('banner').getByRole('button', { name: 'Mở menu tài khoản' }).click();
   await page.getByRole('combobox', { name: 'Ngôn ngữ' }).selectOption('en');
+  await page.keyboard.press('Escape');
   await main.getByRole('heading', { name: 'My Tickets', exact: true }).waitFor();
   const translatedGroup = main.getByRole('button', { name: /tickets · Riverside concert/i });
   await translatedGroup.waitFor();

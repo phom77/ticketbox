@@ -8,7 +8,7 @@ Giúp khách tìm sự kiện phù hợp, biết tình trạng bán và quay l�
 
 ### Requirement: Trang chủ dẫn tới sự kiện và danh sách
 
-Trang chủ SHALL cho khách tìm sự kiện ở vùng đầu trang, dùng sự kiện công khai phù hợp cho điểm nổi bật và đưa các show sắp tới vào danh sách. Thẻ SHALL có tên, ngày giờ, địa điểm và tình trạng bán đã xác định.
+Trang chủ SHALL giới thiệu sự kiện công khai nổi bật và một nhóm show sắp tới, có lối sang danh mục `/events`. Thẻ SHALL có tên, ngày giờ, địa điểm, tình trạng bán đã xác định và hành động mở chi tiết. Tìm kiếm SHALL dùng header chung.
 
 #### Scenario: Sự kiện công khai có giờ bán trong tương lai
 
@@ -18,6 +18,11 @@ Trang chủ SHALL cho khách tìm sự kiện ở vùng đầu trang, dùng sự
 ### Requirement: Tìm kiếm và bộ lọc có thể quay lại
 
 Danh sách SHALL cho khách tìm tên sự kiện, tên bản dịch và địa điểm bằng từ khóa có dấu hoặc không dấu, lọc theo ngày diễn bằng mốc có sẵn hoặc khoảng ngày tùy chọn, lọc theo tình trạng bán và sắp xếp theo ngày diễn hoặc mốc mở bán. URL SHALL biểu diễn các lựa chọn đã áp dụng.
+
+#### Scenario: Mở liên kết tìm kiếm cũ
+
+- **WHEN** khách truy cập `/` với lựa chọn tìm kiếm hoặc bộ lọc hợp lệ
+- **THEN** trang danh mục mở với cùng lựa chọn đã áp dụng.
 
 #### Scenario: Áp dụng và gỡ lọc trên điện thoại
 
@@ -29,14 +34,19 @@ Danh sách SHALL cho khách tìm tên sự kiện, tên bản dịch và địa 
 - **WHEN** khách mở một thẻ rồi bấm Back, tải lại hoặc chia sẻ URL kết quả
 - **THEN** danh sách khôi phục từ khóa và lựa chọn đã áp dụng. Back trở lại vùng kết quả khách đã xem.
 
+#### Scenario: Kết quả khớp một suất của sự kiện nhiều suất
+
+- **WHEN** khách mở thẻ của một sự kiện có nhiều suất
+- **THEN** trang chi tiết chỉ rõ suất được hiển thị trên thẻ và vẫn cho khách xem các suất còn lại.
+
 ### Requirement: Phân trang trung thực và có thể thử lại
 
-Danh sách SHALL cho tải thêm các trang từ Catalog. Nó SHALL phân biệt kết quả trong phần đã tải, danh sách trống sau khi hết trang và lỗi yêu cầu.
+Danh sách SHALL lọc toàn bộ sự kiện công khai và đếm theo sự kiện trước khi phân trang. Mỗi thẻ SHALL dùng một suất đáp ứng đồng thời từ khóa, ngày và trạng thái đã chọn. Danh sách SHALL phân biệt tổng số kết quả, không có kết quả và lỗi yêu cầu.
 
-#### Scenario: Chưa có mục khớp từ các trang đã tải
+#### Scenario: Chỉ có mục khớp ngoài trang đầu chưa lọc
 
-- **WHEN** điều kiện lọc chưa khớp mục nào và Catalog còn trang sau
-- **THEN** giao diện nêu phạm vi đã tải và cho tiếp tục tải thêm.
+- **WHEN** sự kiện khớp nằm ngoài trang đầu của danh mục chưa lọc
+- **THEN** kết quả đã lọc vẫn tìm được sự kiện và số đếm phản ánh toàn danh mục.
 
 #### Scenario: Tải thêm thất bại
 

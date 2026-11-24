@@ -17,6 +17,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
@@ -58,6 +59,7 @@ import org.ticketbox.catalog.performance.infrastructure.JdbcPerformanceStore;
 import org.ticketbox.catalog.performance.infrastructure.PerformancePublisher;
 import org.ticketbox.catalog.performance.web.OrganizerPerformanceController;
 import org.ticketbox.catalog.performance.web.PerformanceOperationsController;
+import org.ticketbox.catalog.performance.web.PublicPerformanceController;
 import org.ticketbox.catalog.web.GlobalExceptionHandler;
 import org.ticketbox.catalog.web.security.OrganizationAccess;
 
@@ -75,6 +77,7 @@ class PerformanceCatalogIntegrationTest {
     private static PerformanceCatalog catalog;
     private static PerformancePublicationReview reviews;
     private static MockMvc organizer;
+    private static MockMvc publicCatalog;
     private UUID owner;
     private UUID event;
     private UUID venue;
@@ -94,6 +97,105 @@ class PerformanceCatalogIntegrationTest {
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setMessageConverters(new MappingJackson2HttpMessageConverter(json))
                 .build();
+        publicCatalog = MockMvcBuilders.standaloneSetup(new PublicPerformanceController(catalog))
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .setMessageConverters(new MappingJackson2HttpMessageConverter(json))
+                .build();
+    }
+
+    @Test
+    void discoveryFindsLegacyTranslationAndNativeEventBeforePagingAndCountsEachEventOnce() throws Exception {
+        var starts = OffsetDateTime.now(ZoneOffset.UTC).plusDays(50).withNano(0);
+        UUID legacy = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO concerts (id,title,venue_name,venue_address,event_date,sale_start_at,status,poster_url,created_by,localized_content)
+                VALUES (?,'Evening showcase','Grand Hall','Main Street',?,?,'ON_SALE','https://example.test/poster.jpg',?,?)
+                """, legacy, starts, starts.minusDays(1), owner,
+                "{\"original\":{\"title\":\"Evening showcase\"},\"translations\":{\"vi\":{\"title\":\"Đêm nhạc Duy Anh\"}}}");
+        var nativeEvent = tx(() -> catalog.createEvent(owner, "Đêm nhạc Duy Anh", "Tour", "music")).id();
+        var first = discoveryShow(nativeEvent, starts.plusDays(1), starts.minusDays(4), true);
+        discoveryShow(nativeEvent, starts.plusDays(2), starts.minusDays(3), true);
+        discoveryShow(nativeEvent, starts.minusDays(1), starts.minusDays(5), false);
+
+        var path = MockMvcRequestBuilders.get("/api/v2/events/discovery")
+                .param("q", "dem NHAC duy anh").param("size", "1");
+        var firstPage = discoveryPage(path);
+        assertThat(firstPage.path("totalElements").asInt()).isEqualTo(2);
+        var firstCard = firstPage.path("content").get(0);
+        assertThat(firstCard.path("id").asText()).isEqualTo(legacy.toString());
+        assertThat(firstCard.path("eventId").isNull()).isTrue();
+        assertThat(firstCard.path("posterUrl").asText()).isEqualTo("https://example.test/poster.jpg");
+        assertThat(firstCard.path("translations").path("vi").path("title").asText()).isEqualTo("Đêm nhạc Duy Anh");
+
+        var secondPage = discoveryPage(path.param("page", "1"));
+        var secondCard = secondPage.path("content").get(0);
+        assertThat(secondCard.path("id").asText()).isEqualTo(first.toString());
+        assertThat(secondCard.path("eventId").asText()).isEqualTo(nativeEvent.toString());
+        assertThat(secondPage.path("last").asBoolean()).isTrue();
+
+        var sorted = discoveryPage(MockMvcRequestBuilders.get("/api/v2/events/discovery")
+                .param("q", "đêm nhạc duy anh").param("sort", "sale-start"));
+        assertThat(sorted.path("content").get(0).path("id").asText()).isEqualTo(first.toString());
+
+        var beyondLast = discoveryPage(MockMvcRequestBuilders.get("/api/v2/events/discovery")
+                .param("q", "dem nhac duy anh").param("size", "1").param("page", "3"));
+        assertThat(beyondLast.path("content").isEmpty()).isTrue();
+        assertThat(beyondLast.path("totalElements").asInt()).isEqualTo(2);
+    }
+
+    @Test
+    void discoveryAppliesSaleStatusAndVietnamDateToTheSamePublicPerformance() throws Exception {
+        var now = OffsetDateTime.now(ZoneOffset.UTC).withNano(0);
+        var localStart = now.atZoneSameInstant(ZoneId.of("Asia/Ho_Chi_Minh")).toLocalDate()
+                .plusDays(2).atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh")).toOffsetDateTime();
+        var nativeEvent = tx(() -> catalog.createEvent(owner, "Chương trình lọc suất", "Tour", "music")).id();
+        var futureSale = discoveryShow(nativeEvent, localStart, now.plusMinutes(30), true);
+        var onSale = discoveryShow(nativeEvent, localStart.plusDays(1), now.minusDays(1), true);
+        discoveryShow(nativeEvent, localStart.plusMinutes(5), now.minusDays(1), false);
+
+        var path = "/api/v2/events/discovery";
+        var date = localStart.toLocalDate().toString();
+        var noSameShow = discoveryPage(MockMvcRequestBuilders.get(path).param("q", "loc suat")
+                .param("date", "custom").param("to", date).param("status", "on-sale"));
+        assertThat(noSameShow.path("totalElements").asInt()).isZero();
+        var matches = discoveryPage(MockMvcRequestBuilders.get(path).param("q", "loc suat")
+                .param("date", "custom").param("from", date).param("to", date).param("status", "upcoming"));
+        assertThat(matches.path("content").get(0).path("id").asText()).isEqualTo(futureSale.toString());
+
+        jdbc.update("UPDATE performances SET sales_suspended=true WHERE id=?", onSale);
+        var suspended = discoveryPage(MockMvcRequestBuilders.get(path).param("q", "loc suat")
+                .param("date", "custom").param("from", date).param("status", "closed"));
+        var card = suspended.path("content").get(0);
+        assertThat(card.path("id").asText()).isEqualTo(onSale.toString());
+        assertThat(card.path("salesSuspended").asBoolean()).isTrue();
+        assertThat(card.path("status").asText()).isEqualTo("ON_SALE");
+    }
+
+    @Test
+    void discoveryRejectsUnsupportedSearchParameters() throws Exception {
+        String path = "/api/v2/events/discovery";
+        publicCatalog.perform(MockMvcRequestBuilders.get(path).param("q", "x".repeat(161))).andExpect(status().isBadRequest());
+        publicCatalog.perform(MockMvcRequestBuilders.get(path).param("status", "DRAFT")).andExpect(status().isBadRequest());
+        publicCatalog.perform(MockMvcRequestBuilders.get(path).param("sort", "arbitrary")).andExpect(status().isBadRequest());
+        publicCatalog.perform(MockMvcRequestBuilders.get(path).param("date", "someday")).andExpect(status().isBadRequest());
+        publicCatalog.perform(MockMvcRequestBuilders.get(path).param("date", "custom").param("from", "2026-02-30"))
+                .andExpect(status().isBadRequest());
+    }
+
+    private UUID discoveryShow(UUID eventId, OffsetDateTime starts, OffsetDateTime saleStarts, boolean acknowledged) {
+        var schedule = new PerformanceCatalog.Schedule(space, starts, starts.plusHours(2), null,
+                "Asia/Ho_Chi_Minh", saleStarts, starts.minusHours(1), 4, true);
+        var performance = tx(() -> catalog.createPerformance(owner, eventId, schedule));
+        tx(() -> catalog.saveSale(owner, owner, performance.id(), 0, maplessSale(performance.saleStartAt(), performance.saleEndAt())));
+        tx(() -> catalog.publish(owner, owner, performance.id(), 1L, 0L, null, null));
+        jdbc.update("UPDATE performance_sale_publications SET ticketing_ack=? WHERE performance_id=?",
+                acknowledged, performance.id());
+        return performance.id();
+    }
+
+    private com.fasterxml.jackson.databind.JsonNode discoveryPage(MockHttpServletRequestBuilder request) throws Exception {
+        var result = publicCatalog.perform(request).andExpect(status().isOk()).andReturn().getResponse();
+        return json.readTree(result.getContentAsByteArray()).path("data");
     }
 
     @Test

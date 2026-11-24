@@ -41,7 +41,10 @@ async function fixture(options, run) {
           requests.recovery.push(route.request().postDataJSON());
           return reply(null, 202);
         case '/api/notifications/unread-count': return reply({ count: 7 });
-        case '/api/concerts': return reply({ content: [], totalPages: 0, totalElements: 0 });
+        case '/api/concerts':
+        case '/api/v2/events':
+        case '/api/v2/events/discovery':
+          return reply({ content: [], number: 0, size: 24, last: true, totalPages: 0, totalElements: 0 });
         default: return reply(null, 404);
       }
     }
@@ -67,13 +70,20 @@ async function assertFocused(locator) {
 }
 
 const cases = [
-  ['Header search preserves active catalogue filters and mirrors reload', async () => {
+  ['Header search opens the catalogue, preserves active filters and mirrors reload', async () => {
     await fixture({}, async (page) => {
-      await page.goto('/?status=on-sale&sort=date&date=weekend&q=previous');
+      await page.goto('/');
       const search = page.getByRole('banner').getByRole('searchbox', { name: 'Find events' });
       await search.fill(' Hanoi ');
       await search.press('Enter');
       await page.waitForURL((url) => url.searchParams.get('q') === 'Hanoi');
+      assert.equal(new URL(page.url()).pathname, '/events', 'Homepage header search opens the catalogue.');
+      assert.equal(new URL(page.url()).hash, '#discover-concerts');
+
+      await page.goto('/events?status=on-sale&sort=date&date=weekend&q=previous');
+      await search.fill(' Hanoi ');
+      await search.press('Enter');
+      await page.waitForURL((url) => url.pathname === '/events' && url.searchParams.get('q') === 'Hanoi');
       const url = new URL(page.url());
       for (const [key, value] of Object.entries({ status: 'on-sale', sort: 'date', date: 'weekend' })) {
         assert.equal(url.searchParams.get(key), value);
@@ -83,16 +93,57 @@ const cases = [
       await page.waitForFunction(() => document.activeElement?.id === 'discovery-results-heading');
       await search.fill('');
       await search.press('Enter');
-      await page.waitForURL((value) => !value.searchParams.has('q'));
+      await page.waitForURL((value) => value.pathname === '/events' && !value.searchParams.has('q'));
       assert.equal(new URL(page.url()).searchParams.get('status'), 'on-sale');
     });
+  }],
+  ['Header stays aligned through catalogue, wallet and profile navigation', async () => {
+    for (const width of [1920, 320]) {
+      await fixture({ authenticated: true, width }, async (page) => {
+        await page.goto('/');
+        const header = page.getByRole('banner');
+        const logo = header.getByRole('link', { name: 'Back to events' });
+        const search = header.getByRole('searchbox', { name: 'Find events' });
+        const searchButton = header.getByRole('button', { name: 'Find events' });
+        const wallet = header.getByRole('link', { name: 'My tickets' });
+        const account = header.getByRole('button', { name: 'Open account menu' });
+        await wallet.waitFor();
+        assert(await logo.locator('.logo-mark').isVisible(), 'The TicketBox mark stays visible on the buyer header.');
+        await page.evaluate(() => document.fonts.ready);
+        const controls = Object.entries({ logo, wallet, account, search: width === 320 ? searchButton : search });
+        const positions = await Promise.all(controls.map(([, control]) => control.boundingBox()));
+        async function assertAligned(path) {
+          for (const [index, [name, control]] of controls.entries()) {
+            const before = positions[index];
+            await control.waitFor();
+            const after = await control.boundingBox();
+            assert(before && after && ['x', 'y', 'width'].every((key) => Math.abs(after[key] - before[key]) <= 1),
+              `Header ${name} stays aligned on ${path} at ${width}px.`);
+          }
+        }
+
+        await wallet.click();
+        await page.waitForURL('**/my-tickets');
+        await page.getByRole('heading', { name: 'My tickets' }).waitFor();
+        await assertAligned('/my-tickets');
+        await account.click();
+        await header.getByRole('link', { name: 'Profile' }).click();
+        await page.waitForURL('**/profile');
+        await page.getByRole('heading', { level: 1 }).waitFor();
+        await assertAligned('/profile');
+        if (width === 320) await searchButton.click();
+        await search.fill('Jazz');
+        await search.press('Enter');
+        await page.waitForURL('**/events?q=Jazz#discover-concerts');
+        await assertAligned('/events');
+      });
+    }
   }],
   ['320px header offers direct wallet, mobile search and keyboard disclosures', async () => {
     await fixture({ authenticated: true, width: 320 }, async (page) => {
       await page.goto('/');
       const header = page.getByRole('banner');
       await header.getByRole('link', { name: 'My tickets' }).waitFor();
-      assert(await header.getByRole('combobox', { name: 'Language' }).isVisible());
       const searchButton = header.getByRole('button', { name: 'Find events' });
       await searchButton.press('Enter');
       const search = header.getByRole('searchbox', { name: 'Find events' });
@@ -101,34 +152,51 @@ const cases = [
       await search.press('Escape');
       assert.equal(await searchButton.getAttribute('aria-expanded'), 'false');
       await assertFocused(searchButton);
+      await searchButton.press('Enter');
+      await search.fill('Danang');
+      await search.press('Enter');
+      await page.waitForURL((url) => url.searchParams.get('q') === 'Danang');
+      assert.equal(new URL(page.url()).pathname, '/events', 'Mobile header search opens the catalogue.');
+      assert.equal(await searchButton.getAttribute('aria-expanded'), 'false');
 
-      const menu = header.getByRole('button', { name: 'Toggle navigation' });
+      const menu = header.getByRole('button', { name: 'Open account menu' });
       await menu.press('Enter');
-      const navigation = header.getByRole('navigation', { name: 'Mobile navigation' });
-      const organizer = navigation.getByRole('link', { name: 'Organizer workspace' });
-      assert.equal(await organizer.count(), 0, 'Buyer navigation omits Organizer.');
-      assert.equal(await navigation.getByRole('link', { name: 'Order history' }).getAttribute('href'), '/profile?tab=orders');
-      await navigation.getByRole('link', { name: /Notifications.*7 unread/ }).waitFor();
-      await navigation.getByRole('link', { name: 'Profile' }).focus();
+      assert.equal(await header.getByRole('link', { name: 'Organizer workspace' }).count(), 0);
+      assert.equal(await header.getByRole('link', { name: 'Events', exact: true }).count(), 0);
+      assert.equal(await header.getByRole('link', { name: 'Order history' }).getAttribute('href'), '/profile?tab=orders');
+      await header.getByRole('link', { name: /Notifications.*7 unread/ }).waitFor();
+      await header.getByRole('combobox', { name: 'Language' }).waitFor();
+      await header.getByRole('link', { name: 'Profile' }).focus();
       await page.keyboard.press('Escape');
       assert.equal(await menu.getAttribute('aria-expanded'), 'false');
       await assertFocused(menu);
       await menu.click();
       await page.screenshot({ path: resolve(output, 'mobile-navigation-en-320.png') });
-      await navigation.getByRole('link', { name: 'Order history' }).click();
+      assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+      await header.getByRole('link', { name: 'Order history' }).click();
       await page.waitForURL('**/profile?tab=orders');
       assert.equal(await menu.getAttribute('aria-expanded'), 'false');
       assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
     });
   }],
-  ['Desktop account focus, unread badge and order history are accessible', async () => {
+  ['Desktop account holds notifications, language and order history', async () => {
     await fixture({ authenticated: true }, async (page) => {
       await page.goto('/');
       const header = page.getByRole('banner');
       const main = header.getByRole('navigation', { name: 'Main navigation' });
-      await main.getByRole('link', { name: /Notifications.*7 unread/ }).waitFor();
+      await main.getByRole('link', { name: 'My tickets' }).waitFor();
+      assert.equal(await main.getByRole('link', { name: 'Events', exact: true }).count(), 0, 'Events is available through catalogue search.');
+      assert.equal(await header.getByRole('link', { name: /Notifications/ }).count(), 0, 'Notifications stays in the closed account menu.');
+      assert.equal(await header.getByRole('combobox', { name: 'Language' }).count(), 0, 'Language stays in the closed account menu.');
       const account = header.getByRole('button', { name: 'Open account menu' });
+      await account.getByText('7 unread notifications', { exact: true }).waitFor();
+      assert(await account.getAttribute('aria-describedby'));
       await account.press('Enter');
+      const notifications = header.getByRole('link', { name: /Notifications.*7 unread/ });
+      await notifications.waitFor();
+      assert.equal(await notifications.getAttribute('href'), '/notifications');
+      const language = header.getByRole('combobox', { name: 'Language' });
+      await language.waitFor();
       const orders = header.getByRole('link', { name: 'Order history' });
       await orders.focus();
       await page.keyboard.press('Escape');
@@ -139,6 +207,48 @@ const cases = [
       await orders.click();
       await page.waitForURL('**/profile?tab=orders');
       assert.equal(await account.getAttribute('aria-expanded'), 'false');
+      await account.click();
+      await language.selectOption('vi');
+      await page.waitForFunction(() => document.documentElement.lang === 'vi');
+    });
+  }],
+  ['Guest account menu offers sign-in and a persistent language choice', async () => {
+    for (const width of [320, 1440]) {
+      await fixture({ width }, async (page) => {
+        await page.goto('/');
+        const header = page.getByRole('banner');
+        const account = header.getByRole('button', { name: 'Open account menu' });
+        await account.click();
+        assert.equal(await header.getByRole('link', { name: 'Sign in' }).getAttribute('href'), '/login');
+        assert.equal(await header.getByRole('link', { name: 'Create account' }).getAttribute('href'), '/register');
+        assert.equal(await header.getByRole('link', { name: /Notifications/ }).count(), 0);
+        await header.getByRole('combobox', { name: 'Language' }).selectOption('vi');
+        await page.waitForFunction(() => document.documentElement.lang === 'vi');
+        await page.reload();
+        await header.getByRole('button', { name: 'Mở menu tài khoản' }).click();
+        assert.equal(await header.getByRole('combobox', { name: 'Ngôn ngữ' }).inputValue(), 'vi');
+        await header.getByRole('link', { name: 'Đăng nhập' }).click();
+        await page.waitForURL('**/login');
+      });
+    }
+  }],
+  ['Legacy and native purchase routes keep the compact language header', async () => {
+    await fixture({ authenticated: true, width: 390 }, async (page) => {
+      await page.addInitScript(() => {
+        const [, concertId] = location.pathname.match(/\/([^/]+)\/seats$/) ?? [];
+        if (concertId) sessionStorage.setItem('ticketbox.queue-admission', JSON.stringify({
+          concertId, queueAccessToken: 'fixture-admission', sessionExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+        }));
+      });
+      for (const path of [
+        '/concerts/legacy/waiting-room', '/concerts/legacy/seats',
+        '/events/native/performances/show/waiting-room', '/events/native/performances/show/seats',
+      ]) {
+        await page.goto(path);
+        await page.getByRole('combobox', { name: 'Language' }).waitFor();
+        assert.equal(new URL(page.url()).pathname, path);
+        assert.equal(await page.getByRole('banner').count(), 0, `${path} omits full buyer navigation.`);
+      }
     });
   }],
   ['Register validates confirmation, allows no phone and resumes guarded checkout', async () => {

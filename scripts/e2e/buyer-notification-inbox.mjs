@@ -99,15 +99,17 @@ async function fixture(browser) {
       const result = await state.patch(path.split('/')[3], account);
       return typeof result === 'number' ? reply(null, result) : reply(result);
     }
-    return reply(path === '/api/concerts' ? pageData(0, [], true) : []);
+    return reply(['/api/concerts', '/api/v2/events/discovery'].includes(path) ? pageData(0, [], true) : []);
   });
   return { page, state, close: () => context.close() };
 }
 
 const notice = (page, item) => page.getByRole('article').filter({ has: page.getByRole('heading', { name: item.subject, exact: true }) });
-const unreadBadge = (page, count) => page.getByRole('navigation').getByRole('link', {
-  name: new RegExp('^Notifications\\s*' + count + (count === 1 ? ' unread notification$' : ' unread notifications$')),
-});
+const accountMenu = (page) => page.getByRole('button', { name: /^(Open account menu|Mở menu tài khoản)$/ });
+const unreadBadge = (page, count) => accountMenu(page).getByText(
+  count + (count === 1 ? ' unread notification' : ' unread notifications'), { exact: true },
+);
+const notificationsLink = (page) => page.getByRole('banner').getByRole('link', { name: /^Notifications/ });
 
 async function checkLayout(page, language) {
   for (const width of [320, 390, 834, 1440]) {
@@ -150,12 +152,16 @@ try {
   await notice(page, unknown).getByText('Update', { exact: true }).waitFor();
   await checkLayout(page, 'en');
   const dateEn = await notice(page, payment).locator('time').textContent();
+  await accountMenu(page).click();
   await page.locator('select[data-language-select]').selectOption('vi');
   await notice(page, payment).getByText('Xác nhận vé', { exact: true }).waitFor();
+  await accountMenu(page).press('Escape');
   assert.notEqual(await notice(page, payment).locator('time').textContent(), dateEn);
   await notice(page, payment).getByText(payment.body, { exact: true }).waitFor();
   await checkLayout(page, 'vi');
+  await accountMenu(page).click();
   await page.locator('select[data-language-select]').selectOption('en');
+  await accountMenu(page).press('Escape');
 
   await page.getByRole('button', { name: 'Unread', exact: true }).click();
   const originalPatch = state.patch;
@@ -194,8 +200,9 @@ try {
   await page.getByRole('alert').getByText('Could not refresh notifications.').waitFor();
   await notice(page, cancellation).waitFor();
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByRole('button', { name: 'Toggle navigation' }).click();
   await unreadBadge(page, 5).waitFor();
+  await accountMenu(page).click();
+  assert.match(await notificationsLink(page).textContent(), /5 unread notifications/);
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   await inbox.close();
 
@@ -240,14 +247,15 @@ try {
   const cancelledPatch = session.page.waitForEvent('requestfailed', {
     predicate: (request) => request.method() === 'PATCH' && new URL(request.url()).pathname === '/api/notifications/payment/read',
   });
-  await session.page.getByRole('button', { name: 'Open account menu' }).click();
+  await accountMenu(session.page).click();
   await session.page.getByRole('button', { name: 'Sign out' }).click();
   await session.page.waitForURL('**/login');
   await cancelledPatch;
   await session.page.locator('input[name=email]').fill(secondBuyer.email);
   await session.page.locator('input[name=password]').fill('second-password');
   await session.page.locator('button[type=submit]').click();
-  await session.page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: /Notifications/ }).click();
+  await accountMenu(session.page).click();
+  await notificationsLink(session.page).click();
   await notice(session.page, newAccountNotice).waitFor();
   latePatch.resolve();
   await unreadBadge(session.page, 1).waitFor();

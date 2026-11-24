@@ -163,10 +163,12 @@ try {
   assert.equal(await buyNow.getAttribute('href'), eventPath + '/waiting-room');
   await content.getByText('Balcony', { exact: true }).waitFor();
   await assertFits(page);
+  await page.getByRole('banner').getByRole('button', { name: 'Open account menu' }).click();
   await page.getByRole('combobox', { name: 'Language' }).selectOption('vi');
   await content.getByText('Đang mở bán', { exact: true }).waitFor();
   await assertFits(page);
   await page.getByRole('combobox', { name: 'Ngôn ngữ' }).selectOption('en');
+  await page.keyboard.press('Escape');
   await buyNow.waitFor();
   const buyBounds = await buyNow.boundingBox();
   assert(buyBounds.y + buyBounds.height <= 844, 'The primary purchase action fits in the first mobile viewport.');

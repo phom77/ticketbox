@@ -34,18 +34,15 @@ const laterEvent = {
   id: 'native-later', title: 'Highland Orchestra',
   performances: [{ ...nativeEvent.performances[0], id: 'native-later-show' }],
 };
-const mirroredEvent = {
-  id: featured.id, title: featured.title,
-  performances: [{ ...nativeEvent.performances[0], id: 'mirrored-show', legacyConcertId: featured.id }],
-};
 const browser = await chromium.launch();
 const context = await browser.newContext({ baseURL: origin, locale: 'en-US', viewport: { width: 390, height: 844 } });
 const page = await context.newPage();
 page.setDefaultTimeout(10_000);
 const requests = [];
-const nativeRequests = [];
+const pageErrors = [];
+page.on('pageerror', (error) => pageErrors.push(error.message));
 let failNextPage = true;
-let failNativeFirstPage = false;
+let failFirstPage = false;
 let catalogDelay;
 
 await page.route('**/*', async (route) => {
@@ -58,29 +55,42 @@ await page.route('**/*', async (route) => {
   });
   if (!path.startsWith('/api/')) return route.continue();
   const reply = (data, status = 200) => route.fulfill({ status, json: { code: status, data } });
-  if (path === '/api/concerts') {
+  if (path === '/api/v2/events/discovery') {
     const number = Number(url.searchParams.get('page'));
-    requests.push(number);
+    const size = Number(url.searchParams.get('size'));
+    const q = url.searchParams.get('q') ?? '';
+    const status = url.searchParams.get('status');
+    const date = url.searchParams.get('date');
+    const from = url.searchParams.get('from');
+    const to = url.searchParams.get('to');
+    requests.push({ number, q, status, date, from, to });
     if (number === 0 && catalogDelay) await catalogDelay;
+    if (number === 0 && failFirstPage) return reply(null, 503);
     if (number > 0 && failNextPage) {
       failNextPage = false;
       return reply(null, 503);
     }
-    const all = [...firstPage, ...nextPage];
-    const size = Number(url.searchParams.get('size'));
+
+    const toCard = (event, show = event.performances[0]) => ({
+      id: show.id, eventId: event.id, title: event.title, venueName: show.venueName,
+      eventDate: show.startsAt, saleStartAt: show.saleStartAt, saleEndAt: show.saleEndAt,
+      status: show.status, salesSuspended: show.salesSuspended, posterUrl: null,
+    });
+    let all = [toCard(nativeEvent), ...firstPage, toCard(laterEvent), ...nextPage];
+    if (q === 'city concert hall') all = [toCard(nativeEvent, nativeEvent.performances[1])];
+    else if (q === 'dem nhac dai duong') all = [nextPage[0]];
+    else if (q === 'nha hat hoa binh') all = [nextPage[1]];
+    else if (q) all = [];
+    if (status === 'upcoming' || date === 'custom') all = all.filter(({ id }) => id === upcoming.id);
+    if (date === 'today') all = [];
     const totalPages = Math.ceil(all.length / size);
-    const content = all.slice(number * size, (number + 1) * size);
-    return reply({ content, number, size, totalElements: all.length, totalPages, last: number >= totalPages - 1 });
+    return reply({
+      content: all.slice(number * size, (number + 1) * size),
+      number, size, totalElements: all.length, totalPages, last: number >= totalPages - 1,
+    });
   }
   if (path === '/api/concerts/rare') {
     return reply({ ...nextPage[1], description: 'Fixture show', ticketTypes: [] });
-  }
-  if (path === '/api/v2/events') {
-    const number = Number(url.searchParams.get('page'));
-    nativeRequests.push(number);
-    if (number === 0 && failNativeFirstPage) return reply(null, 503);
-    const content = [[nativeEvent, mirroredEvent], [laterEvent], []][number] ?? [];
-    return reply({ content, number, totalPages: 3, last: number >= 2 });
   }
   if (path === '/api/v2/events/native-event') return reply(nativeEvent);
   if (path.endsWith('/ticket-types')) return reply([]);
@@ -91,61 +101,57 @@ const main = page.getByRole('main');
 const results = () => main.getByRole('region', { name: /Upcoming events|Search results|Sự kiện sắp tới|Kết quả tìm kiếm/i });
 
 try {
-  await page.goto('/');
-  await main.getByRole('heading', { name: 'Find your next live event' }).waitFor();
-  const search = main.getByRole('searchbox', { name: 'Search events' });
-  const searchBounds = await search.boundingBox();
-  assert(searchBounds && searchBounds.y < 500, 'Search is visible immediately at mobile width.');
-  assert.equal(await main.getByText('City', { exact: true }).count(), 0, 'Fixture fields do not ship on the public route.');
-  const openingSoon = results().getByRole('link', { name: 'Sunrise Jazz' });
-  await openingSoon.getByText('Coming soon', { exact: true }).waitFor();
-  const native = results().getByRole('link', { name: nativeEvent.title });
+  await page.goto('/events');
+  await results().getByRole('link', { name: /Sunrise Jazz/ }).getByText('Coming soon', { exact: true }).waitFor();
+  assert.equal(await results().getByText('64 events', { exact: true }).count(), 1);
+  assert.equal(await main.getByText('City', { exact: true }).count(), 0, 'Fixture filters stay in preview.');
+  const search = async (query) => {
+    if (!(await page.getByRole('banner').getByRole('searchbox').isVisible())) {
+      await page.getByRole('banner').getByRole('button', { name: 'Find events', exact: true }).click();
+    }
+    const input = page.getByRole('banner').getByRole('searchbox');
+    await input.fill(query);
+    await input.press('Enter');
+    await page.waitForURL((url) => url.pathname === '/events' && (url.searchParams.get('q') ?? '') === query);
+  };
+  const native = results().getByRole('link', { name: new RegExp(nativeEvent.title) });
   await native.getByText('On sale', { exact: true }).waitFor();
   assert.equal(await native.count(), 1, 'Multiple performances share one event card.');
-  await search.fill('city concert hall');
-  await search.press('Enter');
+  await search('city concert hall');
   await native.getByText('Sales ended', { exact: true }).waitFor();
   await native.click();
   assert.equal(new URL(page.url()).pathname, '/events/native-event');
   await main.getByRole('heading', { name: nativeEvent.title }).waitFor();
+  assert.equal(new URL(page.url()).searchParams.get('performance'), 'native-suspended');
+  await page.waitForFunction(() => document.activeElement?.textContent.includes('City Concert Hall'));
   await page.goBack();
   await native.waitFor();
-  await results().getByRole('button', { name: 'Clear all' }).click();
-  const comingSoon = results().getByRole('region', { name: 'Coming soon', exact: true });
-  await comingSoon.getByRole('link', { name: 'Sunrise Jazz' }).waitFor();
-  assert.equal(await results().getByRole('link', { name: /Chamber Night/ }).count(), 0, 'The featured legacy event has no mirrored card.');
-  assert.equal(await comingSoon.getByText('On sale', { exact: true }).count(), 0);
-  await results().getByRole('button', { name: 'Load more events' }).click();
-  await results().getByText('Could not load more events.').waitFor();
-  assert(await openingSoon.isVisible(), 'A failed page keeps the previously loaded results.');
-  await results().getByRole('link', { name: laterEvent.title }).waitFor();
-  const beforeRetry = nativeRequests.length;
 
-  await search.fill('dat phong');
-  await search.press('Enter');
-  await results().getByText('No matches in loaded events').waitFor();
-  await results().getByRole('button', { name: 'Try again' }).click();
-  await results().getByRole('button', { name: 'Load more events' }).waitFor();
-  assert.equal(nativeRequests.length, beforeRetry, 'Retry does not advance or refetch the successful feed.');
-  await results().getByRole('button', { name: 'Load more events' }).click();
+  await search('dat phong');
   await results().getByText('No events match these filters.').waitFor();
-  assert(requests.filter((value) => value === 1).length >= 2, 'Retry fetches the failed page.');
-  assert.equal(nativeRequests.at(-1), 2, 'Load more advances the native feed after retry.');
-
-  await search.fill('dem nhac dai duong');
-  await search.press('Enter');
+  assert.equal(await results().getByRole('button', { name: 'Load more events' }).count(), 0);
+  await search('dem nhac dai duong');
   await results().getByRole('link', { name: /Late Night Orchestra/ }).waitFor();
-  await search.fill('nha hat hoa binh');
-  await search.press('Enter');
+  assert(requests.some(({ number, q }) => number === 0 && q === 'dem nhac dai duong'));
+  await search('nha hat hoa binh');
   const rare = results().getByRole('link', { name: /Rare Starlight Symphony/ });
   await rare.waitFor();
   await rare.click();
   await main.getByRole('heading', { name: 'Rare Starlight Symphony' }).waitFor();
+  assert.equal(await main.getByRole('link', { name: 'All events' }).getAttribute('href'), '/events');
   await page.goBack();
   await rare.waitFor();
   assert.equal(new URL(page.url()).searchParams.get('q'), 'nha hat hoa binh');
-  await search.fill('');
-  await search.press('Enter');
+
+  await results().getByRole('button', { name: 'Clear all' }).click();
+  const openingSoon = results().getByRole('link', { name: /Sunrise Jazz/ });
+  await results().getByRole('button', { name: 'Load more events' }).click();
+  await results().getByText('Could not load more events.').waitFor();
+  assert(await openingSoon.isVisible(), 'A failed page keeps the previously loaded results.');
+  await results().getByRole('button', { name: 'Try again' }).click();
+  await results().getByRole('button', { name: 'Load more events' }).click();
+  await rare.waitFor();
+  assert.equal(requests.filter(({ number, q }) => number === 1 && q === '').length, 2);
   await rare.scrollIntoViewIfNeeded();
   await rare.evaluate((node) => node.addEventListener('click', () => {
     sessionStorage.setItem('discovery-fixture-link-top', String(node.getBoundingClientRect().top));
@@ -157,24 +163,27 @@ try {
   await rare.waitFor();
   await page.waitForFunction((top) => {
     const link = document.querySelector('#discover-concerts a[href="/concerts/rare"]');
-    return link && Math.abs(link.getBoundingClientRect().top - top) < 24;
+    return link && Math.abs(link.getBoundingClientRect().top - top) < 24 && link === document.activeElement;
   }, before);
-  assert.equal(await rare.evaluate((node) => node === document.activeElement), true);
 
   await page.goto('/?status=DRAFT');
-  await results().getByRole('link', { name: /Sunrise Jazz/ }).waitFor();
-  assert.equal(await results().getByRole('link', { name: /Chamber Night/ }).count(), 0);
+  await page.waitForURL((url) => url.pathname === '/events');
+  await openingSoon.waitFor();
+  assert.equal(requests.at(-1).status, 'upcoming');
   await page.goto('/?status=' + encodeURIComponent('Sắp mở bán'));
-  await results().getByRole('link', { name: /Sunrise Jazz/ }).waitFor();
+  await page.waitForURL((url) => url.pathname === '/events');
+  await openingSoon.waitFor();
 
   const filterDisclosure = results().locator('summary');
   await filterDisclosure.focus();
   await page.keyboard.press('Enter');
   await results().getByRole('combobox', { name: 'Event date', exact: true }).selectOption('today');
   await results().getByRole('button', { name: 'Apply filters' }).click();
-  assert.equal(new URL(page.url()).searchParams.get('date'), 'today');
+  await results().getByText('No events match these filters.').waitFor();
+  assert.equal(requests.at(-1).date, 'today');
   await results().getByRole('button', { name: 'Remove Today filter' }).click();
   assert.equal(new URL(page.url()).searchParams.has('date'), false);
+
   const localDay = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date(upcoming.eventDate));
   await results().locator('summary').click();
   await results().getByRole('combobox', { name: 'Event date', exact: true }).selectOption('custom');
@@ -183,29 +192,36 @@ try {
   await page.setViewportSize({ width: 320, height: 844 });
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   await results().getByRole('button', { name: 'Apply filters' }).click();
-  assert.equal(new URL(page.url()).searchParams.get('from'), localDay);
-  assert.equal(new URL(page.url()).searchParams.get('to'), localDay);
-  await results().getByRole('link', { name: /Sunrise Jazz/ }).waitFor();
+  await openingSoon.waitFor();
+  assert.equal(requests.at(-1).from, localDay);
+  assert.equal(requests.at(-1).to, localDay);
   await page.reload();
-  await results().getByRole('link', { name: /Sunrise Jazz/ }).waitFor();
-
+  await openingSoon.waitFor();
 
   for (const language of ['en', 'vi']) {
     await page.evaluate((value) => localStorage.setItem('ticketbox.language', value), language);
-    await page.goto('/');
-    await main.getByRole('heading', { name: /Chamber Night|Đêm nhạc thính phòng/ }).waitFor();
-    assert.equal(await results().getByRole('link', { name: /Chamber Night|Đêm nhạc thính phòng/ }).count(), 0);
-    await results().getByRole('link', { name: 'Sunrise Jazz' }).waitFor();
-    for (const width of [320, 390, 834, 1440, 2560]) {
-      await page.setViewportSize({ width, height: 924 });
-      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
-      assert(overflow <= 1, `${language} at ${width}px overflows by ${overflow}px`);
-      if (width === 2560) {
-        const bounds = await page.locator('.discovery-page').boundingBox();
-        assert(bounds.width > width * .85, 'Discovery uses most of a wide display.');
+    for (const path of ['/', '/events']) {
+      await page.goto(path);
+      if (path === '/') {
+        await main.getByRole('heading', { name: /Chamber Night|Đêm nhạc thính phòng/ }).waitFor();
+        assert.equal(await results().getByRole('link', { name: /Chamber Night|Đêm nhạc thính phòng/ }).count(), 0);
+        assert.equal(await main.getByRole('searchbox').count(), 0, 'Homepage uses the shared header search.');
+        await main.getByRole('link', { name: /Browse all events|Xem tất cả sự kiện/i }).waitFor();
       }
-      if (process.env.TICKETBOX_DISCOVERY_SCREENSHOTS) {
-        await page.screenshot({ path: `${process.env.TICKETBOX_DISCOVERY_SCREENSHOTS}/discovery-${language}-${width}.png` });
+      assert.equal(await page.getByRole('contentinfo').getByRole('link', { name: /Browse events|Khám phá sự kiện/i }).getAttribute('href'), '/events');
+      await openingSoon.waitFor();
+      for (const width of [320, 390, 834, 1440, 2560]) {
+        await page.setViewportSize({ width, height: 924 });
+        const overflow = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+        assert(overflow <= 1, `${language} ${path} at ${width}px overflows by ${overflow}px`);
+        if (width === 2560) {
+          const bounds = await page.locator('.discovery-page').boundingBox();
+          assert(bounds.width > width * .85, 'Discovery uses most of a wide display.');
+        }
+        if (process.env.TICKETBOX_DISCOVERY_SCREENSHOTS) {
+          const screen = path === '/' ? 'home' : 'catalogue';
+          await page.screenshot({ path: `${process.env.TICKETBOX_DISCOVERY_SCREENSHOTS}/${screen}-${language}-${width}.png` });
+        }
       }
     }
   }
@@ -213,27 +229,24 @@ try {
   await page.evaluate(() => localStorage.setItem('ticketbox.language', 'en'));
   let releaseCatalog;
   catalogDelay = new Promise((release) => { releaseCatalog = release; });
-  await page.goto('/?q=not-in-catalog#discover-concerts', { waitUntil: 'domcontentloaded' });
-  await search.fill('a new search in progress');
+  await page.goto('/events?q=not-in-catalog#discover-concerts', { waitUntil: 'domcontentloaded' });
+  const headerSearch = page.getByRole('banner').getByRole('searchbox');
+  await headerSearch.fill('a new search in progress');
   releaseCatalog();
   catalogDelay = undefined;
-  await results().getByText('No matches in loaded events').waitFor();
+  await results().getByText('No events match these filters.').waitFor();
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-  assert.equal(await search.evaluate((node) => node === document.activeElement), true, 'Delayed hash scrolling preserves active input.');
-  assert.equal(await search.inputValue(), 'a new search in progress');
+  assert.equal(await headerSearch.evaluate((node) => node === document.activeElement), true);
+  assert.equal(await headerSearch.inputValue(), 'a new search in progress');
 
-  failNativeFirstPage = true;
-  await page.goto('/');
+  failFirstPage = true;
+  await page.goto('/events');
   await results().getByText('Could not load events.', { exact: true }).waitFor();
-  await openingSoon.waitFor();
-  const beforeInitialRetry = requests.length;
-  failNativeFirstPage = false;
+  failFirstPage = false;
   await results().getByRole('button', { name: 'Try again' }).click();
-  await native.waitFor();
-  assert.equal(requests.length, beforeInitialRetry, 'A failed initial request leaves the other feed intact.');
+  await openingSoon.waitFor();
 
   const beforePreview = requests.length;
-  const nativeBeforePreview = nativeRequests.length;
   await page.goto('/discover-preview');
   await main.getByText('Illustrative data', { exact: true }).waitFor();
   await results().locator('summary').click();
@@ -245,11 +258,10 @@ try {
   await results().getByRole('button', { name: 'Clear all' }).click();
   assert((await results().getByRole('article').count()) > 1);
   assert.equal(requests.length, beforePreview, 'Preview does not request any Catalog pages.');
-  assert.equal(nativeRequests.length, nativeBeforePreview);
   console.log('Buyer discovery, pagination, Back restoration, legacy URLs, and isolated preview passed.');
 } catch (error) {
   console.error('Discovery failure at', new URL(page.url()).pathname + new URL(page.url()).search,
-    'Catalog pages requested:', requests, 'Native pages requested:', nativeRequests,
+    'Recent Catalog pages:', requests.slice(-5), 'Page errors:', pageErrors,
     'Visible state:', (await main.innerText({ timeout: 500 }).catch(() => '')).slice(0, 420));
   throw error;
 } finally {

@@ -107,7 +107,7 @@ function ConcertDetailView({ id, preview }: { id?: string; preview: boolean }) {
     ? DOMPurify.sanitize(concert.seatMapSvg, { USE_PROFILES: { svg: true, svgFilters: true } })
     : '', [concert?.seatMapSvg]);
 
-  const returnPath = preview ? (id ? '/organizer/concerts/' + id : '/organizer/concerts') : '/';
+  const returnPath = preview ? (id ? '/organizer/concerts/' + id : '/organizer/concerts') : '/events';
   const returnLabel = t(preview ? 'concertDetailPage_veBuoiDien' : 'concertDetailPage_tatCaConcert');
 
   if (loadError || !id) {

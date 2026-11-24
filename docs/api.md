@@ -86,12 +86,17 @@ Platform admins can recover an organization without an active manager via `PUT /
 | Method and path | Access |
 | --- | --- |
 | `GET /api/v2/events`, `GET /api/v2/events/{eventId}` | Public published schedule |
+| `GET /api/v2/events/discovery` | Public event cards across legacy and native listings |
 | `GET /api/v2/performances/{id}/layout`, `GET .../layout/sections/{sectionId}` | Public published geometry |
 | `GET /api/v2/performances/{id}/availability`, `GET .../availability/sections/{sectionId}` | Public sellable groups and available seats |
 | `PUT`, `GET`, `DELETE /api/v2/performances/{id}/hold` | Buyer with a queue token for that performance |
 | `POST /api/v2/performances/{id}/orders` | Buyer with a queue token and idempotency key |
 | `/api/organizer/manage/v2/events/**`, `.../venues/**`, `.../performances/**` | Organizer with matching grants and organization |
 | `/api/v2/staff/performances/**` | Active staff with organization access and performance assignment |
+
+Discovery accepts `q` (up to 160 characters after trimming), `date` (`today`, `weekend`, `next-30`, or `custom`), `status` (`on-sale`, `upcoming`, `sold-out`, or `closed`), and `sort` (`sale-start`, otherwise event date when omitted). With `date=custom`, either or both of `from` and `to` may be supplied as inclusive `YYYY-MM-DD` dates. Date filters use `Asia/Ho_Chi_Minh`. Search matches the event title, translated titles and venue with or without Vietnamese accents. With no keyword, date or status filter, discovery lists future events. Pagination starts at `page=0` and defaults to `size=24`, bounded to 1–100. Invalid filters return HTTP 400.
+
+The response counts matching public events before paging and returns one card per event. The card uses a performance that matches all filters and comes first in the selected order. For legacy concerts `id` identifies the concert and `eventId` is null. For native events `id` identifies the performance and `eventId` identifies its event. The card returns the raw sale `status`, `salesSuspended`, `title`, `venueName`, `eventDate`, `saleStartAt`, `saleEndAt`, `posterUrl`, and available `translations`.
 
 Use the existing queue endpoints with the performance ID. The hold command replaces the basket and sends its last confirmed `holdVersion` and the map's `layoutVersion`. A basket can select GA quantity by offer ID and assigned seats by offer and seat IDs. Use the returned hold version to create the order. The resulting order ID works with existing payment, recovery and ticket endpoints. The API returns 401 for missing authentication, 403 for failed scope or shopping-session permission, and 409 for stale versions, an unavailable seat or a conflicting idempotency key. Reload availability and confirm the current hold after a conflict. Keep the order request key when recovering an ambiguous result.
 

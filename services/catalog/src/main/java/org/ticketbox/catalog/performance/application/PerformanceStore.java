@@ -7,6 +7,7 @@ import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.ticketbox.catalog.performance.application.PerformanceViews.Background;
+import org.ticketbox.catalog.performance.application.PerformanceViews.DiscoveryCard;
 import org.ticketbox.catalog.performance.application.PerformanceViews.Event;
 import org.ticketbox.catalog.performance.application.PerformanceViews.Layout;
 import org.ticketbox.catalog.performance.application.PerformanceViews.LayoutOverview;
@@ -22,6 +23,8 @@ import org.ticketbox.catalog.performance.domain.PerformanceSale;
 
 public interface PerformanceStore {
     Page<Event> events(UUID organizer, Pageable page);
+
+    Page<DiscoveryCard> discover(DiscoveryQuery query, Pageable page);
 
     Optional<Event> event(UUID id, UUID organizer);
 

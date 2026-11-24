@@ -3437,8 +3437,8 @@ body,
 @media (max-width: 400px) {
   .site-shell:has(.buyer-page) .header-inner { gap: .5rem; }
   .site-shell:has(.buyer-page) .header-actions { gap: .375rem; }
-  .site-shell:has(.buyer-page) .logo { min-block-size: 44px; font-size: 1.125rem; }
-  .site-shell:has(.buyer-page) .logo-mark,
+  .site-shell:has(.buyer-page) .header-inner .logo { min-block-size: 44px; font-size: 1.125rem; }
+  .site-shell:has(.buyer-page) .header-inner .logo-mark,
   .site-shell:has(.buyer-page) .avatar-button > svg { display: none; }
 
   .site-shell:has(.buyer-page) .avatar-button {

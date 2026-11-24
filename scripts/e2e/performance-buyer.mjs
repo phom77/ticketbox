@@ -57,8 +57,13 @@ try {
     if (path === '/api/payments/seat-order/status') return send({ provider: 'MOCK', attemptState: null });
     if (path === '/api/orders/seat-order') return send(order);
     if (path === '/api/v2/performances/second/orders') return send(order, 201);
-    if (path === '/api/concerts') return send({ content: [], totalPages: 0 });
-    if (path === '/api/v2/events') return send({ content: [event], totalPages: 1, first: true, last: true });
+    if (path === '/api/v2/events/discovery') {
+      const first = event.performances[0];
+      return send({
+        content: [{ ...first, title: event.title, eventDate: first.startsAt, posterUrl: null }],
+        totalPages: 1, totalElements: 1, first: true, last: true,
+      });
+    }
     if (path === '/api/v2/events/' + eventId) return send(event);
     if (path === '/api/concerts/first') {
       return send({ ...event.performances[0], title: 'Legacy River Show', eventDate: future(1440), ticketTypes: [] });
@@ -102,7 +107,7 @@ try {
 
   try {
     await page.goto(origin + '/events');
-    await page.getByRole('link', { name: 'River Tour' }).click();
+    await page.getByRole('link', { name: 'River Tour · Find tickets' }).click();
     await page.getByRole('heading', { name: 'River Tour', exact: true }).waitFor();
     assert.equal(await page.getByText('Studio One', { exact: true }).count(), 1);
     assert.equal(await page.getByText('Studio Two', { exact: true }).count(), 1);

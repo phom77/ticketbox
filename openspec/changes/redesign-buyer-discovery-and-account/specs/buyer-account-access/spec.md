@@ -8,7 +8,7 @@ Giúp khách tìm đúng điểm vào, tiếp tục hành trình sau xác thực
 
 ### Requirement: Điều hướng theo ngữ cảnh và vai trò
 
-Header, menu và footer SHALL cung cấp điểm vào khám phá, xác thực và các mục tài khoản được phép. Khách đã đăng nhập SHALL thấy đường mở Vé của tôi trên màn hẹp. Badge thông báo và header dành cho luồng mua SHALL tiếp tục hoạt động.
+Header SHALL có bố cục nhất quán giữa các trang duyệt vé, với logo, tìm kiếm, Vé của tôi cho khách mua và menu tài khoản. Menu SHALL chứa ngôn ngữ, các mục phù hợp với tài khoản và thông báo chưa đọc của khách mua. Header gọn SHALL áp dụng cho các đường phòng chờ, chọn vé và thanh toán.
 
 #### Scenario: Khách dùng menu trên điện thoại hoặc bàn phím
 
@@ -18,7 +18,7 @@ Header, menu và footer SHALL cung cấp điểm vào khám phá, xác thực v�
 #### Scenario: Khách tìm qua header
 
 - **WHEN** khách gửi từ khóa từ header
-- **THEN** kết quả khám phá mở với đúng từ khóa và các bộ lọc hiện hành khi tìm ngay trên danh sách.
+- **THEN** `/events` mở với đúng từ khóa và giữ các bộ lọc hiện hành khi tìm ngay trên danh mục.
 
 ### Requirement: Xác thực giữ đích quay lại
 

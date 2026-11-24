@@ -1,5 +1,5 @@
 import { api, publicGet } from './client';
-import type { ConcertStatus, Page } from './concerts';
+import type { ConcertStatus, ConcertSummary, Page } from './concerts';
 import type { Order } from './orders';
 
 export type Performance = {
@@ -23,6 +23,11 @@ export type EventDetails = {
   title: string;
   description: string | null;
   performances: Performance[];
+};
+
+type DiscoveryEvent = ConcertSummary & {
+  eventId: string | null;
+  salesSuspended: boolean;
 };
 
 export type Point = { x: number; y: number };
@@ -92,8 +97,15 @@ export const performancePath = (eventId: string, id: string) => eventPath(eventI
 const inventory = (id: string) => '/api/v2/performances/' + encodeURIComponent(id);
 const sectionPath = (id: string) => '/sections/' + encodeURIComponent(id);
 
-export function listEvents(page: number, signal: AbortSignal, size = 12) {
-  return publicGet<Page<EventDetails>>('/api/v2/events?page=' + page + '&size=' + size, signal);
+export async function getDiscoveryEvents(search: string, page: number, signal: AbortSignal) {
+  const params = new URLSearchParams(search);
+  params.set('page', String(page));
+  params.set('size', '24');
+  const response = await publicGet<Page<DiscoveryEvent>>(`/api/v2/events/discovery?${params}`, signal);
+  if (!Array.isArray(response?.content) || !Number.isInteger(response.totalElements) || typeof response.last !== 'boolean') {
+    throw new Error('Invalid event discovery response');
+  }
+  return response;
 }
 
 export function getEvent(id: string, signal?: AbortSignal) {

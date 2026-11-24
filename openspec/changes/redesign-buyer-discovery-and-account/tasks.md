@@ -22,3 +22,10 @@ Chốt URL và nền tảng giao diện trước. Triển khai theo ba nhóm Kh�
 
 - [x] 4.1 Chạy frontend lint, build và OpenSpec strict. Chạy fixture mới, web-language, checkout recovery, Vé của tôi, Thông báo và luồng mua qua gateway cô lập. Đối chiếu quyền hiện hành, URL và API tương thích. [Hướng dẫn kiểm thử](../../../docs/development.md#distributed-and-browser-regression)
 - [x] 4.2 Rà bản render Việt/Anh ở 320, 390, 834 và 1440 CSS px, bàn phím và zoom trình duyệt 200%. Lưu ảnh dữ liệu fixture và ghi phạm vi kiểm tra thực tế.
+
+## 5. Header và danh mục công khai
+
+- [x] 5.1 Catalog cung cấp danh mục công khai đã lọc và phân trang. Kiểm tra tên tiếng Việt không dấu, dữ liệu legacy và native, điều kiện cùng suất, tổng số kết quả và sự kiện chưa công bố.
+- [x] 5.2 Web dùng chung header với một ô tìm kiếm, Vé của tôi và menu tài khoản. Kiểm tra khách, người mua, menu bàn phím, badge, header phòng chờ và chọn vé trên cả hai đường mua.
+- [x] 5.3 Trang chủ giới thiệu sự kiện và dẫn sang danh mục `/events`. Dùng truy vấn Catalog đã lọc, giữ URL cũ, thử lại sau lỗi và khôi phục Back từ chi tiết. Kiểm tra bố cục Việt/Anh từ mobile đến màn hình rộng.
+- [x] 5.4 Chạy kiểm tra Catalog, OpenSpec strict, frontend lint/build và fixture browser bị ảnh hưởng. Catalog đạt 58 kiểm thử và gate build độc lập. Chromium đã kiểm tra dữ liệu fixture cho khám phá, điều hướng, tài khoản, thông báo, vé, hàng chờ, chọn chỗ và checkout. Luồng mua qua gateway cô lập chưa chạy cho đợt này.

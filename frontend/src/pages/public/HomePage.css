@@ -1,6 +1,4 @@
-.public-shell:has(.discovery-page) { --discovery-gutter: clamp(1rem, 3vw, 3.5rem); }
-.public-shell:has(.discovery-page) .public-topbar.page-width,
-.discovery-page.page-width { width: calc(100% - 2 * var(--discovery-gutter, 1rem)); }
+.discovery-page.page-width { width: calc(100% - 2 * clamp(1rem, 3vw, 3.5rem)); }
 .discovery-page { min-inline-size: 0; }
 
 .discovery-intro {
@@ -20,6 +18,7 @@
   letter-spacing: -.035em;
   text-wrap: balance;
 }
+.discovery-browse { margin-block-start: 1.25rem; }
 
 .discovery-search {
   display: flex;
@@ -127,7 +126,7 @@
 .discovery-results { min-inline-size: 0; scroll-margin-top: 7.5rem; }
 #discovery-results-heading { scroll-margin-top: 7.5rem; }
 .discovery-results-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: .375rem 1rem; margin-block-end: 1rem; }
-.discovery-page .discovery-results-title h2 { margin: 0; font-size: clamp(1.5rem, 1.275rem + .85vw, 2.25rem); }
+.discovery-page .discovery-results-title :is(h1, h2) { margin: 0; font-size: clamp(1.5rem, 1.275rem + .85vw, 2.25rem); }
 .discovery-results-title p { margin: 0; color: var(--muted); }
 
 .discovery-controls {
@@ -213,8 +212,8 @@
 .discovery-chips .discovery-clear:hover { border-color: transparent; text-decoration: underline; text-underline-offset: .18em; }
 
 .discovery-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
-.discovery-coming-soon { margin-block: 0 1.75rem; }
-.discovery-coming-soon h3 { margin-block: 0 .75rem; }
+.discovery-home-group { margin-block: 0 1.75rem; }
+.discovery-home-group h3 { margin-block: 0 .75rem; }
 .discovery-load-more {
   display: grid;
   justify-items: center;
@@ -236,17 +235,6 @@
 
 @media (width >= 68rem) {
   .discovery-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .discovery-event-groups[data-sparse-upcoming] {
-    display: grid;
-    grid-template-columns: clamp(14rem, 18vw, 24rem) minmax(0, 1fr);
-    align-items: start;
-    gap: 1.25rem;
-  }
-  .discovery-event-groups[data-sparse-upcoming] .discovery-coming-soon .discovery-grid { grid-template-columns: 1fr; }
-  .discovery-event-groups[data-sparse-upcoming] > .discovery-grid {
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
-    margin-block-start: 2.25rem;
-  }
 }
 
 @media (width >= 96rem) {
