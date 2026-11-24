@@ -15,7 +15,10 @@ public final class PerformanceViews {
 
     public record DiscoveryCard(UUID id, UUID eventId, String title, String venueName, OffsetDateTime eventDate,
                                 OffsetDateTime saleStartAt, OffsetDateTime saleEndAt, String status, String posterUrl,
-                                boolean salesSuspended, Map<String, DiscoveryText> translations) {}
+                                boolean salesSuspended, Map<String, DiscoveryText> translations, Long minPrice,
+                                String city, String category, int performanceCount) {}
+
+    public record DiscoveryFacets(List<String> cities, List<String> categories) {}
 
     public record DiscoveryText(String title, String description) {}
 

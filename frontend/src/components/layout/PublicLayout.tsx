@@ -17,6 +17,7 @@ import { readDiscoveryFilters, writeDiscoveryFilters } from '../../features/disc
 import { useDocumentTheme, useThemePreference } from '../../hooks/useThemePreference';
 import { LanguageSelect } from '../LanguageSelect';
 import { HeaderSearch } from './HeaderSearch';
+import { useDiscoveryFacets } from '../../features/discovery/useDiscoveryFacets';
 import './PublicLayout.css';
 
 export function Logo({
@@ -166,7 +167,7 @@ function ThemeMenuItem() {
   );
 }
 
-/** Catalogue views Catalog filters today. City and category entries need new discovery filters. */
+/** Fixed catalogue views; cities and categories with upcoming events are appended from Catalog. */
 const browseLinks = [
   { id: 'all', label: 'shared:browse_allEvents', params: {} },
   { id: 'on-sale', label: 'shared:browse_onSale', params: { status: 'on-sale' } },
@@ -175,13 +176,29 @@ const browseLinks = [
   { id: 'next-30', label: 'shared:browse_next30', params: { date: 'next-30' } },
   { id: 'upcoming', label: 'shared:browse_upcoming', params: { status: 'upcoming' } },
 ] as const;
-const browseKeys = ['q', 'date', 'from', 'to', 'status'] as const;
+const browseKeys = ['q', 'date', 'from', 'to', 'status', 'city', 'category'] as const;
 
 function BrowseRow({ current }: { current: URLSearchParams | null }) {
+  const facets = useDiscoveryFacets();
+  const links = [
+    ...browseLinks.map((link) => ({
+      id: link.id,
+      label: translate(link.label),
+      params: link.params as Record<string, string>,
+    })),
+    ...facets.cities
+      .slice(0, 3)
+      .map((city) => ({ id: 'city-' + city, label: city, params: { city } })),
+    ...facets.categories.slice(0, 3).map((category) => ({
+      id: 'category-' + category,
+      label: category.charAt(0).toUpperCase() + category.slice(1),
+      params: { category },
+    })),
+  ];
   return (
     <nav className="public-browse page-width" aria-label={translate('shared:browse_label')}>
       <ul>
-        {browseLinks.map((link) => {
+        {links.map((link) => {
           const params = new URLSearchParams(link.params);
           const active =
             current !== null &&
@@ -192,7 +209,7 @@ function BrowseRow({ current }: { current: URLSearchParams | null }) {
                 to={{ pathname: '/events', search: params.toString() }}
                 aria-current={active ? 'page' : undefined}
               >
-                {translate(link.label)}
+                {link.label}
               </Link>
             </li>
           );
@@ -227,7 +244,7 @@ function PublicHeader({
   const isAudience = user?.role === 'AUDIENCE';
   const onCatalogue = location.pathname === '/events' || location.pathname === '/events/';
   const catalogParams = new URLSearchParams(onCatalogue ? location.search : '');
-  const catalogFilters = readDiscoveryFilters(catalogParams, false);
+  const catalogFilters = readDiscoveryFilters(catalogParams);
   const initialSearch: HeaderSearchValues = {
     ...splitQuery(catalogFilters.q),
     date: catalogFilters.date,

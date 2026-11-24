@@ -40,12 +40,22 @@ public class JdbcPerformanceStore implements PerformanceStore {
             EXISTS (SELECT 1 FROM catalog_performance_view p WHERE p.event_id = e.id AND p.discoverable)
             """;
 
+    // Best-effort city: the last comma-separated part of the venue address, without a trailing country.
+    private static final String CITY = """
+            CASE WHEN position(',' IN p.venue_address) > 0 THEN NULLIF(btrim(substring(
+                regexp_replace(p.venue_address, '\\s*,\\s*vi.t\\s*nam\\s*$', '', 'i') FROM '([^,]+)$')), '') END
+            """;
+    private static final String MIN_PRICE = """
+            COALESCE((SELECT min(o.price) FROM performance_sale_offers o WHERE o.performance_id=p.id AND o.active),
+                     (SELECT min(t.price) FROM ticket_types t WHERE t.concert_id=p.legacy_concert_id AND t.is_active))
+            """;
     private static final String DISCOVERY = """
-            WITH matching AS (
+            WITH base AS (
                 SELECT e.id AS catalog_event_id, COALESCE(p.legacy_concert_id, p.id) AS id,
                        CASE WHEN p.legacy_concert_id IS NULL THEN e.id END AS event_id,
                        e.title, p.venue_name, p.starts_at AS event_date, p.sale_start_at, p.sale_end_at,
-                       p.status, p.sales_suspended, c.poster_url,
+                       p.status, p.sales_suspended, c.poster_url, e.category,
+                       {city} AS city, {minPrice} AS min_price,
                        CAST(c.localized_content AS jsonb)->'translations' AS translations,
                        CASE WHEN :saleStartFirst THEN p.sale_start_at ELSE p.starts_at END AS sort_date
                 FROM catalog_event_view e JOIN catalog_performance_view p ON p.event_id=e.id
@@ -68,8 +78,17 @@ public class JdbcPerformanceStore implements PerformanceStore {
                            FROM jsonb_each(CAST(c.localized_content AS jsonb)->'translations') AS translation)), NFD)),
                            U&'[\\0300-\\036f]', '', 'g'), U&'\\0111', 'd'), search.word) = 0
                   ))
+            ), matching AS (
+                SELECT * FROM base
+                WHERE (CAST(:city AS text) IS NULL OR lower(city) = lower(:city))
+                  AND (CAST(:category AS text) IS NULL OR lower(category) = lower(:category))
+                  AND (CAST(:minPrice AS numeric) IS NULL OR min_price >= :minPrice)
+                  AND (CAST(:maxPrice AS numeric) IS NULL OR min_price <= :maxPrice)
             ), representatives AS (
-                SELECT DISTINCT ON (catalog_event_id) * FROM matching
+                SELECT DISTINCT ON (catalog_event_id) *,
+                       count(*) OVER (PARTITION BY catalog_event_id) AS performance_count,
+                       min(min_price) OVER (PARTITION BY catalog_event_id) AS event_min_price
+                FROM matching
                 ORDER BY catalog_event_id, sort_date, event_date, id
             ), card_page AS (
                 SELECT * FROM representatives ORDER BY sort_date, event_date, id LIMIT :size OFFSET :offset
@@ -78,7 +97,13 @@ public class JdbcPerformanceStore implements PerformanceStore {
             FROM (SELECT count(*) AS total_elements FROM representatives) total
             LEFT JOIN card_page ON TRUE
             ORDER BY card_page.sort_date, card_page.event_date, card_page.id
-            """;
+            """.replace("{city}", CITY).replace("{minPrice}", MIN_PRICE);
+
+    private static final String FACETS = """
+            SELECT DISTINCT {city} AS city, e.category
+            FROM catalog_event_view e JOIN catalog_performance_view p ON p.event_id=e.id
+            WHERE p.discoverable AND p.starts_at >= now()
+            """.replace("{city}", CITY);
 
     private static final String OPERATIONS_SHOWS = """
             FROM performances p JOIN events e ON e.id=p.event_id
@@ -130,6 +155,10 @@ public class JdbcPerformanceStore implements PerformanceStore {
                 .addValue("startsBefore", query.startsBefore())
                 .addValue("saleStatus", query.status() == null ? null : query.status().name())
                 .addValue("saleStartFirst", query.saleStartFirst())
+                .addValue("city", query.city())
+                .addValue("category", query.category())
+                .addValue("minPrice", query.minPrice())
+                .addValue("maxPrice", query.maxPrice())
                 .addValue("size", page.getPageSize())
                 .addValue("offset", page.getOffset());
         return named.query(DISCOVERY, parameters, rows -> {
@@ -143,10 +172,23 @@ public class JdbcPerformanceStore implements PerformanceStore {
                 cards.add(new DiscoveryCard(id, id(rows, "event_id"), rows.getString("title"),
                         rows.getString("venue_name"), time(rows, "event_date"), time(rows, "sale_start_at"),
                         time(rows, "sale_end_at"), rows.getString("status"), rows.getString("poster_url"),
-                        rows.getBoolean("sales_suspended"), translations == null ? Map.of() : read(translations, TRANSLATIONS)));
+                        rows.getBoolean("sales_suspended"), translations == null ? Map.of() : read(translations, TRANSLATIONS),
+                        rows.getBigDecimal("event_min_price") == null ? null : rows.getBigDecimal("event_min_price").longValue(),
+                        rows.getString("city"), rows.getString("category"), rows.getInt("performance_count")));
             }
             return new PageImpl<>(cards, page, total);
         });
+    }
+
+    @Override
+    public DiscoveryFacets discoveryFacets() {
+        var cities = new java.util.TreeSet<String>();
+        var categories = new java.util.TreeSet<String>();
+        jdbc.query(FACETS, rows -> {
+            if (rows.getString("city") != null) cities.add(rows.getString("city"));
+            if (rows.getString("category") != null) categories.add(rows.getString("category"));
+        });
+        return new DiscoveryFacets(List.copyOf(cities), List.copyOf(categories));
     }
 
     @Override

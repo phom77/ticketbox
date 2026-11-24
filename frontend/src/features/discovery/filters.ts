@@ -22,44 +22,43 @@ export const sortOptions = {
   'sale-start': 'discovery_saleStart',
 } as const;
 
-export const previewCityOptions = {
-  '': 'discovery_anyCity',
-  hanoi: 'discovery_hanoi',
-  hcmc: 'discovery_hcmc',
-} as const;
-
-export const previewCategoryOptions = {
-  '': 'discovery_anyCategory',
-  jazz: 'discovery_jazz',
-  pop: 'discovery_pop',
-  classical: 'discovery_classical',
-} as const;
-
-export const previewPriceOptions = {
+export const priceOptions = {
   '': 'discovery_anyPrice',
   'under-500000': 'discovery_under500',
-  '500000-plus': 'discovery_500Plus',
+  '500000-1000000': 'discovery_500To1000',
+  '1000000-plus': 'discovery_1000Plus',
 } as const;
+
+const priceRanges: Record<string, { minPrice?: number; maxPrice?: number }> = {
+  'under-500000': { maxPrice: 499_999 },
+  '500000-1000000': { minPrice: 500_000, maxPrice: 1_000_000 },
+  '1000000-plus': { minPrice: 1_000_001 },
+};
 
 export const discoveryOptions = {
   date: dateOptions,
   status: statusOptions,
   sort: sortOptions,
-  city: previewCityOptions,
-  category: previewCategoryOptions,
-  price: previewPriceOptions,
+  price: priceOptions,
 } as const;
 
 type FilterOption = keyof typeof discoveryOptions;
-export type DiscoveryFilters = { q: string; from: string; to: string } & {
+export type DiscoveryFilters = {
+  q: string;
+  from: string;
+  to: string;
+  city: string;
+  category: string;
+} & {
   [K in FilterOption]: keyof (typeof discoveryOptions)[K];
 };
 
 export type DiscoveryConcert = ConcertSummary & {
   performance?: { eventId: string; salesSuspended: boolean };
-  city?: Exclude<DiscoveryFilters['city'], ''>;
-  category?: Exclude<DiscoveryFilters['category'], ''>;
-  price?: number;
+  minPrice?: number | null;
+  city?: string | null;
+  category?: string | null;
+  performanceCount?: number;
 };
 
 export function discoverySaleState(concert: DiscoveryConcert, now: number) {
@@ -78,6 +77,8 @@ const legacyStatus: Record<string, DiscoveryFilters['status']> = {
   'Hết vé': 'sold-out',
 };
 
+export const capitalize = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
+
 export const concertTimeZone = 'Asia/Ho_Chi_Minh';
 const localCalendar = new Intl.DateTimeFormat('en-CA', {
   timeZone: concertTimeZone,
@@ -87,10 +88,25 @@ const localCalendar = new Intl.DateTimeFormat('en-CA', {
 });
 const dayMs = 86_400_000;
 
-function localDay(timestamp: number) {
+export function localDay(timestamp: number) {
   const parts = localCalendar.formatToParts(timestamp);
   const value = (type: string) => Number(parts.find((part) => part.type === type)?.value);
   return Date.UTC(value('year'), value('month') - 1, value('day'));
+}
+
+/** Calendar-day distance of a timestamp from today in the concert time zone (0 = today, 1 = tomorrow). */
+export function daysFromToday(timestamp: number, now: number) {
+  return Math.round((localDay(timestamp) - localDay(now)) / dayMs);
+}
+
+const isoDay = (day: number) => new Date(day).toISOString().slice(0, 10);
+
+/** First and last calendar day of the current month in the concert time zone. */
+export function currentMonthRange(now: number) {
+  const today = new Date(localDay(now));
+  const first = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1);
+  const last = Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 0);
+  return { from: isoDay(first), to: isoDay(last) };
 }
 
 export function discoveryDateParam(input: string | null) {
@@ -108,7 +124,7 @@ function option<Values extends Record<string, string>>(
     : '';
 }
 
-export function readDiscoveryFilters(params: URLSearchParams, preview: boolean): DiscoveryFilters {
+export function readDiscoveryFilters(params: URLSearchParams): DiscoveryFilters {
   const status = params.get('status');
   let date = option(dateOptions, params.get('date'));
   const from = date && date !== 'custom' ? '' : discoveryDateParam(params.get('from'));
@@ -126,9 +142,9 @@ export function readDiscoveryFilters(params: URLSearchParams, preview: boolean):
         : status,
     ),
     sort: option(sortOptions, params.get('sort')),
-    city: preview ? option(previewCityOptions, params.get('city')) : '',
-    category: preview ? option(previewCategoryOptions, params.get('category')) : '',
-    price: preview ? option(previewPriceOptions, params.get('price')) : '',
+    city: params.get('city')?.trim().slice(0, 120) ?? '',
+    category: params.get('category')?.trim().slice(0, 120) ?? '',
+    price: option(priceOptions, params.get('price')),
   };
 }
 
@@ -141,81 +157,34 @@ export function writeDiscoveryFilters(params: URLSearchParams, filters: Partial<
   return next;
 }
 
-function searchable(value: string) {
-  return value
-    .normalize('NFD')
-    .replace(/\p{M}/gu, '')
-    .toLowerCase()
-    .replace(/đ/g, 'd')
-    .replace(/\s+/g, ' ')
-    .trim();
+/** Filters that change which events the server returns (everything except the page depth and view mode). */
+export const catalogueKeys = [
+  'q',
+  'date',
+  'from',
+  'to',
+  'status',
+  'sort',
+  'city',
+  'category',
+  'price',
+] as const;
+
+/** Catalog query string for the filters; price presets become minPrice/maxPrice. */
+export function discoverySearch(filters: DiscoveryFilters) {
+  const search = new URLSearchParams();
+  for (const key of catalogueKeys) {
+    if (key === 'price') continue;
+    if (filters[key]) search.set(key, filters[key]);
+  }
+  const range = priceRanges[filters.price];
+  if (range?.minPrice !== undefined) search.set('minPrice', String(range.minPrice));
+  if (range?.maxPrice !== undefined) search.set('maxPrice', String(range.maxPrice));
+  return search.toString();
 }
 
-export function filterConcerts(
-  concerts: DiscoveryConcert[],
-  filters: DiscoveryFilters,
-  now: number,
-) {
-  const today = localDay(now);
-  const weekday = new Date(today).getUTCDay();
-  const saturday = today + ((6 - weekday + 7) % 7) * dayMs;
-  const weekendEnd = weekday === 0 ? today + dayMs : saturday + 2 * dayMs;
-  const weekendStart = weekday === 0 ? today - dayMs : saturday;
-  const from = Date.parse(filters.from + 'T00:00:00Z');
-  const to = Date.parse(filters.to + 'T00:00:00Z');
-  const queryWords = searchable(filters.q).split(' ').filter(Boolean);
-
-  const matches = concerts
-    .filter((concert) => {
-      if (concert.status === 'DRAFT') return false;
-      const eventDate = Date.parse(concert.eventDate);
-      if (filters.date) {
-        if (!Number.isFinite(eventDate)) return false;
-        const day = localDay(eventDate);
-        if (filters.date === 'custom' && (day < from || day > to)) return false;
-        if (filters.date === 'today' && day !== today) return false;
-        if (filters.date === 'weekend' && (day < weekendStart || day >= weekendEnd)) return false;
-        if (filters.date === 'next-30' && (day < today || day >= today + 30 * dayMs)) return false;
-      } else if (!filters.q && !filters.status && eventDate < now) {
-        return false;
-      }
-
-      if (filters.status) {
-        const sale = discoverySaleState(concert, now);
-        if (filters.status !== (sale === 'waiting-room' ? 'upcoming' : sale)) return false;
-      }
-
-      if (filters.city && concert.city !== filters.city) return false;
-      if (filters.category && concert.category !== filters.category) return false;
-      if (filters.price) {
-        if (typeof concert.price !== 'number') return false;
-        if (filters.price === 'under-500000' ? concert.price >= 500_000 : concert.price < 500_000)
-          return false;
-      }
-
-      if (!queryWords.length) return true;
-      const titles = Object.values(concert.translations ?? {}).map(
-        (translation) => translation?.title ?? '',
-      );
-      const searchableText = searchable([concert.title, ...titles, concert.venueName].join(' '));
-      return queryWords.every((word) => searchableText.includes(word));
-    })
-    .sort((left, right) => {
-      const timestamp = (value: string) =>
-        Number.isFinite(Date.parse(value)) ? Date.parse(value) : Infinity;
-      if (filters.sort === 'sale-start') {
-        const difference = timestamp(left.saleStartAt) - timestamp(right.saleStartAt);
-        if (difference) return difference;
-      }
-      return timestamp(left.eventDate) - timestamp(right.eventDate);
-    });
-
-  const shownEvents = new Set<string>();
-  return matches.filter((concert) => {
-    if (!concert.performance) return true;
-    const { eventId } = concert.performance;
-    if (shownEvents.has(eventId)) return false;
-    shownEvents.add(eventId);
-    return true;
-  });
+/** Number of pages (1-based depth) the URL asks for. */
+export function readPageDepth(params: URLSearchParams) {
+  const page = Number(params.get('page'));
+  return Number.isInteger(page) && page > 1 ? Math.min(page, 50) : 1;
 }

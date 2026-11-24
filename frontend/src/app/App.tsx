@@ -1,4 +1,4 @@
-import { EventPage } from '../pages/public/EventsPage';
+import { EventDetailPage } from '../pages/public/EventDetailPage';
 import { PerformanceSelectionPage } from '../pages/customer/PerformanceSelectionPage';
 import '../pages/public/Performances.css';
 import { translate } from '../i18n';
@@ -8,9 +8,9 @@ import {
   RequireOrganizationGrant,
   RequireOrganizationMembership,
 } from '../features/organizations/OrganizationProvider';
-import { lazy, Suspense, useLayoutEffect } from 'react';
+import { useLayoutEffect } from 'react';
 import { lazyNamed } from './lazyNamed';
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import { OperationsLayout } from '../components/layout/OperationsLayout';
 import { PublicLayout } from '../components/layout/PublicLayout';
 import { ToastProvider } from '../components/feedback/ToastProvider';
@@ -26,8 +26,8 @@ import { OrderDetailPage } from '../pages/customer/OrderDetailPage';
 import { TicketDetailPage } from '../pages/customer/TicketDetailPage';
 import { SeatSelectionPage } from '../pages/customer/SeatSelectionPage';
 import { WaitingRoomPage } from '../pages/customer/WaitingRoomPage';
-import { ConcertDetailPage } from '../pages/public/ConcertDetailPage';
-import { EventCataloguePage, HomePage } from '../pages/public/HomePage';
+import EventCataloguePage from '../pages/public/EventCataloguePage';
+import { HomePage } from '../pages/public/HomePage';
 import { LoginPage } from '../pages/public/LoginPage';
 import { NotFoundPage } from '../pages/public/NotFoundPage';
 import { RequestPasswordResetPage, ResetPasswordPage } from '../pages/public/PasswordRecoveryPage';
@@ -135,10 +135,14 @@ const audiencePage = (page: React.ReactNode) => (
   </ProtectedRoute>
 );
 
+/** Legacy concert links keep working: a concert id is also its event id (ADR 0003). */
+function ConcertRedirect() {
+  const { id = '' } = useParams();
+  const { search, hash } = useLocation();
+  return <Navigate replace to={{ pathname: '/events/' + encodeURIComponent(id), search, hash }} />;
+}
+
 const cataloguePage = (page: React.ReactNode) => <CatalogueRoute>{page}</CatalogueRoute>;
-const DiscoveryPreviewPage = import.meta.env.DEV
-  ? lazy(() => import('../pages/public/DiscoveryPreviewPage'))
-  : null;
 
 export function App() {
   useTranslation();
@@ -151,7 +155,7 @@ export function App() {
             <Route element={<PublicLayout />}>
               <Route path="/" element={cataloguePage(<HomePage />)} />
               <Route path="/events" element={cataloguePage(<EventCataloguePage />)} />
-              <Route path="/events/:eventId" element={cataloguePage(<EventPage />)} />
+              <Route path="/events/:eventId" element={cataloguePage(<EventDetailPage />)} />
               <Route
                 path="/events/:eventId/performances/:id/waiting-room"
                 element={audiencePage(<WaitingRoomPage />)}
@@ -160,17 +164,7 @@ export function App() {
                 path="/events/:eventId/performances/:id/seats"
                 element={audiencePage(<PerformanceSelectionPage />)}
               />
-              {DiscoveryPreviewPage ? (
-                <Route
-                  path="/discover-preview"
-                  element={cataloguePage(
-                    <Suspense fallback={null}>
-                      <DiscoveryPreviewPage />
-                    </Suspense>,
-                  )}
-                />
-              ) : null}
-              <Route path="/concerts/:id" element={cataloguePage(<ConcertDetailPage />)} />
+              <Route path="/concerts/:id" element={cataloguePage(<ConcertRedirect />)} />
               <Route
                 path="/concerts/:id/waiting-room"
                 element={audiencePage(<WaitingRoomPage />)}
@@ -284,7 +278,7 @@ export function App() {
                 path="concerts/:id/preview"
                 element={
                   <RequireOrganizationGrant grant="EVENTS">
-                    <ConcertDetailPage preview />
+                    <EventDetailPage preview />
                   </RequireOrganizationGrant>
                 }
               />
