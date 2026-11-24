@@ -65,7 +65,7 @@ describe('loadDetail', () => {
       description: '',
       performances: [performance('c1')],
     } as never);
-    vi.mocked(getConcert).mockRejectedValue(new Error('down'));
+    vi.mocked(getConcert).mockRejectedValueOnce(new Error('down'));
     const model = await loadDetail('c1', false, signal);
     expect(model.organizer).toBeNull();
     expect(model.dates).toHaveLength(1);
