@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Order } from '../../api/orders';
-import { currency, dateFormatter } from '../../data/formatters';
+import { dateFormatter } from '../../data/formatters';
+import { PurchaseProgress, type PurchaseStep } from '../../components/purchase/PurchaseProgress';
+import { formatPrice } from '../../features/price/price';
 import { seatDescription } from '../../features/performance/checkoutPresentation';
 import type { CheckoutSelection } from './SeatSelectionPage';
 import './PurchaseCheckout.css';
@@ -35,10 +37,10 @@ export function CheckoutOrderLines({ order, selection = [] }: OrderLinesProps) {
               {item.ticketTypeName}
               {location && <span>{location}</span>}
               <span>
-                {item.quantity} × {currency.format(item.unitPrice)}
+                {item.quantity} × {formatPrice(item.unitPrice)}
               </span>
             </dt>
-            <dd>{currency.format(item.subtotal)}</dd>
+            <dd>{formatPrice(item.subtotal)}</dd>
           </div>
         );
       })}
@@ -76,12 +78,15 @@ export function CheckoutStatusPanel({
   body,
   referenceCode,
   announce,
+  step,
   children,
 }: {
   title: string;
   body: string;
   referenceCode?: string | null;
   announce?: boolean;
+  /** The purchase step this status belongs to, shown as progress above the message. */
+  step?: PurchaseStep;
   children?: ReactNode;
 }) {
   return (
@@ -89,6 +94,11 @@ export function CheckoutStatusPanel({
       className="buyer-page purchase-page page-width purchase-feedback"
       aria-labelledby="purchase-status-title"
     >
+      {step ? (
+        <div className="purchase-status-progress">
+          <PurchaseProgress current={step} />
+        </div>
+      ) : null}
       <div className="purchase-panel purchase-status-panel">
         <div role={announce ? 'status' : undefined}>
           <h1 id="purchase-status-title">{title}</h1>

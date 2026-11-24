@@ -5,7 +5,7 @@ import SockJS from 'sockjs-client';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ApiClientError, apiBaseUrl, isRequestCanceled } from '../../api/client';
 import { getConcert, type ConcertDetail } from '../../api/concerts';
-import { eventPath, getEventPerformance, performancePath } from '../../api/performances';
+import { eventPath, getEventPerformance } from '../../api/performances';
 import { concertTitle } from '../../features/concert/concertText';
 import { getAuthToken } from '../../features/auth/tokenCookie';
 import {
@@ -18,6 +18,8 @@ import {
 } from '../../api/queue';
 import { dateFormatter, numberFormatter } from '../../data/formatters';
 import { useCountdown } from '../../hooks/useCountdown';
+import { PurchaseProgress } from '../../components/purchase/PurchaseProgress';
+import { purchasePaths } from '../../features/event/eventView';
 import './WaitingRoomPage.css';
 
 const eventDateTime = dateFormatter({ dateStyle: 'medium', timeStyle: 'short' });
@@ -62,13 +64,9 @@ export function WaitingRoomPage() {
   const leaving = leavingConcert === id;
   const leavingRef = useRef(false);
   const stopWaitingRef = useRef<(() => void) | null>(null);
-  const detailsPath = eventId
-    ? eventPath(eventId)
-    : id
-      ? '/concerts/' + encodeURIComponent(id)
-      : '/';
-  const seatsPath =
-    eventId && id ? performancePath(eventId, id) + '/seats' : detailsPath + '/seats';
+  const paths = id ? purchasePaths({ id, eventId }) : null;
+  const detailsPath = paths?.details ?? (eventId ? eventPath(eventId) : '/');
+  const seatsPath = paths?.selection ?? detailsPath + '/seats';
 
   useEffect(() => {
     if (!id) return;
@@ -316,6 +314,7 @@ export function WaitingRoomPage() {
     <div className="buyer-page purchase-page page-width waiting-purchase-page">
       <header className="purchase-header">
         <div>
+          <PurchaseProgress current="tickets" />
           <h1>
             {eventDetails ? concertTitle(eventDetails) : t('customer:waitingRoomPage_hangChoMuaVe')}
           </h1>
@@ -331,7 +330,7 @@ export function WaitingRoomPage() {
           ) : null}
         </div>
         {(inRoom || inQueue) && !unavailable ? (
-          <p className="purchase-step" aria-current="step">
+          <p className="purchase-step">
             {t(inRoom ? 'waitingRoomPage_phongCho' : 'waitingRoomPage_hangCho')}
           </p>
         ) : null}

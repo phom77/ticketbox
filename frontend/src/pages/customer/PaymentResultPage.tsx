@@ -2,64 +2,87 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { isRequestCanceled } from '../../api/client';
-import { getOrder, getPaymentStatus, type Order } from '../../api/orders';
-import {
-  clearPendingPayment,
-  orderWindowExpired,
-  paymentNeedsReview,
-  paymentStillVerifying,
-} from '../../features/ticket/checkoutPayment';
+import type { Order } from '../../api/orders';
+import { clearPendingPayment } from '../../features/ticket/checkoutPayment';
+import { pollOrderOutcome, type OrderSnapshot } from '../../features/ticket/orderOutcome';
 import { CheckoutStatusPanel } from './CheckoutDetails';
 
 const resultCopy = {
   checking: {
-    title: 'customer:paymentResultPage_confirming',
-    body: 'customer:paymentResultPage_dangXacNhanThanhToanCuaBan',
+    title: 'customer:orderOutcome_confirmingTitle',
+    body: 'customer:orderOutcome_checkingBody',
     canCheckOrder: true,
   },
   waiting: {
-    title: 'customer:paymentResultPage_confirming',
-    body: 'customer:paymentResultPage_daNhanKetQuaTuCongThanh',
+    title: 'customer:orderOutcome_confirmingTitle',
+    body: 'customer:orderOutcome_waitingBody',
     canCheckOrder: true,
   },
   verifying: {
-    title: 'customer:paymentResultPage_confirming',
-    body: 'customer:paymentResultPage_congThanhToanChuaTraKetQua',
+    title: 'customer:orderOutcome_confirmingTitle',
+    body: 'customer:orderOutcome_verifyingBody',
     canCheckOrder: true,
   },
   expired: {
-    title: 'customer:bookingConfirmationPage_donHangDaHetHan',
-    body: 'customer:bookingConfirmationPage_kiemTraTrangThaiMoiNhatTrong',
+    title: 'customer:orderOutcome_expiredTitle',
+    body: 'customer:orderOutcome_checkHistoryBody',
     canCheckOrder: false,
   },
   expiredPending: {
-    title: 'customer:paymentResultPage_deadlinePassed',
-    body: 'customer:paymentResultPage_expiredPending',
+    title: 'customer:orderOutcome_deadlinePassedTitle',
+    body: 'customer:orderOutcome_expiredPendingBody',
     canCheckOrder: false,
   },
   closed: {
-    title: 'customer:paymentResultPage_orderClosed',
-    body: 'customer:bookingConfirmationPage_kiemTraTrangThaiMoiNhatTrong',
+    title: 'customer:orderOutcome_closedTitle',
+    body: 'customer:orderOutcome_checkHistoryBody',
     canCheckOrder: false,
   },
   review: {
-    title: 'customer:paymentResultPage_reviewHeading',
-    body: 'customer:paymentResultPage_reviewBody',
+    title: 'customer:orderOutcome_reviewTitle',
+    body: 'customer:orderOutcome_reviewBody',
     canCheckOrder: false,
   },
   unavailable: {
-    title: 'customer:paymentResultPage_unavailable',
-    body: 'customer:paymentResultPage_chuaTheXacNhanTrangThaiThanh',
+    title: 'customer:orderOutcome_unavailableTitle',
+    body: 'customer:orderOutcome_unavailableBody',
     canCheckOrder: true,
   },
   missing: {
-    title: 'customer:paymentResultPage_khongTheKhopThanhToanNayVoi',
-    body: 'customer:paymentResultPage_moLichSuDonHangDeKiem',
+    title: 'customer:orderOutcome_missingTitle',
+    body: 'customer:orderOutcome_missingBody',
     canCheckOrder: false,
   },
 } as const;
 
 type Result = keyof typeof resultCopy;
+
+type ResultStep =
+  | { kind: 'confirmed' }
+  | { kind: 'checkout'; failed: boolean }
+  | { kind: 'show'; result: Result }
+  | { kind: 'wait'; result: Result };
+
+/** Maps the shared order outcome to this page's screens; `wait` keeps polling. */
+function resultStep({ outcome, payment }: OrderSnapshot, awaitingSession: boolean): ResultStep {
+  switch (outcome.kind) {
+    case 'paid':
+      return { kind: 'confirmed' };
+    case 'failed':
+      return { kind: 'checkout', failed: true };
+    case 'verifying':
+      return { kind: 'wait', result: 'verifying' };
+    case 'payable':
+      // A session that was still being created can be continued from checkout.
+      return awaitingSession &&
+        (payment?.attemptState === 'CREATED' ||
+          (payment?.attemptState === 'READY' && payment.paymentUrl))
+        ? { kind: 'checkout', failed: false }
+        : { kind: 'wait', result: 'waiting' };
+    default:
+      return { kind: 'show', result: outcome.kind };
+  }
+}
 
 export function PaymentResultPage() {
   const [searchParams] = useSearchParams();
@@ -93,64 +116,37 @@ function PaymentResult({
     const checkout = `/checkout?orderId=${encodeURIComponent(orderId)}`;
 
     async function confirmPayment(id: string) {
-      for (let attempt = 0; attempt < 15 && !signal.aborted; attempt += 1) {
-        try {
-          const paymentRequest = getPaymentStatus(id, signal).catch(() => null);
-          const order = await getOrder(id, signal);
-          if (signal.aborted) return;
-          setVerifiedOrder({ id: order.id, referenceCode: order.referenceCode });
-
-          // The provider's browser return identifies the order. Only the order API confirms it was paid.
-          if (order.status === 'PAID') {
-            clearPendingPayment(order.id);
-            navigate('/booking-confirmation', { replace: true, state: { orderId: order.id } });
-            return;
-          }
-
-          const expired = orderWindowExpired(order);
-          const payment = await paymentRequest;
-          if (signal.aborted) return;
-          if (!payment) {
-            setResult(expired ? 'expiredPending' : 'unavailable');
-            return;
-          }
-          const verifying = paymentStillVerifying(payment.attemptState);
-          if (expired) {
-            if (!verifying) clearPendingPayment(order.id);
-            setResult(verifying ? 'expiredPending' : 'expired');
-            return;
-          }
-          if (paymentNeedsReview(payment.attemptState)) {
-            setResult('review');
-            return;
-          }
-          if (order.status !== 'AWAITING_PAYMENT') {
-            if (!verifying) clearPendingPayment(order.id);
-            setResult(verifying ? 'review' : 'closed');
-            return;
-          }
-          if (payment.attemptState === 'FAILED') {
-            navigate(`${checkout}&payment=failed`, { replace: true });
-            return;
-          }
-          if (
-            awaitingSession &&
-            (payment.attemptState === 'CREATED' ||
-              (payment.attemptState === 'READY' && payment.paymentUrl))
-          ) {
-            navigate(checkout, { replace: true });
-            return;
-          }
-
-          setResult(verifying ? 'verifying' : 'waiting');
-          await new Promise((resolve) => window.setTimeout(resolve, 2_000));
-        } catch (error) {
-          if (!signal.aborted && !isRequestCanceled(error)) setResult('unavailable');
+      try {
+        // The provider's browser return identifies the order. Only the order API confirms it was paid.
+        const final = await pollOrderOutcome(id, {
+          attempts: 15,
+          intervalMs: 2_000,
+          signal,
+          onSnapshot: ({ order }) =>
+            setVerifiedOrder({ id: order.id, referenceCode: order.referenceCode }),
+          isFinal: (snapshot) => {
+            const step = resultStep(snapshot, awaitingSession);
+            if (step.kind === 'wait') setResult(step.result);
+            return step.kind !== 'wait';
+          },
+        });
+        if (signal.aborted) return;
+        if (!final) {
+          setResult('unavailable');
           return;
         }
+        if (final.outcome.settled) clearPendingPayment(final.order.id);
+        const step = resultStep(final, awaitingSession);
+        if (step.kind === 'confirmed') {
+          navigate('/booking-confirmation', { replace: true, state: { orderId: final.order.id } });
+        } else if (step.kind === 'checkout') {
+          navigate(step.failed ? `${checkout}&payment=failed` : checkout, { replace: true });
+        } else {
+          setResult(step.result);
+        }
+      } catch (error) {
+        if (!signal.aborted && !isRequestCanceled(error)) setResult('unavailable');
       }
-
-      if (!signal.aborted) setResult('unavailable');
     }
 
     void confirmPayment(orderId);
@@ -166,18 +162,19 @@ function PaymentResult({
       title={t(copy.title)}
       body={t(copy.body)}
       referenceCode={verifiedOrder?.referenceCode}
+      step="checkout"
     >
       <div className="purchase-status-actions">
         {canCheckOrder && (
           <Link className="button button-primary" to={checkOrderPath}>
-            {t('customer:paymentResultPage_quayLaiDonThanhToan')}
+            {t('customer:orderOutcome_returnToPayment')}
           </Link>
         )}
         <Link
           className={canCheckOrder ? 'button button-secondary' : 'button button-primary'}
           to="/profile?tab=orders"
         >
-          {t('customer:paymentResultPage_xemLichSuDonHang')}
+          {t('customer:orderOutcome_viewOrderHistory')}
         </Link>
       </div>
     </CheckoutStatusPanel>

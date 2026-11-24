@@ -11,7 +11,6 @@ import {
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { ApiClientError, isRequestCanceled } from '../../api/client';
-import { getConcert, type ConcertDetail } from '../../api/concerts';
 import { getMyTickets, type Ticket, type TicketStatus } from '../../api/tickets';
 import { ModalPortal } from '../../components/feedback/ModalPortal';
 import { RemoteImage } from '../../components/RemoteImage';
@@ -19,10 +18,16 @@ import { dateFormatter } from '../../data/formatters';
 import { useAuth } from '../../features/auth/AuthContext';
 import { concertTitle } from '../../features/concert/concertText';
 import { seatDescription } from '../../features/performance/checkoutPresentation';
+import {
+  hasPerformanceDetails,
+  loadConcertView,
+  ticketView,
+  type EventView,
+} from '../../features/event/eventView';
 import './MyTicketsPage.css';
 
 type TicketFilter = 'all' | TicketStatus;
-type ConcertTicketGroup = { id: string; tickets: Ticket[]; concert?: ConcertDetail };
+type ConcertTicketGroup = { id: string; tickets: Ticket[]; event: EventView };
 
 const statusKeys = {
   VALID: 'customer:myTicketsPage_hopLe',
@@ -57,7 +62,7 @@ export function MyTicketsPage() {
 function TicketWallet({ preferredConcertId }: { preferredConcertId: string | null }) {
   const { t } = useTranslation();
   const [tickets, setTickets] = useState<Ticket[] | null>(null);
-  const [concerts, setConcerts] = useState(() => new Map<string, ConcertDetail>());
+  const [concerts, setConcerts] = useState(() => new Map<string, EventView>());
   const [filter, setFilter] = useState<TicketFilter>('all');
   const [openConcertId, setOpenConcertId] = useState(preferredConcertId);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -102,10 +107,14 @@ function TicketWallet({ preferredConcertId }: { preferredConcertId: string | nul
         setError(false);
         setLoading(false);
 
-        for (const id of new Set(data.map((ticket) => ticket.concertId))) {
-          void getConcert(id, signal)
+        // Performance tickets carry their own date and venue; only legacy tickets need Catalog.
+        const legacyIds = data
+          .filter((ticket) => !hasPerformanceDetails(ticket))
+          .map((ticket) => ticket.concertId);
+        for (const id of new Set(legacyIds)) {
+          void loadConcertView(id, signal)
             .then((concert) => {
-              if (signal.aborted) return;
+              if (signal.aborted || !concert) return;
               rememberFocus();
               setConcerts((previous) => new Map(previous).set(id, concert));
             })
@@ -275,7 +284,7 @@ function TicketWallet({ preferredConcertId }: { preferredConcertId: string | nul
         <TicketDetail
           ticket={selectedTicket}
           position={selectedGroup.tickets.indexOf(selectedTicket) + 1}
-          concert={concerts.get(selectedTicket.concertId)}
+          event={selectedGroup.event}
           onClose={() => setSelectedId(null)}
           restoreFocus={restoreTicketFocus}
         />
@@ -300,8 +309,8 @@ function ConcertTicketCard({
   const { t } = useTranslation();
   const headingId = useId();
   const detailsId = useId();
-  const name = group.concert ? concertTitle(group.concert) : group.tickets[0].concertTitle;
-  const timestamp = concertTimestamp(group.concert);
+  const name = concertTitle(group.event);
+  const timestamp = eventTimestamp(group.event);
   const groupAction = t(
     open ? 'customer:myTicketsPage_hideTickets' : 'customer:myTicketsPage_viewTickets',
   );
@@ -311,23 +320,23 @@ function ConcertTicketCard({
       <div className="wallet-group-summary">
         <div className="wallet-event-art">
           <TicketIcon size={28} aria-hidden="true" />
-          {group.concert?.posterUrl ? (
-            <EventPoster key={group.concert.posterUrl} src={group.concert.posterUrl} />
+          {group.event.image ? (
+            <EventPoster key={group.event.image} src={group.event.image} />
           ) : null}
         </div>
         <div className="wallet-event">
           <h2 id={headingId}>{name}</h2>
           <div className="wallet-event-meta">
             {timestamp !== null ? (
-              <time dateTime={group.concert?.eventDate}>
+              <time dateTime={group.event.date}>
                 <CalendarDays size={16} aria-hidden="true" />
                 {eventDateTime.format(timestamp)}
               </time>
             ) : null}
-            {group.concert?.venueName ? (
+            {group.event.venue ? (
               <span>
                 <MapPin size={16} aria-hidden="true" />
-                {group.concert.venueName}
+                {group.event.venue}
               </span>
             ) : null}
             <span>{t('customer:myTicketsPage_ticketCount', { count: tickets.length })}</span>
@@ -434,19 +443,19 @@ function TicketStatusLabel({ status }: { status: TicketStatus }) {
 function TicketDetail({
   ticket,
   position,
-  concert,
+  event,
   onClose,
   restoreFocus,
 }: {
   ticket: Ticket;
   position: number;
-  concert?: ConcertDetail;
+  event: EventView;
   onClose: () => void;
   restoreFocus: () => void;
 }) {
   const { t } = useTranslation();
-  const name = concert ? concertTitle(concert) : ticket.concertTitle;
-  const timestamp = concertTimestamp(concert);
+  const name = concertTitle(event);
+  const timestamp = eventTimestamp(event);
   const location = seatDescription(ticket);
   const headingId = useId();
   const dialog = useRef<HTMLDialogElement>(null);
@@ -534,14 +543,14 @@ function TicketDetail({
             <div>
               <dt>{t('customer:myTicketsPage_eventDate')}</dt>
               <dd>
-                <time dateTime={concert?.eventDate}>{eventDateTime.format(timestamp)}</time>
+                <time dateTime={event.date}>{eventDateTime.format(timestamp)}</time>
               </dd>
             </div>
           ) : null}
-          {concert?.venueName ? (
+          {event.venue ? (
             <div>
               <dt>{t('customer:myTicketsPage_venue')}</dt>
-              <dd>{concert.venueName}</dd>
+              <dd>{event.venue}</dd>
             </div>
           ) : null}
           {ticket.referenceCode && (
@@ -572,14 +581,14 @@ function groupControlId(concertId: string) {
   return `wallet-event-${encodeURIComponent(concertId)}`;
 }
 
-function concertTimestamp(concert?: ConcertDetail) {
-  const timestamp = Date.parse(concert?.eventDate ?? '');
+function eventTimestamp(event: EventView) {
+  const timestamp = Date.parse(event.date);
   return Number.isFinite(timestamp) ? timestamp : null;
 }
 
 function groupTickets(
   tickets: Ticket[],
-  concerts: Map<string, ConcertDetail>,
+  concerts: Map<string, EventView>,
   preferredConcertId: string | null,
 ) {
   const groups = new Map<string, ConcertTicketGroup>();
@@ -589,14 +598,14 @@ function groupTickets(
     else
       groups.set(ticket.concertId, {
         id: ticket.concertId,
-        concert: concerts.get(ticket.concertId),
+        event: ticketView(ticket, concerts.get(ticket.concertId)),
         tickets: [ticket],
       });
   }
 
   const now = Date.now();
   function upcoming(group: ConcertTicketGroup) {
-    const timestamp = concertTimestamp(group.concert);
+    const timestamp = eventTimestamp(group.event);
     return timestamp !== null &&
       timestamp >= now &&
       group.tickets.some((ticket) => ticket.status === 'VALID')
@@ -610,8 +619,8 @@ function groupTickets(
     const leftUpcoming = upcoming(left);
     const rightUpcoming = upcoming(right);
     if (leftUpcoming !== rightUpcoming) return leftUpcoming - rightUpcoming;
-    const leftDate = concertTimestamp(left.concert);
-    const rightDate = concertTimestamp(right.concert);
+    const leftDate = eventTimestamp(left.event);
+    const rightDate = eventTimestamp(right.event);
     if (leftDate === rightDate) return 0;
     return (rightDate ?? -Infinity) - (leftDate ?? -Infinity);
   });

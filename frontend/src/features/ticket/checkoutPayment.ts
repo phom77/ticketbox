@@ -1,15 +1,8 @@
-import type { ConcertTranslations } from '../../api/concerts';
 import type { Order, PaymentProvider, PaymentStatus } from '../../api/orders';
+import type { EventView } from '../event/eventView';
 
-export type CheckoutEvent = {
-  id: string;
-  eventId?: string | null;
-  title: string;
-  translations?: ConcertTranslations;
-  venue: string;
-  date: string;
-  image: string | null;
-};
+/** The event context carried through checkout. */
+export type CheckoutEvent = EventView;
 
 const pendingPaymentKey = 'ticketbox.pending-payment';
 

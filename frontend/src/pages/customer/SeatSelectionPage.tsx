@@ -13,11 +13,15 @@ import {
 } from '../../api/reservations';
 import { ConcertSeatMap } from '../../components/ConcertSeatMap';
 import { useToast } from '../../components/feedback/toast-context';
-import { currency, dateFormatter } from '../../data/formatters';
+import { dateFormatter } from '../../data/formatters';
+import { HoldTimer } from '../../components/purchase/HoldTimer';
+import { PurchaseProgress } from '../../components/purchase/PurchaseProgress';
+import { purchasePaths } from '../../features/event/eventView';
+import { AllInPriceNote } from '../../features/price/AllInPrice';
+import { formatPrice } from '../../features/price/price';
 import { useAuth } from '../../features/auth/AuthContext';
 import { concertTitle } from '../../features/concert/concertText';
 import { useTicketAvailability } from '../../features/concert/useTicketAvailability';
-import { useCountdown } from '../../hooks/useCountdown';
 import { translate } from '../../i18n';
 import './SeatSelectionPage.css';
 
@@ -68,7 +72,7 @@ function SeatSelection({ id }: { id: string }) {
       if (token && getStoredQueueAdmission(id)?.queueAccessToken === token)
         clearStoredQueueAdmission();
       toast.error(message);
-      navigate(`/concerts/${id}/waiting-room`, { replace: true });
+      navigate(purchasePaths({ id }).waitingRoom, { replace: true });
     },
     [id, navigate, toast, token],
   );
@@ -328,7 +332,7 @@ function SeatSelection({ id }: { id: string }) {
     }
     if (!isCurrentSession()) return;
     clearStoredQueueAdmission();
-    navigate(`/concerts/${id}`, { replace: true });
+    navigate(purchasePaths({ id }).details, { replace: true });
   }
 
   if (
@@ -388,9 +392,7 @@ function SeatSelection({ id }: { id: string }) {
           {translate('customer:seatSelectionPage_chiTietSuKien')}
         </button>
         <div className="purchase-seat-context">
-          <p className="purchase-step" aria-current="step">
-            {translate('customer:seatSelectionPage_chonVe')}
-          </p>
+          <PurchaseProgress current="tickets" />
           <h1>{concertTitle(concert)}</h1>
           <p className="purchase-seat-event">
             <span>
@@ -474,10 +476,11 @@ function SeatSelection({ id }: { id: string }) {
                   translate('customer:seatSelectionPage_subtotalUnavailable')
                 ) : (
                   <>
-                    {translate('customer:seatSelectionPage_subtotal')} {currency.format(subtotal)}
+                    {translate('customer:seatSelectionPage_subtotal')} {formatPrice(subtotal)}
                   </>
                 )}
               </strong>
+              <AllInPriceNote />
             </div>
             <button
               className="button button-primary"
@@ -496,20 +499,13 @@ function SeatSelection({ id }: { id: string }) {
 }
 
 function SelectionDeadline({ expiresAt }: { expiresAt: string }) {
-  const countdown = useCountdown(expiresAt, 120);
   return (
     <div className="purchase-seat-time">
-      <div className={`purchase-deadline${countdown.isWarning ? ' is-warning' : ''}`}>
-        <span id="purchase-seat-deadline">
-          {translate('customer:seatSelectionPage_thoiGianChonVe')}
-        </span>
-        <strong role="timer" aria-labelledby="purchase-seat-deadline">
-          {countdown.formatted}
-        </strong>
-      </div>
-      {countdown.isWarning && !countdown.isExpired ? (
-        <p role="status">{translate('customer:seatSelectionPage_phienMuaVe10PhutCuaBan')}</p>
-      ) : null}
+      <HoldTimer
+        expiresAt={expiresAt}
+        label={translate('customer:seatSelectionPage_thoiGianChonVe')}
+        warningMessage={translate('customer:seatSelectionPage_phienMuaVe10PhutCuaBan')}
+      />
     </div>
   );
 }
@@ -565,7 +561,7 @@ function TicketTypeRow({
           </button>
         </h3>
         <p className="purchase-zone-price">
-          <strong>{currency.format(type.price)}</strong>
+          <strong>{formatPrice(type.price)}</strong>
         </p>
         <p>
           {translate('customer:seatSelectionPage_toiDaVeTaiKhoan', { arg1: type.maxPerAccount })}

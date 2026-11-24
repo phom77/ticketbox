@@ -27,7 +27,6 @@
   "selection": "Your selection",
   "remove": "Remove",
   "noSelection": "Choose tickets to hold them here.",
-  "heldUntil": "Held until {{time}}",
   "continue": "Continue to checkout",
   "createEvent": "Create event",
   "title": "Title",
@@ -343,5 +342,6 @@
   "setupRepriceSection": "Change the price for the whole section",
   "setupRepriceRow": "Change the price for all of row {{row}}",
   "setupMapMismatchHelp": "The saved map is incomplete for this ticket setup. Add the required areas or seats, or change the ticket setup to match the map.",
-  "setupBackFromMap": "Back to ticket setup"
+  "setupBackFromMap": "Back to ticket setup",
+  "holdExpiresIn": "Tickets held for"
 }
