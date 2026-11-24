@@ -19,7 +19,11 @@ import {
 import { seatDescription } from '../../features/performance/checkoutPresentation';
 import { buildIcs, downloadIcs } from '../../features/ticket/calendar';
 import { ticketStatusKeys } from '../../features/ticket/walletTabs';
-import { loadOfflineTicket, saveOfflineTicket } from '../../features/ticket/offlineTicket';
+import {
+  loadOfflineTicket,
+  removeOfflineTicket,
+  saveOfflineTicket,
+} from '../../features/ticket/offlineTicket';
 import './TicketDetailPage.css';
 
 const eventDateTime = dateFormatter({ dateStyle: 'full', timeStyle: 'short' });
@@ -52,6 +56,7 @@ function TicketDetail({ userId, ticketId }: { userId: string; ticketId: string }
       .then((ticket) => {
         if (signal.aborted) return;
         if (ticket.status === 'VALID') saveOfflineTicket(userId, ticket);
+        else removeOfflineTicket(userId, ticket.id);
         setLoaded({ ticket });
         setFailure(null);
       })
@@ -59,6 +64,7 @@ function TicketDetail({ userId, ticketId }: { userId: string; ticketId: string }
         if (signal.aborted || isRequestCanceled(error)) return;
         const status = error instanceof ApiClientError ? error.status : 0;
         if (status === 404 || status === 403) {
+          removeOfflineTicket(userId, ticketId);
           setFailure('notFound');
           return;
         }
