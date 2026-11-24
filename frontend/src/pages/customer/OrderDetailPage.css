@@ -1,0 +1,101 @@
+.order-detail-ref {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+}
+
+.order-detail-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 20rem);
+  gap: clamp(1rem, 3vw, 2rem);
+  align-items: start;
+}
+.order-detail-layout .buyer-account-panel {
+  max-inline-size: none;
+}
+.order-detail-main {
+  display: grid;
+  gap: 1rem;
+  min-inline-size: 0;
+}
+.order-receipt h3 {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 1rem;
+}
+.order-detail-seat {
+  display: block;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+.order-detail-total {
+  margin-block-start: 0.75rem;
+  padding-block-start: 0.75rem;
+  border-block-start: 1px solid var(--line);
+}
+.order-detail-fees {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.order-timeline {
+  display: grid;
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.order-timeline li {
+  position: relative;
+  display: grid;
+  gap: 0.125rem;
+  padding-inline-start: 1.75rem;
+}
+.order-timeline li::before {
+  content: '';
+  position: absolute;
+  inset-block-start: 0.3rem;
+  inset-inline-start: 0;
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+  border: 2px solid var(--violet);
+  border-radius: 50%;
+  background: var(--violet);
+}
+.order-timeline li[data-state='current']::before {
+  background: transparent;
+}
+.order-timeline li[data-state='problem']::before {
+  border-color: #b3321f;
+  background: #b3321f;
+}
+.order-timeline time {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+@media (max-width: 860px) {
+  .order-detail-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media print {
+  body:has(.order-detail) .public-header,
+  body:has(.order-detail) .public-footer,
+  body:has(.order-detail) header[role='banner'],
+  body:has(.order-detail) footer,
+  .order-detail-noprint {
+    display: none !important;
+  }
+  .order-detail .buyer-account-panel {
+    border: 0;
+    padding: 0;
+  }
+  .order-detail-layout {
+    display: block;
+  }
+  body:has(.order-detail) {
+    background: #fff;
+    color: #000;
+  }
+}

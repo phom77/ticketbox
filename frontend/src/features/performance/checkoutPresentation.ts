@@ -1,4 +1,5 @@
 import type { Order } from '../../api/orders';
+import { getEvent } from '../../api/performances';
 import { hasPerformanceDetails, loadConcertView, orderView } from '../event/eventView';
 import { translate } from '../../i18n';
 import type { CheckoutEvent } from '../ticket/checkoutPayment';
@@ -39,4 +40,24 @@ export async function checkoutPresentation(
       seatLabel: item.seatLabel,
     })),
   };
+}
+
+/**
+ * Best-effort poster for an order. A performance order has no image of its own, so
+ * the poster of its legacy concert is used when the performance links one.
+ */
+export async function loadOrderPoster(order: Order, signal: AbortSignal): Promise<string | null> {
+  try {
+    if (!hasPerformanceDetails(order)) {
+      return (await loadConcertView(order.concertId, signal))?.image ?? null;
+    }
+    if (!order.eventId) return null;
+    const event = await getEvent(order.eventId, signal);
+    const legacyId = event.performances.find(
+      (performance) => performance.id === order.performanceId,
+    )?.legacyConcertId;
+    return legacyId ? ((await loadConcertView(legacyId, signal))?.image ?? null) : null;
+  } catch {
+    return null;
+  }
 }

@@ -3,8 +3,14 @@ import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { isRequestCanceled } from '../../api/client';
 import type { Order } from '../../api/orders';
+import { PurchaseProgress } from '../../components/purchase/PurchaseProgress';
+import { supportUrl } from '../../features/ticket/buyerInformation';
 import { clearPendingPayment } from '../../features/ticket/checkoutPayment';
-import { pollOrderOutcome, type OrderSnapshot } from '../../features/ticket/orderOutcome';
+import {
+  confirmationPath,
+  pollOrderOutcome,
+  type OrderSnapshot,
+} from '../../features/ticket/orderOutcome';
 import { CheckoutStatusPanel } from './CheckoutDetails';
 
 const resultCopy = {
@@ -138,7 +144,7 @@ function PaymentResult({
         if (final.outcome.settled) clearPendingPayment(final.order.id);
         const step = resultStep(final, awaitingSession);
         if (step.kind === 'confirmed') {
-          navigate('/booking-confirmation', { replace: true, state: { orderId: final.order.id } });
+          navigate(confirmationPath(final.order.id), { replace: true });
         } else if (step.kind === 'checkout') {
           navigate(step.failed ? `${checkout}&payment=failed` : checkout, { replace: true });
         } else {
@@ -156,6 +162,61 @@ function PaymentResult({
   const copy = resultCopy[result];
   const checkOrderPath = orderId ? '/checkout?orderId=' + encodeURIComponent(orderId) : null;
   const canCheckOrder = copy.canCheckOrder && checkOrderPath && verifiedOrder?.id;
+  const inProgress = result === 'checking' || result === 'waiting' || result === 'verifying';
+  const needsSupport =
+    result === 'review' || result === 'unavailable' || result === 'expiredPending';
+
+  if (inProgress) {
+    // checking and verifying: the payment is not confirmed yet; waiting: the gateway answered.
+    const current = result === 'waiting' ? 1 : 0;
+    const steps = [
+      t('customer:checkout2_stepPayment'),
+      t('customer:checkout2_stepOrder'),
+      t('customer:checkout2_stepTickets'),
+    ];
+    return (
+      <section
+        className="buyer-page purchase-page page-width purchase-feedback"
+        aria-labelledby="purchase-status-title"
+      >
+        <div className="purchase-status-progress">
+          <PurchaseProgress current="checkout" />
+        </div>
+        <div className="purchase-panel purchase-status-panel purchase-processing">
+          <span className="purchase-spinner" aria-hidden="true" />
+          <div role="status">
+            <h1 id="purchase-status-title">{t(copy.title)}</h1>
+            <p>{t(copy.body)}</p>
+            <p className="purchase-support-note">{t('customer:checkout2_processingLead')}</p>
+          </div>
+          <ol className="purchase-steps" aria-label={t('customer:checkout2_stepsLabel')}>
+            {steps.map((label, index) => (
+              <li
+                key={label}
+                data-state={index < current ? 'done' : index === current ? 'current' : undefined}
+              >
+                {label}
+                {index < current && (
+                  <span className="sr-only"> {t('customer:checkout2_stepDone')}</span>
+                )}
+                {index === current && (
+                  <span className="sr-only"> {t('customer:checkout2_stepCurrent')}</span>
+                )}
+              </li>
+            ))}
+          </ol>
+          {verifiedOrder?.referenceCode && (
+            <p className="purchase-order-reference">
+              <span>{t('customer:checkoutPage_orderReference')}</span>{' '}
+              <b>{verifiedOrder.referenceCode}</b>
+            </p>
+          )}
+          <p className="purchase-support-note">{t('customer:checkout2_emailLater')}</p>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <CheckoutStatusPanel
       announce
@@ -164,6 +225,19 @@ function PaymentResult({
       referenceCode={verifiedOrder?.referenceCode}
       step="checkout"
     >
+      {needsSupport && (
+        <p className="purchase-support-note">
+          {t('customer:checkout2_emailLater')}{' '}
+          {verifiedOrder?.referenceCode
+            ? t('customer:checkout2_supportHelp', { reference: verifiedOrder.referenceCode })
+            : t('customer:checkout2_supportHelpNoRef')}{' '}
+          {supportUrl && (
+            <a href={supportUrl} target="_blank" rel="noreferrer">
+              {t('customer:checkout2_supportLink')}
+            </a>
+          )}
+        </p>
+      )}
       <div className="purchase-status-actions">
         {canCheckOrder && (
           <Link className="button button-primary" to={checkOrderPath}>
@@ -172,7 +246,7 @@ function PaymentResult({
         )}
         <Link
           className={canCheckOrder ? 'button button-secondary' : 'button button-primary'}
-          to="/profile?tab=orders"
+          to="/account/orders"
         >
           {t('customer:orderOutcome_viewOrderHistory')}
         </Link>

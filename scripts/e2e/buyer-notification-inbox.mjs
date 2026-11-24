@@ -129,7 +129,9 @@ try {
   assert.equal(await page.getByRole('heading', { name: payment.subject, exact: true }).count(), 1, 'APP and EMAIL counterparts must appear once');
   assert.equal(await page.getByText('Email was created.').count(), 0);
   assert.equal(await notice(page, payment).getByRole('link', { name: 'My Tickets' }).getAttribute('href'), '/my-tickets');
-  assert.equal(await notice(page, cancellation).getByRole('link', { name: 'Order history' }).getAttribute('href'), '/profile?tab=orders');
+  assert.equal(await notice(page, cancellation).getByRole('link', { name: 'My Tickets' }).getAttribute('href'), '/my-tickets');
+  await page.getByRole('region', { name: 'Earlier' }).getByRole('heading', { name: payment.subject, exact: true }).waitFor();
+  assert.equal(await page.getByRole('heading', { name: 'Today', exact: true }).count(), 0, 'Older notices are grouped under Earlier only');
   await unreadBadge(page, 6).waitFor();
   await page.getByRole('button', { name: 'Load older notifications' }).click();
   await page.getByRole('button', { name: 'Load older notifications' }).waitFor();
@@ -146,8 +148,8 @@ try {
   await notice(page, unknown).waitFor();
   assert.equal(await notice(page, cancellation).count(), 1, 'Across-page duplicates must appear once');
   assert.equal(await notice(page, reminder).getByRole('link').getAttribute('href'), '/my-tickets');
-  assert.equal(await notice(page, refund).getByRole('link').getAttribute('href'), '/profile?tab=orders');
-  assert.equal(await notice(page, postponed).getByRole('link').count(), 0);
+  assert.equal(await notice(page, refund).getByRole('link', { name: 'Order history' }).getAttribute('href'), '/account/orders');
+  assert.equal(await notice(page, postponed).getByRole('link').getAttribute('href'), '/my-tickets');
   assert.equal(await notice(page, unknown).getByRole('link').count(), 0);
   await notice(page, unknown).getByText('Update', { exact: true }).waitFor();
   await checkLayout(page, 'en');

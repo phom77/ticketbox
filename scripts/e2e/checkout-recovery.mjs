@@ -80,10 +80,9 @@ async function fixture(options={}) {
    }
    if(path.startsWith('/api/v2/events/'))return reply(route,null,404);
    if(path===`/api/concerts/${concertId}`)return reply(route,{...concert,organizationName:state.organizationName},state.concertStatus??200);
-   if(path==='/api/tickets' && state.orderStatus==='PAID')return reply(route,[{
-    id:'fixture-issued-ticket',concertId,concertTitle:concert.title,ticketTypeId:typeId,ticketTypeName:'GA',
-    qrCode:'fixture-issued-qr',status:'VALID',issuedAt:order.createdAt,
-   }]);
+   const issuedTicket={id:'fixture-issued-ticket',concertId,concertTitle:concert.title,ticketTypeId:typeId,ticketTypeName:'GA',qrCode:'fixture-issued-qr',status:'VALID',issuedAt:order.createdAt};
+   if(path==='/api/tickets' && state.orderStatus==='PAID')return reply(route,[issuedTicket]);
+   if(path==='/api/tickets/fixture-issued-ticket' && state.orderStatus==='PAID')return reply(route,issuedTicket);
    if(path==='/api/concerts')return reply(route,{content:[],totalPages:0,totalElements:0});
    if(path.includes('/queue/'))return reply(route,{status:'WAITING',position:1,peopleAhead:0,estimatedWaitSeconds:1,queueAccessToken:null,sessionExpiresAt:null,waitingRoomCount:1,queueSize:1,activeShoppers:0});
    if(path.includes('/notifications'))return reply(route,{count:0,content:[]});
@@ -99,7 +98,8 @@ async function startCreate(page) {
  await page.evaluate(state=>{history.replaceState({usr:state,key:'test',idx:0},'','/checkout');},basketState);
  await page.reload();
 }
-const failedHeading=page=>page.getByRole('heading',{name:'Phiên thanh toán đã thất bại'});
+const failedHeading=page=>page.getByRole('heading',{name:'Thanh toán chưa thành công'});
+const cancelFailed=async page=>{await page.getByRole('button',{name:'Hủy đơn và chọn vé lại',exact:true}).click();await page.getByRole('alertdialog').getByRole('button',{name:'Hủy đơn',exact:true}).click();};
 const waitFor=async check=>{for(let n=0;n<100;n++){if(await check())return;await new Promise(r=>setTimeout(r,50));}throw Error('Timed out waiting for test condition');};
 async function assertOrderReference(page, expected) {
  const main=page.getByRole('main');
@@ -208,10 +208,9 @@ try {
   await f.page.reload();
   await f.page.getByRole('link',{name:'Xem vé của tôi'}).click();
   const group=f.page.getByRole('article',{name:concert.title,exact:true});
-  await group.getByRole('button',{name:`Xem vé · ${concert.title}`}).click();
-  await group.getByRole('button',{name:/^Mở mã QR · /}).click();
-  const dialog=f.page.getByRole('dialog',{name:concert.title});
-  await dialog.getByRole('img',{name:`Mã QR vé cho ${concert.title}`}).waitFor();
+  await group.locator('a[href="/my-tickets/fixture-issued-ticket"]').first().click();
+  await f.page.waitForURL('**/my-tickets/fixture-issued-ticket');
+  await f.page.getByRole('img',{name:/Mã QR/}).first().waitFor();
   checks.push('A verified paid order opens the actual issued ticket despite independent Catalog and payment-status errors');await f.close();
  }
  {
@@ -321,13 +320,13 @@ try {
  {
   const f=await fixture();await f.page.goto(origin+`/checkout?orderId=${orderId}`);
   await failedHeading(f.page).waitFor();
-  assert.equal(await f.page.getByRole('button',{name:'Tiếp tục với thanh toán demo'}).count(),0);
+  assert(await f.page.getByRole('button',{name:'Tiếp tục với thanh toán demo'}).isDisabled());
   for(const [width,height] of [[1440,900],[768,1024],[390,844]]) {
    await f.page.setViewportSize({width,height});
    assert(await f.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
    await f.page.screenshot({path:resolve(output,`failed-${width}.png`),fullPage:true});
   }
-  await f.page.getByRole('button',{name:'Hủy đơn và chọn vé lại'}).click();
+  await cancelFailed(f.page);
   await f.page.waitForURL(`**/concerts/${concertId}/waiting-room`);assert.equal(f.state.cancelCalls,1);
   checks.push('FAILED restore blocks payment; cancellation precedes new queue; 3 responsive viewports');await f.close();
  }
@@ -367,7 +366,7 @@ try {
   await f.page.goto(origin+`/payment/result?vnp_TxnRef=${orderId}&vnp_ResponseCode=${responseCode}`);
   await f.page.getByText('Đã nhận kết quả từ cổng thanh toán. Đang chờ TicketBox xác nhận đơn hàng...').waitFor();
   f.state.orderStatus='PAID';
-  await f.page.waitForURL('**/booking-confirmation');await f.close();
+  await f.page.waitForURL(/\/orders\/[^/]+\/confirmation$/);await f.close();
  }
  checks.push('VNPAY browser return stays pending for either return code until the server confirms');
  {
@@ -421,9 +420,9 @@ try {
  }
  {
   const f=await fixture({cancelConflict:true});await f.page.goto(origin+`/checkout?orderId=${orderId}`);await failedHeading(f.page).waitFor();
-  await f.page.getByRole('button',{name:'Hủy đơn và chọn vé lại'}).click();await f.page.getByRole('alert').waitFor();
+  await cancelFailed(f.page);await f.page.getByRole('alert').filter({hasText:'Chưa thể hủy đơn'}).waitFor();
   assert.equal(new URL(f.page.url()).pathname,'/checkout');f.state.orderStatus='PAID';
-  await f.page.getByRole('button',{name:'Kiểm tra trạng thái đơn'}).click();await f.page.waitForURL('**/booking-confirmation');
+  await f.page.getByRole('button',{name:'Kiểm tra trạng thái đơn'}).click();await f.page.waitForURL(/\/orders\/[^/]+\/confirmation$/);
   await f.page.getByRole('link',{name:'Xem vé của tôi'}).waitFor();
   assert.equal(f.state.postKeys.length,0);
   checks.push('Late paid result wins cancellation: refresh opens confirmation and never starts new purchase');await f.close();
@@ -431,8 +430,8 @@ try {
  {
   const f=await fixture({cancelResult:'PAID'});await f.page.goto(origin+`/checkout?orderId=${orderId}`);
   await failedHeading(f.page).waitFor();
-  await f.page.getByRole('button',{name:'Hủy đơn và chọn vé lại'}).click();
-  await f.page.waitForURL('**/booking-confirmation');
+  await cancelFailed(f.page);
+  await f.page.waitForURL(/\/orders\/[^/]+\/confirmation$/);
   await f.page.getByRole('link',{name:'Xem vé của tôi'}).waitFor();
   assert.equal(f.state.cancelCalls,1);
   assert.equal(f.state.postKeys.length,0);

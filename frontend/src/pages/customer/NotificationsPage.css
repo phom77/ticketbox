@@ -51,7 +51,7 @@
   color: var(--violet);
 }
 
-.inbox-content h2 {
+.inbox-content h3 {
   margin: 0;
 }
 
@@ -124,4 +124,29 @@
     justify-content: start;
     max-inline-size: none;
   }
+}
+
+.inbox-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.inbox-group + .inbox-group {
+  margin-block-start: 1.5rem;
+}
+.inbox-group-title {
+  margin: 0 0 0.5rem;
+  color: var(--muted);
+  font-size: 0.875rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.inbox-preferences {
+  margin-block: 1.5rem 0;
+  color: var(--muted);
+}
+.inbox-preferences a {
+  color: var(--violet);
+  font-weight: 700;
+  text-decoration: underline;
 }
