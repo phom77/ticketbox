@@ -86,11 +86,32 @@ export function eventModel(event: EventDetails): DetailSource {
 /** The Event + Performance model first; a legacy concert id that has no event falls back to the concert. */
 export async function loadDetail(id: string, preview: boolean, signal: AbortSignal) {
   if (preview) return legacyModel(await getConcertPreview(id, signal));
+  let event: EventDetails;
   try {
-    return eventModel(await getEvent(id, signal));
+    event = await getEvent(id, signal);
   } catch (error) {
     if (!(error instanceof ApiClientError) || error.status !== 404) throw error;
     return legacyModel(await getConcert(id, signal));
+  }
+  if (!Array.isArray(event?.performances)) return legacyModel(await getConcert(id, signal));
+  const model = eventModel(event);
+  // Catalog maps each legacy concert to an event with one performance (ADR 0003). The concert
+  // read still owns its poster, organizer, artist bio, seat map and ticket types.
+  const legacyId = model.dates.length === 1 ? model.dates[0].legacyConcertId : null;
+  if (!legacyId) return model;
+  try {
+    const concert = legacyModel(await getConcert(legacyId, signal));
+    return {
+      ...model,
+      artistBio: concert.artistBio,
+      posterUrl: concert.posterUrl,
+      organizer: concert.organizer,
+      seatMapSvg: concert.seatMapSvg,
+      inlineTypes: concert.inlineTypes,
+    };
+  } catch (error) {
+    if (signal.aborted) throw error;
+    return model;
   }
 }
 
