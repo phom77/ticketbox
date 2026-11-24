@@ -80,10 +80,10 @@
 }
 
 @media print {
-  .public-header,
-  .public-footer,
-  header[role='banner'],
-  footer,
+  body:has(.order-detail) .public-header,
+  body:has(.order-detail) .public-footer,
+  body:has(.order-detail) header[role='banner'],
+  body:has(.order-detail) footer,
   .order-detail-noprint {
     display: none !important;
   }
@@ -94,7 +94,7 @@
   .order-detail-layout {
     display: block;
   }
-  body {
+  body:has(.order-detail) {
     background: #fff;
     color: #000;
   }
