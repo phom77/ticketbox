@@ -333,5 +333,5 @@
   "purchaseProgress_completed": "(đã xong)",
   "holdTimer_expired": "Đã hết giờ",
   "holdTimer_expiredMessage": "Bước này đã hết thời gian.",
-  "holdTimer_warningMessage_other": "Còn chưa đến {{count}} phút. Hãy hoàn tất bước này trước khi hết giờ."
+  "holdTimer_warningMessage_other": "Còn dưới {{count}} phút. Hãy hoàn tất bước này trước khi hết giờ."
 }
