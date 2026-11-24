@@ -99,7 +99,7 @@ async function startCreate(page) {
  await page.reload();
 }
 const failedHeading=page=>page.getByRole('heading',{name:'Thanh toán chưa thành công'});
-const cancelFailed=async page=>{await page.getByRole('button',{name:'Hủy đơn',exact:true}).click();await page.getByRole('alertdialog').getByRole('button',{name:'Hủy đơn',exact:true}).click();};
+const cancelFailed=async page=>{await page.getByRole('button',{name:'Hủy đơn và chọn vé lại',exact:true}).click();await page.getByRole('alertdialog').getByRole('button',{name:'Hủy đơn',exact:true}).click();};
 const waitFor=async check=>{for(let n=0;n<100;n++){if(await check())return;await new Promise(r=>setTimeout(r,50));}throw Error('Timed out waiting for test condition');};
 async function assertOrderReference(page, expected) {
  const main=page.getByRole('main');

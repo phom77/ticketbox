@@ -1,8 +1,8 @@
 ## ADDED Requirements
 
-### Requirement: Thanh toán rõ ràng và thử lại trên cùng đơn
+### Requirement: Thanh toán rõ ràng và xử lý thanh toán thất bại
 
-Trang thanh toán SHALL hiện thông tin nhận vé (email tài khoản, số điện thoại), phương thức thanh toán kèm ghi chú chuyển hướng, điều khoản mua vé khi hệ thống đã cấu hình đường dẫn điều khoản, và tóm tắt đơn có áp phích, sự kiện, ngày giờ, địa điểm, các dòng vé, một tổng tiền đã gồm mọi phí và mã đơn. Khi thanh toán thất bại, trang SHALL nêu lý do và cho phép khách thử phương thức khác trên cùng đơn; hủy đơn là hành động phụ và SHALL cần xác nhận trong hộp thoại.
+Trang thanh toán SHALL hiện thông tin nhận vé (email tài khoản, số điện thoại), phương thức thanh toán kèm ghi chú chuyển hướng, điều khoản mua vé khi hệ thống đã cấu hình đường dẫn điều khoản, và tóm tắt đơn có áp phích, sự kiện, ngày giờ, địa điểm, các dòng vé, một tổng tiền đã gồm mọi phí và mã đơn. Khi thanh toán thất bại, trang SHALL theo chính sách một lượt thanh toán mỗi đơn, không hiện điều khiển thử lại trên đơn đó, và việc hủy đơn SHALL cần xác nhận trong hộp thoại.
 
 #### Scenario: Điều khoản được cấu hình
 
@@ -11,8 +11,8 @@ Trang thanh toán SHALL hiện thông tin nhận vé (email tài khoản, số �
 
 #### Scenario: Thanh toán thất bại còn hạn
 
-- **WHEN** khách quay lại với `payment=failed` và đơn còn hạn thanh toán
-- **THEN** trang nêu lý do, nút "Thử phương thức thanh toán khác" mở lại chính đơn đó và cho chọn phương thức mới mà không đưa khách vào lại phòng chờ.
+- **WHEN** máy chủ xác nhận lượt thanh toán của đơn đã thất bại và đơn còn hạn thanh toán
+- **THEN** trang nêu lý do, khóa phương thức và nút thanh toán, giải thích chính sách một lượt thanh toán mỗi đơn và đưa ra nút "Hủy đơn và chọn vé lại" cùng nút kiểm tra trạng thái đơn.
 
 #### Scenario: Khách hủy đơn
 

@@ -10,7 +10,6 @@ import {
   completeMockPayment,
   getPaymentProviders,
   initiatePayment,
-  retryOrderPayment,
   type Order,
   type PaymentProvider,
 } from '../../api/orders';
@@ -139,11 +138,9 @@ export function CheckoutPage() {
   const [error, setError] = useState<string | null>(null);
   const [paymentFailed, setPaymentFailed] = useState(false);
   const [creationRetry, setCreationRetry] = useState(0);
-  const [retryingPayment, setRetryingPayment] = useState(false);
   const [cancelDialog, setCancelDialog] = useState<'leave' | 'restart' | null>(null);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [termsInvalid, setTermsInvalid] = useState(false);
-  const failedHint = searchParams.get('payment') === 'failed';
   const [creationNeedsRecovery, setCreationNeedsRecovery] = useState(false);
   const idempotencyKey = useRef<string | null>(null);
   const creationStarted = useRef(false);
@@ -207,7 +204,7 @@ export function CheckoutPage() {
           setResumeUnavailable(problem ?? 'unavailable');
           return;
         }
-        setPaymentFailed(outcome.kind === 'failed' || (failedHint && outcome.kind === 'payable'));
+        setPaymentFailed(outcome.kind === 'failed');
         setLockedProvider(null);
         const pendingPayment = readPendingPayment();
         if (paymentStatus.provider) {
@@ -236,7 +233,7 @@ export function CheckoutPage() {
       active = false;
       controller.abort();
     };
-  }, [navigate, resumeOrderId, resumeRefreshKey, failedHint]);
+  }, [navigate, resumeOrderId, resumeRefreshKey]);
 
   useEffect(() => {
     function restoreAfterBrowserBack() {
@@ -436,31 +433,6 @@ export function CheckoutPage() {
     }
   }
 
-  /** Reopens the same order for another payment attempt instead of cancelling it. */
-  async function tryAnotherMethod() {
-    if (!createdOrder || retryingPayment || cancelling) return;
-    setRetryingPayment(true);
-    setError(null);
-    try {
-      const order = await retryOrderPayment(createdOrder.id);
-      setCreatedOrder(order);
-      setPaymentFailed(false);
-      const failedProvider = lockedProvider ?? provider;
-      setLockedProvider(null);
-      const alternative = allowed.find((option) => option !== failedProvider);
-      if (alternative) setProvider(alternative);
-      navigate(`/checkout?orderId=${encodeURIComponent(order.id)}`, {
-        replace: true,
-        state: { event, selection },
-      });
-    } catch {
-      setError(translate('customer:checkout2_retryFailed'));
-      setResumeRefreshKey((value) => value + 1);
-    } finally {
-      setRetryingPayment(false);
-    }
-  }
-
   async function waitForPaidOrder(orderId: string): Promise<Order> {
     const settled = await pollOrderOutcome(orderId, {
       attempts: 12,
@@ -557,7 +529,6 @@ export function CheckoutPage() {
     processing ||
     cancelling ||
     creatingOrder ||
-    retryingPayment ||
     !createdOrder ||
     paymentFailed ||
     paymentCountdown.isExpired ||
@@ -628,7 +599,7 @@ export function CheckoutPage() {
                 : 'customer:checkoutPage_chuaCoCongThanhToan',
             );
 
-  const busy = processing || cancelling || creatingOrder || retryingPayment;
+  const busy = processing || cancelling || creatingOrder;
 
   return (
     <section
@@ -656,20 +627,14 @@ export function CheckoutPage() {
             <button
               className="button button-primary"
               type="button"
-              disabled={busy || paymentCountdown.isExpired}
-              onClick={() => void tryAnotherMethod()}
-            >
-              {translate(
-                retryingPayment ? 'customer:checkout2_retrying' : 'customer:checkout2_tryAnother',
-              )}
-            </button>
-            <button
-              className="button button-secondary"
-              type="button"
               disabled={busy}
               onClick={() => setCancelDialog('restart')}
             >
-              {translate('customer:checkout2_cancelOrder')}
+              {translate(
+                cancelling
+                  ? 'customer:checkoutPage_dangHuyDon'
+                  : 'customer:checkoutPage_huyDonVaChonVeLai',
+              )}
             </button>
             <button
               className="button button-secondary"

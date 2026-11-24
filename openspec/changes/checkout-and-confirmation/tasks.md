@@ -3,7 +3,7 @@
 ## 1. Checkout
 
 - [x] 1.1 Contact section, payment method cards with provider marks, terms acceptance and an order summary with poster.
-- [x] 1.2 Payment failed: try another method on the same order, cancel as secondary action, shared modal instead of `window.confirm`.
+- [x] 1.2 Payment failed: explain the one-attempt policy, cancel and choose again as the primary action, shared modal instead of `window.confirm`.
 
 ## 2. Processing and confirmation
 
