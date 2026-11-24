@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { api } from '../../api/client';
+import { clearOfflineTickets } from '../ticket/offlineTicket';
 import { clearAuthToken, getAuthToken, saveAuthToken } from './tokenCookie';
 
 export type UserRole = 'AUDIENCE' | 'ORGANIZER' | 'STAFF' | 'ADMIN';
@@ -144,6 +145,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
     sessionStorage.removeItem('ticketbox.queue-admission');
+    clearOfflineTickets();
     clearAuthToken();
     setToken(null);
     setUser(null);

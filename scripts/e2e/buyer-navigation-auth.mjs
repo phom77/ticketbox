@@ -128,9 +128,9 @@ const cases = [
         await assertAligned('/my-tickets');
         await account.click();
         await header.getByRole('link', { name: 'Profile' }).click();
-        await page.waitForURL('**/profile');
+        await page.waitForURL('**/account');
         await page.getByRole('heading', { level: 1 }).waitFor();
-        await assertAligned('/profile');
+        await assertAligned('/account');
         if (width === 320) await searchButton.click();
         await search.fill('Jazz');
         await search.press('Enter');
@@ -163,7 +163,7 @@ const cases = [
       await menu.press('Enter');
       assert.equal(await header.getByRole('link', { name: 'Organizer workspace' }).count(), 0);
       assert.equal(await header.getByRole('link', { name: 'Events', exact: true }).count(), 0);
-      assert.equal(await header.getByRole('link', { name: 'Order history' }).getAttribute('href'), '/profile?tab=orders');
+      assert.equal(await header.getByRole('link', { name: 'Order history' }).getAttribute('href'), '/account/orders');
       await header.getByRole('link', { name: /Notifications.*7 unread/ }).waitFor();
       await header.getByRole('combobox', { name: 'Language' }).waitFor();
       await header.getByRole('link', { name: 'Profile' }).focus();
@@ -174,7 +174,7 @@ const cases = [
       await page.screenshot({ path: resolve(output, 'mobile-navigation-en-320.png') });
       assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
       await header.getByRole('link', { name: 'Order history' }).click();
-      await page.waitForURL('**/profile?tab=orders');
+      await page.waitForURL('**/account/orders');
       assert.equal(await menu.getAttribute('aria-expanded'), 'false');
       assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
     });
@@ -211,7 +211,7 @@ const cases = [
       await account.click();
       await page.screenshot({ path: resolve(output, 'desktop-account-menu-en.png') });
       await orders.click();
-      await page.waitForURL('**/profile?tab=orders');
+      await page.waitForURL('**/account/orders');
       assert.equal(await account.getAttribute('aria-expanded'), 'false');
       await account.click();
       await language.selectOption('vi');

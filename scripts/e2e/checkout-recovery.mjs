@@ -80,10 +80,9 @@ async function fixture(options={}) {
    }
    if(path.startsWith('/api/v2/events/'))return reply(route,null,404);
    if(path===`/api/concerts/${concertId}`)return reply(route,{...concert,organizationName:state.organizationName},state.concertStatus??200);
-   if(path==='/api/tickets' && state.orderStatus==='PAID')return reply(route,[{
-    id:'fixture-issued-ticket',concertId,concertTitle:concert.title,ticketTypeId:typeId,ticketTypeName:'GA',
-    qrCode:'fixture-issued-qr',status:'VALID',issuedAt:order.createdAt,
-   }]);
+   const issuedTicket={id:'fixture-issued-ticket',concertId,concertTitle:concert.title,ticketTypeId:typeId,ticketTypeName:'GA',qrCode:'fixture-issued-qr',status:'VALID',issuedAt:order.createdAt};
+   if(path==='/api/tickets' && state.orderStatus==='PAID')return reply(route,[issuedTicket]);
+   if(path==='/api/tickets/fixture-issued-ticket' && state.orderStatus==='PAID')return reply(route,issuedTicket);
    if(path==='/api/concerts')return reply(route,{content:[],totalPages:0,totalElements:0});
    if(path.includes('/queue/'))return reply(route,{status:'WAITING',position:1,peopleAhead:0,estimatedWaitSeconds:1,queueAccessToken:null,sessionExpiresAt:null,waitingRoomCount:1,queueSize:1,activeShoppers:0});
    if(path.includes('/notifications'))return reply(route,{count:0,content:[]});
@@ -208,10 +207,9 @@ try {
   await f.page.reload();
   await f.page.getByRole('link',{name:'Xem vé của tôi'}).click();
   const group=f.page.getByRole('article',{name:concert.title,exact:true});
-  await group.getByRole('button',{name:`Xem vé · ${concert.title}`}).click();
-  await group.getByRole('button',{name:/^Mở mã QR · /}).click();
-  const dialog=f.page.getByRole('dialog',{name:concert.title});
-  await dialog.getByRole('img',{name:`Mã QR vé cho ${concert.title}`}).waitFor();
+  await group.locator('a[href="/my-tickets/fixture-issued-ticket"]').first().click();
+  await f.page.waitForURL('**/my-tickets/fixture-issued-ticket');
+  await f.page.getByRole('img',{name:/Mã QR/}).first().waitFor();
   checks.push('A verified paid order opens the actual issued ticket despite independent Catalog and payment-status errors');await f.close();
  }
  {
