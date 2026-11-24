@@ -27,6 +27,7 @@ import { WaitingRoomPage } from '../pages/customer/WaitingRoomPage';
 import { ConcertDetailPage } from '../pages/public/ConcertDetailPage';
 import { EventCataloguePage, HomePage } from '../pages/public/HomePage';
 import { LoginPage } from '../pages/public/LoginPage';
+import { NotFoundPage } from '../pages/public/NotFoundPage';
 import { RequestPasswordResetPage, ResetPasswordPage } from '../pages/public/PasswordRecoveryPage';
 import { RegisterPage } from '../pages/public/RegisterPage';
 import {
@@ -167,7 +168,7 @@ export function App() {
                   )}
                 />
               ) : null}
-              <Route path="/concerts/:id" element={<ConcertDetailPage />} />
+              <Route path="/concerts/:id" element={cataloguePage(<ConcertDetailPage />)} />
               <Route
                 path="/concerts/:id/waiting-room"
                 element={audiencePage(<WaitingRoomPage />)}
@@ -182,6 +183,7 @@ export function App() {
               <Route path="/my-tickets" element={audiencePage(<MyTicketsPage />)} />
               <Route path="/notifications" element={audiencePage(<NotificationsPage />)} />
               <Route path="/profile" element={audiencePage(<ProfilePage />)} />
+              <Route path="*" element={<NotFoundPage />} />
             </Route>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/forgot-password" element={<RequestPasswordResetPage />} />
@@ -348,7 +350,6 @@ export function App() {
                 </ProtectedRoute>
               }
             />
-            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>
       </ToastProvider>

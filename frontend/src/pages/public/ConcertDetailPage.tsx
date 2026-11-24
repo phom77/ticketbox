@@ -1,4 +1,8 @@
 import { useTranslation } from 'react-i18next';
+import { purchasePaths } from '../../features/event/eventView';
+import { AllInPriceNote } from '../../features/price/AllInPrice';
+import { DetailSkeleton } from '../../components/feedback/Skeleton';
+import { formatPrice, lowestPrice } from '../../features/price/price';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, CalendarDays, MapPin } from 'lucide-react';
@@ -20,7 +24,7 @@ import {
 import { EventCard } from '../../components/EventCard';
 import { BuyerInformationLinks } from '../../components/BuyerInformationLinks';
 import { RemoteImage } from '../../components/RemoteImage';
-import { currency, dateFormatter } from '../../data/formatters';
+import { dateFormatter } from '../../data/formatters';
 import './ConcertDetailPage.css';
 
 const dateTime = dateFormatter({ dateStyle: 'medium', timeStyle: 'short' });
@@ -165,17 +169,16 @@ function ConcertDetailView({ id, preview }: { id?: string; preview: boolean }) {
   if (!concert) {
     return (
       <div className="buyer-page purchase-page page-width">
-        <p className="buyer-state" role="status">
-          {t('public:concertDetailPage_loading')}
-        </p>
+        <DetailSkeleton label={t('public:concertDetailPage_loading')} />
       </div>
     );
   }
 
   const activeTypes = ticketTypes?.filter((type) => type.isActive) ?? [];
   const availableTypes = activeTypes.filter((type) => type.availableQty > 0);
-  const prices = (availableTypes.length ? availableTypes : activeTypes).map((type) => type.price);
-  const price = prices.length ? Math.min(...prices) : null;
+  const price = lowestPrice(
+    (availableTypes.length ? availableTypes : activeTypes).map((type) => type.price),
+  );
   const state = concertSaleState(concert, now);
   const saleStart = Date.parse(concert.saleStartAt);
   const opensAt = saleStart - waitingRoomLeadMs;
@@ -228,13 +231,14 @@ function ConcertDetailView({ id, preview }: { id?: string; preview: boolean }) {
           {price !== null ? (
             <p className="concert-sale-price">
               <span>{t('public:concertDetailPage_giaVeTu')}</span>{' '}
-              <strong>{currency.format(price)}</strong>
+              <strong>{formatPrice(price)}</strong>
             </p>
           ) : null}
+          {price !== null ? <AllInPriceNote /> : null}
           {canEnter ? (
             <Link
               className="button button-primary"
-              to={'/concerts/' + concert.id + '/waiting-room'}
+              to={purchasePaths({ id: concert.id }).waitingRoom}
             >
               {t(
                 state === 'waiting-room'
@@ -314,7 +318,7 @@ function ConcertDetailView({ id, preview }: { id?: string; preview: boolean }) {
                     )}
                   </span>
                 </div>
-                <strong className="concert-type-price">{currency.format(type.price)}</strong>
+                <strong className="concert-type-price">{formatPrice(type.price)}</strong>
               </li>
             ))}
           </ul>

@@ -1,4 +1,6 @@
 import { ArrowRight, Search, Ticket, X } from 'lucide-react';
+import { BuyerState } from '../../components/feedback/BuyerState';
+import { CardGridSkeleton } from '../../components/feedback/Skeleton';
 import {
   useEffect,
   useLayoutEffect,
@@ -464,24 +466,19 @@ function DiscoveryPage({
         ) : null}
 
         {isInitialLoading ? (
-          <p className="buyer-state" role="status">
-            {t('public:discovery_loading')}
-          </p>
+          <CardGridSkeleton count={isHome ? 4 : 8} label={t('public:discovery_loading')} />
         ) : null}
         {failedPage === 0 ? (
-          <p className="buyer-state" role="alert">
-            {t('public:discovery_loadError')}
-          </p>
+          <BuyerState tone="error">{t('public:discovery_loadError')}</BuyerState>
         ) : null}
         {!isInitialLoading && failedPage !== 0 && matches.length === 0 ? (
-          <div className="buyer-state">
-            <strong>
-              {t(hasFilters ? 'public:discovery_noMatches' : 'public:discovery_noEvents')}
-            </strong>
-            <p>
-              {t(hasFilters ? 'public:discovery_adjustFilters' : 'public:discovery_returnLater')}
-            </p>
-          </div>
+          <BuyerState
+            tone="empty"
+            headingLevel={3}
+            title={t(hasFilters ? 'public:discovery_noMatches' : 'public:discovery_noEvents')}
+          >
+            {t(hasFilters ? 'public:discovery_adjustFilters' : 'public:discovery_returnLater')}
+          </BuyerState>
         ) : null}
 
         {isHome ? (

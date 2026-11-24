@@ -38,7 +38,10 @@ export function HoldTimer({
   if (!expiresAt) return null;
 
   return (
-    <div className={['hold-timer', className].filter(Boolean).join(' ')} data-state={state}>
+    <div
+      className={['purchase-hold-timer', className].filter(Boolean).join(' ')}
+      data-state={state}
+    >
       <div className="purchase-deadline" data-state={state}>
         <span id={labelId}>{label}</span>
         {countdown.isExpired ? (
@@ -49,7 +52,7 @@ export function HoldTimer({
           </strong>
         )}
       </div>
-      <p className="hold-timer-message" role="status">
+      <p className="purchase-hold-timer-message" role="status">
         {message}
       </p>
     </div>
