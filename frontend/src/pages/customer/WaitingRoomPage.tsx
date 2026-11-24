@@ -455,7 +455,9 @@ export function WaitingRoomPage() {
             </>
           ) : null}
 
-          {showStatus && queueStatus ? (
+          {showStatus &&
+          typeof queueStatus?.waitingRoomCount === 'number' &&
+          typeof queueStatus.queueSize === 'number' ? (
             <p className="waiting-counts">
               {t('customer:waitingRoomPage_roomCount', { count: queueStatus.waitingRoomCount })}
               {' · '}
