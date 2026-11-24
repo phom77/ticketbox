@@ -203,5 +203,8 @@
   "workspaceRouteLoading": "Đang tải trang…",
   "workspaceRouteFailedTitle": "Không mở được trang này",
   "workspaceRouteFailedBody": "TicketBox có thể vừa được cập nhật, hoặc kết nối bị gián đoạn khi đang tải trang. Hãy tải lại để mở phiên bản mới nhất.",
-  "workspaceRouteReload": "Tải lại trang"
+  "workspaceRouteReload": "Tải lại trang",
+  "price_from": "Từ {{price}}",
+  "price_feesIncluded": "Giá đã gồm mọi khoản phí",
+  "skeleton_loading": "Đang tải"
 }
