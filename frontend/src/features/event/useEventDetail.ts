@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ApiClientError, isRequestCanceled } from '../../api/client';
 import {
   getConcert,
@@ -17,7 +18,11 @@ import { concertDescription, concertTitle } from '../concert/concertText';
 import { useTicketAvailability } from '../concert/useTicketAvailability';
 import type { DetailDate, EventDetailModel } from './eventDetail';
 
-export type DetailSource = EventDetailModel & { inlineTypes: TicketType[] | null };
+export type DetailSource = EventDetailModel & {
+  inlineTypes: TicketType[] | null;
+  /** The legacy concert read, kept so its title and description follow the selected language. */
+  concert?: ConcertDetail;
+};
 
 export function legacyModel(concert: ConcertDetail): DetailSource {
   return {
@@ -30,6 +35,7 @@ export function legacyModel(concert: ConcertDetail): DetailSource {
     organizer: concert.organizationName?.trim() || null,
     seatMapSvg: concert.seatMapSvg,
     inlineTypes: concert.ticketTypes?.length ? concert.ticketTypes : null,
+    concert,
     dates: [
       {
         id: concert.id,
@@ -103,6 +109,9 @@ export async function loadDetail(id: string, preview: boolean, signal: AbortSign
     const concert = legacyModel(await getConcert(legacyId, signal));
     return {
       ...model,
+      title: concert.title,
+      description: concert.description,
+      concert: concert.concert,
       artistBio: concert.artistBio,
       posterUrl: concert.posterUrl,
       organizer: concert.organizer,
@@ -139,7 +148,19 @@ export function useEventDetail(id: string, preview: boolean) {
     setError(null);
     setReloadKey((key) => key + 1);
   }, []);
-  return { source, error, retry };
+  const { i18n } = useTranslation();
+  const localized = useMemo(
+    () =>
+      source?.concert
+        ? {
+            ...source,
+            title: concertTitle(source.concert),
+            description: concertDescription(source.concert),
+          }
+        : source,
+    [source, i18n.language],
+  );
+  return { source: localized, error, retry };
 }
 
 export type TicketRow = {
