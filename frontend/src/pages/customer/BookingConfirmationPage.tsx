@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { CircleCheck, MapPin } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Link, Navigate, useLocation, useParams } from 'react-router-dom';
-import { getOrder, type Order } from '../../api/orders';
+import { getMyOrders, getOrder, type Order } from '../../api/orders';
 import { getMyTickets, type Ticket } from '../../api/tickets';
 import { PurchaseProgress } from '../../components/purchase/PurchaseProgress';
 import { useAuth } from '../../features/auth/AuthContext';
@@ -103,6 +103,7 @@ type TicketsState =
   | { status: 'loading' }
   | { status: 'ready'; tickets: Ticket[] }
   | { status: 'pending' }
+  | { status: 'ambiguous' }
   | { status: 'error' };
 
 const ticketAttempts = 6;
@@ -120,9 +121,15 @@ function useIssuedTickets(order: Order) {
 
     async function load(attempt: number) {
       try {
-        const issued = ticketsForOrder(order, await getMyTickets(controller.signal));
+        const [tickets, orders] = await Promise.all([
+          getMyTickets(controller.signal),
+          getMyOrders(controller.signal),
+        ]);
         if (controller.signal.aborted) return;
-        if (issued.length) {
+        const issued = ticketsForOrder(order, tickets, orders);
+        if (!issued) {
+          setState({ status: 'ambiguous' });
+        } else if (issued.length) {
           setState({ status: 'ready', tickets: issued });
         } else if (attempt + 1 >= ticketAttempts) {
           setState({ status: 'pending' });
@@ -154,6 +161,13 @@ function TicketPreviews({ order }: { order: Order }) {
     return <p role="status">{t('customer:confirm2_ticketsLoading')}</p>;
   if (state.status === 'pending')
     return <p role="status">{t('customer:confirm2_ticketsPending')}</p>;
+  if (state.status === 'ambiguous')
+    return (
+      <p>
+        {t('customer:confirm2_ticketsInMyTickets')}{' '}
+        <Link to="/my-tickets">{t('customer:bookingConfirmationPage_xemVeCuaToi')}</Link>
+      </p>
+    );
   if (state.status === 'error')
     return (
       <div>

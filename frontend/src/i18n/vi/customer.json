@@ -370,6 +370,7 @@
   "confirm2_sentTo": "Vé đã được gửi tới {{email}}",
   "confirm2_ticketsTitle": "Vé của bạn",
   "confirm2_ticketsLoading": "Đang chuẩn bị vé của bạn…",
+  "confirm2_ticketsInMyTickets": "Bạn có nhiều đơn cho sự kiện này nên vé được liệt kê chung trong mục Vé của tôi.",
   "confirm2_ticketsPending": "Vé vẫn đang được phát hành. Vé sẽ xuất hiện trong mục Vé của tôi và chúng tôi sẽ gửi email khi sẵn sàng.",
   "confirm2_ticketsError": "Hiện chưa thể tải vé của bạn.",
   "confirm2_ticketsRetry": "Thử lại",

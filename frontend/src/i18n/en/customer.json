@@ -374,6 +374,7 @@
   "confirm2_sentTo": "Tickets sent to {{email}}",
   "confirm2_ticketsTitle": "Your tickets",
   "confirm2_ticketsLoading": "Getting your tickets ready…",
+  "confirm2_ticketsInMyTickets": "You have more than one order for this event, so your tickets are listed together in My tickets.",
   "confirm2_ticketsPending": "Your tickets are still being issued. They will appear in My tickets, and we’ll email you when they’re ready.",
   "confirm2_ticketsError": "Couldn’t load your tickets right now.",
   "confirm2_ticketsRetry": "Try again",
