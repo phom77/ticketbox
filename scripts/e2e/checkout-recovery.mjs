@@ -78,6 +78,7 @@ async function fixture(options={}) {
     state.attempt=state.initiateState??'FAILED';
     return reply(route,{orderId,provider:'MOCK',attemptId:'attempt',attemptState:state.attempt,paymentUrl:null},state.attempt==='PROCESSING'?202:200);
    }
+   if(path.startsWith('/api/v2/events/'))return reply(route,null,404);
    if(path===`/api/concerts/${concertId}`)return reply(route,{...concert,organizationName:state.organizationName},state.concertStatus??200);
    if(path==='/api/tickets' && state.orderStatus==='PAID')return reply(route,[{
     id:'fixture-issued-ticket',concertId,concertTitle:concert.title,ticketTypeId:typeId,ticketTypeName:'GA',
@@ -271,7 +272,7 @@ try {
   await f.page.getByText('Ban tổ chức hòa nhạc thử nghiệm',{exact:true}).waitFor();
   await f.page.setViewportSize({width:390,height:844});
   await checkBuyerInformation(f.page.getByRole('contentinfo'));
-  await checkBuyerInformation(f.page.locator('.booking-card'));
+  await checkBuyerInformation(f.page.locator('section[aria-labelledby="ed-info-title"]'));
   checks.push('Published organizer is rendered and support/policy links require HTTPS configuration');await f.close();
  }
  {
