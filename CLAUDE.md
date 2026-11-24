@@ -24,16 +24,10 @@ scripts/mvnw-docker.sh -B -ntp -f services/ticketing/pom.xml verify         # on
 python3 scripts/ci/verify-service-boundaries.py --service ticketing         # independent build/boundary gate
 
 # Web (Node 24)
-npm --prefix frontend ci
 npm --prefix frontend run dev        # set VITE_API_BASE_URL=http://localhost:18091 in frontend/.env.local
 npm --prefix frontend run lint       # eslint + prettier --check + i18n catalog check (scripts/check-translations.mjs)
-npm --prefix frontend run format     # apply Prettier
 npm --prefix frontend test           # Vitest unit/component tests (jsdom, English catalogs)
 npm --prefix frontend test -- src/features/discovery/filters.test.ts   # one file; add -t "name" for one test
-npm --prefix frontend run build      # tsc -b (app + tests) + vite build
-
-# Scanner
-npm --prefix mobile-scanner ci && npm --prefix mobile-scanner run typecheck
 
 # Shared CI (reactor, image ownership, web, scanner, compose validation); needs PowerShell 7 + Python 3
 pwsh -File scripts/ci/verify.ps1                     # add -BackendMode Local to use a host JDK instead of Docker
@@ -45,8 +39,6 @@ openspec validate <change-id> --type change --strict
 
 Browser fixtures in `scripts/e2e/*.mjs` use Playwright (`npm ci --prefix scripts/e2e && npx --prefix scripts/e2e playwright install chromium`). Buyer fixtures run against a Vite dev server on a specific port with mocked APIs (e.g. port 5185 for `buyer-*.mjs`, 5184 for `web-language.mjs`); workspace/performance fixtures run against an isolated Compose project. `docs/development.md` lists the exact setup for each fixture: check it before running one.
 
-Demo accounts (local only): `audience@`, `organizer@`, `staff@`, `admin@ticketbox.com`, all with password `password123`.
-
 ## Architecture
 
 - **Six independent Spring Boot services** in `services/` (identity, catalog, ticketing, checkin, payment, notification). Each has its own `pom.xml`, Dockerfile, PostgreSQL database, Flyway history (`src/main/resources/db/migration`) and `GLOSSARY.md`. The root `pom.xml` is only a reactor aggregating them. Base packages differ: most use `org.ticketbox.<service>`, while payment and notification use `com.ticketbox.payments` / `com.ticketbox.notifications`.
@@ -54,9 +46,13 @@ Demo accounts (local only): `audience@`, `organizer@`, `staff@`, `admin@ticketbo
 - **Cross-service communication** uses versioned JSON schemas in `contracts/` with outbox/inbox and ACK messages (Catalog → Ticketing/Check-in snapshots, Ticketing → Check-in tickets, Ticketing ↔ Payment intents/results). Never share code or tables across services. Legacy event class names and listener IDs are pinned by `scripts/ci/verify-service-boundaries.py`.
 - **Per-service layering** is enforced by `src/test/java/.../architecture/ArchitectureTest.java` in each service. Update it when moving packages. `scripts/ci/java-suites.json` lists the test suites CI requires per service.
 - **Gateway:** Nginx config in `infra/` routes `/api/...` to the services; the web app is served from the same origin.
-- **Frontend** (`frontend/src`): React 18 + TypeScript + Vite + Tailwind 4. API clients live in `src/api/` (the Admin/Organizer management client is split by area under `src/api/management/` and re-exported from `src/api/admin.ts`, so import from `api/admin`), routes in `src/app/App.tsx`, pages in `src/pages/{public,...}`, feature logic in `src/features/`, design tokens in `src/app/app.css` (see `frontend/DESIGN_SYSTEM.md`). All user-facing text goes through i18next catalogs in `src/i18n/{en,vi}/`. Lint fails on missing keys or mismatched interpolation/plurals. Unit tests are colocated `*.test.ts(x)` files run by Vitest; the setup in `src/test/setup.ts` loads the English catalogs.
+- **Frontend** (`frontend/src`): React 18 + TypeScript + Vite + Tailwind 4. The Admin/Organizer management client is split by area under `src/api/management/` and re-exported from `src/api/admin.ts`; import from `api/admin`. Design tokens live in `src/app/app.css` (see `frontend/DESIGN_SYSTEM.md`). All user-facing text goes through i18next catalogs in `src/i18n/{en,vi}/`. Lint fails on missing keys or mismatched interpolation/plurals. Unit tests are colocated `*.test.ts(x)` files run by Vitest; the setup in `src/test/setup.ts` loads the English catalogs.
 - **The retired Core monolith** (`backend/`, `legacy/core/`) was deleted on 2026-11-24. It is in Git history at commit `73fcd66` (local tag `archive/core-legacy`). Don't recreate it; put work in the owning service.
 - **Design records:** ADRs in `docs/adr/`, durable specs in `openspec/specs/`, in-flight changes in `openspec/changes/`, older plans in `docs/superpowers/`. `docs/architecture.md` and `docs/api.md` describe consistency guarantees and HTTP APIs.
+
+## Commits
+
+- Keep commit messages short and professional: a concise conventional subject (`type(scope): summary`) and, only when needed, a brief body explaining why.
 
 ## Gotchas
 
