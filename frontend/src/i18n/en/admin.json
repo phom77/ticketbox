@@ -734,5 +734,7 @@
   "adminGuestImportsPage_guestListLoadFailed": "Could not load the guest list.",
   "eventDisruptionPanel_confirmCancellation": "I confirm the cancellation and will stop ticket sales and online check-in.",
   "eventDisruptionPanel_confirmPostponement": "I confirm the postponement and will stop ticket sales and online check-in.",
-  "orderRefundActions_recordProviderRefund": "Refund the full order through {{provider}}, then record the refund reference and time."
+  "orderRefundActions_recordProviderRefund": "Refund the full order through {{provider}}, then record the refund reference and time.",
+  "orderSupportSections_originBuyer": "Buyer request",
+  "orderSupportSections_originPostponement": "Postponement refund"
 }

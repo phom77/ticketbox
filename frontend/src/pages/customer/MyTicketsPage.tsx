@@ -18,6 +18,7 @@ import {
   type EventView,
 } from '../../features/event/eventView';
 import { isUpcomingEvent, ticketStatusKeys } from '../../features/ticket/walletTabs';
+import { DisruptionBanners } from './DisruptionBanners';
 import { ReceivedTransferOffers } from './ReceivedTransferOffers';
 import './MyTicketsPage.css';
 
@@ -134,6 +135,7 @@ function TicketWallet({ preferredConcertId }: { preferredConcertId: string | nul
       </header>
 
       <ReceivedTransferOffers />
+      <DisruptionBanners />
 
       {loading && !tickets ? (
         <CardGridSkeleton count={2} label={t('customer:myTicketsPage_dangTaiVe')} />

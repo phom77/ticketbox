@@ -19,6 +19,7 @@ describe('notification inbox helpers', () => {
     expect(notificationDestination('EVENT_POSTPONED')?.to).toBe('/my-tickets');
     expect(notificationDestination('TICKET_TRANSFER_OFFERED')?.to).toBe('/my-tickets');
     expect(notificationDestination('TICKET_TRANSFER_EXPIRED')?.to).toBe('/my-tickets');
+    expect(notificationDestination('REFUND_REQUEST_REJECTED')?.to).toBe('/account/orders');
     expect(notificationDestination('UNKNOWN')).toBeNull();
   });
 });

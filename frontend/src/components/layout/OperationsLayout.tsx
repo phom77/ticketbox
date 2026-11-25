@@ -32,6 +32,7 @@ import {
   Sun,
   Ticket,
   UserCog,
+  Undo2,
   Users,
   X,
 } from 'lucide-react';
@@ -204,6 +205,14 @@ const organizerNavigation: NavigationItem[] = [
       return translate('shared:operationsReports');
     },
     icon: BarChart3,
+  },
+  {
+    to: '/organizer/refund-requests',
+    grant: 'FINANCE',
+    get label() {
+      return translate('shared:operationsRefundRequests');
+    },
+    icon: Undo2,
   },
   {
     to: '/organizer/members',

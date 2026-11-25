@@ -34,6 +34,9 @@ export function notificationDestination(eventType: string) {
     case 'TICKET_TRANSFER_CANCELLED':
     case 'TICKET_TRANSFER_EXPIRED':
       return { to: '/my-tickets', label: 'notificationsPage_myTickets' };
+    case 'REFUND_REQUEST_RECEIVED':
+    case 'REFUND_REQUEST_APPROVED':
+    case 'REFUND_REQUEST_REJECTED':
     case 'ORDER_REFUNDED':
       return { to: '/account/orders', label: 'notificationsPage_orderHistory' };
     default:

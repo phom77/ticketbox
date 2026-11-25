@@ -18,6 +18,7 @@ import {
 } from '../../features/event/eventView';
 import { seatDescription } from '../../features/performance/checkoutPresentation';
 import { buildIcs, downloadIcs } from '../../features/ticket/calendar';
+import { DisruptionBanners } from './DisruptionBanners';
 import { TicketTransferPanel } from './TicketTransferPanel';
 import { ticketStatusKeys } from '../../features/ticket/walletTabs';
 import {
@@ -227,6 +228,7 @@ function TicketDetail({ userId, ticketId }: { userId: string; ticketId: string }
         </section>
 
         <div className="ticket-detail-info">
+          {!loaded.offlineSavedAt ? <DisruptionBanners concertId={ticket.concertId} /> : null}
           <dl className="wallet-ticket-facts">
             {hasDate ? (
               <div>

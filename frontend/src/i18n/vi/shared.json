@@ -236,5 +236,6 @@
   "notFound_title": "Không tìm thấy trang này",
   "notFound_body": "Liên kết có thể đã cũ hoặc trang đã được chuyển đi. Hãy tìm sự kiện ở phía trên hoặc chọn nơi muốn đến.",
   "notFound_browse": "Xem sự kiện",
-  "notFound_path": "Địa chỉ: {{path}}"
+  "notFound_path": "Địa chỉ: {{path}}",
+  "operationsRefundRequests": "Yêu cầu hoàn tiền"
 }

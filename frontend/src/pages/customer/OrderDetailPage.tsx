@@ -18,6 +18,7 @@ import {
 import { orderView } from '../../features/event/eventView';
 import { seatDescription } from '../../features/performance/checkoutPresentation';
 import { OrderTransfers } from './OrderTransfers';
+import { RefundRequestPanel } from './RefundRequestPanel';
 import './OrderDetailPage.css';
 
 const dateTime = dateFormatter({ dateStyle: 'medium', timeStyle: 'short' });
@@ -212,6 +213,10 @@ function OrderDetail({ orderId }: { orderId: string }) {
             </div>
             <p className="order-detail-fees">{t('shared:price_feesIncluded')}</p>
           </section>
+
+          {status === 'PAID' || status === 'REFUNDED' ? (
+            <RefundRequestPanel orderId={order.id} concertId={order.concertId} />
+          ) : null}
 
           <div className="buyer-account-actions order-detail-noprint">
             {canResume ? (
