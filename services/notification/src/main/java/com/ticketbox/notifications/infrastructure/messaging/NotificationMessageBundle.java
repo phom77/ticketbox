@@ -39,6 +39,12 @@ public class NotificationMessageBundle implements NotificationContent {
             return new Content(text("notification.refund.subject"),
                     orderBody("notification.refund.body", command));
         }
+        if (command.ticketTransfer()) {
+            String key = "notification.transfer." + command.transferChange() + "."
+                    + command.role().toLowerCase(java.util.Locale.ROOT);
+            return new Content(text(key + ".subject", title, command.otherPartyName()),
+                    text(key + ".body", title, command.otherPartyName()));
+        }
         if (command.eventCancelled()) return new Content(text("notification.cancel.subject", title),
                 text("notification.cancel.body", title));
         if (command.eventPostponed()) return new Content(text("notification.postpone.subject", title),

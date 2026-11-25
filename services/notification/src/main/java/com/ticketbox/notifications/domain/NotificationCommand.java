@@ -18,7 +18,21 @@ public record NotificationCommand(
         BigDecimal amount,
         String eventDate,
         String venueName,
-        String orderReference) {
+        String orderReference,
+        String otherPartyName,
+        String role) {
+    public static final java.util.List<String> TRANSFER_TYPES = java.util.List.of(
+            "ticketing.ticket-transfer-offered", "ticketing.ticket-transfer-accepted",
+            "ticketing.ticket-transfer-declined", "ticketing.ticket-transfer-cancelled",
+            "ticketing.ticket-transfer-expired");
+
+    public NotificationCommand(int schemaVersion, UUID eventId, String eventType, OffsetDateTime occurredAt,
+            UUID userId, UUID aggregateId, String correlationId, UUID payloadReference, String concertTitle,
+            BigDecimal amount, String eventDate, String venueName, String orderReference) {
+        this(schemaVersion, eventId, eventType, occurredAt, userId, aggregateId, correlationId, payloadReference,
+                concertTitle, amount, eventDate, venueName, orderReference, null, null);
+    }
+
     public NotificationCommand {
         if (schemaVersion != 1) throw new IllegalArgumentException("Unsupported schema version");
         Objects.requireNonNull(eventId);
@@ -29,6 +43,7 @@ public record NotificationCommand(
                 && !"ticketing.order-refunded".equals(eventType)
                 && !"ticketing.event-cancelled".equals(eventType)
                 && !"ticketing.event-postponed".equals(eventType)
+                && !TRANSFER_TYPES.contains(eventType)
                 && !"concert.reminder-requested".equals(eventType)) {
             throw new IllegalArgumentException("Unknown event type");
         }
@@ -40,6 +55,11 @@ public record NotificationCommand(
         if (("ticketing.order-confirmed".equals(eventType) || "ticketing.order-refunded".equals(eventType))
                 && (amount == null || amount.signum() < 0)) {
             throw new IllegalArgumentException("Invalid order payload");
+        }
+        if (TRANSFER_TYPES.contains(eventType)
+                && (otherPartyName == null || otherPartyName.isBlank() || otherPartyName.length() > 200
+                        || (!"SENDER".equals(role) && !"RECIPIENT".equals(role)))) {
+            throw new IllegalArgumentException("Invalid transfer payload");
         }
         if (orderReference != null && !orderReference.matches("DH-[0-9]{8,19}")) {
             throw new IllegalArgumentException("Invalid order reference code");
@@ -57,4 +77,9 @@ public record NotificationCommand(
     public boolean eventCancelled() { return "ticketing.event-cancelled".equals(eventType); }
 
     public boolean eventPostponed() { return "ticketing.event-postponed".equals(eventType); }
+
+    public boolean ticketTransfer() { return TRANSFER_TYPES.contains(eventType); }
+
+    /** The change this transfer command reports, for example offered or accepted. */
+    public String transferChange() { return eventType.substring("ticketing.ticket-transfer-".length()); }
 }

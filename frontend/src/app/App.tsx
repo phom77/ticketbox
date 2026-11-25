@@ -25,6 +25,7 @@ import { PaymentResultPage } from '../pages/customer/PaymentResultPage';
 import { LegacyProfileRedirect, ProfilePage } from '../pages/customer/ProfilePage';
 import { OrderDetailPage } from '../pages/customer/OrderDetailPage';
 import { TicketDetailPage } from '../pages/customer/TicketDetailPage';
+import { TransferOfferPage } from '../pages/customer/TransferOfferPage';
 import '../pages/public/Performances.css';
 import { TicketSelectionPage } from '../pages/customer/TicketSelectionPage';
 import { WaitingRoomPage } from '../pages/customer/WaitingRoomPage';
@@ -203,6 +204,10 @@ export function App() {
               <Route path="/payment/result" element={audiencePage(<PaymentResultPage />)} />
               <Route path="/my-tickets" element={audiencePage(<MyTicketsPage />)} />
               <Route path="/notifications" element={audiencePage(<NotificationsPage />)} />
+              <Route
+                path="/my-tickets/transfers/:transferId"
+                element={audiencePage(<TransferOfferPage />)}
+              />
               <Route path="/my-tickets/:ticketId" element={audiencePage(<TicketDetailPage />)} />
               <Route path="/profile" element={<LegacyProfileRedirect />} />
               <Route path="/account" element={audiencePage(<ProfilePage />)} />

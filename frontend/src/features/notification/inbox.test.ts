@@ -17,6 +17,8 @@ describe('notification inbox helpers', () => {
 
   it('gives postponed events a destination', () => {
     expect(notificationDestination('EVENT_POSTPONED')?.to).toBe('/my-tickets');
+    expect(notificationDestination('TICKET_TRANSFER_OFFERED')?.to).toBe('/my-tickets');
+    expect(notificationDestination('TICKET_TRANSFER_EXPIRED')?.to).toBe('/my-tickets');
     expect(notificationDestination('UNKNOWN')).toBeNull();
   });
 });

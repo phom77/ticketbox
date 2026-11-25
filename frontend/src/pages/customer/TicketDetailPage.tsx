@@ -18,6 +18,7 @@ import {
 } from '../../features/event/eventView';
 import { seatDescription } from '../../features/performance/checkoutPresentation';
 import { buildIcs, downloadIcs } from '../../features/ticket/calendar';
+import { TicketTransferPanel } from './TicketTransferPanel';
 import { ticketStatusKeys } from '../../features/ticket/walletTabs';
 import {
   loadOfflineTicket,
@@ -289,6 +290,8 @@ function TicketDetail({ userId, ticketId }: { userId: string; ticketId: string }
               </ol>
             </section>
           ) : null}
+
+          {!loaded.offlineSavedAt ? <TicketTransferPanel ticketId={ticket.id} /> : null}
 
           {hasDate ? (
             <button className="button button-secondary" type="button" onClick={addToCalendar}>

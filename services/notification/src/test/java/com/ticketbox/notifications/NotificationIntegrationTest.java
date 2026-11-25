@@ -279,6 +279,37 @@ class NotificationIntegrationTest {
     }
 
     @Test
+    void transferCommandsCreateAppAndEmailMessagesForBothPeopleInEachRole() throws Exception {
+        UUID sender = UUID.randomUUID(), recipient = UUID.randomUUID(), transfer = UUID.randomUUID();
+        for (String change : List.of("offered", "accepted", "declined", "cancelled", "expired")) {
+            for (String role : List.of("SENDER", "RECIPIENT")) {
+                UUID user = role.equals("SENDER") ? sender : recipient;
+                var command = new HashMap<String, Object>(event(UUID.randomUUID(), user));
+                command.put("eventType", "ticketing.ticket-transfer-" + change);
+                command.put("aggregateId", transfer);
+                command.put("payload", Map.of("transferId", transfer, "ticketId", UUID.randomUUID(),
+                        "concertId", UUID.randomUUID(), "concertTitle", "Fixture", "eventDate", "2026-12-31T13:00:00Z",
+                        "otherPartyName", "Fran Friend", "role", role));
+                publish(command);
+            }
+        }
+        await().atMost(Duration.ofSeconds(15)).untilAsserted(() -> {
+            assertThat(db.queryForObject("SELECT count(*) FROM notifications WHERE user_id IN (?,?)", Integer.class,
+                    sender, recipient)).isEqualTo(20);
+            assertThat(db.queryForList("SELECT DISTINCT event_type FROM notifications WHERE user_id IN (?,?)",
+                    String.class, sender, recipient)).containsExactlyInAnyOrder("TICKET_TRANSFER_OFFERED",
+                    "TICKET_TRANSFER_ACCEPTED", "TICKET_TRANSFER_DECLINED", "TICKET_TRANSFER_CANCELLED",
+                    "TICKET_TRANSFER_EXPIRED");
+        });
+        assertThat(db.queryForObject("SELECT subject FROM notifications WHERE user_id=? AND channel='APP'"
+                + " AND event_type='TICKET_TRANSFER_OFFERED'", String.class, recipient))
+                .isEqualTo("Fran Friend offered you a ticket for Fixture");
+        assertThat(db.queryForObject("SELECT body FROM notifications WHERE user_id=? AND channel='EMAIL'"
+                + " AND event_type='TICKET_TRANSFER_ACCEPTED'", String.class, sender))
+                .contains("Fran Friend accepted your ticket for Fixture");
+    }
+
+    @Test
     void existingTemplatedOrderBodiesAreCleanedOnReadAndRetry() throws Exception {
         UUID user = UUID.randomUUID(), order = UUID.randomUUID(), staff = UUID.randomUUID();
         String payment = "Order " + order + " was paid successfully. Total: 250000 VND. Open My Tickets to view your tickets and QR codes.";

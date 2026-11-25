@@ -5,7 +5,9 @@
   "required": ["schemaVersion", "eventType", "eventId", "aggregateId", "userId", "occurredAt", "correlationId", "payload"],
   "properties": {
     "schemaVersion": {"const": 1},
-    "eventType": {"enum": ["ticketing.order-confirmed", "ticketing.order-refunded", "ticketing.event-cancelled", "ticketing.event-postponed", "concert.reminder-requested"]},
+    "eventType": {"enum": ["ticketing.order-confirmed", "ticketing.order-refunded", "ticketing.event-cancelled", "ticketing.event-postponed", "concert.reminder-requested",
+      "ticketing.ticket-transfer-offered", "ticketing.ticket-transfer-accepted", "ticketing.ticket-transfer-declined",
+      "ticketing.ticket-transfer-cancelled", "ticketing.ticket-transfer-expired"]},
     "eventId": {"type": "string", "format": "uuid"},
     "aggregateId": {"type": "string", "format": "uuid"},
     "userId": {"type": "string", "format": "uuid"},
@@ -30,6 +32,23 @@
       }
     },
     {"if": {"properties": {"eventType": {"enum": ["concert.reminder-requested", "ticketing.event-postponed"]}}}, "then": {"properties": {"payload": {"required": ["concertId", "concertTitle", "eventDate"], "properties": {"concertId": {"type": "string", "format": "uuid"}, "eventDate": {"type": "string", "format": "date-time"}}}}}},
+    {
+      "if": {"properties": {"eventType": {"enum": ["ticketing.ticket-transfer-offered", "ticketing.ticket-transfer-accepted", "ticketing.ticket-transfer-declined", "ticketing.ticket-transfer-cancelled", "ticketing.ticket-transfer-expired"]}}},
+      "then": {
+        "properties": {
+          "payload": {
+            "required": ["transferId", "ticketId", "concertId", "concertTitle", "eventDate", "otherPartyName", "role"],
+            "properties": {
+              "transferId": {"type": "string", "format": "uuid"},
+              "ticketId": {"type": "string", "format": "uuid"},
+              "concertId": {"type": "string", "format": "uuid"},
+              "otherPartyName": {"type": "string", "minLength": 1, "maxLength": 200},
+              "role": {"enum": ["SENDER", "RECIPIENT"]}
+            }
+          }
+        }
+      }
+    },
     {"if": {"properties": {"eventType": {"const": "ticketing.event-cancelled"}}}, "then": {"properties": {"payload": {"required": ["concertId", "concertTitle"], "properties": {"concertId": {"type": "string", "format": "uuid"}}}}}}
   ]
 }
