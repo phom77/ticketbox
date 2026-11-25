@@ -38,7 +38,12 @@ public enum ErrorCode {
     TICKET_TYPE_NOT_IN_CONCERT("error.ticket-type-not-in-concert"),
     SALE_NOT_OPEN("error.sale-not-open"),
     ORDER_NOT_FOUND("error.order-not-found"),
-    TICKET_NOT_FOUND("error.ticket-not-found");
+    TICKET_NOT_FOUND("error.ticket-not-found"),
+
+    TRANSFER_NOT_ALLOWED("error.transfer.not-allowed"),
+    TRANSFER_NOT_PENDING("error.transfer.not-pending"),
+    TRANSFER_NOT_FOUND("error.transfer.not-found"),
+    TRANSFER_RECIPIENT_NOT_FOUND("error.transfer.recipient-unknown");
 
     private final String messageKey;
 

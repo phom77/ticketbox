@@ -114,6 +114,10 @@
       "vietnamese-pdfs": {
         "org.ticketbox.ticketing.reporting.VietnamesePdfTest": []
       },
+      "ticket-transfer": {
+        "org.ticketbox.ticketing.issuance.application.TicketTransferIntegrationTest": [],
+        "org.ticketbox.ticketing.issuance.domain.TicketTransferTest": []
+      },
       "architecture": {
         "org.ticketbox.ticketing.architecture.ArchitectureTest": [
           "domainIsIndependentOfFrameworksAndOuterLayers",
