@@ -23,7 +23,6 @@ import { translate } from '../../i18n';
 import { purchasePaths } from '../event/eventView';
 import { MapViewport } from './MapViewport';
 import {
-  FilterBar,
   Legend,
   OfferRowView,
   SelectionSummary,
@@ -67,7 +66,7 @@ export function ConcertTickets({ id }: { id: string }) {
   const [reloadKey, setReloadKey] = useState(0);
   const [leaving, setLeaving] = useState(false);
   const { search } = useLocation();
-  const [filters, setFilters] = useState<SelectionFilters>(() => ({
+  const [filters] = useState<SelectionFilters>(() => ({
     ...defaultFilters,
     quantity: parseQuantity(search),
   }));
@@ -459,7 +458,6 @@ export function ConcertTickets({ id }: { id: string }) {
       backLabel={translate('customer:seatSelectionPage_chiTietSuKien')}
       backDisabled={leaving || updating}
       onBack={() => void leaveSelection()}
-      filters={<FilterBar rows={rows} filters={filters} maxQuantity={10} onChange={setFilters} />}
       map={
         <>
           <div className="ts-pane-head">

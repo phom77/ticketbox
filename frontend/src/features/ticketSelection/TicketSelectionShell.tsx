@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { PurchaseProgress } from '../../components/purchase/PurchaseProgress';
@@ -11,7 +11,7 @@ export function TicketSelectionShell({
   backLabel,
   onBack,
   backDisabled,
-  filters,
+  toolbar,
   map,
   list,
   summary,
@@ -23,7 +23,7 @@ export function TicketSelectionShell({
   backLabel: string;
   onBack: () => void;
   backDisabled?: boolean;
-  filters: ReactNode;
+  toolbar?: ReactNode;
   map: ReactNode;
   list: ReactNode;
   summary: ReactNode;
@@ -33,20 +33,40 @@ export function TicketSelectionShell({
   const { t } = useTranslation('customer');
   const [chosenTab, setTab] = useState<'map' | 'list' | null>(null);
   const tab = chosenTab ?? defaultTab;
+  const page = useRef<HTMLDivElement>(null);
+  const bar = useRef<HTMLElement>(null);
+
+  // The map pane sticks just below the sticky context bar, whatever its height.
+  useLayoutEffect(() => {
+    const element = bar.current;
+    if (!element) return;
+    const publish = () =>
+      page.current?.style.setProperty('--ts-bar-height', `${element.offsetHeight}px`);
+    publish();
+    if (typeof ResizeObserver !== 'function') return;
+    const observer = new ResizeObserver(publish);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <div className="buyer-page purchase-page page-width ts-page" data-tab={tab}>
-      <header className="purchase-header ts-header">
-        <button className="back-link" type="button" disabled={backDisabled} onClick={onBack}>
-          <ArrowLeft size={16} aria-hidden="true" />
-          {backLabel}
-        </button>
+    <div className="buyer-page purchase-page page-width ts-page" data-tab={tab} ref={page}>
+      <header className="ts-bar" ref={bar}>
+        <div className="ts-bar-context">
+          <button className="back-link" type="button" disabled={backDisabled} onClick={onBack}>
+            <ArrowLeft size={18} aria-hidden="true" />
+            {backLabel}
+          </button>
+          <div className="ts-bar-event">
+            <p className="ts-event-title">{eventTitle}</p>
+            {subtitle ? <p className="ts-subtitle">{subtitle}</p> : null}
+          </div>
+        </div>
         <PurchaseProgress current="tickets" />
-        <h1>{t('customer:ticketSelection_title')}</h1>
-        <p className="ts-event-title">{eventTitle}</p>
-        {subtitle ? <p className="ts-subtitle">{subtitle}</p> : null}
       </header>
+      <h1 className="ts-title">{t('customer:ticketSelection_title')}</h1>
       {banner}
-      {filters}
+      {toolbar}
       <div className="ts-tabs" role="tablist" aria-label={t('customer:ticketSelection_views')}>
         {(['map', 'list'] as const).map((name) => (
           <button

@@ -224,9 +224,6 @@
   "discovery_showResults_other": "Xem {{count}} sự kiện",
   "discovery_500To1000": "500.000 ₫ đến 1.000.000 ₫",
   "discovery_1000Plus": "Trên 1.000.000 ₫",
-  "discovery_tonight": "Tối nay",
-  "discovery_thisMonth": "Tháng này",
-  "discovery_quickFilters": "Lọc nhanh",
   "discovery_seeAll": "Xem tất cả",
   "discovery_highlights": "Nổi bật",
   "discovery_thisWeek": "Diễn ra trong tuần này",
@@ -236,8 +233,5 @@
   "discovery_resultsFor_one": "{{count}} kết quả cho “{{q}}”",
   "discovery_resultsFor_other": "{{count}} kết quả cho “{{q}}”",
   "discovery_resultsCount_one": "{{count}} kết quả",
-  "discovery_resultsCount_other": "{{count}} kết quả",
-  "discovery_layout": "Cách hiển thị",
-  "discovery_gridView": "Lưới",
-  "discovery_listView": "Danh sách"
+  "discovery_resultsCount_other": "{{count}} kết quả"
 }

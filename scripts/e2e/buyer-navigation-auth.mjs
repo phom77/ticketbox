@@ -41,6 +41,7 @@ async function fixture(options, run) {
           requests.recovery.push(route.request().postDataJSON());
           return reply(null, 202);
         case '/api/notifications/unread-count': return reply({ count: 7 });
+        case '/api/v2/events/discovery/facets': return reply({ cities: ['Hanoi'], categories: [] });
         case '/api/concerts':
         case '/api/v2/events':
         case '/api/v2/events/discovery':
@@ -253,13 +254,13 @@ const cases = [
       await header.getByRole('button', { name: 'Done' }).click();
       await assertFocused(header.getByRole('button', { name: /^When: / }));
       await header.getByRole('button', { name: 'Search', exact: true }).click();
-      await page.waitForURL((url) => url.searchParams.get('q') === 'jazz Hà Nội');
+      await page.waitForURL((url) => url.searchParams.get('q') === 'jazz' && url.searchParams.get('city') === 'Hanoi');
       const url = new URL(page.url());
       assert.equal(url.pathname, '/events');
       assert.deepEqual(['date', 'from', 'to'].map((key) => url.searchParams.get(key)), ['custom', '2027-01-10', '2027-01-12']);
       await page.reload();
       assert.equal(await what.inputValue(), 'jazz');
-      assert.equal(await where.inputValue(), 'Hà Nội');
+      assert.equal(await where.inputValue(), 'Hanoi', 'A known city becomes the city filter.');
 
       await page.goto('/');
       await what.focus();
@@ -271,12 +272,12 @@ const cases = [
       assert.equal(await what.getAttribute('aria-expanded'), 'false');
       await what.press('ArrowDown');
       await what.press('Enter');
-      await page.waitForURL((value) => value.searchParams.get('q') === 'jazz Hà Nội');
+      await page.waitForURL((value) => value.searchParams.get('q') === 'jazz' && value.searchParams.get('city') === 'Hanoi');
 
       const browse = header.getByRole('navigation', { name: 'Browse events' });
-      await browse.getByRole('link', { name: 'On sale now' }).click();
-      await page.waitForURL((value) => value.pathname === '/events' && value.searchParams.get('status') === 'on-sale');
-      assert.equal(await browse.getByRole('link', { name: 'On sale now' }).getAttribute('aria-current'), 'page');
+      await browse.getByRole('link', { name: 'Concerts' }).click();
+      await page.waitForURL((value) => value.pathname === '/events' && value.searchParams.get('category') === 'concerts');
+      assert.equal(await browse.getByRole('link', { name: 'Concerts' }).getAttribute('aria-current'), 'page');
       assert.equal(await browse.getByRole('link', { name: 'All events' }).getAttribute('aria-current'), null);
     });
   }],

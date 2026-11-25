@@ -1,7 +1,8 @@
-import { LayoutGrid, List, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate, useNavigationType } from 'react-router-dom';
+import { translate } from '../../i18n';
 import { BuyerState } from '../../components/feedback/BuyerState';
 import { CardGridSkeleton } from '../../components/feedback/Skeleton';
 import { EventCard } from '../../components/EventCard';
@@ -23,6 +24,7 @@ import {
   type DiscoveryCatalog,
 } from '../../features/discovery/useDiscoveryCatalog';
 import { useDiscoveryFacets } from '../../features/discovery/useDiscoveryFacets';
+import { categoryLabelKey } from '../../features/discovery/categories';
 import './HomePage.css';
 
 const filterDateLabel = dateFormatter({ dateStyle: 'medium', timeZone: 'UTC' });
@@ -55,6 +57,11 @@ function setParam(params: URLSearchParams, key: string, value: string) {
   return next;
 }
 
+function categoryName(category: string) {
+  const key = categoryLabelKey(category);
+  return key ? translate(key) : capitalize(category);
+}
+
 export default function EventCataloguePage() {
   const { t } = useTranslation('public');
   const location = useLocation();
@@ -62,7 +69,6 @@ export default function EventCataloguePage() {
   const navigationType = useNavigationType();
   const params = new URLSearchParams(location.search);
   const filters = readDiscoveryFilters(params);
-  const layout = params.get('view') === 'list' ? 'list' : 'grid';
   const facets = useDiscoveryFacets();
   const [restored] = useState(() =>
     navigationType === 'POP' ? recentLists.get(location.key) : undefined,
@@ -83,7 +89,6 @@ export default function EventCataloguePage() {
     );
   const [now, setNow] = useState(Date.now);
   const heading = useRef<HTMLHeadingElement>(null);
-  const bar = useRef<HTMLDivElement>(null);
   const hasFilters = Boolean(filters.q || chipKeys.some((key) => filters[key]));
   const matches = catalog.concerts;
   const total = catalog.total;
@@ -91,17 +96,6 @@ export default function EventCataloguePage() {
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 60_000);
     return () => window.clearInterval(timer);
-  }, []);
-
-  // Keep the sticky filter bar just below the sticky header, whatever its height.
-  useLayoutEffect(() => {
-    const place = () => {
-      const header = document.querySelector<HTMLElement>('.public-header');
-      bar.current?.style.setProperty('--discovery-bar-top', `${header?.offsetHeight ?? 0}px`);
-    };
-    place();
-    window.addEventListener('resize', place);
-    return () => window.removeEventListener('resize', place);
   }, []);
 
   useLayoutEffect(() => {
@@ -165,16 +159,6 @@ export default function EventCataloguePage() {
     );
   }
 
-  function setLayout(next: 'grid' | 'list') {
-    navigate(
-      {
-        search: setParam(params, 'view', next === 'list' ? 'list' : '').toString(),
-        hash: location.hash,
-      },
-      { replace: true, preventScrollReset: true },
-    );
-  }
-
   const customDates =
     filters.date === 'custom'
       ? [
@@ -201,7 +185,7 @@ export default function EventCataloguePage() {
             : key === 'city'
               ? filters.city
               : key === 'category'
-                ? capitalize(filters.category)
+                ? categoryName(filters.category)
                 : t((discoveryOptions[key] as Record<string, string>)[filters[key]]),
         clear: key === 'date' ? ({ date: '', from: '', to: '' } as const) : { [key]: '' },
       })),
@@ -236,7 +220,7 @@ export default function EventCataloguePage() {
           ) : null}
         </div>
 
-        <div className="discovery-controls" ref={bar}>
+        <div className="discovery-controls">
           <DiscoveryFilterPanel
             filters={filters}
             facets={facets}
@@ -259,26 +243,6 @@ export default function EventCataloguePage() {
               ))}
             </select>
           </label>
-          <div className="discovery-layout" role="group" aria-label={t('public:discovery_layout')}>
-            {(['grid', 'list'] as const).map((value) => {
-              const Icon = value === 'grid' ? LayoutGrid : List;
-              return (
-                <button
-                  key={value}
-                  type="button"
-                  aria-pressed={layout === value}
-                  onClick={() => setLayout(value)}
-                >
-                  <Icon aria-hidden="true" />
-                  <span>
-                    {t(
-                      value === 'grid' ? 'public:discovery_gridView' : 'public:discovery_listView',
-                    )}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
         </div>
 
         {chips.length > 0 ? (
@@ -335,11 +299,7 @@ export default function EventCataloguePage() {
         ) : null}
 
         {matches.length > 0 ? (
-          <div
-            className="discovery-grid"
-            data-layout={layout}
-            data-stale={stale ? 'true' : undefined}
-          >
+          <div className="discovery-grid" data-stale={stale ? 'true' : undefined}>
             {matches.map((concert, index) => {
               const card = eventCard(concert, now);
               return (
@@ -347,7 +307,6 @@ export default function EventCataloguePage() {
                   key={concert.id}
                   event={card}
                   priority={index < 2}
-                  layout={layout}
                   action={
                     card.status === 'on-sale'
                       ? t('public:discovery_findTickets')

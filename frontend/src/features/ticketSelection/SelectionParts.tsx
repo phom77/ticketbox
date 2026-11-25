@@ -3,115 +3,28 @@ import { ArrowRight, Check, Minus, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { AllInPriceNote } from '../price/AllInPrice';
 import { formatPrice } from '../price/price';
-import {
-  offerNames,
-  priceBounds,
-  stepperReason,
-  stockLevel,
-  type OfferRow,
-  type SelectionFilters,
-  type SortOrder,
-} from './selection';
+import { stepperReason, stockLevel, type OfferRow } from './selection';
 
-export function FilterBar({
-  rows,
-  filters,
-  maxQuantity,
+/** The one map filter kept on the page: show only accessible seats. */
+export function AccessibleToggle({
+  checked,
   onChange,
-  accessibleOnly,
-  onAccessibleChange,
 }: {
-  rows: OfferRow[];
-  filters: SelectionFilters;
-  maxQuantity: number;
-  onChange: (next: SelectionFilters) => void;
-  accessibleOnly?: boolean;
-  onAccessibleChange?: (value: boolean) => void;
+  checked: boolean;
+  onChange: (value: boolean) => void;
 }) {
   const { t } = useTranslation('customer');
-  const bounds = priceBounds(rows);
-  const names = offerNames(rows);
-  const number = (value: string) => (value === '' ? null : Math.max(0, Number(value)));
   return (
-    <form
-      className="ts-filters"
-      aria-label={t('customer:ticketSelection_filters')}
-      onSubmit={(e) => e.preventDefault()}
-    >
-      <label>
-        {t('customer:ticketSelection_quantity')}
-        <select
-          value={filters.quantity}
-          onChange={(event) => onChange({ ...filters, quantity: Number(event.target.value) })}
-        >
-          {Array.from({ length: Math.max(1, maxQuantity) }, (_, index) => index + 1).map(
-            (value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ),
-          )}
-        </select>
-      </label>
-      <label>
-        {t('customer:ticketSelection_minPrice')}
+    <div className="ts-toolbar">
+      <label className="ts-check">
         <input
-          type="number"
-          inputMode="numeric"
-          min={0}
-          step={1000}
-          placeholder={bounds ? String(bounds.min) : undefined}
-          value={filters.minPrice ?? ''}
-          onChange={(event) => onChange({ ...filters, minPrice: number(event.target.value) })}
+          type="checkbox"
+          checked={checked}
+          onChange={(event) => onChange(event.target.checked)}
         />
+        {t('performances:accessibleOnly')}
       </label>
-      <label>
-        {t('customer:ticketSelection_maxPrice')}
-        <input
-          type="number"
-          inputMode="numeric"
-          min={0}
-          step={1000}
-          placeholder={bounds ? String(bounds.max) : undefined}
-          value={filters.maxPrice ?? ''}
-          onChange={(event) => onChange({ ...filters, maxPrice: number(event.target.value) })}
-        />
-      </label>
-      <label>
-        {t('customer:ticketSelection_ticketType')}
-        <select
-          value={filters.offerName}
-          onChange={(event) => onChange({ ...filters, offerName: event.target.value })}
-        >
-          <option value="">{t('customer:ticketSelection_allTypes')}</option>
-          {names.map((name) => (
-            <option key={name} value={name}>
-              {name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        {t('customer:ticketSelection_sort')}
-        <select
-          value={filters.sort}
-          onChange={(event) => onChange({ ...filters, sort: event.target.value as SortOrder })}
-        >
-          <option value="price">{t('customer:ticketSelection_sortPrice')}</option>
-          <option value="best">{t('customer:ticketSelection_sortBest')}</option>
-        </select>
-      </label>
-      {onAccessibleChange ? (
-        <label className="ts-check">
-          <input
-            type="checkbox"
-            checked={Boolean(accessibleOnly)}
-            onChange={(event) => onAccessibleChange(event.target.checked)}
-          />
-          {t('performances:accessibleOnly')}
-        </label>
-      ) : null}
-    </form>
+    </div>
   );
 }
 

@@ -1,29 +1,16 @@
 import { ArrowRight, Ticket } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation } from 'react-router-dom';
 import { BuyerState } from '../../components/feedback/BuyerState';
 import { CardGridSkeleton } from '../../components/feedback/Skeleton';
 import { EventCard, EventDateBlock } from '../../components/EventCard';
-import { HeaderSearch } from '../../components/layout/HeaderSearch';
 import { HorizontalRow } from '../../components/HorizontalRow';
 import { RemoteImage } from '../../components/RemoteImage';
 import { eventSaleLabels } from '../../features/concert/concertSale';
 import { eventCard, homeRows } from '../../features/discovery/cards';
-import {
-  capitalize,
-  catalogueKeys,
-  currentMonthRange,
-  writeDiscoveryFilters,
-  type DiscoveryConcert,
-} from '../../features/discovery/filters';
-import {
-  combineQuery,
-  rememberSearchSplit,
-  type HeaderSearchValues,
-} from '../../features/discovery/headerSearch';
+import { catalogueKeys, type DiscoveryConcert } from '../../features/discovery/filters';
 import { useDiscoveryCatalog } from '../../features/discovery/useDiscoveryCatalog';
-import { useDiscoveryFacets } from '../../features/discovery/useDiscoveryFacets';
 import './HomePage.css';
 
 export function HomePage() {
@@ -84,8 +71,6 @@ function HighlightCard({
 
 function DiscoveryHome() {
   const { t } = useTranslation('public');
-  const navigate = useNavigate();
-  const facets = useDiscoveryFacets();
   const [now, setNow] = useState(Date.now);
   const { catalog, loadingFirst, failedPage, retry } = useDiscoveryCatalog('', 1, undefined, noop);
   const rows = useMemo(() => homeRows(catalog.concerts, now), [catalog.concerts, now]);
@@ -95,36 +80,9 @@ function DiscoveryHome() {
     return () => window.clearInterval(timer);
   }, []);
 
-  function search(values: HeaderSearchValues) {
-    rememberSearchSplit({ what: values.what, where: values.where });
-    const params = writeDiscoveryFilters(new URLSearchParams(), {
-      q: combineQuery(values.what, values.where),
-      date: values.date,
-      from: values.from,
-      to: values.to,
-    });
-    navigate({ pathname: '/events', search: params.toString(), hash: '#discover-concerts' });
-  }
-
-  const month = currentMonthRange(now);
-  const quick: Array<{ id: string; label: string; params: Record<string, string> }> = [
-    { id: 'tonight', label: t('public:discovery_tonight'), params: { date: 'today' } },
-    { id: 'weekend', label: t('public:discovery_weekend'), params: { date: 'weekend' } },
-    {
-      id: 'month',
-      label: t('public:discovery_thisMonth'),
-      params: { date: 'custom', from: month.from, to: month.to },
-    },
-    ...facets.cities
-      .slice(0, 3)
-      .map((city) => ({ id: 'city-' + city, label: city, params: { city } })),
-    ...facets.categories.slice(0, 3).map((category) => ({
-      id: 'cat-' + category,
-      label: capitalize(category),
-      params: { category },
-    })),
-  ];
   const [lead, ...others] = rows.highlights;
+  // Four tiles make a 2 × 2 block beside the lead; fewer stack in one column.
+  const tiles = others.length >= 4 ? others.slice(0, 4) : others.slice(0, 2);
   const empty = !loadingFirst && failedPage === null && catalog.concerts.length === 0;
 
   function renderRow(title: string, concerts: DiscoveryConcert[], badges = false) {
@@ -152,28 +110,10 @@ function DiscoveryHome() {
 
   return (
     <div className="buyer-page discovery-page home-page page-width">
-      <section className="home-hero" aria-labelledby="discovery-title">
+      <header className="home-hero">
         <h1 id="discovery-title">{t('public:discovery_title')}</h1>
         <p>{t('public:discovery_subtitle')}</p>
-        <div className="home-hero-search">
-          <HeaderSearch
-            initial={{ where: '', what: '', date: '', from: '', to: '' }}
-            onSearch={search}
-            onOpenEvent={(href) => navigate(href)}
-          />
-        </div>
-        <nav className="home-chips" aria-label={t('public:discovery_quickFilters')}>
-          <ul>
-            {quick.map(({ id, label, params }) => (
-              <li key={id}>
-                <Link to={{ pathname: '/events', search: new URLSearchParams(params).toString() }}>
-                  {label}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </nav>
-      </section>
+      </header>
 
       {loadingFirst ? <CardGridSkeleton count={4} label={t('public:discovery_loading')} /> : null}
       {failedPage !== null ? (
@@ -195,9 +135,13 @@ function DiscoveryHome() {
       ) : null}
 
       {lead ? (
-        <section className="home-highlights" aria-label={t('public:discovery_highlights')}>
+        <section
+          className="home-highlights"
+          data-tiles={tiles.length}
+          aria-label={t('public:discovery_highlights')}
+        >
           <HighlightCard concert={lead} now={now} large />
-          {others.slice(0, 4).map((concert) => (
+          {tiles.map((concert) => (
             <HighlightCard key={concert.id} concert={concert} now={now} large={false} />
           ))}
         </section>
