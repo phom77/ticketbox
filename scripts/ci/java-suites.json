@@ -118,6 +118,11 @@
         "org.ticketbox.ticketing.issuance.application.TicketTransferIntegrationTest": [],
         "org.ticketbox.ticketing.issuance.domain.TicketTransferTest": []
       },
+      "refund-requests": {
+        "org.ticketbox.ticketing.order.application.RefundRequestIntegrationTest": [],
+        "org.ticketbox.ticketing.order.domain.RefundRequestTest": [],
+        "org.ticketbox.ticketing.order.domain.RefundEligibilityTest": []
+      },
       "architecture": {
         "org.ticketbox.ticketing.architecture.ArchitectureTest": [
           "domainIsIndependentOfFrameworksAndOuterLayers",

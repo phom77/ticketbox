@@ -13,6 +13,8 @@ import org.ticketbox.ticketing.order.application.port.OrderRepository;
 import org.ticketbox.ticketing.order.application.port.RefundPreparationStore;
 import org.ticketbox.ticketing.order.application.port.RefundPreparationStore.Preparation;
 import org.ticketbox.ticketing.order.application.port.RefundPreparationStore.State;
+import org.ticketbox.ticketing.order.application.port.RefundRequestStore;
+import org.ticketbox.ticketing.order.domain.RefundRequest;
 import org.ticketbox.ticketing.order.domain.Order;
 
 import java.time.OffsetDateTime;
@@ -33,15 +35,18 @@ public class RefundOrderEffects {
     private final OrderItemRepository lines;
     private final TicketRepository tickets;
     private final RefundPreparationStore refunds;
+    private final RefundRequestStore requests;
     private final ApplicationEventPublisher publications;
 
     public RefundOrderEffects(OrderRepository orders, OrderEventRepository events, OrderItemRepository lines,
-            TicketRepository tickets, RefundPreparationStore refunds, ApplicationEventPublisher publications) {
+            TicketRepository tickets, RefundPreparationStore refunds, RefundRequestStore requests,
+            ApplicationEventPublisher publications) {
         this.orders = orders;
         this.events = events;
         this.lines = lines;
         this.tickets = tickets;
         this.refunds = refunds;
+        this.requests = requests;
         this.publications = publications;
     }
 
@@ -83,6 +88,10 @@ public class RefundOrderEffects {
                     State.ABORTED, result.compensation(), null));
             else if (preparation.state() == State.CONFIRMED) throw conflict();
             else refunds.finish(result.caseId(), State.ABORTED, null);
+            requests.findByCase(result.caseId()).filter(r -> r.status() == RefundRequest.Status.APPROVED).ifPresent(r -> {
+                r.failed();
+                requests.update(r);
+            });
             return;
         }
         if (preparation == null || preparation.compensation() != result.compensation()
@@ -101,6 +110,7 @@ public class RefundOrderEffects {
             order.refund();
             events.record(order, version, OrderEventRepository.Transition.OrderRefunded);
             issued.forEach(ticket -> ticket.setStatus(Ticket.Status.CANCELLED));
+            closeRequest(order.getId(), result);
         } else {
             refunds.finish(result.caseId(), State.CONFIRMED, result.reference());
         }
@@ -108,6 +118,15 @@ public class RefundOrderEffects {
         if (order.getReferenceCode() != null) payload.put("orderReference", order.getReferenceCode());
         publications.publishEvent(new com.ticketbox.shared.event.RemoteNotificationRequested(1, "ticketing.order-refunded",
                 result.caseId(), order.getId(), order.getUserId(), result.occurredAt(), result.caseId().toString(), payload));
+    }
+
+    /** The request that led to this case, or any open request when an operator refunded the order directly. */
+    private void closeRequest(UUID orderId, Result result) {
+        requests.findByCase(result.caseId()).or(() -> requests.findOpenByOrder(orderId)).filter(RefundRequest::isOpen)
+                .ifPresent(request -> {
+                    request.refunded(result.occurredAt());
+                    requests.update(request);
+                });
     }
 
     private Order locked(UUID id) {

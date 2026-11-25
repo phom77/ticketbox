@@ -40,6 +40,8 @@ public final class ErrorHttpMapping {
             case TICKET_NOT_FOUND -> HttpStatus.NOT_FOUND;
             case TRANSFER_NOT_ALLOWED, TRANSFER_NOT_PENDING -> HttpStatus.CONFLICT;
             case TRANSFER_NOT_FOUND, TRANSFER_RECIPIENT_NOT_FOUND -> HttpStatus.NOT_FOUND;
+            case REFUND_REQUEST_NOT_ALLOWED, REFUND_REQUEST_NOT_OPEN -> HttpStatus.CONFLICT;
+            case REFUND_REQUEST_NOT_FOUND -> HttpStatus.NOT_FOUND;
         };
     }
 }
