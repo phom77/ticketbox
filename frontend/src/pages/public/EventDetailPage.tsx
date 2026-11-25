@@ -8,6 +8,7 @@ import { BuyerState } from '../../components/feedback/BuyerState';
 import { DetailSkeleton } from '../../components/feedback/Skeleton';
 import { useAuth } from '../../features/auth/AuthContext';
 import { waitingRoomLeadMs } from '../../features/concert/concertSale';
+import { categoryText } from '../../features/discovery/categories';
 import { downloadIcs } from '../../features/event/calendar';
 import {
   canPurchase,
@@ -216,7 +217,7 @@ function EventDetailView({ id, preview }: { id: string; preview: boolean }) {
         ) : null}
         <div className="ed-hero-body">
           {source.category ? (
-            <p className="ed-category">{source.category.replace(/_/g, ' ')}</p>
+            <p className="ed-category">{categoryText(source.category, t)}</p>
           ) : null}
           <h1>{source.title}</h1>
           {source.organizer ? (

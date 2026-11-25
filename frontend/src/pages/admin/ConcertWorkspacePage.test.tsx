@@ -123,6 +123,8 @@ beforeEach(() => {
     Promise.resolve({ data: { ...concert, ...payload } } as never),
   );
   vi.mocked(admin.publishConcertArtistBio).mockResolvedValue({} as never);
+  vi.mocked(admin.getConcertCategory).mockResolvedValue({ category: null } as never);
+  vi.mocked(admin.setConcertCategory).mockResolvedValue({ data: { category: null } } as never);
 });
 
 describe('ConcertWorkspacePage', () => {
