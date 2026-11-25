@@ -2,10 +2,11 @@ import { useTranslation } from 'react-i18next';
 import { useEffect, useRef, useState } from 'react';
 import { Client, type IMessage } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Check } from 'lucide-react';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ApiClientError, apiBaseUrl, isRequestCanceled } from '../../api/client';
 import { getConcert, type ConcertDetail } from '../../api/concerts';
-import { eventPath, getEventPerformance, performancePath } from '../../api/performances';
+import { eventPath, getEventPerformance } from '../../api/performances';
 import { concertTitle } from '../../features/concert/concertText';
 import { getAuthToken } from '../../features/auth/tokenCookie';
 import {
@@ -17,15 +18,27 @@ import {
   type QueueStatusResponse,
 } from '../../api/queue';
 import { dateFormatter, numberFormatter } from '../../data/formatters';
+import { useAuth } from '../../features/auth/AuthContext';
+import {
+  enableAdmissionAlert,
+  signalAdmission,
+  useDuplicateTab,
+} from '../../features/queue/admissionAlert';
+import { checklistComplete, etaRange, queueProgress } from '../../features/queue/waitingRoom';
+import { parseQuantity } from '../../features/ticketSelection/selection';
 import { useCountdown } from '../../hooks/useCountdown';
+import { translate } from '../../i18n';
+import { PurchaseProgress } from '../../components/purchase/PurchaseProgress';
+import { purchasePaths } from '../../features/event/eventView';
 import './WaitingRoomPage.css';
 
 const eventDateTime = dateFormatter({ dateStyle: 'medium', timeStyle: 'short' });
+const timeFormat = dateFormatter({ timeStyle: 'medium' });
 const counts = numberFormatter({ maximumFractionDigits: 0 });
 type QueueEvent = Pick<
   ConcertDetail,
   'title' | 'translations' | 'eventDate' | 'venueName' | 'saleStartAt'
->;
+> & { posterUrl?: string | null };
 
 const queueTitles = {
   WAITING_ROOM: 'waitingRoomPage_banDaOTrongPhongChoAn',
@@ -59,16 +72,20 @@ export function WaitingRoomPage() {
   const [problem, setProblem] = useState<keyof typeof queueProblems | null>(null);
   const [retry, setRetry] = useState(0);
   const [leavingConcert, setLeavingConcert] = useState<string | null>(null);
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+  const [maxAhead, setMaxAhead] = useState(0);
+  const [alerts, setAlerts] = useState<'off' | 'on' | 'sound-only'>('off');
+  const [paymentReady, setPaymentReady] = useState(false);
+  const alertsRef = useRef(false);
+  const { user } = useAuth();
+  const { search } = useLocation();
+  const duplicateTab = useDuplicateTab(id);
   const leaving = leavingConcert === id;
   const leavingRef = useRef(false);
   const stopWaitingRef = useRef<(() => void) | null>(null);
-  const detailsPath = eventId
-    ? eventPath(eventId)
-    : id
-      ? '/concerts/' + encodeURIComponent(id)
-      : '/';
-  const seatsPath =
-    eventId && id ? performancePath(eventId, id) + '/seats' : detailsPath + '/seats';
+  const paths = id ? purchasePaths({ id, eventId }) : null;
+  const detailsPath = paths?.details ?? (eventId ? eventPath(eventId) : '/');
+  const seatsPath = paths?.selection ?? detailsPath + '/tickets';
 
   useEffect(() => {
     if (!id) return;
@@ -148,7 +165,12 @@ export function WaitingRoomPage() {
         stopWaiting();
         setQueueStatus(nextStatus);
         setProblem(null);
-        navigate(seatsPath, { replace: true });
+        if (alertsRef.current)
+          signalAdmission(
+            translate('customer:waitingRoomPage_admittedAlertTitle'),
+            translate('customer:waitingRoomPage_admittedAlertBody'),
+          );
+        navigate(seatsPath + search, { replace: true });
         return;
       }
 
@@ -168,6 +190,11 @@ export function WaitingRoomPage() {
         }
       }
       setQueueStatus(nextStatus);
+      setUpdatedAt(new Date());
+      if (nextStatus.peopleAhead != null) {
+        const ahead = nextStatus.peopleAhead;
+        setMaxAhead((current) => Math.max(current, ahead));
+      }
       setProblem(null);
       setJoining(false);
     }
@@ -273,7 +300,8 @@ export function WaitingRoomPage() {
       stopWaiting();
       if (stopWaitingRef.current === stopWaiting) stopWaitingRef.current = null;
     };
-  }, [id, navigate, retry, seatsPath]);
+    // `search` only carries the requested quantity forward to ticket selection.
+  }, [id, navigate, retry, search, seatsPath]);
 
   async function leave() {
     const stopWaiting = stopWaitingRef.current;
@@ -303,7 +331,6 @@ export function WaitingRoomPage() {
   const peopleAhead = queueStatus?.peopleAhead;
   const position = peopleAhead ?? queueStatus?.position;
   const estimate = queueStatus?.estimatedWaitSeconds;
-  const minutes = estimate != null && estimate >= 0 ? Math.ceil(estimate / 60) : null;
   const title = unavailable
     ? 'waitingRoomPage_hangChoDaDong'
     : queueStatus
@@ -312,10 +339,27 @@ export function WaitingRoomPage() {
         ? 'waitingRoomPage_joinFailed'
         : 'waitingRoomPage_dangChuanBiViTriCuaBan';
 
+  const range = etaRange(estimate);
+  const progress = queueProgress(peopleAhead, maxAhead);
+  const quantity = parseQuantity(search);
+  const showStatus = !expired && !unavailable;
+  const checklist = { signedIn: Boolean(user), paymentReady, quantity };
+
+  async function turnOnAlerts() {
+    alertsRef.current = true;
+    setAlerts(await enableAdmissionAlert());
+  }
+
   return (
     <div className="buyer-page purchase-page page-width waiting-purchase-page">
-      <header className="purchase-header">
-        <div>
+      <header className="waiting-hero">
+        {eventDetails?.posterUrl ? (
+          <img className="waiting-art" src={eventDetails.posterUrl} alt="" />
+        ) : (
+          <div className="waiting-art waiting-art-empty" aria-hidden="true" />
+        )}
+        <div className="waiting-hero-text">
+          <PurchaseProgress current="tickets" />
           <h1>
             {eventDetails ? concertTitle(eventDetails) : t('customer:waitingRoomPage_hangChoMuaVe')}
           </h1>
@@ -330,102 +374,185 @@ export function WaitingRoomPage() {
             <p>{t('customer:waitingRoomPage_khongTheTaiThongTinBuoiBieu')}</p>
           ) : null}
         </div>
-        {(inRoom || inQueue) && !unavailable ? (
-          <p className="purchase-step" aria-current="step">
-            {t(inRoom ? 'waitingRoomPage_phongCho' : 'waitingRoomPage_hangCho')}
-          </p>
-        ) : null}
       </header>
 
-      <section
-        className="purchase-panel waiting-purchase-panel"
-        aria-labelledby="waiting-purchase-title"
-      >
-        <div aria-live="polite">
-          <h2 id="waiting-purchase-title">{t(title)}</h2>
-        </div>
+      {duplicateTab && showStatus ? (
+        <p className="waiting-warning" role="alert">
+          {t('customer:waitingRoomPage_duplicateTab')}
+        </p>
+      ) : null}
 
-        {expired || unavailable ? (
-          <>
-            <p>
-              {t(
-                expired
-                  ? 'waitingRoomPage_hayThamGiaLaiDeYeuCau'
-                  : 'waitingRoomPage_queueUnavailable',
-              )}
-            </p>
-            <Link className="button button-primary" to={detailsPath}>
-              {t('customer:waitingRoomPage_backToEvent')}
-            </Link>
-          </>
-        ) : null}
+      <div className="waiting-grid">
+        <section
+          className="purchase-panel waiting-purchase-panel"
+          aria-labelledby="waiting-purchase-title"
+        >
+          <div aria-live="polite">
+            <h2 id="waiting-purchase-title">{t(title)}</h2>
+          </div>
 
-        {inRoom && !unavailable ? (
-          <>
-            {roomOpensAt ? <OpeningCountdown opensAt={roomOpensAt} /> : null}
-            <p>{t('customer:waitingRoomPage_viTriCuaBanSeDuocPhan')}</p>
-          </>
-        ) : null}
-
-        {inQueue && !unavailable ? (
-          <>
-            {position != null ? (
-              <dl className="waiting-queue-position">
-                <dt>
-                  {t(
-                    peopleAhead != null
-                      ? 'waitingRoomPage_nguoiPhiaTruoc'
-                      : 'waitingRoomPage_viTri',
-                  )}
-                </dt>
-                <dd>{counts.format(position)}</dd>
-              </dl>
-            ) : null}
-            {minutes === null ? (
-              <p>{t('customer:waitingRoomPage_noEstimate')}</p>
-            ) : (
+          {expired || unavailable ? (
+            <>
               <p>
-                {t('customer:waitingRoomPage_estimate', {
-                  duration: t(
-                    minutes <= 1 ? 'waitingRoomPage_khoang1Phut' : 'waitingRoomPage_khoangPhut',
-                    {
-                      arg1: counts.format(minutes),
-                    },
-                  ),
-                })}
+                {t(
+                  expired
+                    ? 'waitingRoomPage_hayThamGiaLaiDeYeuCau'
+                    : 'waitingRoomPage_queueUnavailable',
+                )}
               </p>
-            )}
-          </>
-        ) : null}
+              <Link className="button button-primary" to={detailsPath}>
+                {t('customer:waitingRoomPage_backToEvent')}
+              </Link>
+            </>
+          ) : null}
 
-        {!expired && !unavailable && (problem || interrupted) ? (
-          <p className="waiting-purchase-feedback" role={canRetry ? 'alert' : 'status'}>
-            {t(problem ? queueProblems[problem] : 'waitingRoomPage_liveFallback')}
-          </p>
-        ) : null}
+          {inRoom && !unavailable ? (
+            <>
+              {roomOpensAt ? <OpeningCountdown opensAt={roomOpensAt} /> : null}
+              <p>{t('customer:waitingRoomPage_viTriCuaBanSeDuocPhan')}</p>
+            </>
+          ) : null}
 
-        {canRetry ? (
-          <button
-            className="button button-primary"
-            type="button"
-            onClick={() => setRetry((key) => key + 1)}
+          {inQueue && !unavailable ? (
+            <>
+              {position != null ? (
+                <dl className="waiting-queue-position">
+                  <dt>
+                    {t(
+                      peopleAhead != null
+                        ? 'waitingRoomPage_nguoiPhiaTruoc'
+                        : 'waitingRoomPage_viTri',
+                    )}
+                  </dt>
+                  <dd>{counts.format(position)}</dd>
+                </dl>
+              ) : null}
+              {peopleAhead != null ? (
+                <div
+                  className="waiting-progress"
+                  role="progressbar"
+                  aria-label={t('customer:waitingRoomPage_progress')}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={Math.round(progress * 100)}
+                >
+                  <span style={{ inlineSize: Math.round(progress * 100) + '%' }} />
+                </div>
+              ) : null}
+              <p>
+                {range === null
+                  ? t('customer:waitingRoomPage_noEstimate')
+                  : t('customer:waitingRoomPage_estimate', {
+                      duration:
+                        range.high <= 1
+                          ? t('customer:waitingRoomPage_khoang1Phut')
+                          : t('customer:waitingRoomPage_etaRange', {
+                              low: counts.format(range.low),
+                              high: counts.format(range.high),
+                            }),
+                    })}
+              </p>
+            </>
+          ) : null}
+
+          {showStatus &&
+          typeof queueStatus?.waitingRoomCount === 'number' &&
+          typeof queueStatus.queueSize === 'number' ? (
+            <p className="waiting-counts">
+              {t('customer:waitingRoomPage_roomCount', { count: queueStatus.waitingRoomCount })}
+              {' · '}
+              {t('customer:waitingRoomPage_queueCount', { count: queueStatus.queueSize })}
+            </p>
+          ) : null}
+
+          {showStatus && updatedAt ? (
+            <p className="waiting-updated">
+              {t('customer:waitingRoomPage_updatedAt', { time: timeFormat.format(updatedAt) })}
+            </p>
+          ) : null}
+
+          {showStatus && (problem || interrupted) ? (
+            <p className="waiting-purchase-feedback" role={canRetry ? 'alert' : 'status'}>
+              {t(problem ? queueProblems[problem] : 'waitingRoomPage_liveFallback')}
+            </p>
+          ) : null}
+
+          {canRetry ? (
+            <button
+              className="button button-primary"
+              type="button"
+              onClick={() => setRetry((key) => key + 1)}
+            >
+              {t('customer:waitingRoomPage_tryAgain')}
+            </button>
+          ) : null}
+
+          {showStatus && (joining || inQueue || inRoom) ? (
+            <p className="waiting-purchase-help">{t('customer:waitingRoomPage_keepTabOpen')}</p>
+          ) : null}
+
+          {showStatus && (inQueue || inRoom) ? (
+            <button
+              className="button button-secondary waiting-alert"
+              type="button"
+              disabled={alerts !== 'off'}
+              onClick={() => void turnOnAlerts()}
+            >
+              {t(
+                alerts === 'on'
+                  ? 'customer:waitingRoomPage_alertsOn'
+                  : alerts === 'sound-only'
+                    ? 'customer:waitingRoomPage_alertsSoundOnly'
+                    : 'customer:waitingRoomPage_alertsOff',
+              )}
+            </button>
+          ) : null}
+        </section>
+
+        {showStatus ? (
+          <section
+            className="purchase-panel waiting-checklist"
+            aria-labelledby="waiting-checklist-title"
           >
-            {t('customer:waitingRoomPage_tryAgain')}
-          </button>
+            <h2 id="waiting-checklist-title">{t('customer:waitingRoomPage_checklist')}</h2>
+            <ul>
+              <li data-done={checklist.signedIn}>
+                <Check size={16} aria-hidden="true" />
+                <span>
+                  {t(
+                    checklist.signedIn
+                      ? 'customer:waitingRoomPage_checkSignedIn'
+                      : 'customer:waitingRoomPage_checkSignedOut',
+                  )}
+                </span>
+              </li>
+              <li data-done={checklist.paymentReady}>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={paymentReady}
+                    onChange={(event) => setPaymentReady(event.target.checked)}
+                  />
+                  <span>{t('customer:waitingRoomPage_checkPayment')}</span>
+                </label>
+              </li>
+              <li data-done={quantity >= 1}>
+                <Check size={16} aria-hidden="true" />
+                <span>{t('customer:waitingRoomPage_checkQuantity', { count: quantity })}</span>
+              </li>
+            </ul>
+            {checklistComplete(checklist) ? (
+              <p role="status">{t('customer:waitingRoomPage_checklistReady')}</p>
+            ) : null}
+          </section>
         ) : null}
-
-        {!expired && !unavailable && (joining || inQueue || inRoom) ? (
-          <p className="waiting-purchase-help">
-            {t('customer:waitingRoomPage_hayGiuTabNayMoTrongKhi')}
-          </p>
-        ) : null}
-      </section>
+      </div>
 
       {canRetry ? (
         <Link className="button button-secondary waiting-leave-action" to={detailsPath}>
           {t('customer:waitingRoomPage_backToEvent')}
         </Link>
-      ) : !expired && !unavailable && !admitted ? (
+      ) : showStatus && !admitted ? (
         <button
           className="button button-secondary waiting-leave-action"
           type="button"

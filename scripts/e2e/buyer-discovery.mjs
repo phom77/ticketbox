@@ -63,7 +63,10 @@ await page.route('**/*', async (route) => {
     const date = url.searchParams.get('date');
     const from = url.searchParams.get('from');
     const to = url.searchParams.get('to');
-    requests.push({ number, q, status, date, from, to });
+    requests.push({
+      number, q, status, date, from, to, city: url.searchParams.get('city'),
+      maxPrice: url.searchParams.get('maxPrice'),
+    });
     if (number === 0 && catalogDelay) await catalogDelay;
     if (number === 0 && failFirstPage) return reply(null, 503);
     if (number > 0 && failNextPage) {
@@ -89,6 +92,9 @@ await page.route('**/*', async (route) => {
       number, size, totalElements: all.length, totalPages, last: number >= totalPages - 1,
     });
   }
+  if (path === '/api/v2/events/discovery/facets') {
+    return reply({ cities: ['Hanoi', 'Ho Chi Minh City'], categories: ['jazz'] });
+  }
   if (path === '/api/concerts/rare') {
     return reply({ ...nextPage[1], description: 'Fixture show', ticketTypes: [] });
   }
@@ -98,18 +104,25 @@ await page.route('**/*', async (route) => {
 });
 
 const main = page.getByRole('main');
-const results = () => main.getByRole('region', { name: /Upcoming events|Search results|Sự kiện sắp tới|Kết quả tìm kiếm/i });
+const results = () => main.getByRole('region', { name: /Upcoming events|Search results|result|Sự kiện sắp tới|Kết quả/i });
 
 try {
   await page.goto('/events');
   await results().getByRole('link', { name: /Sunrise Jazz/ }).getByText('Coming soon', { exact: true }).waitFor();
   assert.equal(await results().getByText('64 events', { exact: true }).count(), 1);
-  assert.equal(await main.getByText('City', { exact: true }).count(), 0, 'Fixture filters stay in preview.');
+  await page.getByRole('button', { name: 'Filters' }).click();
+  await page.getByRole('combobox', { name: 'City' }).selectOption('Hanoi');
+  await page.waitForURL((url) => url.searchParams.get('city') === 'Hanoi');
+  await page.waitForFunction(() => document.querySelector('.discovery-grid')?.hasAttribute('data-stale') === false);
+  assert(requests.some((request) => request.city === 'Hanoi'), 'City is a real Catalog filter.');
+  await page.getByRole('button', { name: 'Close filters' }).click();
+  await results().getByRole('button', { name: 'Clear all' }).click();
+  await results().getByRole('link', { name: /Sunrise Jazz/ }).waitFor();
   const search = async (query) => {
-    if (!(await page.getByRole('banner').getByRole('searchbox').isVisible())) {
+    if (!(await page.getByRole('banner').getByRole('combobox', { name: 'Find events' }).isVisible())) {
       await page.getByRole('banner').getByRole('button', { name: 'Find events', exact: true }).click();
     }
-    const input = page.getByRole('banner').getByRole('searchbox');
+    const input = page.getByRole('banner').getByRole('combobox', { name: 'Find events' });
     await input.fill(query);
     await input.press('Enter');
     await page.waitForURL((url) => url.pathname === '/events' && (url.searchParams.get('q') ?? '') === query);
@@ -174,24 +187,24 @@ try {
   await page.waitForURL((url) => url.pathname === '/events');
   await openingSoon.waitFor();
 
-  const filterDisclosure = results().locator('summary');
-  await filterDisclosure.focus();
-  await page.keyboard.press('Enter');
-  await results().getByRole('combobox', { name: 'Event date', exact: true }).selectOption('today');
-  await results().getByRole('button', { name: 'Apply filters' }).click();
+  const sheet = page.getByRole('dialog', { name: 'Filters' });
+  await results().getByRole('button', { name: 'Filters' }).click();
+  await sheet.getByRole('button', { name: 'Today', exact: true }).click();
   await results().getByText('No events match these filters.').waitFor();
+  await page.keyboard.press('Escape');
+  await sheet.waitFor({ state: 'detached' });
   assert.equal(requests.at(-1).date, 'today');
   await results().getByRole('button', { name: 'Remove Today filter' }).click();
   assert.equal(new URL(page.url()).searchParams.has('date'), false);
 
   const localDay = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date(upcoming.eventDate));
-  await results().locator('summary').click();
-  await results().getByRole('combobox', { name: 'Event date', exact: true }).selectOption('custom');
-  await results().getByLabel('From date').fill(localDay);
-  await results().getByLabel('To date').fill(localDay);
+  await results().getByRole('button', { name: 'Filters' }).click();
+  await sheet.getByRole('button', { name: 'Choose dates' }).click();
+  await sheet.getByLabel('From date').fill(localDay);
+  await sheet.getByLabel('To date').fill(localDay);
   await page.setViewportSize({ width: 320, height: 844 });
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-  await results().getByRole('button', { name: 'Apply filters' }).click();
+  await sheet.getByRole('button', { name: /^Show \d+ events?$/ }).click();
   await openingSoon.waitFor();
   assert.equal(requests.at(-1).from, localDay);
   assert.equal(requests.at(-1).to, localDay);
@@ -203,13 +216,12 @@ try {
     for (const path of ['/', '/events']) {
       await page.goto(path);
       if (path === '/') {
-        await main.getByRole('heading', { name: /Chamber Night|Đêm nhạc thính phòng/ }).waitFor();
-        assert.equal(await results().getByRole('link', { name: /Chamber Night|Đêm nhạc thính phòng/ }).count(), 0);
-        assert.equal(await main.getByRole('searchbox').count(), 0, 'Homepage uses the shared header search.');
+        await main.getByRole('link', { name: /Chamber Night|Đêm nhạc thính phòng/ }).first().waitFor();
+        assert.equal(await main.getByRole('searchbox').count(), 0, 'Homepage search is the shared three-part search.');
         await main.getByRole('link', { name: /Browse all events|Xem tất cả sự kiện/i }).waitFor();
       }
       assert.equal(await page.getByRole('contentinfo').getByRole('link', { name: /Browse events|Khám phá sự kiện/i }).getAttribute('href'), '/events');
-      await openingSoon.waitFor();
+      await (path === '/' ? main.getByRole('link', { name: /Sunrise Jazz/ }).first() : openingSoon).waitFor();
       for (const width of [320, 390, 834, 1440, 2560]) {
         await page.setViewportSize({ width, height: 924 });
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
@@ -230,7 +242,7 @@ try {
   let releaseCatalog;
   catalogDelay = new Promise((release) => { releaseCatalog = release; });
   await page.goto('/events?q=not-in-catalog#discover-concerts', { waitUntil: 'domcontentloaded' });
-  const headerSearch = page.getByRole('banner').getByRole('searchbox');
+  const headerSearch = page.getByRole('banner').getByRole('combobox', { name: 'Find events' });
   await headerSearch.fill('a new search in progress');
   releaseCatalog();
   catalogDelay = undefined;
@@ -246,19 +258,19 @@ try {
   await results().getByRole('button', { name: 'Try again' }).click();
   await openingSoon.waitFor();
 
-  const beforePreview = requests.length;
+  await page.goto('/events?city=Hanoi&price=under-500000');
+  await openingSoon.waitFor();
+  assert.equal(requests.at(-1).city, 'Hanoi');
+  assert.equal(requests.at(-1).maxPrice, '499999');
+
+  await page.goto('/events?page=3');
+  await rare.waitFor();
+  assert(requests.some(({ number }) => number === 2), 'The page in the URL is restored.');
+  assert.equal(new URL(page.url()).searchParams.get('page'), '3');
+
   await page.goto('/discover-preview');
-  await main.getByText('Illustrative data', { exact: true }).waitFor();
-  await results().locator('summary').click();
-  await results().getByRole('combobox', { name: 'City', exact: true }).selectOption('hanoi');
-  await results().getByRole('combobox', { name: 'Category', exact: true }).selectOption('jazz');
-  await results().getByRole('combobox', { name: 'Price', exact: true }).selectOption('under-500000');
-  await results().getByRole('button', { name: 'Apply filters' }).click();
-  assert.equal(await results().getByRole('article').count(), 1);
-  await results().getByRole('button', { name: 'Clear all' }).click();
-  assert((await results().getByRole('article').count()) > 1);
-  assert.equal(requests.length, beforePreview, 'Preview does not request any Catalog pages.');
-  console.log('Buyer discovery, pagination, Back restoration, legacy URLs, and isolated preview passed.');
+  assert.equal(await main.getByText('Illustrative data', { exact: true }).count(), 0, 'The preview route is retired.');
+  console.log('Buyer discovery, pagination, Back restoration, legacy URLs, real city/price filters and URL page depth passed.');
 } catch (error) {
   console.error('Discovery failure at', new URL(page.url()).pathname + new URL(page.url()).search,
     'Recent Catalog pages:', requests.slice(-5), 'Page errors:', pageErrors,

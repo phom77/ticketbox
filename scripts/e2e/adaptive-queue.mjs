@@ -102,27 +102,27 @@ async function waitForQueueSocket({ page, state }) {
 
 const queuePath = eventPath + '/waiting-room';
 const rank = (position, pollAfterMs) => status('WAITING', { position, peopleAhead: position - 1, pollAfterMs });
-const position = (page) => page.locator('.queue-orbit');
+const position = (page) => page.locator('.waiting-queue-position');
 
 try {
   const adaptive = await fixture(rank(20_001, 60_000));
   await adaptive.page.goto(queuePath);
-  await position(adaptive.page).getByText('20001', { exact: true }).waitFor();
+  await position(adaptive.page).getByText(/^20\D?000$/).waitFor();
   adaptive.state.queue = rank(5001, 20_000);
   await adaptive.page.clock.fastForward(62_000);
   assert.equal(adaptive.state.polls, 0);
   assert.equal(adaptive.state.socketOpens, 0);
   await adaptive.page.clock.fastForward(6_000);
-  await position(adaptive.page).getByText('5001', { exact: true }).waitFor();
+  await position(adaptive.page).getByText(/^5\D?000$/).waitFor();
   adaptive.state.queue = rank(1000, 5_000);
   await adaptive.page.clock.fastForward(20_000);
   assert.equal(adaptive.state.polls, 1);
   await adaptive.page.clock.fastForward(4_000);
-  await position(adaptive.page).getByText('1000', { exact: true }).waitFor();
+  await position(adaptive.page).getByText(/^999$/).waitFor();
   await waitForQueueSocket(adaptive);
   adaptive.state.queue = status('ADMITTED', { queueAccessToken: 'adaptive-token', sessionExpiresAt: timestamp(15) });
   await adaptive.page.clock.fastForward(7_000);
-  await adaptive.page.waitForURL('**' + eventPath + '/seats');
+  await adaptive.page.waitForURL('**/events/' + eventId + '/tickets');
   await adaptive.page.clock.fastForward(20_000);
   assert.equal(adaptive.state.polls, 3);
   assert.equal(adaptive.state.socketCloses, 1);
@@ -131,26 +131,26 @@ try {
 
   const legacy = await fixture(waiting, false);
   await legacy.page.goto(queuePath);
-  await position(legacy.page).getByText('4', { exact: true }).waitFor();
-  await legacy.page.getByText('The live queue disconnected. Reconnecting…', { exact: true }).waitFor();
-  legacy.state.queue = { ...waiting, position: 3 };
+  await position(legacy.page).getByText(/^3$/).waitFor();
+  await legacy.page.getByText('Live updates are interrupted. We’re checking your place automatically.', { exact: true }).waitFor();
+  legacy.state.queue = { ...waiting, position: 3, peopleAhead: 2 };
   await legacy.page.clock.fastForward(12_000);
   assert.equal(legacy.state.polls, 0);
   await legacy.page.clock.fastForward(4_000);
-  await position(legacy.page).getByText('3', { exact: true }).waitFor();
+  await position(legacy.page).getByText(/^2$/).waitFor();
   assert.equal(legacy.state.polls, 1);
   await legacy.context.close();
 
   for (const leave of [true, false]) {
     const departing = await fixture(rank(4, 5_000));
     await departing.page.goto(eventPath);
-    await departing.page.getByRole('main').getByRole('link', { name: 'Buy now' }).click();
-    await departing.page.waitForURL(origin + queuePath);
-    await position(departing.page).getByText('4', { exact: true }).waitFor();
+    await departing.page.getByRole('main').getByRole('link', { name: /^(Buy tickets|Join waiting room)$/ }).click();
+    await departing.page.waitForURL((url) => url.pathname === queuePath);
+    await position(departing.page).getByText(/^3$/).waitFor();
     await waitForQueueSocket(departing);
-    if (leave) await departing.page.getByRole('button', { name: /Details of the event/ }).click();
+    if (leave) await departing.page.getByRole('button', { name: /Leave the queue|Back to event details/ }).first().click();
     else await departing.page.goBack();
-    await departing.page.waitForURL(origin + eventPath);
+    await departing.page.waitForURL((url) => /^\/(events|concerts)\/[^/]+$/.test(url.pathname));
     const pollsBeforeDeparture = departing.state.polls;
     await departing.page.clock.fastForward(65_000);
     assert.equal(departing.state.polls, pollsBeforeDeparture);

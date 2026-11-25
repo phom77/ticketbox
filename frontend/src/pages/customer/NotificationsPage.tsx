@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { RefreshCw } from 'lucide-react';
+import { CheckCheck, RefreshCw } from 'lucide-react';
 import { Link, useOutletContext } from 'react-router-dom';
 import {
   getNotifications,
@@ -11,6 +11,7 @@ import {
 import type { PublicLayoutContext } from '../../components/layout/PublicLayout';
 import { dateFormatter } from '../../data/formatters';
 import { useAuth } from '../../features/auth/AuthContext';
+import { groupByDay, notificationDestination } from '../../features/notification/inbox';
 import './NotificationsPage.css';
 
 const dateTime = dateFormatter({ dateStyle: 'medium', timeStyle: 'short' });
@@ -21,20 +22,12 @@ type InboxPage = {
   nextPage: number | null;
 };
 
-const ticketDestination = { to: '/my-tickets', label: 'notificationsPage_myTickets' };
-const orderDestination = { to: '/profile?tab=orders', label: 'notificationsPage_orderHistory' };
-const noticeTypes = new Map([
-  [
-    'PAYMENT_SUCCEEDED',
-    { label: 'notificationsPage_ticketConfirmation', destination: ticketDestination },
-  ],
-  [
-    'CONCERT_REMINDER',
-    { label: 'notificationsPage_eventReminder', destination: ticketDestination },
-  ],
-  ['ORDER_REFUNDED', { label: 'notificationsPage_orderRefunded', destination: orderDestination }],
-  ['EVENT_CANCELLED', { label: 'notificationsPage_eventCancelled', destination: orderDestination }],
-  ['EVENT_POSTPONED', { label: 'notificationsPage_eventPostponed' }],
+const noticeLabels = new Map([
+  ['PAYMENT_SUCCEEDED', 'notificationsPage_ticketConfirmation'],
+  ['CONCERT_REMINDER', 'notificationsPage_eventReminder'],
+  ['ORDER_REFUNDED', 'notificationsPage_orderRefunded'],
+  ['EVENT_CANCELLED', 'notificationsPage_eventCancelled'],
+  ['EVENT_POSTPONED', 'notificationsPage_eventPostponed'],
 ]);
 
 export function NotificationsPage() {
@@ -50,6 +43,8 @@ function NotificationsInbox() {
   const [onlyUnread, setOnlyUnread] = useState(false);
   const [loadingPage, setLoadingPage] = useState<number | null>(0);
   const [failedPage, setFailedPage] = useState<number | 'denied' | null>(null);
+  const [markingAll, setMarkingAll] = useState(false);
+  const [markAllFailed, setMarkAllFailed] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [failedReads, setFailedReads] = useState<Set<string>>(new Set());
   const listRequest = useRef<AbortController>();
@@ -68,6 +63,7 @@ function NotificationsInbox() {
     setLoadingPage(null);
     setFailedPage('denied');
     setSavingId(null);
+    setMarkingAll(false);
     setFailedReads(new Set());
     clearUnreadNotifications();
   }, [clearUnreadNotifications]);
@@ -186,6 +182,51 @@ function NotificationsInbox() {
     }
   }
 
+  async function markAllRead() {
+    if (readRequest.current || !inbox) return;
+    const pending = inbox.items.filter((item) => !item.read);
+    if (pending.length === 0) return;
+    const request = new AbortController();
+    readRequest.current = request;
+    setMarkingAll(true);
+    setMarkAllFailed(false);
+    let failed = false;
+    try {
+      for (const item of pending) {
+        try {
+          const { data } = await markNotificationRead(item.id, request.signal);
+          if (request.signal.aborted) return;
+          if (data.read) {
+            confirmedReads.current.set(item.id, data.readAt);
+            setInbox(
+              (current) =>
+                current && {
+                  ...current,
+                  items: current.items.map((existing) =>
+                    existing.id === item.id ? data : existing,
+                  ),
+                },
+            );
+          }
+        } catch (error) {
+          if (request.signal.aborted) return;
+          if (isNotificationAccessDenied(error)) {
+            clearInbox();
+            return;
+          }
+          failed = true;
+        }
+      }
+      setMarkAllFailed(failed);
+      refreshUnreadNotifications();
+    } finally {
+      if (!request.signal.aborted) {
+        readRequest.current = undefined;
+        setMarkingAll(false);
+      }
+    }
+  }
+
   const visibleItems = onlyUnread ? inbox?.items.filter((item) => !item.read) : inbox?.items;
   const loadFailure =
     failedPage === 'denied'
@@ -201,19 +242,36 @@ function NotificationsInbox() {
       <header className="buyer-page-header">
         <h1 id="notifications-title">{t('customer:notificationsPage_heading')}</h1>
         {inbox ? (
-          <button
-            className="button button-secondary"
-            type="button"
-            onClick={refresh}
-            aria-disabled={loadingPage !== null || undefined}
-          >
-            <RefreshCw
-              size={17}
-              aria-hidden="true"
-              className={loadingPage === 0 ? 'spin' : undefined}
-            />
-            {t('customer:notificationsPage_refresh')}
-          </button>
+          <div className="inbox-header-actions">
+            {inbox.items.some((item) => !item.read) ? (
+              <button
+                className="button button-secondary"
+                type="button"
+                onClick={() => void markAllRead()}
+                aria-disabled={markingAll || undefined}
+              >
+                <CheckCheck size={17} aria-hidden="true" />
+                {t(
+                  markingAll
+                    ? 'customer:notificationsPage_markingAll'
+                    : 'customer:notificationsPage_markAll',
+                )}
+              </button>
+            ) : null}
+            <button
+              className="button button-secondary"
+              type="button"
+              onClick={refresh}
+              aria-disabled={loadingPage !== null || undefined}
+            >
+              <RefreshCw
+                size={17}
+                aria-hidden="true"
+                className={loadingPage === 0 ? 'spin' : undefined}
+              />
+              {t('customer:notificationsPage_refresh')}
+            </button>
+          </div>
         ) : null}
       </header>
 
@@ -250,20 +308,57 @@ function NotificationsInbox() {
         </div>
       ) : null}
 
+      {markAllFailed ? (
+        <p className="inbox-read-error" role="alert">
+          {t('customer:notificationsPage_markAllError')}
+        </p>
+      ) : null}
+
       {visibleItems?.length ? (
-        <ul className="inbox-feed" role="list" aria-label={t('customer:notificationsPage_list')}>
-          {visibleItems.map((item) => (
-            <li key={item.id}>
-              <NotificationCard
-                item={item}
-                failed={failedReads.has(item.id)}
-                saving={savingId === item.id}
-                locked={savingId !== null}
-                onMarkRead={(button) => void markRead(item, button)}
-              />
-            </li>
-          ))}
-        </ul>
+        <>
+          {(() => {
+            const groups = groupByDay(visibleItems, new Date());
+            return (
+              [
+                ['today', groups.today],
+                ['earlier', groups.earlier],
+              ] as const
+            ).map(([key, items]) =>
+              items.length ? (
+                <section key={key} className="inbox-group" aria-labelledby={`inbox-group-${key}`}>
+                  <h2 id={`inbox-group-${key}`} className="inbox-group-title">
+                    {t(
+                      key === 'today'
+                        ? 'customer:notificationsPage_today'
+                        : 'customer:notificationsPage_earlier',
+                    )}
+                  </h2>
+                  <ul
+                    className="inbox-feed"
+                    role="list"
+                    aria-label={t('customer:notificationsPage_list')}
+                  >
+                    {items.map((item) => (
+                      <li key={item.id}>
+                        <NotificationCard
+                          item={item}
+                          failed={failedReads.has(item.id)}
+                          saving={savingId === item.id}
+                          locked={savingId !== null || markingAll}
+                          onMarkRead={(button) => void markRead(item, button)}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null,
+            );
+          })()}
+          <p className="inbox-preferences">
+            {t('customer:notificationsPage_preferencesHint')}{' '}
+            <Link to="/account/preferences">{t('customer:notificationsPage_preferencesLink')}</Link>
+          </p>
+        </>
       ) : inbox ? (
         <div className="buyer-state">
           <h2>
@@ -320,10 +415,9 @@ function NotificationCard({
   onMarkRead: (button: HTMLButtonElement) => void;
 }) {
   const { t } = useTranslation('customer');
-  const type = noticeTypes.get(item.eventType);
-  const typeLabel = t(type?.label ?? 'notificationsPage_genericType');
+  const typeLabel = t(noticeLabels.get(item.eventType) ?? 'notificationsPage_genericType');
   const subject = item.subject?.trim() ? item.subject : typeLabel;
-  const action = type?.destination;
+  const action = notificationDestination(item.eventType);
   const headingId = useId();
 
   return (
@@ -336,7 +430,7 @@ function NotificationCard({
             {t(item.read ? 'notificationsPage_read' : 'notificationsPage_unread')}
           </span>
         </div>
-        <h2 id={headingId}>{subject}</h2>
+        <h3 id={headingId}>{subject}</h3>
         <p>{item.body}</p>
         {failed && (
           <p className="inbox-read-error" role="alert">

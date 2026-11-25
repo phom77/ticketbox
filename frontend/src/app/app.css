@@ -5411,9 +5411,6 @@ button.back-link {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
-  .route-transition {
-    animation: none !important;
-  }
 }
 
 /* Marketplace refresh — utility-first ticket discovery inspired by leading ticket platforms. */
@@ -8525,20 +8522,10 @@ body,
   z-index: 2200;
 }
 
-.route-transition {
-  animation: route-enter 0.22s cubic-bezier(0.2, 0.7, 0.2, 1) both;
-}
-
-@keyframes route-enter {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+/* Pages swap in place: an entrance animation flickered and shifted content on fast navigation. */
+html {
+  scrollbar-gutter: stable;
+  scroll-padding-top: calc(var(--public-header-height, 0px) + 1rem);
 }
 
 /* Light-theme tab and panel stabilization: remove dark residue from tab switches. */
@@ -9540,10 +9527,6 @@ body,
   --purchase-space: clamp(0.875rem, 2.5vw, 1.5rem);
   --purchase-radius: 12px;
   min-inline-size: 0;
-}
-
-.route-transition:has(.purchase-page) {
-  animation: none;
 }
 
 .purchase-header {

@@ -1,16 +1,13 @@
 import { translate } from '../../i18n';
 import { useTranslation } from 'react-i18next';
 import { concertTitle } from '../../features/concert/concertText';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { ApiClientError } from '../../api/client';
-import { eventPath, performancePath } from '../../api/performances';
 import { checkoutPresentation } from '../../features/performance/checkoutPresentation';
 import {
   cancelOrder,
   completeMockPayment,
-  getOrder,
-  getPaymentStatus,
   getPaymentProviders,
   initiatePayment,
   type Order,
@@ -18,10 +15,12 @@ import {
 } from '../../api/orders';
 import { clearStoredQueueAdmission, getStoredQueueAdmission, leaveQueue } from '../../api/queue';
 import { BuyerInformationLinks } from '../../components/BuyerInformationLinks';
+import { AdminConfirmDialog } from '../../components/admin/AdminConfirmDialog';
+import { useOrderPoster } from '../../features/performance/useOrderPoster';
+import { termsUrl } from '../../features/ticket/buyerInformation';
 import {
   clearPendingPayment,
   orderWindowExpired,
-  paymentStillVerifying,
   readPendingPayment,
   rememberPendingPayment,
   type CheckoutEvent,
@@ -31,15 +30,27 @@ import {
   clearCheckoutRequest,
   createOrRecoverOrder,
 } from '../../features/ticket/checkoutRecovery';
-import { currency } from '../../data/formatters';
 import { useCountdown } from '../../hooks/useCountdown';
+import { HoldTimer } from '../../components/purchase/HoldTimer';
+import { PurchaseProgress } from '../../components/purchase/PurchaseProgress';
+import { purchasePaths } from '../../features/event/eventView';
+import { AllInPriceNote } from '../../features/price/AllInPrice';
+import { formatPrice } from '../../features/price/price';
 import {
-  CheckoutEventTime,
-  CheckoutOrderLines,
-  CheckoutOrderReference,
-  CheckoutStatusPanel,
-} from './CheckoutDetails';
-import type { CheckoutSelection } from './SeatSelectionPage';
+  confirmationPath,
+  pollOrderOutcome,
+  readOrderSnapshot,
+  type OrderOutcomeKind,
+} from '../../features/ticket/orderOutcome';
+import { CheckoutOrderLines, CheckoutOrderReference, CheckoutStatusPanel } from './CheckoutDetails';
+import {
+  ContactSection,
+  PaymentFailedBanner,
+  PaymentMethodCards,
+  SummaryEvent,
+  TermsConsent,
+} from './CheckoutParts';
+import type { CheckoutSelection } from '../../features/ticketSelection/selection';
 
 type CheckoutState = {
   event: CheckoutEvent;
@@ -49,6 +60,18 @@ type CheckoutState = {
 };
 
 type ResumeProblem = 'pending' | 'expiredPending' | 'closed' | 'missing' | 'unavailable';
+
+/** Checkout resume screens for each shared order outcome; `null` means the order can be paid. */
+const resumeProblems: Record<Exclude<OrderOutcomeKind, 'paid'>, ResumeProblem | null> = {
+  unavailable: 'unavailable',
+  expiredPending: 'expiredPending',
+  expired: 'closed',
+  closed: 'closed',
+  review: 'pending',
+  verifying: 'pending',
+  failed: null,
+  payable: null,
+};
 
 const paymentOptions: Array<{
   value: PaymentProvider;
@@ -85,6 +108,8 @@ export function CheckoutPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const methodTitleId = useId();
+  const contactTitleId = useId();
   const state = location.state as CheckoutState | null;
   const resumeOrderId = searchParams.get('orderId');
   const [event, setEvent] = useState<CheckoutEvent | null>(state?.event ?? null);
@@ -113,10 +138,14 @@ export function CheckoutPage() {
   const [error, setError] = useState<string | null>(null);
   const [paymentFailed, setPaymentFailed] = useState(false);
   const [creationRetry, setCreationRetry] = useState(0);
+  const [cancelDialog, setCancelDialog] = useState<'leave' | 'restart' | null>(null);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [termsInvalid, setTermsInvalid] = useState(false);
   const [creationNeedsRecovery, setCreationNeedsRecovery] = useState(false);
   const idempotencyKey = useRef<string | null>(null);
   const creationStarted = useRef(false);
   const paymentCountdown = useCountdown(createdOrder?.expiresAt, 180);
+  const poster = useOrderPoster(createdOrder, event?.image);
   const displayedTotal =
     createdOrder?.totalAmount ??
     selection.reduce((total, item) => total + item.price * item.quantity, 0);
@@ -152,37 +181,30 @@ export function CheckoutPage() {
 
     async function restorePendingOrder() {
       try {
-        const order = await getOrder(activeResumeOrderId, controller.signal);
+        const {
+          order,
+          payment: paymentStatus,
+          outcome,
+        } = await readOrderSnapshot(activeResumeOrderId, { signal: controller.signal });
         if (!active) return;
-        if (order.status === 'PAID') {
-          clearPendingPayment(order.id);
-          navigate('/booking-confirmation', { replace: true, state: { orderId: order.id } });
+        if (outcome.settled) clearPendingPayment(order.id);
+        if (outcome.kind === 'paid') {
+          navigate(confirmationPath(order.id), { replace: true });
           return;
         }
 
-        const [presentation, paymentStatus] = await Promise.all([
-          checkoutPresentation(order, controller.signal),
-          getPaymentStatus(order.id, controller.signal).catch(() => null),
-        ]);
+        const presentation = await checkoutPresentation(order, controller.signal);
         if (!active) return;
         const { event: restoredEvent, selection: restoredSelection } = presentation;
 
         setEvent(restoredEvent);
         setCreatedOrder(order);
-        if (!paymentStatus) {
-          setResumeUnavailable(orderWindowExpired(order) ? 'expiredPending' : 'unavailable');
+        const problem = resumeProblems[outcome.kind];
+        if (problem || !paymentStatus) {
+          setResumeUnavailable(problem ?? 'unavailable');
           return;
         }
-        if (paymentStillVerifying(paymentStatus.attemptState)) {
-          setResumeUnavailable(orderWindowExpired(order) ? 'expiredPending' : 'pending');
-          return;
-        }
-        if (order.status !== 'AWAITING_PAYMENT' || orderWindowExpired(order)) {
-          clearPendingPayment(order.id);
-          setResumeUnavailable('closed');
-          return;
-        }
-        setPaymentFailed(paymentStatus.attemptState === 'FAILED');
+        setPaymentFailed(outcome.kind === 'failed');
         setLockedProvider(null);
         const pendingPayment = readPendingPayment();
         if (paymentStatus.provider) {
@@ -232,15 +254,7 @@ export function CheckoutPage() {
     if (!queueAccessToken) {
       clearStoredQueueAdmission();
       setError(translate('customer:checkoutPage_phienMuaVeDaHetHanDang'));
-      window.setTimeout(
-        () =>
-          navigate(
-            (event.eventId ? performancePath(event.eventId, event.id) : `/concerts/${event.id}`) +
-              '/waiting-room',
-            { replace: true },
-          ),
-        900,
-      );
+      window.setTimeout(() => navigate(purchasePaths(event).waitingRoom, { replace: true }), 900);
       return;
     }
 
@@ -279,13 +293,7 @@ export function CheckoutPage() {
             clearStoredQueueAdmission();
             setError(translate('customer:checkoutPage_phienMuaVeDaHetHanDang'));
             window.setTimeout(
-              () =>
-                navigate(
-                  (event.eventId
-                    ? performancePath(event.eventId, event.id)
-                    : `/concerts/${event.id}`) + '/waiting-room',
-                  { replace: true },
-                ),
+              () => navigate(purchasePaths(event).waitingRoom, { replace: true }),
               900,
             );
             return;
@@ -321,6 +329,7 @@ export function CheckoutPage() {
   if (restoringOrder) {
     return (
       <CheckoutStatusPanel
+        step="checkout"
         announce
         title={translate('customer:checkoutPage_dangKhoiPhucDonThanhToan')}
         body={translate('customer:checkoutPage_ticketboxDangKiemTraTrangThaiMoi')}
@@ -334,27 +343,32 @@ export function CheckoutPage() {
       resumeUnavailable === 'expiredPending' ||
       (resumeUnavailable === 'closed' && createdOrder && orderWindowExpired(createdOrder));
     const title = expired
-      ? translate('customer:paymentResultPage_deadlinePassed')
+      ? translate('customer:orderOutcome_deadlinePassedTitle')
       : pending
-        ? translate('customer:paymentResultPage_confirming')
-        : translate('customer:checkoutPage_khongTheTiepTucThanhToan');
+        ? translate('customer:orderOutcome_confirmingTitle')
+        : translate('customer:orderOutcome_cannotContinueTitle');
     const body = {
-      pending: translate('customer:checkoutPage_paymentPending'),
-      expiredPending: translate('customer:paymentResultPage_expiredPending'),
-      closed: translate('customer:checkoutPage_donHangNayDaHetHanHoac'),
-      missing: translate('customer:checkoutPage_khongTimThayDonThanhToanNay'),
-      unavailable: translate('customer:checkoutPage_khongTheKhoiPhucDonChoThanh'),
+      pending: translate('customer:orderOutcome_pendingBody'),
+      expiredPending: translate('customer:orderOutcome_expiredPendingBody'),
+      closed: translate('customer:orderOutcome_closedBody'),
+      missing: translate('customer:orderOutcome_resumeMissingBody'),
+      unavailable: translate('customer:orderOutcome_resumeUnavailableBody'),
     }[resumeUnavailable];
 
     return (
-      <CheckoutStatusPanel title={title} body={body} referenceCode={createdOrder?.referenceCode}>
+      <CheckoutStatusPanel
+        step="checkout"
+        title={title}
+        body={body}
+        referenceCode={createdOrder?.referenceCode}
+      >
         <div className="purchase-status-actions">
           {resumeUnavailable === 'pending' && (
             <Link
               className="button button-primary"
               to={`/payment/result?orderId=${encodeURIComponent(resumeOrderId ?? '')}`}
             >
-              {translate('customer:checkoutPage_kiemTraTrangThaiDon')}
+              {translate('customer:orderOutcome_checkStatus')}
             </Link>
           )}
           {resumeUnavailable === 'unavailable' && (
@@ -363,14 +377,14 @@ export function CheckoutPage() {
               type="button"
               onClick={() => setResumeRefreshKey((value) => value + 1)}
             >
-              {translate('customer:checkoutPage_kiemTraTrangThaiDon')}
+              {translate('customer:orderOutcome_checkStatus')}
             </button>
           )}
           <Link
             className={`button ${pending && !expired ? 'button-secondary' : 'button-primary'}`}
-            to="/profile?tab=orders"
+            to="/account/orders"
           >
-            {translate('customer:checkoutPage_xemLichSuDonHang')}
+            {translate('customer:orderOutcome_viewOrderHistory')}
           </Link>
         </div>
       </CheckoutStatusPanel>
@@ -380,51 +394,13 @@ export function CheckoutPage() {
   if (!event || !selection.length) {
     return (
       <CheckoutStatusPanel
+        step="tickets"
         title={translate('customer:checkoutPage_chuaChonVe')}
         body={translate('customer:checkoutPage_chonKhuVeVaSoLuongTruoc')}
       >
         <div className="purchase-status-actions">
           <Link className="button button-primary" to="/">
             {translate('customer:checkoutPage_duyetConcert')}
-          </Link>
-        </div>
-      </CheckoutStatusPanel>
-    );
-  }
-
-  if (paymentFailed && createdOrder) {
-    return (
-      <CheckoutStatusPanel
-        title={translate('customer:checkoutPage_phienThanhToanDaThatBai')}
-        body={translate('customer:checkoutPage_congThanhToanDaBaoGiaoDich')}
-        referenceCode={createdOrder.referenceCode}
-      >
-        {error && (
-          <p className="purchase-error" role="alert">
-            {error}
-          </p>
-        )}
-        <div className="purchase-status-actions">
-          <button
-            className="button button-primary"
-            type="button"
-            disabled={cancelling}
-            onClick={() => void restartAfterFailedPayment()}
-          >
-            {cancelling
-              ? translate('customer:checkoutPage_dangHuyDon')
-              : translate('customer:checkoutPage_huyDonVaChonVeLai')}
-          </button>
-          <button
-            className="button button-secondary"
-            type="button"
-            disabled={cancelling}
-            onClick={() => setResumeRefreshKey((value) => value + 1)}
-          >
-            {translate('customer:checkoutPage_kiemTraTrangThaiDon')}
-          </button>
-          <Link className="button button-secondary" to="/profile?tab=orders">
-            {translate('customer:checkoutPage_xemLichSuDonHang')}
           </Link>
         </div>
       </CheckoutStatusPanel>
@@ -439,7 +415,7 @@ export function CheckoutPage() {
       const order = await cancelOrder(createdOrder.id);
       if (order.status === 'PAID') {
         clearPendingPayment(order.id);
-        navigate('/booking-confirmation', { replace: true, state: { event, orderId: order.id } });
+        navigate(confirmationPath(order.id), { replace: true });
         return;
       }
       if (order.status !== 'CANCELLED') {
@@ -449,11 +425,7 @@ export function CheckoutPage() {
       }
       clearPendingPayment(order.id);
       clearStoredQueueAdmission();
-      navigate(
-        (event.eventId ? performancePath(event.eventId, event.id) : `/concerts/${event.id}`) +
-          '/waiting-room',
-        { replace: true },
-      );
+      navigate(purchasePaths(event).waitingRoom, { replace: true });
     } catch {
       // A late success can win the race with cancellation. Re-read before buying again.
       setError(translate('customer:checkoutPage_chuaTheHuyDonHayKiemTra'));
@@ -462,13 +434,14 @@ export function CheckoutPage() {
   }
 
   async function waitForPaidOrder(orderId: string): Promise<Order> {
-    for (let attempt = 0; attempt < 12; attempt += 1) {
-      const order = await getOrder(orderId);
-      if (order.status === 'PAID') return order;
-      if (['EXPIRED', 'CANCELLED', 'PAYMENT_FAILED'].includes(order.status)) return order;
-      await new Promise((resolve) => window.setTimeout(resolve, 750));
-    }
-    return getOrder(orderId);
+    const settled = await pollOrderOutcome(orderId, {
+      attempts: 12,
+      intervalMs: 750,
+      includePayment: false,
+      isFinal: ({ order }) =>
+        ['PAID', 'EXPIRED', 'CANCELLED', 'PAYMENT_FAILED'].includes(order.status),
+    });
+    return (settled ?? (await readOrderSnapshot(orderId, { includePayment: false }))).order;
   }
 
   async function submitPayment(formEvent: React.FormEvent<HTMLFormElement>) {
@@ -488,6 +461,11 @@ export function CheckoutPage() {
 
     if (!provider) {
       setError(translate('customer:checkoutPage_congThanhToanChuaSanSang'));
+      return;
+    }
+
+    if (termsUrl && !termsAccepted) {
+      setTermsInvalid(true);
       return;
     }
 
@@ -529,9 +507,7 @@ export function CheckoutPage() {
       }
 
       clearPendingPayment(paidOrder.id);
-      navigate('/booking-confirmation', {
-        state: { event, orderId: paidOrder.id },
-      });
+      navigate(confirmationPath(paidOrder.id));
     } catch (requestError) {
       // A client timeout does not prove that the provider failed to create its session.
       if (requestError instanceof ApiClientError && requestError.status >= 500) {
@@ -561,12 +537,6 @@ export function CheckoutPage() {
   async function leaveCheckout() {
     if (!event) return;
     if (processing || cancelling || creatingOrder) return;
-    if (
-      createdOrder &&
-      !window.confirm(translate('customer:checkoutPage_roiTrangThanhToanDonHangNay'))
-    )
-      return;
-
     setCancelling(true);
     setError(null);
     try {
@@ -574,7 +544,7 @@ export function CheckoutPage() {
         const order = await cancelOrder(createdOrder.id);
         if (order.status === 'PAID') {
           clearPendingPayment(order.id);
-          navigate('/booking-confirmation', { replace: true, state: { event, orderId: order.id } });
+          navigate(confirmationPath(order.id), { replace: true });
           return;
         }
         if (order.status !== 'CANCELLED') {
@@ -590,9 +560,7 @@ export function CheckoutPage() {
         // Queue session has a backend TTL fallback.
       }
       clearStoredQueueAdmission();
-      navigate(event.eventId ? eventPath(event.eventId) : `/concerts/${event.id}`, {
-        replace: true,
-      });
+      navigate(purchasePaths(event).details, { replace: true });
     } catch {
       setError(translate('customer:checkoutPage_khongTheRoiTrangThanhToanAn'));
       setCancelling(false);
@@ -631,6 +599,8 @@ export function CheckoutPage() {
                 : 'customer:checkoutPage_chuaCoCongThanhToan',
             );
 
+  const busy = processing || cancelling || creatingOrder;
+
   return (
     <section
       className="buyer-page purchase-page page-width purchase-checkout"
@@ -638,41 +608,53 @@ export function CheckoutPage() {
     >
       <header className="purchase-header">
         <div>
+          <PurchaseProgress current="checkout" />
           <h1 id="checkout-title">{translate('customer:checkoutPage_thanhToan')}</h1>
-          <p className="purchase-step" aria-current="step">
-            {translate('customer:checkoutPage_paymentStep')}
-          </p>
-          <p className="purchase-checkout-event">{concertTitle(event)}</p>
-          <CheckoutEventTime date={event.date} venue={event.venue} />
         </div>
-        {createdOrder && (
-          <div
-            className="purchase-deadline"
-            data-state={
-              paymentCountdown.isExpired
-                ? 'expired'
-                : paymentCountdown.isWarning
-                  ? 'warning'
-                  : undefined
-            }
-          >
-            <span>{translate('customer:checkoutPage_thoiGianThanhToan')}</span>
-            {paymentCountdown.isExpired ? (
-              <strong>{translate('customer:checkoutPage_deadlinePassed')}</strong>
-            ) : (
-              <strong role="timer" aria-live="off">
-                {paymentCountdown.formatted}
-              </strong>
-            )}
-          </div>
+        {createdOrder && !paymentFailed && (
+          <HoldTimer
+            expiresAt={createdOrder.expiresAt}
+            label={translate('customer:checkoutPage_thoiGianThanhToan')}
+            // The page announces expiry with its own alert and next action.
+            expiredMessage=""
+          />
         )}
       </header>
 
+      {paymentFailed && createdOrder && (
+        <PaymentFailedBanner provider={lockedProvider ?? provider}>
+          <div className="purchase-status-actions">
+            <button
+              className="button button-primary"
+              type="button"
+              disabled={busy}
+              onClick={() => setCancelDialog('restart')}
+            >
+              {translate(
+                cancelling
+                  ? 'customer:checkoutPage_dangHuyDon'
+                  : 'customer:checkoutPage_huyDonVaChonVeLai',
+              )}
+            </button>
+            <button
+              className="button button-secondary"
+              type="button"
+              disabled={busy}
+              onClick={() => setResumeRefreshKey((value) => value + 1)}
+            >
+              {translate('customer:orderOutcome_checkStatus')}
+            </button>
+            <Link className="button button-secondary" to="/account/orders">
+              {translate('customer:orderOutcome_viewOrderHistory')}
+            </Link>
+          </div>
+        </PaymentFailedBanner>
+      )}
       {paymentCountdown.isExpired && (
         <div className="purchase-panel purchase-checkout-notice">
           <p role="alert">{translate('customer:checkoutPage_thoiGianThanhToanDaHetVui')}</p>
-          <Link className="button button-secondary" to="/profile?tab=orders">
-            {translate('customer:checkoutPage_xemLichSuDonHang')}
+          <Link className="button button-secondary" to="/account/orders">
+            {translate('customer:orderOutcome_viewOrderHistory')}
           </Link>
         </div>
       )}
@@ -689,8 +671,8 @@ export function CheckoutPage() {
               >
                 {translate('customer:checkoutPage_kiemTraLaiDon')}
               </button>
-              <Link className="button button-secondary" to="/profile?tab=orders">
-                {translate('customer:checkoutPage_xemLichSuDonHang')}
+              <Link className="button button-secondary" to="/account/orders">
+                {translate('customer:orderOutcome_viewOrderHistory')}
               </Link>
             </div>
           )}
@@ -698,86 +680,78 @@ export function CheckoutPage() {
       )}
 
       <form className="purchase-columns" onSubmit={submitPayment}>
-        <section
-          className="purchase-panel purchase-payment-method"
-          aria-labelledby="checkout-method-title"
-        >
-          <h2 id="checkout-method-title">
-            {translate('customer:checkoutPage_phuongThucThanhToan')}
-          </h2>
-          {creatingOrder && (
-            <p role="status">{translate('customer:checkoutPage_donHangCuaBanVanDangDuoc')}</p>
-          )}
-          {providers === null && !providerError && (
-            <p role="status">{translate('customer:checkoutPage_dangTaiCongThanhToan')}</p>
-          )}
-          {providerIssue && (
-            <div className="purchase-provider-error">
-              <p role="alert">{providerIssue}</p>
+        <div className="purchase-checkout-main">
+          <ContactSection titleId={contactTitleId} />
+          <section
+            className="purchase-panel purchase-payment-method"
+            aria-labelledby={methodTitleId}
+          >
+            <h2 id={methodTitleId}>{translate('customer:checkoutPage_phuongThucThanhToan')}</h2>
+            {creatingOrder && (
+              <p role="status">{translate('customer:checkoutPage_donHangCuaBanVanDangDuoc')}</p>
+            )}
+            {providers === null && !providerError && (
+              <p role="status">{translate('customer:checkoutPage_dangTaiCongThanhToan')}</p>
+            )}
+            {providerIssue && (
+              <div className="purchase-provider-error">
+                <p role="alert">{providerIssue}</p>
+                <button
+                  className="button button-secondary"
+                  type="button"
+                  disabled={paymentCountdown.isExpired}
+                  onClick={() => setProviderReload((value) => value + 1)}
+                >
+                  {translate('customer:checkoutPage_thuLai')}
+                </button>
+              </div>
+            )}
+            {allowed.length > 0 && (
+              <PaymentMethodCards
+                options={paymentOptions.filter((option) => allowed.includes(option.value))}
+                selected={provider}
+                locked={lockedProvider}
+                disabled={paymentDisabled}
+                labelledBy={methodTitleId}
+                onSelect={setProvider}
+              />
+            )}
+            <TermsConsent
+              accepted={termsAccepted}
+              invalid={termsInvalid && !termsAccepted}
+              onChange={(value) => {
+                setTermsAccepted(value);
+                if (value) setTermsInvalid(false);
+              }}
+            />
+            {!paymentCountdown.isExpired && (
               <button
-                className="button button-secondary"
+                className="button button-secondary purchase-checkout-back"
                 type="button"
-                disabled={paymentCountdown.isExpired}
-                onClick={() => setProviderReload((value) => value + 1)}
+                disabled={busy || creationNeedsRecovery}
+                onClick={() => (createdOrder ? setCancelDialog('leave') : void leaveCheckout())}
               >
-                {translate('customer:checkoutPage_thuLai')}
+                {translate(
+                  createdOrder
+                    ? 'customer:checkoutPage_cancelAndReturn'
+                    : 'customer:checkoutPage_chiTietSuKien',
+                )}
               </button>
-            </div>
-          )}
-          {allowed.length > 0 && (
-            <div
-              className="purchase-payment-options"
-              role="radiogroup"
-              aria-labelledby="checkout-method-title"
-            >
-              {paymentOptions
-                .filter((option) => allowed.includes(option.value))
-                .map((option) => (
-                  <label
-                    className="purchase-payment-option"
-                    data-selected={provider === option.value || undefined}
-                    key={option.value}
-                  >
-                    <input
-                      type="radio"
-                      name="payment"
-                      value={option.value}
-                      checked={provider === option.value}
-                      onChange={() => setProvider(option.value)}
-                      disabled={
-                        paymentDisabled ||
-                        (lockedProvider !== null && option.value !== lockedProvider)
-                      }
-                    />
-                    <span>
-                      <strong>{option.title}</strong>
-                      <small>{option.copy}</small>
-                    </span>
-                  </label>
-                ))}
-            </div>
-          )}
-          {!paymentCountdown.isExpired && (
-            <button
-              className="button button-secondary purchase-checkout-back"
-              type="button"
-              disabled={processing || cancelling || creatingOrder || creationNeedsRecovery}
-              onClick={() => void leaveCheckout()}
-            >
-              {translate(
-                createdOrder
-                  ? 'customer:checkoutPage_cancelAndReturn'
-                  : 'customer:checkoutPage_chiTietSuKien',
-              )}
-            </button>
-          )}
-        </section>
+            )}
+          </section>
+        </div>
 
         <aside
           className="purchase-panel purchase-order-summary"
           aria-labelledby="checkout-summary-title"
         >
           <h2 id="checkout-summary-title">{translate('customer:checkoutPage_orderSummary')}</h2>
+          <SummaryEvent
+            title={concertTitle(event)}
+            poster={poster}
+            date={event.date || undefined}
+            venue={event.venue || undefined}
+          />
           <CheckoutOrderReference code={createdOrder?.referenceCode} />
           <CheckoutOrderLines order={createdOrder} selection={selection} />
           <div className="purchase-action-bar">
@@ -789,8 +763,9 @@ export function CheckoutPage() {
                     : 'customer:checkoutPage_tongTamTinh',
                 )}
               </span>
-              <strong>{currency.format(displayedTotal)}</strong>
+              <strong>{formatPrice(displayedTotal)}</strong>
             </div>
+            <AllInPriceNote />
             <button className="button button-primary" type="submit" disabled={paymentDisabled}>
               {actionLabel}
             </button>
@@ -798,6 +773,21 @@ export function CheckoutPage() {
           <BuyerInformationLinks />
         </aside>
       </form>
+
+      {cancelDialog && (
+        <AdminConfirmDialog
+          title={translate('customer:checkout2_cancelDialogTitle')}
+          description={translate('customer:checkout2_cancelDialogBody')}
+          confirmLabel={translate('customer:checkout2_cancelOrder')}
+          cancelLabel={translate('customer:checkout2_keepOrder')}
+          onClose={() => setCancelDialog(null)}
+          onConfirm={() => {
+            const mode = cancelDialog;
+            setCancelDialog(null);
+            void (mode === 'restart' ? restartAfterFailedPayment() : leaveCheckout());
+          }}
+        />
+      )}
     </section>
   );
 }

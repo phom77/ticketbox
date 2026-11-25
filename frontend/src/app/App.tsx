@@ -1,6 +1,4 @@
-import { EventPage } from '../pages/public/EventsPage';
-import { PerformanceSelectionPage } from '../pages/customer/PerformanceSelectionPage';
-import '../pages/public/Performances.css';
+import { EventDetailPage } from '../pages/public/EventDetailPage';
 import { translate } from '../i18n';
 import { useTranslation } from 'react-i18next';
 import {
@@ -8,25 +6,32 @@ import {
   RequireOrganizationGrant,
   RequireOrganizationMembership,
 } from '../features/organizations/OrganizationProvider';
-import { lazy, Suspense, useLayoutEffect } from 'react';
+import { useLayoutEffect } from 'react';
 import { lazyNamed } from './lazyNamed';
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import { OperationsLayout } from '../components/layout/OperationsLayout';
 import { PublicLayout } from '../components/layout/PublicLayout';
 import { ToastProvider } from '../components/feedback/ToastProvider';
 import { AuthProvider } from '../features/auth/AuthContext';
 import { CatalogueRoute, ProtectedRoute } from '../features/auth/ProtectedRoute';
-import { BookingConfirmationPage } from '../pages/customer/BookingConfirmationPage';
+import {
+  BookingConfirmationPage,
+  OrderConfirmationPage,
+} from '../pages/customer/BookingConfirmationPage';
 import { CheckoutPage } from '../pages/customer/CheckoutPage';
 import { MyTicketsPage } from '../pages/customer/MyTicketsPage';
 import { NotificationsPage } from '../pages/customer/NotificationsPage';
 import { PaymentResultPage } from '../pages/customer/PaymentResultPage';
-import { ProfilePage } from '../pages/customer/ProfilePage';
-import { SeatSelectionPage } from '../pages/customer/SeatSelectionPage';
+import { LegacyProfileRedirect, ProfilePage } from '../pages/customer/ProfilePage';
+import { OrderDetailPage } from '../pages/customer/OrderDetailPage';
+import { TicketDetailPage } from '../pages/customer/TicketDetailPage';
+import '../pages/public/Performances.css';
+import { TicketSelectionPage } from '../pages/customer/TicketSelectionPage';
 import { WaitingRoomPage } from '../pages/customer/WaitingRoomPage';
-import { ConcertDetailPage } from '../pages/public/ConcertDetailPage';
-import { EventCataloguePage, HomePage } from '../pages/public/HomePage';
+import EventCataloguePage from '../pages/public/EventCataloguePage';
+import { HomePage } from '../pages/public/HomePage';
 import { LoginPage } from '../pages/public/LoginPage';
+import { NotFoundPage } from '../pages/public/NotFoundPage';
 import { RequestPasswordResetPage, ResetPasswordPage } from '../pages/public/PasswordRecoveryPage';
 import { RegisterPage } from '../pages/public/RegisterPage';
 import {
@@ -132,10 +137,28 @@ const audiencePage = (page: React.ReactNode) => (
   </ProtectedRoute>
 );
 
+/** Legacy concert links keep working: a concert id is also its event id (ADR 0003). */
+function ConcertRedirect() {
+  const { id = '' } = useParams();
+  const { search, hash } = useLocation();
+  return <Navigate replace to={{ pathname: '/events/' + encodeURIComponent(id), search, hash }} />;
+}
+
+/** The earlier seat routes now land on Choose tickets. */
+function SeatsRedirect() {
+  const { id = '', eventId } = useParams();
+  const { search, hash } = useLocation();
+  const pathname = eventId
+    ? '/events/' +
+      encodeURIComponent(eventId) +
+      '/performances/' +
+      encodeURIComponent(id) +
+      '/tickets'
+    : '/events/' + encodeURIComponent(id) + '/tickets';
+  return <Navigate replace to={{ pathname, search, hash }} />;
+}
+
 const cataloguePage = (page: React.ReactNode) => <CatalogueRoute>{page}</CatalogueRoute>;
-const DiscoveryPreviewPage = import.meta.env.DEV
-  ? lazy(() => import('../pages/public/DiscoveryPreviewPage'))
-  : null;
 
 export function App() {
   useTranslation();
@@ -148,40 +171,55 @@ export function App() {
             <Route element={<PublicLayout />}>
               <Route path="/" element={cataloguePage(<HomePage />)} />
               <Route path="/events" element={cataloguePage(<EventCataloguePage />)} />
-              <Route path="/events/:eventId" element={cataloguePage(<EventPage />)} />
+              <Route path="/events/:eventId" element={cataloguePage(<EventDetailPage />)} />
               <Route
                 path="/events/:eventId/performances/:id/waiting-room"
                 element={audiencePage(<WaitingRoomPage />)}
               />
               <Route
-                path="/events/:eventId/performances/:id/seats"
-                element={audiencePage(<PerformanceSelectionPage />)}
+                path="/events/:eventId/performances/:id/tickets"
+                element={audiencePage(<TicketSelectionPage />)}
               />
-              {DiscoveryPreviewPage ? (
-                <Route
-                  path="/discover-preview"
-                  element={cataloguePage(
-                    <Suspense fallback={null}>
-                      <DiscoveryPreviewPage />
-                    </Suspense>,
-                  )}
-                />
-              ) : null}
-              <Route path="/concerts/:id" element={<ConcertDetailPage />} />
+              <Route path="/events/:eventId/performances/:id/seats" element={<SeatsRedirect />} />
+              <Route
+                path="/events/:eventId/tickets"
+                element={audiencePage(<TicketSelectionPage />)}
+              />
+              <Route path="/concerts/:id" element={cataloguePage(<ConcertRedirect />)} />
               <Route
                 path="/concerts/:id/waiting-room"
                 element={audiencePage(<WaitingRoomPage />)}
               />
-              <Route path="/concerts/:id/seats" element={audiencePage(<SeatSelectionPage />)} />
+              <Route path="/concerts/:id/seats" element={<SeatsRedirect />} />
               <Route path="/checkout" element={audiencePage(<CheckoutPage />)} />
               <Route
                 path="/booking-confirmation"
                 element={audiencePage(<BookingConfirmationPage />)}
               />
+              <Route
+                path="/orders/:orderId/confirmation"
+                element={audiencePage(<OrderConfirmationPage />)}
+              />
               <Route path="/payment/result" element={audiencePage(<PaymentResultPage />)} />
               <Route path="/my-tickets" element={audiencePage(<MyTicketsPage />)} />
               <Route path="/notifications" element={audiencePage(<NotificationsPage />)} />
-              <Route path="/profile" element={audiencePage(<ProfilePage />)} />
+              <Route path="/my-tickets/:ticketId" element={audiencePage(<TicketDetailPage />)} />
+              <Route path="/profile" element={<LegacyProfileRedirect />} />
+              <Route path="/account" element={audiencePage(<ProfilePage />)} />
+              <Route
+                path="/account/orders"
+                element={audiencePage(<ProfilePage section="orders" />)}
+              />
+              <Route path="/account/orders/:orderId" element={audiencePage(<OrderDetailPage />)} />
+              <Route
+                path="/account/security"
+                element={audiencePage(<ProfilePage section="security" />)}
+              />
+              <Route
+                path="/account/preferences"
+                element={audiencePage(<ProfilePage section="preferences" />)}
+              />
+              <Route path="*" element={<NotFoundPage />} />
             </Route>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/forgot-password" element={<RequestPasswordResetPage />} />
@@ -265,7 +303,7 @@ export function App() {
                 path="concerts/:id/preview"
                 element={
                   <RequireOrganizationGrant grant="EVENTS">
-                    <ConcertDetailPage preview />
+                    <EventDetailPage preview />
                   </RequireOrganizationGrant>
                 }
               />
@@ -348,7 +386,6 @@ export function App() {
                 </ProtectedRoute>
               }
             />
-            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>
       </ToastProvider>

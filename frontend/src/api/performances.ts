@@ -6,6 +6,10 @@ export type Performance = {
   id: string;
   eventId: string;
   venueName: string;
+  venueAddress?: string | null;
+  spaceName?: string | null;
+  doorsOpenAt?: string | null;
+  maxPerAccount?: number | null;
   startsAt: string;
   endsAt: string;
   timezone: string;
@@ -22,13 +26,20 @@ export type EventDetails = {
   id: string;
   title: string;
   description: string | null;
+  category?: string | null;
   performances: Performance[];
 };
 
 type DiscoveryEvent = ConcertSummary & {
   eventId: string | null;
   salesSuspended: boolean;
+  minPrice: number | null;
+  city: string | null;
+  category: string | null;
+  performanceCount: number;
 };
+
+export type DiscoveryFacets = { cities: string[]; categories: string[] };
 
 export type Point = { x: number; y: number };
 export type SectionKind = 'GA' | 'ASSIGNED';
@@ -123,6 +134,10 @@ export async function getDiscoveryEvents(search: string, page: number, signal: A
   return response;
 }
 
+export function getDiscoveryFacets(signal?: AbortSignal) {
+  return publicGet<DiscoveryFacets>('/api/v2/events/discovery/facets', signal);
+}
+
 export function getEvent(id: string, signal?: AbortSignal) {
   return publicGet<EventDetails>('/api/v2' + eventPath(id), signal);
 }
@@ -176,6 +191,14 @@ export function replaceHold(
   return api.put<unknown, PerformanceHold>(inventory(id) + '/hold', body, {
     timeout: 12_000,
     headers: { 'Queue-Access-Token': token, 'Idempotency-Key': key },
+  });
+}
+
+/** Releases every item of the buyer's hold on a performance. */
+export function releaseHold(id: string, token: string) {
+  return api.delete<unknown, void>(inventory(id) + '/hold', {
+    timeout: 12_000,
+    headers: { 'Queue-Access-Token': token },
   });
 }
 

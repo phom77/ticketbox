@@ -1,0 +1,563 @@
+.ts-page {
+  display: grid;
+  gap: var(--purchase-space);
+  padding-block: clamp(1rem, 3vw, 2rem);
+}
+.ts-page h1,
+.ts-page h2,
+.ts-page h3,
+.ts-page p {
+  margin: 0;
+}
+/* Sticky context bar: back link, event and progress stay visible while choosing. */
+.ts-bar {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 30;
+  display: grid;
+  gap: 0.875rem;
+  margin-inline: calc(-1 * var(--purchase-space));
+  padding: 0.75rem var(--purchase-space) 0.875rem;
+  border-block-end: 1px solid var(--line);
+  background: var(--ink);
+}
+.ts-bar-context {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.25rem;
+  min-inline-size: 0;
+}
+.ts-bar .back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-block-size: 44px;
+  flex: none;
+}
+.ts-bar-event {
+  display: grid;
+  gap: 0.125rem;
+  min-inline-size: 0;
+  padding-inline-start: 1.25rem;
+  border-inline-start: 1px solid var(--line);
+}
+.ts-event-title {
+  font-size: 1.125rem;
+  font-weight: 750;
+}
+.ts-subtitle {
+  color: var(--muted);
+}
+.ts-title {
+  font-size: clamp(1.5rem, 1.2rem + 1vw, 2.125rem);
+}
+.ts-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.ts-check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-block-size: 2.75rem;
+}
+.ts-check input {
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+}
+@media (max-width: 640px) {
+  .ts-bar {
+    gap: 0.5rem;
+    padding-block: 0.5rem 0.625rem;
+  }
+  .ts-bar-event {
+    padding-inline-start: 0;
+    border-inline-start: 0;
+  }
+  .ts-bar .ts-subtitle,
+  .ts-bar .purchase-step {
+    display: none;
+  }
+  .ts-bar .back-link {
+    min-block-size: 2.75rem;
+  }
+}
+
+/* Layout: map | list on wide screens, tabs below */
+.ts-tabs {
+  display: none;
+}
+.ts-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  grid-template-areas:
+    'map list'
+    'map summary';
+  align-items: start;
+  gap: var(--purchase-space);
+}
+.ts-map-pane {
+  grid-area: map;
+  position: sticky;
+  inset-block-start: calc(var(--ts-bar-height, 8rem) + 1rem);
+}
+.ts-list-pane {
+  grid-area: list;
+}
+.ts-summary {
+  grid-area: summary;
+}
+.ts-pane {
+  display: grid;
+  gap: 0.75rem;
+}
+.ts-pane-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.ts-pane-head span {
+  color: var(--muted);
+  font-size: var(--buyer-meta-size);
+}
+@media (max-width: 1023px) {
+  .ts-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border: 1px solid var(--line);
+    border-radius: var(--purchase-radius);
+    overflow: hidden;
+  }
+  .ts-tabs button {
+    min-block-size: 2.75rem;
+    border: 0;
+    background: var(--surface);
+    color: inherit;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .ts-tabs button[aria-selected='true'] {
+    background: var(--buyer-primary);
+    color: var(--buyer-on-primary);
+  }
+  .ts-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'pane' 'summary';
+  }
+  .ts-map-pane {
+    position: static;
+  }
+  .ts-map-pane,
+  .ts-list-pane {
+    grid-area: pane;
+  }
+  .ts-page[data-tab='map'] .ts-list-pane,
+  .ts-page[data-tab='list'] .ts-map-pane {
+    display: none;
+  }
+}
+
+/* Map */
+.ts-viewport {
+  position: relative;
+  border-radius: var(--purchase-radius);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.ts-viewport-stage {
+  overflow: hidden;
+  touch-action: pan-y;
+  cursor: grab;
+}
+.ts-viewport[data-zoomed='true'] .ts-viewport-stage {
+  touch-action: none;
+}
+.ts-viewport-content {
+  transform-origin: 0 0;
+}
+.ts-viewport-content > svg,
+.ts-viewport-content .concert-seat-map {
+  display: block;
+}
+.ts-map,
+.ts-viewport .concert-seat-map svg {
+  display: block;
+  inline-size: 100%;
+  max-block-size: 34rem;
+}
+.ts-viewport .concert-seat-map {
+  min-block-size: 0;
+  padding: 0.5rem;
+}
+.ts-viewport .concert-seat-map [data-ticket-type-id] text {
+  fill: #fff;
+  stroke: none;
+}
+.ts-viewport .concert-seat-map [data-ticket-type-id]:focus-visible,
+.ts-section:focus-visible {
+  outline: 3px solid var(--buyer-primary);
+  outline-offset: 2px;
+}
+.ts-map-shape {
+  fill: var(--buyer-skeleton);
+  stroke: var(--line);
+  stroke-width: 0.5;
+}
+.ts-section {
+  cursor: pointer;
+}
+.ts-section[aria-disabled='true'] {
+  cursor: not-allowed;
+}
+.ts-section-area {
+  fill: color-mix(in srgb, var(--buyer-primary) 30%, var(--surface));
+  stroke: var(--buyer-primary);
+  stroke-width: 1;
+}
+.ts-section[data-stock='few'] .ts-section-area {
+  fill: var(--buyer-warning-bg);
+  stroke: var(--buyer-warning-line);
+}
+.ts-section[data-stock='sold'] .ts-section-area {
+  fill: var(--buyer-skeleton);
+  stroke: var(--line);
+}
+.ts-section[data-stock='selected'] .ts-section-area,
+.ts-section[data-selected='true'] .ts-section-area {
+  fill: var(--buyer-primary);
+  stroke: var(--buyer-on-primary);
+  stroke-width: 2;
+}
+.ts-section:hover .ts-section-area {
+  filter: brightness(1.12);
+}
+.ts-section[data-dim='true'] {
+  opacity: 0.45;
+}
+.ts-section-label {
+  fill: currentColor;
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+}
+.ts-section[data-stock='selected'] .ts-section-label,
+.ts-section[data-selected='true'] .ts-section-label {
+  fill: var(--buyer-on-primary);
+}
+.ts-seat circle {
+  fill: color-mix(in srgb, var(--buyer-primary) 35%, var(--surface));
+  stroke: var(--buyer-primary);
+  stroke-width: 0.4;
+  cursor: pointer;
+}
+.ts-seat[data-state='sold'] circle {
+  fill: var(--buyer-skeleton);
+  stroke: var(--line);
+  cursor: not-allowed;
+}
+.ts-seat[data-state='selected'] circle {
+  fill: var(--buyer-primary);
+  stroke: var(--buyer-on-primary);
+  stroke-width: 0.8;
+}
+.ts-seat[data-accessible='true'] circle {
+  stroke: var(--buyer-success-text);
+  stroke-width: 1;
+}
+.ts-seat[data-restricted='true'] circle {
+  stroke-dasharray: 1.5 1;
+}
+.ts-seat path {
+  fill: none;
+  stroke: var(--buyer-on-primary);
+  stroke-width: 0.8;
+  pointer-events: none;
+}
+.ts-tip {
+  position: absolute;
+  inset-block-end: 0.5rem;
+  inset-inline: 0.5rem 4rem;
+  inline-size: fit-content;
+  max-inline-size: calc(100% - 4.5rem);
+  padding: 0.375rem 0.625rem;
+  border-radius: 0.5rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  font-size: var(--buyer-meta-size);
+  pointer-events: none;
+}
+.ts-zoom {
+  position: absolute;
+  inset-block-start: 0.5rem;
+  inset-inline-end: 0.5rem;
+  display: grid;
+  gap: 0.25rem;
+}
+.ts-zoom button {
+  display: grid;
+  place-items: center;
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  color: inherit;
+  cursor: pointer;
+}
+.ts-zoom button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.ts-hint {
+  color: var(--muted);
+  font-size: var(--buyer-meta-size);
+}
+
+/* Legend */
+.ts-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--buyer-meta-size);
+}
+.ts-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+.ts-swatch {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 1.125rem;
+  block-size: 1.125rem;
+  border: 2px solid var(--buyer-primary);
+  border-radius: 0.25rem;
+  background: color-mix(in srgb, var(--buyer-primary) 30%, var(--surface));
+}
+.ts-swatch[data-kind='few'] {
+  border-color: var(--buyer-warning-line);
+  background: var(--buyer-warning-bg);
+}
+.ts-swatch[data-kind='selected'] {
+  background: var(--buyer-primary);
+  color: var(--buyer-on-primary);
+}
+.ts-swatch[data-kind='sold'] {
+  border-color: var(--line);
+  background: var(--buyer-skeleton);
+}
+.ts-swatch[data-kind='accessible'] {
+  border-color: var(--buyer-success-text);
+}
+.ts-swatch[data-kind='restricted'] {
+  border-style: dashed;
+}
+
+/* List */
+.ts-rows,
+.ts-held {
+  display: grid;
+  gap: 0.625rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ts-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.625rem;
+}
+.ts-row[data-selected='true'] {
+  border-color: var(--buyer-primary);
+  background: var(--buyer-selected-bg);
+}
+.ts-row[data-stock='sold'] {
+  opacity: 0.7;
+}
+.ts-row-info {
+  display: grid;
+  gap: 0.125rem;
+  min-inline-size: 0;
+}
+.ts-row-price {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.ts-row-stock {
+  color: var(--muted);
+  font-size: var(--buyer-meta-size);
+}
+.ts-row-stock[data-stock='few'] {
+  color: var(--buyer-warning-text);
+  font-weight: 700;
+}
+.ts-row-action {
+  display: grid;
+  justify-items: end;
+  gap: 0.25rem;
+}
+.ts-row-action .button {
+  min-block-size: 2.75rem;
+}
+.ts-stepper {
+  display: grid;
+  justify-items: end;
+  gap: 0.125rem;
+  text-align: end;
+}
+.ts-stepper small,
+.ts-row-action small {
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+.ts-stepper .ts-reason,
+.ts-reason {
+  color: var(--buyer-warning-text);
+}
+.ts-stepper-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.ts-stepper-controls button {
+  display: grid;
+  place-items: center;
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  color: inherit;
+  cursor: pointer;
+}
+.ts-stepper-controls button[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.ts-stepper-controls output {
+  min-inline-size: 2rem;
+  text-align: center;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.ts-notice {
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--buyer-warning-line);
+  border-radius: 0.5rem;
+  background: var(--buyer-warning-bg);
+  color: var(--buyer-warning-text);
+}
+.ts-seats {
+  display: grid;
+  gap: 0.625rem;
+  padding-block-start: 0.75rem;
+  border-block-start: 1px solid var(--line);
+}
+.ts-seats label {
+  display: grid;
+  gap: 0.25rem;
+}
+.ts-seat-rows {
+  display: grid;
+  gap: 0.5rem;
+  max-block-size: 22rem;
+  overflow: auto;
+}
+.ts-seat-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+}
+.ts-seat-row strong {
+  min-inline-size: 2rem;
+}
+.ts-seat-button {
+  min-inline-size: 2.75rem;
+  min-block-size: 2.75rem;
+  border: 1px solid var(--buyer-primary);
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--buyer-primary) 18%, var(--surface));
+  color: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.ts-seat-button[aria-pressed='true'] {
+  background: var(--buyer-primary);
+  color: var(--buyer-on-primary);
+}
+.ts-seat-button:disabled:not([aria-pressed='true']) {
+  border-color: var(--line);
+  background: var(--buyer-skeleton);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+.ts-seat-button[data-accessible='true'] {
+  border-color: var(--buyer-success-text);
+}
+.ts-seat-button[data-restricted='true'] {
+  border-style: dashed;
+}
+
+/* Summary */
+.ts-summary {
+  display: grid;
+  gap: 0.75rem;
+}
+.ts-held li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.5rem;
+}
+.ts-held li > div {
+  display: grid;
+  min-inline-size: 0;
+}
+.ts-held li span {
+  color: var(--muted);
+  font-size: var(--buyer-meta-size);
+}
+.ts-held .ts-held-price {
+  color: inherit;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.ts-held .button {
+  min-block-size: 2.75rem;
+}
+.ts-held-until,
+.ts-wanted {
+  color: var(--muted);
+  font-size: var(--buyer-meta-size);
+}
+.ts-summary .purchase-action-bar .button,
+.ts-leave {
+  min-block-size: 2.75rem;
+}
+.ts-summary .purchase-seat-total {
+  display: grid;
+  gap: 0.125rem;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+.ts-summary .purchase-seat-total span {
+  color: var(--muted);
+  font-size: var(--buyer-meta-size);
+}
+.ts-summary .purchase-seat-total strong {
+  font-size: 1.375rem;
+  font-variant-numeric: tabular-nums;
+}
