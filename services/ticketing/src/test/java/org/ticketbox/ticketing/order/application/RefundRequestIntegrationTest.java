@@ -266,6 +266,36 @@ class RefundRequestIntegrationTest {
         assertThatThrownBy(() -> requests.request(buyer, fixture.order, "x")).hasMessage("error.refund-request.transfer-pending");
     }
 
+    @Autowired private DisruptionOptionsService options;
+
+    @Test
+    void optionsShowThePostponedDateAndRefundChoiceOrTheCancelledRefundStage() {
+        var postponed = order("3 days");
+        assertThatThrownBy(() -> options.options(buyer, postponed.concert)).isInstanceOf(AppException.class);
+        jdbc.update("INSERT INTO event_disruptions(id,concert_id,kind,reason,actor_id,event_date) VALUES (?,?,'POSTPONE','venue',?,now()+interval '40 days')",
+                UUID.randomUUID(), postponed.concert, UUID.randomUUID());
+        assertThat(options.notices(buyer)).extracting(n -> n.concertId()).contains(postponed.concert);
+        assertThat(options.notices(UUID.randomUUID())).isEmpty();
+        var shown = options.options(buyer, postponed.concert);
+        assertThat(shown.disruption().kind()).isEqualTo("POSTPONE");
+        assertThat(shown.disruption().newEventDate()).isAfter(OffsetDateTime.now().plusDays(39));
+        assertThat(shown.orders()).singleElement().satisfies(o -> {
+            assertThat(o.canRequest()).isTrue();
+            assertThat(o.request()).isNull();
+        });
+        assertThatThrownBy(() -> options.options(UUID.randomUUID(), postponed.concert)).isInstanceOf(AppException.class);
+
+        var cancelled = order("3 days");
+        jdbc.update("INSERT INTO event_disruptions(id,concert_id,kind,reason,actor_id) VALUES (?,?,'CANCEL','weather',?)",
+                UUID.randomUUID(), cancelled.concert, UUID.randomUUID());
+        assertThat(options.options(buyer, cancelled.concert).orders()).singleElement().satisfies(o -> {
+            assertThat(o.refundStage()).isEqualTo("PENDING");
+            assertThat(o.canRequest()).isFalse();
+        });
+        prepared(cancelled, UUID.randomUUID());
+        assertThat(options.options(buyer, cancelled.concert).orders().getFirst().refundStage()).isEqualTo("APPROVED");
+    }
+
     private void prepared(Fixture fixture, UUID caseId) {
         jdbc.update("INSERT INTO order_refunds(case_id,order_id,ticket_ids,state,compensation) VALUES (?,?,?,'PREPARED',false)",
                 caseId, fixture.order, new UUID[] {fixture.ticket});
