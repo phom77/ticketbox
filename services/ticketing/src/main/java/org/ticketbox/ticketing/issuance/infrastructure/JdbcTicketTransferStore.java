@@ -56,7 +56,7 @@ class JdbcTicketTransferStore implements TicketTransferStore {
                     t.transferred_from_ticket_id IS NOT NULL AS received,
                     COALESCE(o.performance_title, c.title) AS title,
                     COALESCE(o.performance_starts_at, c.event_date) AS event_date,
-                    COALESCE(o.performance_starts_at, c.doors_open_at, c.event_date) AS doors,
+                    COALESCE(c.doors_open_at, o.performance_starts_at, c.event_date) AS doors,
                     EXISTS (SELECT 1 FROM order_refunds r WHERE r.order_id = o.id
                         AND r.state IN ('PREPARED', 'CONFIRMED')) AS refund_hold,
                     EXISTS (SELECT 1 FROM event_disruptions d WHERE d.concert_id = t.concert_id) AS disrupted

@@ -19,6 +19,7 @@ import org.ticketbox.ticketing.issuance.application.port.TransferNotifier;
 import org.ticketbox.ticketing.issuance.application.port.TransferNotifier.Kind;
 import org.ticketbox.ticketing.issuance.domain.TicketTransfer;
 import org.ticketbox.ticketing.issuance.domain.TransferEligibility;
+import org.ticketbox.ticketing.payment.application.port.PaymentGatewayClient;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -27,6 +28,8 @@ import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
@@ -40,21 +43,26 @@ public class TicketTransferService {
     static final int OFFERS_PER_HOUR = 20;
     static final int LOOKUPS_PER_TEN_MINUTES = 30;
     private static final Pattern EMAIL = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
+    /** Payment refund-case states that still decide the order; a transfer must wait for them. */
+    static final Set<String> OPEN_REFUND_STATES = Set.of("REVIEW_REQUIRED", "REQUESTED", "HOLD_PENDING", "APPROVED");
+    static final String AUDIENCE = "AUDIENCE";
 
     private final TicketTransferStore store;
     private final UserContactPort identity;
     private final TicketSigner signer;
     private final TransferNotifier notifier;
     private final TransactionTemplate transaction;
+    private final Optional<PaymentGatewayClient> payment;
     private final Map<UUID, ArrayDeque<Instant>> lookups = new ConcurrentHashMap<>();
 
     public TicketTransferService(TicketTransferStore store, UserContactPort identity, TicketSigner signer,
-            TransferNotifier notifier, TransactionTemplate transaction) {
+            TransferNotifier notifier, TransactionTemplate transaction, Optional<PaymentGatewayClient> payment) {
         this.store = store;
         this.identity = identity;
         this.signer = signer;
         this.notifier = notifier;
         this.transaction = transaction;
+        this.payment = payment;
     }
 
     /** Shows the sender who the exact email belongs to before the offer is sent. */
@@ -72,6 +80,7 @@ public class TicketTransferService {
         throttleLookups(senderId);
         UserContactView recipient = resolve(email);
         UserContactView sender = identity.findById(senderId).orElse(null);
+        requireNoOpenRefundCase(first.orderId());
         store.lockOrder(first.orderId());
         TicketFacts facts = store.facts(ticketId).filter(f -> f.holderId().equals(senderId))
                 .orElseThrow(TicketTransferService::ticketNotFound);
@@ -98,6 +107,8 @@ public class TicketTransferService {
 
     @Transactional
     public TransferView accept(UUID accountId, UUID transferId) {
+        store.find(transferId).filter(t -> t.involves(accountId))
+                .flatMap(t -> store.orderIdOfTicket(t.ticketId())).ifPresent(this::requireNoOpenRefundCase);
         TicketTransfer transfer = lockedTransfer(accountId, transferId);
         TicketFacts facts = store.facts(transfer.ticketId()).orElseThrow(TicketTransferService::notFound);
         UUID replacement = UUID.randomUUID();
@@ -213,9 +224,27 @@ public class TicketTransferService {
         if (normalized.length() > 254 || !EMAIL.matcher(normalized).matches()) {
             throw new AppException(ErrorCode.TRANSFER_RECIPIENT_NOT_FOUND, "error.transfer.recipient-unknown");
         }
-        return identity.findAccountIdByEmail(normalized).flatMap(identity::findById)
+        UserContactView recipient = identity.findAccountIdByEmail(normalized).flatMap(identity::findById)
                 .orElseThrow(() -> new AppException(ErrorCode.TRANSFER_RECIPIENT_NOT_FOUND,
                         "error.transfer.recipient-unknown"));
+        // Only audience accounts hold tickets; staff, organizer and admin accounts cannot receive one.
+        if (!AUDIENCE.equals(recipient.role())) {
+            throw new AppException(ErrorCode.TRANSFER_NOT_ALLOWED, "error.transfer.recipient-ineligible");
+        }
+        return recipient;
+    }
+
+    /**
+     * Payment owns refund requests until approval creates the local refund hold. An open case there blocks
+     * the transfer too; when Payment cannot answer, the transfer fails closed.
+     */
+    private void requireNoOpenRefundCase(UUID orderId) {
+        payment.ifPresent(client -> {
+            var support = client.support(orderId);
+            boolean open = support != null && support.cases() != null && support.cases().stream()
+                    .anyMatch(c -> c != null && OPEN_REFUND_STATES.contains(c.state()));
+            if (open) throw new AppException(ErrorCode.TRANSFER_NOT_ALLOWED, TransferEligibility.Reason.REFUND_HOLD.messageKey());
+        });
     }
 
     private void throttleLookups(UUID senderId) {

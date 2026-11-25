@@ -22,6 +22,8 @@ import org.ticketbox.ticketing.application.error.ErrorCode;
 import org.ticketbox.ticketing.application.port.identity.UserContactPort;
 import org.ticketbox.ticketing.application.port.identity.UserContactView;
 import org.ticketbox.ticketing.domain.DomainViolation;
+import org.ticketbox.ticketing.infrastructure.integration.payment.PaymentRemoteClient;
+import org.ticketbox.ticketing.payment.application.port.PaymentGatewayClient;
 
 import java.util.List;
 import java.util.Optional;
@@ -53,17 +55,65 @@ class TicketTransferIntegrationTest {
     @Autowired private TicketTransferService transfers;
     @Autowired private JdbcTemplate jdbc;
     @MockBean private UserContactPort identity;
+    @MockBean private PaymentRemoteClient payment;
 
     private final UUID sender = UUID.randomUUID();
     private final UUID friend = UUID.randomUUID();
+    private final UUID staff = UUID.randomUUID();
 
     @BeforeEach
     void identities() {
-        when(identity.findById(sender)).thenReturn(Optional.of(new UserContactView(sender, "me@example.com", "Sam Sender")));
+        when(identity.findById(sender)).thenReturn(Optional.of(new UserContactView(sender, "me@example.com", "Sam Sender", "AUDIENCE")));
         when(identity.findAccountIdByEmail("friend@example.com")).thenReturn(Optional.of(friend));
-        when(identity.findById(friend)).thenReturn(Optional.of(new UserContactView(friend, "friend@example.com", "Fran Friend")));
+        when(identity.findById(friend)).thenReturn(Optional.of(new UserContactView(friend, "friend@example.com", "Fran Friend", "AUDIENCE")));
         when(identity.findAccountIdByEmail("nobody@example.com")).thenReturn(Optional.empty());
         when(identity.findAccountIdByEmail("me@example.com")).thenReturn(Optional.of(sender));
+        when(identity.findAccountIdByEmail("staff@example.com")).thenReturn(Optional.of(staff));
+        when(identity.findById(staff)).thenReturn(Optional.of(new UserContactView(staff, "staff@example.com", "Gate Staff", "STAFF")));
+    }
+
+    @Test
+    void onlyAudienceAccountsCanReceiveATicket() {
+        var fixture = ticket("29 days", sender);
+        assertThatThrownBy(() -> transfers.previewRecipient(sender, fixture.ticket, "staff@example.com"))
+                .isInstanceOf(AppException.class).hasMessage("error.transfer.recipient-ineligible");
+        assertThatThrownBy(() -> transfers.offer(sender, fixture.ticket, "staff@example.com"))
+                .isInstanceOf(AppException.class).hasMessage("error.transfer.recipient-ineligible");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM ticket_transfers WHERE ticket_id=?", Long.class, fixture.ticket))
+                .isZero();
+    }
+
+    @Test
+    void anOpenPaymentRefundCaseBlocksOfferAndAccept() {
+        var requested = ticket("29 days", sender);
+        when(payment.support(requested.order)).thenReturn(refundCase("REQUESTED"));
+        assertThatThrownBy(() -> transfers.offer(sender, requested.ticket, "friend@example.com"))
+                .hasMessage("error.transfer.refund-hold");
+
+        var later = ticket("29 days", sender);
+        var offer = transfers.offer(sender, later.ticket, "friend@example.com");
+        when(payment.support(later.order)).thenReturn(refundCase("HOLD_PENDING"));
+        assertThatThrownBy(() -> transfers.accept(friend, offer.id())).hasMessage("error.transfer.refund-hold");
+        assertThat(status(later.ticket)).isEqualTo("VALID");
+        assertThat(transfers.get(friend, offer.id()).status()).isEqualTo("PENDING");
+
+        when(payment.support(later.order)).thenReturn(refundCase("ABORTED"));
+        assertThat(transfers.accept(friend, offer.id()).status()).isEqualTo("ACCEPTED");
+    }
+
+    @Test
+    void theCutoffUsesDoorsBeforeThePerformanceStart() {
+        var fixture = ticket("90 minutes", sender);
+        jdbc.update("UPDATE orders SET performance_event_id=?, performance_title='Transfer proof', performance_venue_name='Venue',"
+                + " performance_starts_at=now()+interval '5 hours', performance_hold_version=1 WHERE id=?",
+                UUID.randomUUID(), fixture.order);
+        assertThatThrownBy(() -> transfers.offer(sender, fixture.ticket, "friend@example.com"))
+                .hasMessage("error.transfer.cutoff");
+    }
+
+    private static PaymentGatewayClient.PaymentSupport refundCase(String state) {
+        return new PaymentGatewayClient.PaymentSupport(null, List.of(new PaymentGatewayClient.Review(UUID.randomUUID(),
+                state, 100000, null, null, null, null, null)));
     }
 
     @Test
