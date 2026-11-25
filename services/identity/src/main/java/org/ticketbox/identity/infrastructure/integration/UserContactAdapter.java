@@ -20,7 +20,7 @@ public class UserContactAdapter implements org.ticketbox.identity.application.po
         return userRepository
                 .findById(userId)
                 .filter(User::isActive)
-                .map(u -> new UserContactView(u.getId(), u.getEmail(), u.getFullName()));
+                .map(u -> new UserContactView(u.getId(), u.getEmail(), u.getFullName(), u.getRole().name()));
     }
 
     @Override

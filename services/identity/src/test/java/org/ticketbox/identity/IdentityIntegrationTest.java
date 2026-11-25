@@ -178,6 +178,7 @@ class IdentityIntegrationTest {
                 .andExpect(jsonPath("$.id").value(id.toString()))
                 .andExpect(jsonPath("$.email").value("admin@ticketbox.com"))
                 .andExpect(jsonPath("$.fullName").value(name))
+                .andExpect(jsonPath("$.role").value("ADMIN"))
                 .andExpect(jsonPath("$.data").doesNotExist());
         mvc.perform(
                         get("/internal/split/users/{id}", UUID.randomUUID())
