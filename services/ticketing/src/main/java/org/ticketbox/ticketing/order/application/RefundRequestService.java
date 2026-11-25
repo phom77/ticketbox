@@ -143,7 +143,8 @@ public class RefundRequestService {
         RefundRequest request = RefundRequest.open(orderId, buyerId, reason, outcome.origin(), now);
         store.insert(request);
         var row = store.row(request.id()).orElseThrow();
-        notifier.notifyBuyer(Kind.RECEIVED, row);
+        // A postponement request is approved on creation, so the buyer is told it was approved, not that it waits.
+        notifier.notifyBuyer(request.origin() == RefundRequest.Origin.POSTPONEMENT ? Kind.APPROVED : Kind.RECEIVED, row);
         if (order.organizationId() == null && request.origin() == RefundRequest.Origin.BUYER) {
             log.warn("Refund request {} belongs to an order without an organization; only platform admins can decide it",
                     request.id());
