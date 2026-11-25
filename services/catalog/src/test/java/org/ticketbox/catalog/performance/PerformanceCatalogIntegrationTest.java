@@ -93,7 +93,8 @@ class PerformanceCatalogIntegrationTest {
         var store = new JdbcPerformanceStore(jdbc, json);
         catalog = new PerformanceCatalog(store, "*");
         reviews = new PerformancePublicationReview(store, new JdbcPerformanceReviewStore(jdbc, json), catalog);
-        organizer = MockMvcBuilders.standaloneSetup(new OrganizerPerformanceController(catalog, reviews), new PerformanceOperationsController(catalog))
+        organizer = MockMvcBuilders.standaloneSetup(new OrganizerPerformanceController(catalog, reviews), new PerformanceOperationsController(catalog),
+                new org.ticketbox.catalog.performance.web.LegacyConcertCategoryController(catalog))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setMessageConverters(new MappingJackson2HttpMessageConverter(json))
                 .build();
@@ -112,7 +113,7 @@ class PerformanceCatalogIntegrationTest {
                 VALUES (?,'Evening showcase','Grand Hall','Main Street',?,?,'ON_SALE','https://example.test/poster.jpg',?,?)
                 """, legacy, starts, starts.minusDays(1), owner,
                 "{\"original\":{\"title\":\"Evening showcase\"},\"translations\":{\"vi\":{\"title\":\"Đêm nhạc Duy Anh\"}}}");
-        var nativeEvent = tx(() -> catalog.createEvent(owner, "Đêm nhạc Duy Anh", "Tour", "music")).id();
+        var nativeEvent = tx(() -> catalog.createEvent(owner, "Đêm nhạc Duy Anh", "Tour", "concerts")).id();
         var first = discoveryShow(nativeEvent, starts.plusDays(1), starts.minusDays(4), true);
         discoveryShow(nativeEvent, starts.plusDays(2), starts.minusDays(3), true);
         discoveryShow(nativeEvent, starts.minusDays(1), starts.minusDays(5), false);
@@ -148,7 +149,7 @@ class PerformanceCatalogIntegrationTest {
         var now = OffsetDateTime.now(ZoneOffset.UTC).withNano(0);
         var localStart = now.atZoneSameInstant(ZoneId.of("Asia/Ho_Chi_Minh")).toLocalDate()
                 .plusDays(2).atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh")).toOffsetDateTime();
-        var nativeEvent = tx(() -> catalog.createEvent(owner, "Chương trình lọc suất", "Tour", "music")).id();
+        var nativeEvent = tx(() -> catalog.createEvent(owner, "Chương trình lọc suất", "Tour", "concerts")).id();
         var futureSale = discoveryShow(nativeEvent, localStart, now.plusMinutes(30), true);
         var onSale = discoveryShow(nativeEvent, localStart.plusDays(1), now.minusDays(1), true);
         discoveryShow(nativeEvent, localStart.plusMinutes(5), now.minusDays(1), false);
@@ -182,7 +183,7 @@ class PerformanceCatalogIntegrationTest {
         jdbc.update("INSERT INTO ticket_types (concert_id,name,price,total_quantity,available_qty) VALUES (?,'Standard',450000,10,10),(?,'Early',300000,10,10)",
                 legacy, legacy);
         jdbc.update("UPDATE concerts SET status='ON_SALE' WHERE id=?", legacy);
-        var nativeEvent = tx(() -> catalog.createEvent(owner, "Facet native", "Tour", "jazz")).id();
+        var nativeEvent = tx(() -> catalog.createEvent(owner, "Facet native", "Tour", "comedy")).id();
         discoveryShow(nativeEvent, starts.plusDays(1), starts.minusDays(4), true);
         discoveryShow(nativeEvent, starts.plusDays(2), starts.minusDays(3), true);
 
@@ -195,7 +196,7 @@ class PerformanceCatalogIntegrationTest {
 
         var nativeCard = discoveryPage(MockMvcRequestBuilders.get(path).param("q", "facet native"))
                 .path("content").get(0);
-        assertThat(nativeCard.path("category").asText()).isEqualTo("jazz");
+        assertThat(nativeCard.path("category").asText()).isEqualTo("comedy");
         assertThat(nativeCard.path("performanceCount").asInt()).isEqualTo(2);
         assertThat(nativeCard.path("minPrice").isNull()).isFalse();
 
@@ -203,7 +204,7 @@ class PerformanceCatalogIntegrationTest {
                 .path("totalElements").asInt()).isEqualTo(1);
         assertThat(discoveryPage(MockMvcRequestBuilders.get(path).param("q", "facet").param("city", "Hue"))
                 .path("totalElements").asInt()).isZero();
-        assertThat(discoveryPage(MockMvcRequestBuilders.get(path).param("q", "facet").param("category", "Jazz"))
+        assertThat(discoveryPage(MockMvcRequestBuilders.get(path).param("q", "facet").param("category", "Comedy"))
                 .path("totalElements").asInt()).isEqualTo(1);
         assertThat(discoveryPage(MockMvcRequestBuilders.get(path).param("q", "facet showcase").param("minPrice", "400000"))
                 .path("totalElements").asInt()).isZero();
@@ -216,7 +217,54 @@ class PerformanceCatalogIntegrationTest {
 
         var facets = discoveryPage(MockMvcRequestBuilders.get(path + "/facets"));
         assertThat(facets.path("cities").toString()).contains("Hanoi");
-        assertThat(facets.path("categories").toString()).contains("jazz");
+        assertThat(facets.path("categories").toString()).contains("comedy");
+    }
+
+    @Test
+    void storesOnlyFixedEventCategoriesAndFiltersDiscoveryByThem() throws Exception {
+        var starts = OffsetDateTime.now(ZoneOffset.UTC).plusDays(70).withNano(0);
+        var unknown = json.createObjectNode().put("title", "Category gala").put("category", "opera-gala");
+        organizerRequest(MockMvcRequestBuilders.post(ORGANIZER + "/events"), owner, unknown, 400);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM events WHERE title='Category gala'", Integer.class)).isZero();
+
+        var sports = organizerRequest(MockMvcRequestBuilders.post(ORGANIZER + "/events"), owner,
+                json.createObjectNode().put("title", "Category derby").put("category", "sports"), 200);
+        var none = organizerRequest(MockMvcRequestBuilders.post(ORGANIZER + "/events"), owner,
+                json.createObjectNode().put("title", "Category open mic").put("category", " "), 200);
+        assertThat(sports.path("category").asText()).isEqualTo("sports");
+        assertThat(none.path("category").isNull()).isTrue();
+        discoveryShow(UUID.fromString(sports.path("id").asText()), starts, starts.minusDays(4), true);
+
+        var path = "/api/v2/events/discovery";
+        var page = discoveryPage(MockMvcRequestBuilders.get(path).param("category", "sports").param("q", "category"));
+        assertThat(page.path("totalElements").asInt()).isEqualTo(1);
+        assertThat(page.path("content").get(0).path("category").asText()).isEqualTo("sports");
+        assertThat(discoveryPage(MockMvcRequestBuilders.get(path).param("category", "family").param("q", "category"))
+                .path("totalElements").asInt()).isZero();
+        assertThat(discoveryPage(MockMvcRequestBuilders.get(path + "/facets")).path("categories").toString())
+                .contains("sports");
+    }
+
+    @Test
+    void setsTheCategoryOfALegacyConcertThroughItsMappedEvent() {
+        UUID legacy = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO concerts (id,title,venue_name,venue_address,event_date,status,created_by,organization_id)
+                VALUES (?,'Legacy category','Hall','Main Street',now() + interval '40 days','DRAFT',?,?)
+                """, legacy, owner, owner);
+        var path = "/api/organizer/manage/concerts/" + legacy + "/category";
+        assertThat(organizerRequest(MockMvcRequestBuilders.get(path), owner, json.createObjectNode(), 200)
+                .path("category").isNull()).isTrue();
+        organizerRequest(MockMvcRequestBuilders.put(path), owner, json.createObjectNode().put("category", "bogus"), 400);
+        organizerRequest(MockMvcRequestBuilders.put(path), UUID.randomUUID(),
+                json.createObjectNode().put("category", "family"), 404);
+        var saved = organizerRequest(MockMvcRequestBuilders.put(path), owner,
+                json.createObjectNode().put("category", "family"), 200);
+        assertThat(saved.path("category").asText()).isEqualTo("family");
+        assertThat(jdbc.queryForObject("SELECT category FROM catalog_event_view WHERE id=?", String.class, legacy))
+                .isEqualTo("family");
+        assertThat(catalog.setLegacyEventCategory(legacy, null, null).category()).isNull();
+        assertThat(jdbc.queryForObject("SELECT category FROM events WHERE id=?", String.class, legacy)).isNull();
     }
 
     @Test
@@ -281,7 +329,7 @@ class PerformanceCatalogIntegrationTest {
     @Test
     void revisesEventDraftInPlaceAndRejectsStaleEditors() {
         var draft = newPerformance(3);
-        var update = json.createObjectNode().put("title", "Third night").put("category", "music")
+        var update = json.createObjectNode().put("title", "Third night").put("category", "concerts")
                 .put("expectedDraftVersion", 0);
         var path = ORGANIZER + "/events/" + event;
         organizerRequest(MockMvcRequestBuilders.put(path), UUID.randomUUID(), update, 404);
@@ -404,7 +452,7 @@ class PerformanceCatalogIntegrationTest {
     void draftEvent() {
         jdbc.update("UPDATE performance_sale_publications SET ticketing_ack=true, checkin_ack=true");
         owner = UUID.randomUUID();
-        event = tx(() -> catalog.createEvent(owner, "Two nights", "Tour", "music")).id();
+        event = tx(() -> catalog.createEvent(owner, "Two nights", "Tour", "concerts")).id();
         var created = tx(() -> catalog.createVenue(owner, "Room", "Address", "Stage"));
         venue = created.id();
         space = created.spaces().getFirst().id();

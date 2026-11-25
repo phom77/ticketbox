@@ -27,6 +27,18 @@ class PerformanceMigrationTest {
     }
 
     @Test
+    void categorisesDemoEventsWithFixedIds() {
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM events WHERE legacy_concert_id IS NOT NULL
+                AND id::text LIKE '10000000-%' AND category IS NULL
+                """, Integer.class)).isZero();
+        assertThat(jdbc.queryForList("SELECT DISTINCT category FROM events WHERE category IS NOT NULL", String.class))
+                .isSubsetOf("concerts", "festivals", "sports", "arts-theater", "comedy", "family");
+        assertThat(jdbc.queryForObject("SELECT category FROM events WHERE id='10000000-0000-0000-0000-000000000018'",
+                String.class)).isEqualTo("arts-theater");
+    }
+
+    @Test
     void backfillsLegacyIdsAndContinuouslyExposesLegacyChangesWithoutWritingLegacyInventory() {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM concerts", Integer.class)).isPositive();
         assertThat(jdbc.queryForObject("""

@@ -19,6 +19,12 @@ export function categoryLabelKey(category: string) {
   return eventCategories.find((entry) => entry.id === id)?.label ?? null;
 }
 
+/** The label to show for a category id: translated for a known id, otherwise the id as plain words. */
+export function categoryText(category: string, translate: (key: string) => string) {
+  const key = categoryLabelKey(category);
+  return key ? translate(key) : category.replace(/[_-]/g, ' ');
+}
+
 /** The known city the buyer typed (ignoring case and Vietnamese marks), if any. */
 export function matchCity(value: string, cities: readonly string[]) {
   // "Hà Nội", "ha noi" and "Hanoi" all name the same city.

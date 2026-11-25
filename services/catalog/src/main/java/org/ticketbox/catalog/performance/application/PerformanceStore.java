@@ -7,6 +7,7 @@ import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.ticketbox.catalog.performance.application.PerformanceViews.Background;
+import org.ticketbox.catalog.performance.application.PerformanceViews.ConcertCategory;
 import org.ticketbox.catalog.performance.application.PerformanceViews.DiscoveryCard;
 import org.ticketbox.catalog.performance.application.PerformanceViews.Event;
 import org.ticketbox.catalog.performance.application.PerformanceViews.Layout;
@@ -41,6 +42,12 @@ public interface PerformanceStore {
     void createEvent(UUID id, UUID organizer, String title, String description, String category);
 
     void updateDraftEvent(UUID id, String title, String description, String category);
+
+    /** The category of the event mapped to a legacy concert; `organizer` null means any owner. */
+    Optional<ConcertCategory> legacyEventCategory(UUID concert, UUID organizer);
+
+    /** Returns false when no such legacy concert is visible to the organizer. */
+    boolean updateLegacyEventCategory(UUID concert, UUID organizer, String category);
 
     List<Venue> venues(UUID organizer);
 

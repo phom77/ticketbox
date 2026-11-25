@@ -2,7 +2,9 @@ import { type FormEvent, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   createConcert,
+  getConcertCategory,
   removeConcertPoster,
+  setConcertCategory,
   updateConcert,
   uploadConcertPoster,
   type ManagementApiScope,
@@ -36,6 +38,8 @@ export function useConcertEditor({
   const [owner, setOwner] = useState(requestedOwner);
   const [organizationsError, setOrganizationsError] = useState('');
   const [posterFile, setPosterFile] = useState<File | null>(null);
+  // The category the dialog opened with; the category is only written when it differs.
+  const [savedCategory, setSavedCategory] = useState('');
   const [saving, setSaving] = useState(false);
   const [removingPoster, setRemovingPoster] = useState(false);
 
@@ -77,6 +81,7 @@ export function useConcertEditor({
   function openCreate() {
     setEditing(null);
     setForm(emptyForm);
+    setSavedCategory('');
     setPosterFile(null);
     setOwner('');
     setFormOpen(true);
@@ -85,8 +90,16 @@ export function useConcertEditor({
   function openEdit(concert: ConcertDetail) {
     setEditing(concert);
     setForm(formFromConcert(concert));
+    setSavedCategory('');
     setPosterFile(null);
     setFormOpen(true);
+    void getConcertCategory(concert.id, undefined, apiScope)
+      .then((result) => {
+        const category = result.category ?? '';
+        setSavedCategory(category);
+        setForm((current) => (current.category ? current : { ...current, category }));
+      })
+      .catch(() => undefined);
   }
 
   function closeForm() {
@@ -104,6 +117,21 @@ export function useConcertEditor({
       const result = editing
         ? await updateConcert(editing.id, payload, apiScope)
         : await createConcert(payload, apiScope, owner);
+
+      if (form.category !== savedCategory) {
+        try {
+          await setConcertCategory(result.data.id, form.category || null, apiScope);
+        } catch (categoryError) {
+          closeForm();
+          await loadConcerts();
+          toast.error(
+            categoryError instanceof Error
+              ? categoryError.message
+              : translate('admin:adminConcertsPage_khongTheLuuConcert'),
+          );
+          return;
+        }
+      }
 
       if (posterFile) {
         try {

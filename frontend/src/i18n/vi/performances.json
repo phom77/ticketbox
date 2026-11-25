@@ -194,6 +194,7 @@
   "newEventHelp": "Concert được lưu thành bản nháp khi bạn tiếp tục.",
   "eventTitleRequired": "Nhập tên concert.",
   "categoryOptional": "Thể loại (không bắt buộc)",
+  "categoryNone": "Chưa chọn thể loại",
   "descriptionOptional": "Mô tả (không bắt buộc)",
   "saveAndContinue": "Lưu và tiếp tục",
   "savingChanges": "Đang lưu…",

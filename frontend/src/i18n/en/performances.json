@@ -196,6 +196,7 @@
   "newEventHelp": "Your concert is saved as a draft when you continue.",
   "eventTitleRequired": "Enter a concert title.",
   "categoryOptional": "Category (optional)",
+  "categoryNone": "No category",
   "descriptionOptional": "Description (optional)",
   "saveAndContinue": "Save and continue",
   "savingChanges": "Saving…",

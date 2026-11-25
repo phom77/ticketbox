@@ -1,4 +1,5 @@
 import { WorkspaceSelect } from '../../components/WorkspaceSelect';
+import { categoryLabelKey, eventCategories } from '../../features/discovery/categories';
 import {
   Fragment,
   useCallback,
@@ -611,6 +612,13 @@ function EventInformationForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [conflict, setConflict] = useState(false);
+  const [category, setCategory] = useState(() =>
+    categoryLabelKey(initial?.category ?? '') ? (initial?.category ?? '').trim().toLowerCase() : '',
+  );
+  const categoryOptions = [
+    { value: '', label: t('performances:categoryNone') },
+    ...eventCategories.map((entry) => ({ value: entry.id, label: t(entry.label) })),
+  ];
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -629,7 +637,7 @@ function EventInformationForm({
       await onSave({
         title,
         description: String(values.get('description')).trim(),
-        category: String(values.get('category')).trim() || null,
+        category: category || null,
       });
     } catch (failure) {
       setConflict(failure instanceof ApiClientError && failure.status === 409);
@@ -660,11 +668,15 @@ function EventInformationForm({
         </label>
         <label>
           {t('performances:categoryOptional')}
-          <input
-            name="category"
-            defaultValue={initial?.category ?? ''}
-            maxLength={100}
+          <WorkspaceSelect
+            label={t('performances:categoryOptional')}
+            value={category}
+            options={categoryOptions}
             disabled={busy}
+            onChange={(value) => {
+              setCategory(value);
+              onDirtyChange(true);
+            }}
           />
         </label>
         <label className="performance-wide">

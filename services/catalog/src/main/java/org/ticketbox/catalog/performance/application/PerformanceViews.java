@@ -18,6 +18,8 @@ public final class PerformanceViews {
                                 boolean salesSuspended, Map<String, DiscoveryText> translations, Long minPrice,
                                 String city, String category, int performanceCount) {}
 
+    public record ConcertCategory(String category) {}
+
     public record DiscoveryFacets(List<String> cities, List<String> categories) {}
 
     public record DiscoveryText(String title, String description) {}
