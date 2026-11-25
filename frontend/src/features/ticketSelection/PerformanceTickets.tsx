@@ -34,7 +34,7 @@ import { formatPrice } from '../price/price';
 import { SeatMap, VenueMap, type SectionStats } from './PerformanceMaps';
 import { MapViewport } from './MapViewport';
 import {
-  FilterBar,
+  AccessibleToggle,
   Legend,
   OfferRowView,
   SelectionSummary,
@@ -88,7 +88,7 @@ export function PerformanceTickets({ id, eventId }: { id: string; eventId: strin
   const [refresh, setRefresh] = useState(0);
   const [accessibleOnly, setAccessibleOnly] = useState(false);
   const [visibleSeatRows, setVisibleSeatRows] = useState(20);
-  const [filters, setFilters] = useState<SelectionFilters>(() => ({
+  const [filters] = useState<SelectionFilters>(() => ({
     ...defaultFilters,
     quantity: parseQuantity(search),
   }));
@@ -325,12 +325,6 @@ export function PerformanceTickets({ id, eventId }: { id: string; eventId: strin
     if (group?.sectionId && current)
       stats.set(group.sectionId, { ...current, held: current.held + item.quantity });
   }
-  const maxQuantity = Math.max(
-    10,
-    ...rows.map((row) => row.maxPerAccount ?? 0),
-    parseQuantity(search, 20),
-  );
-
   function canSelectSeat(seatId: string) {
     if (cannotChange) return false;
     if (heldSeats.has(seatId)) return true;
@@ -746,16 +740,7 @@ export function PerformanceTickets({ id, eventId }: { id: string; eventId: strin
       backLabel={t('customer:ticketSelection_backToEvent')}
       backDisabled={leaving || busy}
       onBack={() => void leave()}
-      filters={
-        <FilterBar
-          rows={rows}
-          filters={filters}
-          maxQuantity={maxQuantity}
-          onChange={setFilters}
-          accessibleOnly={accessibleOnly}
-          onAccessibleChange={setAccessibleOnly}
-        />
-      }
+      toolbar={<AccessibleToggle checked={accessibleOnly} onChange={setAccessibleOnly} />}
       map={map}
       list={list}
       summary={

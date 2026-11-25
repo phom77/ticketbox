@@ -1,6 +1,14 @@
 import { translate } from '../../i18n';
 import { useTranslation } from 'react-i18next';
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import { ChevronDown, CircleUserRound, LogOut, Moon, Search, Sun, Ticket } from 'lucide-react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { getUnreadNotificationCount, isNotificationAccessDenied } from '../../api/notifications';
@@ -18,6 +26,7 @@ import { useDocumentTheme, useThemePreference } from '../../hooks/useThemePrefer
 import { LanguageSelect } from '../LanguageSelect';
 import { HeaderSearch } from './HeaderSearch';
 import { useDiscoveryFacets } from '../../features/discovery/useDiscoveryFacets';
+import { eventCategories, matchCity } from '../../features/discovery/categories';
 import './PublicLayout.css';
 
 export function Logo({
@@ -167,32 +176,20 @@ function ThemeMenuItem() {
   );
 }
 
-/** Fixed catalogue views; cities and categories with upcoming events are appended from Catalog. */
-const browseLinks = [
-  { id: 'all', label: 'shared:browse_allEvents', params: {} },
-  { id: 'on-sale', label: 'shared:browse_onSale', params: { status: 'on-sale' } },
-  { id: 'today', label: 'shared:browse_today', params: { date: 'today' } },
-  { id: 'weekend', label: 'shared:browse_weekend', params: { date: 'weekend' } },
-  { id: 'next-30', label: 'shared:browse_next30', params: { date: 'next-30' } },
-  { id: 'upcoming', label: 'shared:browse_upcoming', params: { status: 'upcoming' } },
-] as const;
-const browseKeys = ['q', 'date', 'from', 'to', 'status', 'city', 'category'] as const;
-
 function BrowseRow({ current }: { current: URLSearchParams | null }) {
-  const facets = useDiscoveryFacets();
+  const activeCategory = current?.get('category')?.toLowerCase() ?? null;
+  const onlyCategory =
+    current !== null && [...current.keys()].every((key) => ['category', 'page'].includes(key));
   const links = [
-    ...browseLinks.map((link) => ({
-      id: link.id,
-      label: translate(link.label),
-      params: link.params as Record<string, string>,
-    })),
-    ...facets.cities
-      .slice(0, 3)
-      .map((city) => ({ id: 'city-' + city, label: city, params: { city } })),
-    ...facets.categories.slice(0, 3).map((category) => ({
-      id: 'category-' + category,
-      label: category.charAt(0).toUpperCase() + category.slice(1),
-      params: { category },
+    {
+      id: 'all',
+      label: translate('shared:browse_allEvents'),
+      params: {} as Record<string, string>,
+    },
+    ...eventCategories.map((category) => ({
+      id: category.id,
+      label: translate(category.label),
+      params: { category: category.id } as Record<string, string>,
     })),
   ];
   return (
@@ -202,7 +199,9 @@ function BrowseRow({ current }: { current: URLSearchParams | null }) {
           const params = new URLSearchParams(link.params);
           const active =
             current !== null &&
-            browseKeys.every((key) => (current.get(key) ?? '') === (params.get(key) ?? ''));
+            (link.id === 'all'
+              ? [...current.keys()].filter((key) => key !== 'page').length === 0
+              : onlyCategory && activeCategory === link.id);
           return (
             <li key={link.id}>
               <Link
@@ -245,12 +244,32 @@ function PublicHeader({
   const onCatalogue = location.pathname === '/events' || location.pathname === '/events/';
   const catalogParams = new URLSearchParams(onCatalogue ? location.search : '');
   const catalogFilters = readDiscoveryFilters(catalogParams);
+  const facets = useDiscoveryFacets();
   const initialSearch: HeaderSearchValues = {
     ...splitQuery(catalogFilters.q),
+    ...(catalogFilters.city ? { where: catalogFilters.city } : {}),
     date: catalogFilters.date,
     from: catalogFilters.from,
     to: catalogFilters.to,
   };
+
+  useEffect(() => {
+    setOpen(null);
+  }, [location.key]);
+
+  // Sticky page parts (panels, side navigation) sit just below the header, whatever its height.
+  useLayoutEffect(() => {
+    const element = header.current;
+    if (!element) return;
+    const root = document.documentElement;
+    const publish = () =>
+      root.style.setProperty('--public-header-height', `${element.offsetHeight}px`);
+    publish();
+    if (typeof ResizeObserver !== 'function') return;
+    const observer = new ResizeObserver(publish);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -285,10 +304,13 @@ function PublicHeader({
   }
 
   function search(values: HeaderSearchValues) {
-    const q = combineQuery(values.what, values.where);
-    rememberSearchSplit({ what: values.what, where: values.where });
+    // A known city becomes the city filter; anything else (a venue) is matched as text.
+    const city = matchCity(values.where, facets.cities);
+    const q = combineQuery(values.what, city ? '' : values.where);
+    rememberSearchSplit({ what: values.what, where: city ? '' : values.where });
     const params = writeDiscoveryFilters(catalogParams, {
       q,
+      city: city ?? '',
       date: values.date,
       from: values.from,
       to: values.to,
@@ -313,6 +335,7 @@ function PublicHeader({
             data-open={open === 'search'}
           >
             <HeaderSearch
+              key={JSON.stringify(initialSearch)}
               initial={initialSearch}
               inputRef={searchInput}
               onSearch={search}
@@ -509,7 +532,6 @@ export function PublicLayout() {
         </div>
       ) : (
         <PublicHeader
-          key={location.key}
           user={user}
           loading={loading}
           unreadNotifications={unreadNotifications}

@@ -197,28 +197,3 @@
   background: var(--buyer-selected-bg);
   color: var(--violet);
 }
-
-/* List layout: date block, text and action in one row. */
-.concert-card[data-layout='list'] > a {
-  grid-template-rows: auto;
-}
-.concert-card[data-layout='list'] .concert-card-body {
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-}
-.concert-card[data-layout='list'] .concert-card-body .concert-card-action {
-  grid-column: auto;
-  min-block-size: 2.75rem;
-  padding-inline: 0.75rem;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-}
-@media (width < 42rem) {
-  .concert-card[data-layout='list'] .concert-card-body {
-    grid-template-columns: auto minmax(0, 1fr);
-  }
-  .concert-card[data-layout='list'] .concert-card-body .concert-card-action {
-    grid-column: 1 / -1;
-    justify-content: center;
-  }
-}

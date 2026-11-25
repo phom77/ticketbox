@@ -224,9 +224,6 @@
   "discovery_showResults_other": "Show {{count}} events",
   "discovery_500To1000": "500,000 ₫ to 1,000,000 ₫",
   "discovery_1000Plus": "Over 1,000,000 ₫",
-  "discovery_tonight": "Tonight",
-  "discovery_thisMonth": "This month",
-  "discovery_quickFilters": "Quick filters",
   "discovery_seeAll": "See all",
   "discovery_highlights": "Highlights",
   "discovery_thisWeek": "Happening this week",
@@ -236,8 +233,5 @@
   "discovery_resultsFor_one": "{{count}} result for “{{q}}”",
   "discovery_resultsFor_other": "{{count}} results for “{{q}}”",
   "discovery_resultsCount_one": "{{count}} result",
-  "discovery_resultsCount_other": "{{count}} results",
-  "discovery_layout": "Layout",
-  "discovery_gridView": "Grid",
-  "discovery_listView": "List"
+  "discovery_resultsCount_other": "{{count}} results"
 }

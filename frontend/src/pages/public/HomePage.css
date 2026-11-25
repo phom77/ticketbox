@@ -16,9 +16,8 @@
   padding-block: clamp(0.5rem, 2vw, 1.5rem) 0;
 }
 .discovery-page .home-hero h1 {
-  max-inline-size: 18ch;
   margin: 0;
-  font-size: clamp(2.125rem, 1.4rem + 2.9vw, 3.75rem);
+  font-size: clamp(1.75rem, 1.3rem + 1.6vw, 2.5rem);
   font-weight: 800;
   line-height: 1.04;
   letter-spacing: -0.035em;
@@ -30,36 +29,6 @@
   color: var(--muted);
   font-size: 1.0625rem;
 }
-.home-hero-search {
-  max-inline-size: 64rem;
-  margin-block-start: 0.5rem;
-}
-.home-chips ul {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.home-chips a {
-  display: inline-flex;
-  align-items: center;
-  min-block-size: 44px;
-  padding: 0 1rem;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--cream);
-  font-size: 0.9375rem;
-  font-weight: 700;
-  text-decoration: none;
-}
-.home-chips a:hover {
-  border-color: var(--coral);
-  color: var(--violet);
-}
-
 /* Highlights mosaic: one large event and up to four more */
 .home-highlights {
   display: grid;
@@ -177,7 +146,7 @@
 
 .discovery-controls {
   position: sticky;
-  top: var(--discovery-bar-top, 0);
+  top: var(--public-header-height, 0px);
   z-index: 40;
   display: flex;
   flex-wrap: wrap;
@@ -299,39 +268,6 @@
   font-size: 0.875rem;
   font-weight: 700;
 }
-.discovery-layout {
-  display: flex;
-  margin-inline-start: auto;
-}
-.discovery-layout button {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  min-block-size: 44px;
-  padding: 0 0.75rem;
-  border: 1px solid var(--line);
-  background: var(--surface);
-  color: var(--cream);
-  font-size: 0.875rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-.discovery-layout button:first-child {
-  border-radius: 8px 0 0 8px;
-}
-.discovery-layout button:last-child {
-  border-radius: 0 8px 8px 0;
-  border-inline-start: 0;
-}
-.discovery-layout button[aria-pressed='true'] {
-  background: var(--buyer-selected-bg);
-  color: var(--violet);
-}
-.discovery-layout svg {
-  inline-size: 1.125rem;
-  block-size: 1.125rem;
-}
-
 .discovery-chips {
   display: flex;
   flex-wrap: wrap;
@@ -388,10 +324,6 @@
   opacity: 0.55;
   transition: opacity 0.15s;
 }
-.discovery-grid[data-layout='list'] {
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0.625rem;
-}
 .discovery-load-more {
   display: grid;
   justify-items: center;
@@ -404,10 +336,6 @@
   color: var(--cream);
 }
 
-.route-transition:has([data-discovery-restore]) {
-  animation: none;
-}
-
 @media (width >= 47.5rem) {
   .home-highlights {
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -417,6 +345,19 @@
     grid-column: 1 / span 2;
     grid-row: 1 / span 2;
     min-block-size: 22rem;
+  }
+  .home-highlights:is([data-tiles='1'], [data-tiles='2']) {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  }
+  .home-highlights:is([data-tiles='1'], [data-tiles='2']) .home-highlight[data-large] {
+    grid-column: 1;
+  }
+  .home-highlights[data-tiles='1'] .home-highlight:not([data-large]) {
+    grid-row: 1 / span 2;
+  }
+  .home-highlights[data-tiles='0'] .home-highlight[data-large] {
+    grid-column: 1 / -1;
+    grid-row: auto;
   }
 }
 
@@ -473,46 +414,30 @@
     display: inline-flex;
     justify-content: center;
   }
-  .discovery-layout {
-    margin-inline-start: 0;
-  }
-  .discovery-layout button span {
-    position: absolute;
-    inline-size: 1px;
-    block-size: 1px;
-    clip-path: inset(50%);
-    overflow: hidden;
-    white-space: nowrap;
-  }
-  .discovery-layout button {
-    inline-size: 2.75rem;
-    justify-content: center;
-    padding: 0;
-  }
 }
 
 @media (width >= 42rem) {
-  .discovery-grid:not([data-layout='list']) {
+  .discovery-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 @media (width >= 68rem) {
-  .discovery-grid:not([data-layout='list']) {
+  .discovery-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 @media (width >= 96rem) {
-  .discovery-grid:not([data-layout='list']) {
+  .discovery-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 @media (width >= 124rem) {
-  .discovery-grid:not([data-layout='list']) {
+  .discovery-grid {
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
 @media (width >= 150rem) {
-  .discovery-grid:not([data-layout='list']) {
+  .discovery-grid {
     grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 }

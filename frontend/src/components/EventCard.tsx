@@ -54,7 +54,6 @@ export function EventCard({
   event,
   priority = false,
   action,
-  layout = 'grid',
   heading: Heading = 'h3',
   linkId,
   onOpen,
@@ -62,7 +61,6 @@ export function EventCard({
   event: EventCardItem;
   priority?: boolean;
   action?: string;
-  layout?: 'grid' | 'list';
   heading?: 'h2' | 'h3';
   linkId?: string;
   onOpen?: MouseEventHandler<HTMLAnchorElement>;
@@ -75,61 +73,43 @@ export function EventCard({
   const dates = event.performanceCount ?? 1;
 
   return (
-    <article className="concert-card" data-layout={layout}>
+    <article className="concert-card">
       <Link
         aria-label={action ? `${event.title} · ${action}` : event.title}
         id={linkId}
         onClick={onOpen}
         to={event.href ?? `/concerts/${encodeURIComponent(event.id)}`}
       >
-        {layout === 'grid' ? (
-          <div className="concert-card-media">
-            {event.image ? (
-              <RemoteImage
-                src={event.image}
-                alt=""
-                width="720"
-                height="405"
-                loading={priority ? 'eager' : 'lazy'}
-              />
-            ) : (
-              <Ticket aria-hidden="true" />
-            )}
-            <span className="concert-card-badges">
-              {event.dayBadge ? (
-                <span className="concert-card-status" data-sale-state="day">
-                  {t(
-                    event.dayBadge === 'today'
-                      ? 'public:discovery_dayToday'
-                      : 'public:discovery_dayTomorrow',
-                  )}
-                </span>
-              ) : null}
-              <span className="concert-card-status" data-sale-state={event.status}>
-                {t(eventSaleLabels[event.status])}
+        <div className="concert-card-media">
+          {event.image ? (
+            <RemoteImage
+              src={event.image}
+              alt=""
+              width="720"
+              height="405"
+              loading={priority ? 'eager' : 'lazy'}
+            />
+          ) : (
+            <Ticket aria-hidden="true" />
+          )}
+          <span className="concert-card-badges">
+            {event.dayBadge ? (
+              <span className="concert-card-status" data-sale-state="day">
+                {t(
+                  event.dayBadge === 'today'
+                    ? 'public:discovery_dayToday'
+                    : 'public:discovery_dayTomorrow',
+                )}
               </span>
+            ) : null}
+            <span className="concert-card-status" data-sale-state={event.status}>
+              {t(eventSaleLabels[event.status])}
             </span>
-          </div>
-        ) : null}
+          </span>
+        </div>
         <div className="concert-card-body">
           <EventDateBlock value={event.eventDate} />
           <div className="concert-card-text">
-            {layout === 'list' ? (
-              <span className="concert-card-badges">
-                {event.dayBadge ? (
-                  <span className="concert-card-status" data-sale-state="day">
-                    {t(
-                      event.dayBadge === 'today'
-                        ? 'public:discovery_dayToday'
-                        : 'public:discovery_dayTomorrow',
-                    )}
-                  </span>
-                ) : null}
-                <span className="concert-card-status" data-sale-state={event.status}>
-                  {t(eventSaleLabels[event.status])}
-                </span>
-              </span>
-            ) : null}
             <Heading>{event.title}</Heading>
             <p>
               <MapPin aria-hidden="true" />

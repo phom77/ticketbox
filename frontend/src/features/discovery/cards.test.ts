@@ -21,7 +21,7 @@ function concert(id: string, overrides: Partial<DiscoveryConcert> = {}): Discove
 }
 
 describe('homeRows', () => {
-  it('groups upcoming events without a featured flag', () => {
+  it('groups upcoming events and fills highlights, pictures first', () => {
     const rows = homeRows(
       [
         concert('tonight', { eventDate: day(0.2), posterUrl: 'poster.jpg' }),
@@ -33,7 +33,7 @@ describe('homeRows', () => {
       ],
       now,
     );
-    expect(rows.highlights.map(({ id }) => id)).toEqual(['tonight', 'later']);
+    expect(rows.highlights.map(({ id }) => id)).toEqual(['tonight', 'later', 'plain', 'soon']);
     expect(rows.thisWeek.map(({ id }) => id)).toEqual(['tonight', 'sold']);
     expect(rows.onSale.map(({ id }) => id)).toEqual(['tonight', 'later', 'plain']);
     expect(rows.comingSoon.map(({ id }) => id)).toEqual(['soon']);

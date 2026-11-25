@@ -35,7 +35,7 @@
   flex-direction: column;
   gap: 0.25rem;
   position: sticky;
-  inset-block-start: 5rem;
+  inset-block-start: calc(var(--public-header-height, 8rem) + 1rem);
 }
 
 @media (max-width: 860px) {

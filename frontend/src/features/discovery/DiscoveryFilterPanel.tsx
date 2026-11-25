@@ -9,6 +9,7 @@ import {
   statusOptions,
   type DiscoveryFilters,
 } from './filters';
+import { categoryLabelKey, eventCategories } from './categories';
 
 function withCurrent(values: string[], current: string) {
   return current && !values.includes(current) ? [current, ...values] : values;
@@ -131,10 +132,16 @@ export function DiscoveryFilterPanel({
             'category',
             t('public:discovery_category'),
             t('public:discovery_anyCategory'),
-            withCurrent(facets.categories, filters.category).map((value) => [
-              value,
-              capitalize(value),
-            ]),
+            withCurrent(
+              [
+                ...eventCategories.map(({ id }) => id),
+                ...facets.categories.filter((value) => !categoryLabelKey(value)),
+              ],
+              filters.category,
+            ).map((value) => {
+              const key = categoryLabelKey(value);
+              return [value, key ? t(key) : capitalize(value)];
+            }),
           )}
           {select(
             'price',

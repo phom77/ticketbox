@@ -43,7 +43,15 @@ export type HomeRows = {
 export function homeRows(concerts: DiscoveryConcert[], now: number): HomeRows {
   const state = (concert: DiscoveryConcert) => discoverySaleState(concert, now);
   const onSale = concerts.filter((concert) => state(concert) === 'on-sale');
-  const highlights = onSale.filter((concert) => concert.posterUrl).slice(0, 5);
+  // The mosaic always fills: on-sale events first, then upcoming ones, pictures before none.
+  const comingSoon = concerts.filter((concert) => state(concert) === 'upcoming');
+  const highlights = [...onSale, ...comingSoon]
+    .map((concert, index) => ({ concert, index }))
+    .sort(
+      (a, b) => Number(!a.concert.posterUrl) - Number(!b.concert.posterUrl) || a.index - b.index,
+    )
+    .map(({ concert }) => concert)
+    .slice(0, 5);
   const thisWeek = concerts.filter((concert) => {
     const date = Date.parse(concert.eventDate);
     if (!Number.isFinite(date) || ['closed', 'cancelled'].includes(state(concert))) return false;
@@ -54,6 +62,6 @@ export function homeRows(concerts: DiscoveryConcert[], now: number): HomeRows {
     highlights,
     thisWeek,
     onSale,
-    comingSoon: concerts.filter((concert) => state(concert) === 'upcoming'),
+    comingSoon,
   };
 }
