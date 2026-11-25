@@ -196,6 +196,19 @@
   font-size: 0.9rem;
   font-weight: 700;
 }
+.workspace-records-field > textarea {
+  min-height: 6rem;
+  width: 100%;
+  min-width: 12rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--ops-input-line, var(--line));
+  border-radius: 0.5rem;
+  background: var(--surface);
+  color: var(--cream);
+  font: inherit;
+  font-size: 0.9375rem;
+  resize: vertical;
+}
 .workspace-records-field > input {
   min-height: 2.75rem;
   width: 100%;

@@ -7,7 +7,9 @@
     "schemaVersion": {"const": 1},
     "eventType": {"enum": ["ticketing.order-confirmed", "ticketing.order-refunded", "ticketing.event-cancelled", "ticketing.event-postponed", "concert.reminder-requested",
       "ticketing.ticket-transfer-offered", "ticketing.ticket-transfer-accepted", "ticketing.ticket-transfer-declined",
-      "ticketing.ticket-transfer-cancelled", "ticketing.ticket-transfer-expired"]},
+      "ticketing.ticket-transfer-cancelled", "ticketing.ticket-transfer-expired",
+      "ticketing.refund-request-received", "ticketing.refund-request-approved", "ticketing.refund-request-rejected",
+      "ticketing.refund-request-submitted"]},
     "eventId": {"type": "string", "format": "uuid"},
     "aggregateId": {"type": "string", "format": "uuid"},
     "userId": {"type": "string", "format": "uuid"},
@@ -44,6 +46,23 @@
               "concertId": {"type": "string", "format": "uuid"},
               "otherPartyName": {"type": "string", "minLength": 1, "maxLength": 200},
               "role": {"enum": ["SENDER", "RECIPIENT"]}
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {"properties": {"eventType": {"enum": ["ticketing.refund-request-received", "ticketing.refund-request-approved", "ticketing.refund-request-rejected", "ticketing.refund-request-submitted"]}}},
+      "then": {
+        "properties": {
+          "payload": {
+            "required": ["refundRequestId", "orderId", "concertId", "concertTitle"],
+            "properties": {
+              "refundRequestId": {"type": "string", "format": "uuid"},
+              "orderId": {"type": "string", "format": "uuid"},
+              "concertId": {"type": "string", "format": "uuid"},
+              "orderReference": {"type": "string", "pattern": "^DH-[0-9]{8,19}$"},
+              "note": {"type": "string", "minLength": 1, "maxLength": 1000}
             }
           }
         }

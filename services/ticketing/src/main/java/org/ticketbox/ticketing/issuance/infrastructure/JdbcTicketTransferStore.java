@@ -57,8 +57,10 @@ class JdbcTicketTransferStore implements TicketTransferStore {
                     COALESCE(o.performance_title, c.title) AS title,
                     COALESCE(o.performance_starts_at, c.event_date) AS event_date,
                     COALESCE(c.doors_open_at, o.performance_starts_at, c.event_date) AS doors,
-                    EXISTS (SELECT 1 FROM order_refunds r WHERE r.order_id = o.id
-                        AND r.state IN ('PREPARED', 'CONFIRMED')) AS refund_hold,
+                    (EXISTS (SELECT 1 FROM order_refunds r WHERE r.order_id = o.id
+                        AND r.state IN ('PREPARED', 'CONFIRMED'))
+                     OR EXISTS (SELECT 1 FROM refund_requests q WHERE q.order_id = o.id
+                        AND q.status IN ('REQUESTED', 'APPROVED'))) AS refund_hold,
                     EXISTS (SELECT 1 FROM event_disruptions d WHERE d.concert_id = t.concert_id) AS disrupted
                 FROM tickets t JOIN order_items i ON i.id = t.order_item_id JOIN orders o ON o.id = i.order_id
                 JOIN concerts c ON c.id = t.concert_id WHERE t.id = ?

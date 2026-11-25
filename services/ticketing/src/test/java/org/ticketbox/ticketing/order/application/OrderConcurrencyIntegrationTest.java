@@ -154,6 +154,88 @@ class OrderConcurrencyIntegrationTest {
         assertThat(json.readTree(outside.getContentAsByteArray()).path("data").path("totalElements").asLong()).isZero();
     }
 
+    @Autowired private RefundOrderEffects refundEffects;
+    @Autowired private org.ticketbox.ticketing.performance.application.port.PerformanceStock performanceStock;
+
+    /** A paid hybrid order (one GA place and one reserved seat) with its tickets issued. */
+    private record PaidHybrid(PerformanceSale sale, Scope buyer, UUID order) {}
+
+    private PaidHybrid paidHybrid() {
+        var sale = createHybrid();
+        var buyer = new Scope(sale.id(), UUID.randomUUID());
+        String token = admitPerformance(buyer);
+        var hold = performanceHolds.replace(buyer, token, "initial", 1L, 0, hybridPicks(sale));
+        var order = orderService.createPerformanceOrder(sale.id(), buyer.userId(), hold.version(), "refund-checkout", token);
+        var intent = workflow.prepare(order.id(), buyer.userId(), "MOCK");
+        assertThat(workflow.receive(money(intent, UUID.randomUUID())).decision()).isEqualTo("ACCEPTED");
+        return new PaidHybrid(sale, buyer, order.id());
+    }
+
+    private RefundOrderEffects.Result confirmedRefund(PaidHybrid paid) {
+        UUID caseId = UUID.randomUUID();
+        var tickets = inventoryJdbc.queryForList("SELECT t.id FROM tickets t JOIN order_items i ON i.id=t.order_item_id"
+                + " WHERE i.order_id=?", UUID.class, paid.order()).stream().sorted().toArray(UUID[]::new);
+        inventoryJdbc.update("INSERT INTO order_refunds(case_id,order_id,ticket_ids,state,compensation) VALUES (?,?,?,'PREPARED',false)",
+                caseId, paid.order(), tickets);
+        var row = inventoryJdbc.queryForMap("SELECT payment_provider, payment_ref, total_amount FROM orders WHERE id=?", paid.order());
+        var result = new RefundOrderEffects.Result(1, caseId, paid.order(), "CONFIRMED",
+                ((java.math.BigDecimal) row.get("total_amount")).longValueExact(), (String) row.get("payment_provider"),
+                (String) row.get("payment_ref"), "bank-" + caseId, OffsetDateTime.now(), false);
+        refundEffects.apply(result);
+        return result;
+    }
+
+    private int gaAllocated(PerformanceSale sale) {
+        return inventoryJdbc.queryForObject("SELECT allocated FROM performance_groups WHERE performance_id=? AND kind='GA'",
+                Integer.class, sale.id());
+    }
+
+    private String seatStatus(PerformanceSale sale) {
+        return inventoryJdbc.queryForObject("SELECT status FROM performance_seats WHERE performance_id=?", String.class, sale.id());
+    }
+
+    @Test
+    void confirmedRefundReturnsSeatPoolAndQuotaToSaleExactlyOnce() {
+        var paid = paidHybrid();
+        assertThat(performanceStock.activeOrderQuantity(paid.buyer())).isEqualTo(2);
+        var result = confirmedRefund(paid);
+        assertThat(seatStatus(paid.sale())).isEqualTo("AVAILABLE");
+        assertThat(gaAllocated(paid.sale())).isZero();
+        assertThat(performanceStock.activeOrderQuantity(paid.buyer())).isZero();
+        assertThat(inventoryJdbc.queryForObject("SELECT stock_released FROM order_refunds WHERE case_id=?", Boolean.class,
+                result.caseId())).isTrue();
+        assertThat(inventoryJdbc.queryForObject("SELECT status FROM orders WHERE id=?", String.class, paid.order())).isEqualTo("REFUNDED");
+
+        // Another buyer takes the place; replaying the same refund result must not release it again.
+        inventoryJdbc.update("UPDATE performance_groups SET allocated=allocated+1, available=available-1 WHERE performance_id=? AND kind='GA'",
+                paid.sale().id());
+        refundEffects.apply(result);
+        assertThat(gaAllocated(paid.sale())).isEqualTo(1);
+    }
+
+    @Test
+    void confirmedRefundKeepsStockUnchangedAfterSaleEndOrWhenTheEventIsDisrupted() {
+        var closed = paidHybrid();
+        inventoryJdbc.update("UPDATE concerts SET sale_end_at=now()-interval '1 minute' WHERE id=?", closed.sale().id());
+        var closedResult = confirmedRefund(closed);
+        assertThat(seatStatus(closed.sale())).isEqualTo("ALLOCATED");
+        assertThat(gaAllocated(closed.sale())).isEqualTo(1);
+        assertThat(inventoryJdbc.queryForObject("SELECT stock_released FROM order_refunds WHERE case_id=?", Boolean.class,
+                closedResult.caseId())).isFalse();
+
+        var disrupted = paidHybrid();
+        inventoryJdbc.update("INSERT INTO event_disruptions(id,concert_id,kind,reason,actor_id) VALUES (?,?,'POSTPONE','venue',?)",
+                UUID.randomUUID(), disrupted.sale().id(), UUID.randomUUID());
+        confirmedRefund(disrupted);
+        assertThat(seatStatus(disrupted.sale())).isEqualTo("ALLOCATED");
+        assertThat(gaAllocated(disrupted.sale())).isEqualTo(1);
+
+        var suspended = paidHybrid();
+        inventoryJdbc.update("UPDATE concerts SET sales_suspended=TRUE WHERE id=?", suspended.sale().id());
+        confirmedRefund(suspended);
+        assertThat(seatStatus(suspended.sale())).isEqualTo("ALLOCATED");
+    }
+
     @Test
     void hybridConflictLeavesPreviousGaAndDoesNotLeakSeats() throws Exception {
         var sale = createHybrid();

@@ -391,7 +391,8 @@ WHERE order_id=? AND lease_owner=? AND state IN ('PROCESSING','READY','UNKNOWN')
                 """, order);
         var cases = db.queryForList("""
                 SELECT request_id AS id,state,amount,external_reference AS "externalReference",resolved_at AS "recordedAt",
-                       requested_by AS "requestedBy",approved_by AS "approvedBy",provider_refunded_at AS "occurredAt"
+                       requested_by AS "requestedBy",approved_by AS "approvedBy",provider_refunded_at AS "occurredAt",
+                       origin,refund_request_id AS "refundRequestId"
                 FROM refund_reviews WHERE order_id=? ORDER BY request_id
                 """, order);
         Map<String, Object> result = new java.util.HashMap<>();

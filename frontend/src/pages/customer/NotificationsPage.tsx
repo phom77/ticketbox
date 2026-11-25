@@ -33,6 +33,9 @@ const noticeLabels = new Map([
   ['TICKET_TRANSFER_DECLINED', 'notificationsPage_ticketTransfer'],
   ['TICKET_TRANSFER_CANCELLED', 'notificationsPage_ticketTransfer'],
   ['TICKET_TRANSFER_EXPIRED', 'notificationsPage_ticketTransfer'],
+  ['REFUND_REQUEST_RECEIVED', 'notificationsPage_refundRequest'],
+  ['REFUND_REQUEST_APPROVED', 'notificationsPage_refundRequest'],
+  ['REFUND_REQUEST_REJECTED', 'notificationsPage_refundRequest'],
 ]);
 
 export function NotificationsPage() {

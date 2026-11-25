@@ -45,6 +45,12 @@ public class NotificationMessageBundle implements NotificationContent {
             return new Content(text(key + ".subject", title, command.otherPartyName()),
                     text(key + ".body", title, command.otherPartyName()));
         }
+        if (command.refundRequest()) {
+            String key = "notification.refund-request." + command.refundRequestChange();
+            String reference = command.orderReference() == null ? "" : command.orderReference();
+            return new Content(text(key + ".subject", title, reference),
+                    text(key + ".body", title, reference, command.note() == null ? "" : command.note()));
+        }
         if (command.eventCancelled()) return new Content(text("notification.cancel.subject", title),
                 text("notification.cancel.body", title));
         if (command.eventPostponed()) return new Content(text("notification.postpone.subject", title),

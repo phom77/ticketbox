@@ -333,6 +333,42 @@ class PaymentIntegrationTest {
         assertThat(db.queryForObject("SELECT count(*) FROM refund_result_outbox WHERE case_id=?", Integer.class, caseId)).isEqualTo(1);
     }
 
+    @Test
+    void buyerRequestCaseRecordsItsOriginAndStillNeedsASecondAdmin() {
+        var i = intent();
+        facade.submit(i);
+        money(i);
+        workers.results();
+        assertThat(state(i)).isEqualTo("SUCCEEDED");
+        UUID organizer = UUID.randomUUID(), approver = UUID.randomUUID(), requestId = UUID.randomUUID();
+        var request = new com.ticketbox.payments.application.port.RefundCases.Command(UUID.randomUUID(), organizer, null,
+                com.ticketbox.payments.application.port.RefundCases.Action.REQUEST, "Cannot attend", null, null, null,
+                "BUYER", requestId);
+        assertThatThrownBy(() -> refunds.apply(i.orderId(), new com.ticketbox.payments.application.port.RefundCases.Command(
+                UUID.randomUUID(), organizer, null, com.ticketbox.payments.application.port.RefundCases.Action.REQUEST,
+                "Cannot attend", null, null, null, "BUYER", null)))
+                .isInstanceOf(com.ticketbox.payments.application.error.PaymentRejection.class);
+        var opened = refunds.apply(i.orderId(), request);
+        assertThat(opened.origin()).isEqualTo("BUYER");
+        assertThat(opened.refundRequestId()).isEqualTo(requestId);
+        assertThat(refunds.apply(i.orderId(), request)).isEqualTo(opened);
+        assertThat(db.queryForObject("SELECT origin FROM refund_reviews WHERE request_id=?", String.class, opened.id()))
+                .isEqualTo("BUYER");
+        assertThatThrownBy(() -> refunds.apply(i.orderId(), refund(UUID.randomUUID(), organizer, opened.id(), "BEGIN_APPROVAL", null, null)))
+                .isInstanceOf(com.ticketbox.payments.application.error.PaymentRejection.class);
+        refunds.apply(i.orderId(), refund(UUID.randomUUID(), approver, opened.id(), "BEGIN_APPROVAL", null, null));
+    }
+
+    @Test
+    void operatorRefundActionsKeepTheFingerprintRecordedBeforeOriginExisted() throws Exception {
+        UUID action = UUID.fromString("00000000-0000-0000-0000-000000000001");
+        UUID actor = UUID.fromString("00000000-0000-0000-0000-000000000002");
+        var command = refund(action, actor, null, "REQUEST", null, null);
+        assertThat(json.writeValueAsString(command)).isEqualTo("{\"actionId\":\"" + action + "\",\"actorId\":\"" + actor
+                + "\",\"caseId\":null,\"action\":\"REQUEST\",\"detail\":\"Fixture reason\",\"amount\":null,"
+                + "\"externalReference\":null,\"occurredAt\":null}");
+    }
+
     private static com.ticketbox.payments.application.port.RefundCases.Command refund(
             UUID action, UUID actor, UUID caseId, String kind, Long amount, String reference) {
         return new com.ticketbox.payments.application.port.RefundCases.Command(action, actor, caseId,

@@ -37,6 +37,21 @@ const transfers = [
   transferOf('PENDING', 'RECEIVED', 'Sam Sender'),
   { ...transferOf('EXPIRED', 'RECEIVED', 'Old Friend'), id: 'offer-expired' },
 ];
+// Refund requests: one request state per order, changed by the fixture to play the organizer and the platform.
+const order = (id, concertId, status = 'PAID') => ({
+  id, referenceCode: id === 'order-1' ? 'DH-100001' : 'DH-100002', concertId, concertTitle: 'Riverside concert',
+  status, totalAmount: 840_000, paymentUrl: null, expiresAt: day(-3), createdAt: day(-3), performanceStartsAt: day(2),
+  items: [{ id: `item-${id}`, ticketTypeId: 'ga', ticketTypeName: 'GA', quantity: 2, unitPrice: 420_000, subtotal: 840_000 }],
+});
+const refunds = {
+  'order-1': { canRequest: true, origin: 'BUYER', deadline: day(1), request: null },
+  'order-later': { canRequest: true, origin: 'POSTPONEMENT', deadline: day(60), request: null },
+};
+const refundRequest = (orderId, status, extra = {}) => ({
+  id: `request-${orderId}`, orderId, status, origin: refunds[orderId].origin ?? 'BUYER', reason: 'Cannot attend',
+  createdAt: day(0), canWithdraw: status === 'REQUESTED', ...extra,
+});
+let disruptions = [];
 const reply = (route, data, status = 200) =>
   route.fulfill({ status, json: { code: status, data, message: status === 200 ? 'OK' : 'Fixture failure' } });
 await page.route((url) => url.pathname.startsWith('/api/'), (route) => {
@@ -44,6 +59,33 @@ await page.route((url) => url.pathname.startsWith('/api/'), (route) => {
   if (pathname === '/api/auth/me') return reply(route, user);
   if (pathname === '/api/notifications/unread-count') return reply(route, { count: 0 });
   if (pathname === '/api/tickets') return reply(route, tickets);
+  if (pathname === '/api/tickets/disruptions') return reply(route, disruptions);
+  const options = pathname.match(/^\/api\/tickets\/events\/([^/]+)\/options$/);
+  if (options) {
+    const disruption = disruptions.find((item) => item.concertId === options[1]);
+    if (!disruption) return reply(route, null, 404);
+    return reply(route, {
+      disruption,
+      orders: [{
+        orderId: disruption.kind === 'CANCEL' ? 'order-cancelled' : 'order-later', referenceCode: 'DH-100002', amount: 840_000,
+        status: 'PAID', refundStage: 'APPROVED', canRequest: disruption.kind === 'POSTPONE', request: null,
+      }],
+    });
+  }
+  const orderRoute = pathname.match(/^\/api\/orders\/([^/]+)(?:\/(refund-request|refund-requests(?:\/[^/]+\/withdraw)?))?$/);
+  if (orderRoute) {
+    const [, orderId, action] = orderRoute;
+    if (!action) return reply(route, order(orderId, orderId === 'order-later' ? 'later' : 'soon'));
+    if (action === 'refund-request') return reply(route, refunds[orderId]);
+    if (action === 'refund-requests') {
+      assert.ok(route.request().postDataJSON().reason, 'a reason is sent');
+      refunds[orderId] = { canRequest: false, blockedReason: 'REQUEST_OPEN', request: refundRequest(orderId, 'REQUESTED') };
+      return reply(route, refunds[orderId].request, 201);
+    }
+    refunds[orderId] = { canRequest: true, origin: 'BUYER', deadline: day(1), request: refundRequest(orderId, 'WITHDRAWN') };
+    return reply(route, refunds[orderId].request);
+  }
+  if (/^\/api\/payments\/[^/]+\/status$/.test(pathname)) return reply(route, { provider: 'MOCK' });
   if (pathname === '/api/tickets/transfers') return reply(route, transfers);
   const offer = pathname.match(/^\/api\/tickets\/transfers\/([^/]+)(?:\/(accept|decline|cancel))?$/);
   if (offer) {
@@ -157,6 +199,61 @@ await page.getByText('Transferred').first().waitFor();
 await page.goto(`${origin}/my-tickets/transfers/offer-expired`);
 await page.getByText('This offer expired before it was accepted.').waitFor();
 assert.equal(await page.getByRole('button', { name: 'Accept ticket' }).count(), 0, 'expired offers cannot be accepted');
+
+// Refund request: the buyer explains why, follows the organizer's decision and can withdraw before it.
+await page.goto(`${origin}/account/orders/order-1`);
+const refund = page.getByRole('region', { name: 'Refund' });
+await refund.getByText('Cannot attend? You can ask for a full refund until', { exact: false }).waitFor();
+await refund.getByRole('button', { name: 'Request a refund' }).click();
+await refund.getByText('The whole order is refunded, including every ticket in it.').waitFor();
+await refund.getByText('The organizer reviews your request.', { exact: false }).waitFor();
+assert.equal(await refund.getByRole('button', { name: 'Send refund request' }).isDisabled(), true, 'a reason is required');
+await refund.getByLabel('Why are you asking for a refund?').fill('Cannot attend');
+await refund.getByRole('button', { name: 'Send refund request' }).click();
+await refund.getByText('Waiting for the organizer').first().waitFor();
+await refund.getByRole('button', { name: 'Withdraw request' }).click();
+await refund.getByText('Withdrawn').first().waitFor();
+await refund.getByRole('button', { name: 'Request a refund' }).click();
+await refund.getByLabel('Why are you asking for a refund?').fill('Cannot attend');
+await refund.getByRole('button', { name: 'Send refund request' }).click();
+await refund.getByText('Waiting for the organizer').first().waitFor();
+refunds['order-1'].request = refundRequest('order-1', 'APPROVED', { decidedAt: day(0) });
+await page.reload();
+await page.getByRole('region', { name: 'Refund' }).getByText('Approved, refund in progress').first().waitFor();
+refunds['order-1'].request = refundRequest('order-1', 'REFUNDED', { decidedAt: day(0) });
+await page.reload();
+await page.getByRole('region', { name: 'Refund' }).getByText('Refunded').first().waitFor();
+refunds['order-1'] = { canRequest: true, origin: 'BUYER', deadline: day(1),
+  request: refundRequest('order-1', 'REJECTED', { decisionNote: 'Outside the refund policy', decidedAt: day(0) }) };
+await page.reload();
+await page.getByRole('region', { name: 'Refund' }).getByText('Outside the refund policy').waitFor();
+refunds['order-1'] = { canRequest: false, blockedReason: 'TICKET_USED', request: null };
+await page.reload();
+await page.getByText('A ticket from this order was already used', { exact: false }).waitFor();
+assert.equal(await page.getByRole('button', { name: 'Request a refund' }).count(), 0, 'no request after a ticket was used');
+
+// A postponed event: a banner leads to the options page, where the buyer keeps the ticket or asks for a refund.
+disruptions = [{ concertId: 'later', concertTitle: 'Winter show', kind: 'POSTPONE', newEventDate: day(60) }];
+await page.goto(`${origin}/my-tickets`);
+await page.getByText('Winter show was postponed').waitFor();
+await page.getByRole('link', { name: 'See your options' }).click();
+await page.waitForURL('**/my-tickets/events/later/options');
+await page.getByRole('heading', { name: 'Your options for Winter show' }).waitFor();
+await page.getByRole('region', { name: 'Refund' }).getByRole('button', { name: 'Request a refund' }).waitFor();
+await page.getByRole('button', { name: 'Keep my ticket' }).click();
+await page.getByText('You are keeping your ticket for the new date.').waitFor();
+await page.goto(`${origin}/my-tickets`);
+await page.getByRole('heading', { name: 'My tickets' }).waitFor();
+assert.equal(await page.getByText('Winter show was postponed').count(), 0, 'keeping the ticket dismisses the banner');
+
+// A cancelled event: the buyer only sees the refund status and takes no action.
+disruptions = [{ concertId: 'soon', concertTitle: 'Riverside concert', kind: 'CANCEL' }];
+await page.goto(`${origin}/my-tickets/soon-1`);
+await page.getByText('Riverside concert was cancelled').waitFor();
+await page.getByRole('link', { name: 'See your options' }).click();
+await page.getByText('Refund approved').waitFor();
+assert.equal(await page.getByRole('button', { name: 'Request a refund' }).count(), 0, 'cancelled events need no request');
+disruptions = [];
 
 ticketStatus = 503;
 await page.goto(`${origin}/my-tickets/soon-1`);

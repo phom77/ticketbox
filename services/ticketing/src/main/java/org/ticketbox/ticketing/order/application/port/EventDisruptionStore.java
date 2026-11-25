@@ -14,6 +14,8 @@ public interface EventDisruptionStore {
     record Impact(List<Item> content, int page, int size, long totalElements, int totalPages) {}
 
     boolean accept(Operation operation);
+    /** True once a postponement or cancellation was accepted for the event. */
+    boolean disrupted(UUID concertId);
     Impact impact(UUID concert, UUID operation, int page, int size);
     List<Notice> notices();
     void enqueueRefunds();
