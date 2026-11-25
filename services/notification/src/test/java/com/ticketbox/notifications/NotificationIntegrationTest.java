@@ -310,6 +310,29 @@ class NotificationIntegrationTest {
     }
 
     @Test
+    void refundRequestCommandsCreateAppAndEmailMessagesWithTheOrganizerNote() throws Exception {
+        UUID buyer = UUID.randomUUID(), request = UUID.randomUUID();
+        for (String change : List.of("received", "approved", "rejected")) {
+            var command = new HashMap<String, Object>(event(UUID.randomUUID(), buyer));
+            command.put("eventType", "ticketing.refund-request-" + change);
+            command.put("aggregateId", request);
+            var payload = new HashMap<String, Object>(Map.of("refundRequestId", request, "orderId", UUID.randomUUID(),
+                    "concertId", UUID.randomUUID(), "concertTitle", "Fixture", "orderReference", "DH-10000017"));
+            if (change.equals("rejected")) payload.put("note", "Outside the refund policy");
+            command.put("payload", payload);
+            publish(command);
+        }
+        await().atMost(Duration.ofSeconds(15)).untilAsserted(() -> {
+            assertThat(db.queryForObject("SELECT count(*) FROM notifications WHERE user_id=?", Integer.class, buyer)).isEqualTo(6);
+            assertThat(db.queryForList("SELECT DISTINCT event_type FROM notifications WHERE user_id=?", String.class, buyer))
+                    .containsExactlyInAnyOrder("REFUND_REQUEST_RECEIVED", "REFUND_REQUEST_APPROVED", "REFUND_REQUEST_REJECTED");
+        });
+        assertThat(db.queryForObject("SELECT body FROM notifications WHERE user_id=? AND channel='EMAIL'"
+                + " AND event_type='REFUND_REQUEST_REJECTED'", String.class, buyer))
+                .contains("Fixture", "DH-10000017", "Outside the refund policy");
+    }
+
+    @Test
     void existingTemplatedOrderBodiesAreCleanedOnReadAndRetry() throws Exception {
         UUID user = UUID.randomUUID(), order = UUID.randomUUID(), staff = UUID.randomUUID();
         String payment = "Order " + order + " was paid successfully. Total: 250000 VND. Open My Tickets to view your tickets and QR codes.";

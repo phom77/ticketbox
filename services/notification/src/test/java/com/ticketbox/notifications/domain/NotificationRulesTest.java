@@ -67,6 +67,28 @@ class NotificationRulesTest {
                 "Concert", null, "", "", null, other, role);
     }
 
+    private static NotificationCommand refundRequest(String change, UUID event, UUID user, UUID request, String note) {
+        return new NotificationCommand(1, event, "ticketing.refund-request-" + change, OffsetDateTime.now(), user, request,
+                "correlation", request, "Concert", null, "", "", "DH-10000017", null, null, note);
+    }
+
+    @Test
+    void refundRequestMessagesAreStablePerChangeAndRejectionNeedsANote() {
+        UUID event = UUID.randomUUID(), user = UUID.randomUUID(), request = UUID.randomUUID();
+        var received = refundRequest("received", event, user, request, null);
+        assertTrue(received.refundRequest());
+        assertEquals("received", received.refundRequestChange());
+        var app = Notification.compose(received, Notification.Channel.APP, "S", "B");
+        assertEquals("REFUND_REQUEST_RECEIVED", app.eventType());
+        assertEquals(app.messageId(), Notification.compose(received, Notification.Channel.APP, "S", "B").messageId());
+        var approved = refundRequest("approved", UUID.randomUUID(), user, request, null);
+        assertNotEquals(app.messageId(), Notification.compose(approved, Notification.Channel.APP, "S", "B").messageId());
+        assertEquals("REFUND_REQUEST_SUBMITTED", Notification.compose(
+                refundRequest("submitted", UUID.randomUUID(), user, request, null), Notification.Channel.APP, "S", "B").eventType());
+        assertThrows(IllegalArgumentException.class, () -> refundRequest("rejected", event, user, request, " "));
+        assertEquals("Outside policy", refundRequest("rejected", event, user, request, "Outside policy").note());
+    }
+
     @Test
     void transferMessagesAreStablePerPersonAndChange() {
         UUID event = UUID.randomUUID(), user = UUID.randomUUID(), transfer = UUID.randomUUID();
