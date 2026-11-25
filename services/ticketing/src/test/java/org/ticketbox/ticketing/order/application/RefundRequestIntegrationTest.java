@@ -4,19 +4,32 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+
+import com.sun.net.httpserver.HttpServer;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.ApplicationContext;
+import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.client.RestClient;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.containers.RabbitMQContainer;
@@ -30,9 +43,15 @@ import org.ticketbox.ticketing.infrastructure.integration.payment.PaymentRemoteC
 import org.ticketbox.ticketing.issuance.application.TicketTransferService;
 import org.ticketbox.ticketing.order.application.port.RefundProviders;
 import org.ticketbox.ticketing.payment.application.port.PaymentGatewayClient;
+import org.ticketbox.ticketing.web.GlobalExceptionHandler;
+import org.ticketbox.ticketing.web.security.OrganizationAccess;
+
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -59,6 +78,8 @@ class RefundRequestIntegrationTest {
     @Autowired private RefundOrderEffects effects;
     @Autowired private TicketTransferService transfers;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private ApplicationContext context;
+    @Autowired @Qualifier("serviceClient") private RestClient serviceClient;
     @MockBean private RefundProviders providers;
     @MockBean private PaymentRemoteClient payment;
     @MockBean private UserContactPort identity;
@@ -187,6 +208,10 @@ class RefundRequestIntegrationTest {
         assertThat(command.getValue().origin()).isEqualTo("POSTPONEMENT");
         assertThat(command.getValue().actorId()).isEqualTo(buyer);
         assertThat(jdbc.queryForObject("SELECT payment_case_id FROM refund_requests WHERE id=?", UUID.class, created.id())).isNotNull();
+        // The buyer is told the request was approved; nothing says it waits for the organizer.
+        String notified = "SELECT count(*) FROM event_publication WHERE serialized_event LIKE ? AND serialized_event LIKE ?";
+        assertThat(jdbc.queryForObject(notified, Integer.class, "%" + created.id() + "%", "%refund-request-approved%")).isEqualTo(1);
+        assertThat(jdbc.queryForObject(notified, Integer.class, "%" + created.id() + "%", "%refund-request-received%")).isZero();
     }
 
     @Test
@@ -294,6 +319,83 @@ class RefundRequestIntegrationTest {
         });
         prepared(cancelled, UUID.randomUUID());
         assertThat(options.options(buyer, cancelled.concert).orders().getFirst().refundStage()).isEqualTo("APPROVED");
+    }
+
+
+    @Test
+    void organizerEndpointsNeedTheFinanceGrantInTheRequestsOrganization() throws Exception {
+        var fixture = order("3 days");
+        var created = requests.request(buyer, fixture.order, "Cannot attend");
+        UUID eventsOnly = UUID.randomUUID();
+        UUID outsider = UUID.randomUUID();
+        UUID otherOrganization = UUID.randomUUID();
+        // Identity's organization access contract: the caller's grants in the selected organization, 403 for non-members.
+        Map<String, String> grants = Map.of(
+                organizer + "/" + organization, "[\"FINANCE\"]",
+                eventsOnly + "/" + organization, "[\"EVENTS\"]",
+                outsider + "/" + otherOrganization, "[\"FINANCE\"]");
+        HttpServer identityServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        identityServer.createContext("/internal/split/v1/organization-access/", exchange -> {
+            String account = exchange.getRequestHeaders().getFirst("Authorization").substring("Bearer ".length());
+            String path = exchange.getRequestURI().getPath();
+            String selected = path.substring(path.lastIndexOf('/') + 1);
+            String granted = grants.get(account + "/" + selected);
+            if (granted == null) {
+                exchange.sendResponseHeaders(403, -1);
+            } else {
+                byte[] body = ("{\"accountId\":\"" + account + "\",\"organizationId\":\"" + selected
+                        + "\",\"grants\":" + granted + "}").getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().add("Content-Type", "application/json");
+                exchange.sendResponseHeaders(200, body.length);
+                exchange.getResponseBody().write(body);
+            }
+            exchange.close();
+        });
+        identityServer.start();
+        try {
+            MockMvc web = MockMvcBuilders.standaloneSetup(context.getBean("refundRequestController"))
+                    .addInterceptors(new OrganizationAccess(serviceClient,
+                            "http://127.0.0.1:" + identityServer.getAddress().getPort()))
+                    .setControllerAdvice(new GlobalExceptionHandler()).build();
+            String list = "/api/organizer/manage/refund-requests";
+            String approve = list + "/" + created.id() + "/approve";
+            String reject = list + "/" + created.id() + "/reject";
+
+            // A member without FINANCE, and a non-member selecting this organization, are refused before any change.
+            for (UUID caller : List.of(eventsOnly, outsider)) {
+                assertThat(status(web, get(list), caller, organization)).isEqualTo(403);
+                assertThat(status(web, post(approve), caller, organization)).isEqualTo(403);
+                assertThat(status(web, post(reject).contentType(MediaType.APPLICATION_JSON).content("{\"note\":\"no\"}"),
+                        caller, organization)).isEqualTo(403);
+            }
+            // FINANCE in another organization does not reach this organization's requests.
+            var outside = web.perform(as(get(list), outsider, otherOrganization)).andReturn().getResponse();
+            assertThat(outside.getStatus()).isEqualTo(200);
+            assertThat(outside.getContentAsString()).doesNotContain(created.id().toString());
+            assertThat(status(web, post(approve), outsider, otherOrganization)).isEqualTo(404);
+            assertThat(status(web, post(reject).contentType(MediaType.APPLICATION_JSON).content("{\"note\":\"no\"}"),
+                    outsider, otherOrganization)).isEqualTo(404);
+            assertThat(status(created.id())).isEqualTo("REQUESTED");
+            verify(providers, never()).apply(any(), any());
+
+            var mine = web.perform(as(get(list), organizer, organization)).andReturn().getResponse();
+            assertThat(mine.getStatus()).isEqualTo(200);
+            assertThat(mine.getContentAsString()).contains(created.id().toString());
+            assertThat(status(web, post(approve), organizer, organization)).isEqualTo(200);
+            assertThat(status(created.id())).isEqualTo("APPROVED");
+        } finally {
+            identityServer.stop(0);
+        }
+    }
+
+    private static MockHttpServletRequestBuilder as(MockHttpServletRequestBuilder request, UUID account, UUID organization) {
+        return request.header("Authorization", "Bearer " + account).header("X-Organization-Id", organization.toString())
+                .principal(new UsernamePasswordAuthenticationToken(account.toString(), null, List.of()));
+    }
+
+    private static int status(MockMvc web, MockHttpServletRequestBuilder request, UUID account, UUID organization)
+            throws Exception {
+        return web.perform(as(request, account, organization)).andReturn().getResponse().getStatus();
     }
 
     private void prepared(Fixture fixture, UUID caseId) {

@@ -359,6 +359,16 @@ class PaymentIntegrationTest {
         refunds.apply(i.orderId(), refund(UUID.randomUUID(), approver, opened.id(), "BEGIN_APPROVAL", null, null));
     }
 
+    @Test
+    void operatorRefundActionsKeepTheFingerprintRecordedBeforeOriginExisted() throws Exception {
+        UUID action = UUID.fromString("00000000-0000-0000-0000-000000000001");
+        UUID actor = UUID.fromString("00000000-0000-0000-0000-000000000002");
+        var command = refund(action, actor, null, "REQUEST", null, null);
+        assertThat(json.writeValueAsString(command)).isEqualTo("{\"actionId\":\"" + action + "\",\"actorId\":\"" + actor
+                + "\",\"caseId\":null,\"action\":\"REQUEST\",\"detail\":\"Fixture reason\",\"amount\":null,"
+                + "\"externalReference\":null,\"occurredAt\":null}");
+    }
+
     private static com.ticketbox.payments.application.port.RefundCases.Command refund(
             UUID action, UUID actor, UUID caseId, String kind, Long amount, String reference) {
         return new com.ticketbox.payments.application.port.RefundCases.Command(action, actor, caseId,
