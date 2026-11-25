@@ -2,7 +2,7 @@
 
 ## 1. Decision
 
-- [ ] 1.1 Accept ADR 0004 (restock on confirmed refund). The restock task waits for this.
+- [x] 1.1 Accept ADR 0004 (restock on confirmed refund). The restock task waits for this.
 
 ## 2. Ticketing
 

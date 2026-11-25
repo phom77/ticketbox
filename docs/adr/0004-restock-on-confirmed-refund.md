@@ -1,6 +1,6 @@
 # ADR 0004: Return refunded seats to sale
 
-- **Status:** Proposed (buyer-refund-requests)
+- **Status:** Accepted (buyer-refund-requests, approved by the product owner on 2026-11-25)
 - **Date:** 2026-11-25
 
 ## Context
