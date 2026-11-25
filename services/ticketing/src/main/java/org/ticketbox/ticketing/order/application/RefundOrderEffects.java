@@ -13,7 +13,11 @@ import org.ticketbox.ticketing.order.application.port.OrderRepository;
 import org.ticketbox.ticketing.order.application.port.RefundPreparationStore;
 import org.ticketbox.ticketing.order.application.port.RefundPreparationStore.Preparation;
 import org.ticketbox.ticketing.order.application.port.RefundPreparationStore.State;
+import org.ticketbox.ticketing.order.application.port.EventDisruptionStore;
 import org.ticketbox.ticketing.order.application.port.RefundRequestStore;
+import org.ticketbox.ticketing.application.port.catalog.ConcertOrderPort;
+import org.ticketbox.ticketing.inventory.hold.application.port.PurchaseLock;
+import org.ticketbox.ticketing.performance.application.port.PerformanceStock;
 import org.ticketbox.ticketing.order.domain.RefundRequest;
 import org.ticketbox.ticketing.order.domain.Order;
 
@@ -36,17 +40,28 @@ public class RefundOrderEffects {
     private final TicketRepository tickets;
     private final RefundPreparationStore refunds;
     private final RefundRequestStore requests;
+    private final OrderService orderService;
+    private final PerformanceStock performanceStock;
+    private final ConcertOrderPort concerts;
+    private final EventDisruptionStore disruptions;
+    private final PurchaseLock purchaseGuard;
     private final ApplicationEventPublisher publications;
 
     public RefundOrderEffects(OrderRepository orders, OrderEventRepository events, OrderItemRepository lines,
             TicketRepository tickets, RefundPreparationStore refunds, RefundRequestStore requests,
-            ApplicationEventPublisher publications) {
+            OrderService orderService, PerformanceStock performanceStock, ConcertOrderPort concerts,
+            EventDisruptionStore disruptions, PurchaseLock purchaseGuard, ApplicationEventPublisher publications) {
         this.orders = orders;
         this.events = events;
         this.lines = lines;
         this.tickets = tickets;
         this.refunds = refunds;
         this.requests = requests;
+        this.orderService = orderService;
+        this.performanceStock = performanceStock;
+        this.concerts = concerts;
+        this.disruptions = disruptions;
+        this.purchaseGuard = purchaseGuard;
         this.publications = publications;
     }
 
@@ -111,6 +126,7 @@ public class RefundOrderEffects {
             events.record(order, version, OrderEventRepository.Transition.OrderRefunded);
             issued.forEach(ticket -> ticket.setStatus(Ticket.Status.CANCELLED));
             closeRequest(order.getId(), result);
+            restock(order, result.caseId());
         } else {
             refunds.finish(result.caseId(), State.CONFIRMED, result.reference());
         }
@@ -118,6 +134,30 @@ public class RefundOrderEffects {
         if (order.getReferenceCode() != null) payload.put("orderReference", order.getReferenceCode());
         publications.publishEvent(new com.ticketbox.shared.event.RemoteNotificationRequested(1, "ticketing.order-refunded",
                 result.caseId(), order.getId(), order.getUserId(), result.occurredAt(), result.caseId().toString(), payload));
+    }
+
+    /**
+     * ADR 0004: a confirmed refund returns the order's seats or quantity to sale while the performance is on sale, not
+     * disrupted and before its sale end. The per-account quota needs no change: it counts only awaiting-payment and paid
+     * orders, so the refunded order stops counting when it becomes REFUNDED. The caller applies this once, in the
+     * transaction that cancels the tickets; a replayed result returns before reaching it.
+     */
+    private void restock(Order order, UUID caseId) {
+        if (!saleOpen(order)) return;
+        purchaseGuard.lock(order.getUserId(), order.getConcertId());
+        orderService.releasePendingAllocations(order, lines.findByOrderId(order.getId()));
+        refunds.markStockReleased(caseId);
+    }
+
+    private boolean saleOpen(Order order) {
+        OffsetDateTime now = OffsetDateTime.now();
+        if (disruptions.disrupted(order.getConcertId())) return false;
+        if (order.getPerformanceId() != null) {
+            return performanceStock.sale(order.getPerformanceId(), false).filter(sale -> sale.onSale() && !sale.suspended()
+                    && sale.saleEndAt() != null && now.isBefore(sale.saleEndAt())).isPresent();
+        }
+        return concerts.findConcertById(order.getConcertId()).filter(concert -> "ON_SALE".equals(concert.status())
+                && concert.saleEndAt() != null && now.isBefore(concert.saleEndAt())).isPresent();
     }
 
     /** The request that led to this case, or any open request when an operator refunded the order directly. */

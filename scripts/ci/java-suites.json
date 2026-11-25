@@ -118,6 +118,12 @@
         "org.ticketbox.ticketing.issuance.application.TicketTransferIntegrationTest": [],
         "org.ticketbox.ticketing.issuance.domain.TicketTransferTest": []
       },
+      "refund-restock": {
+        "org.ticketbox.ticketing.order.application.OrderConcurrencyIntegrationTest": [
+          "confirmedRefundReturnsSeatPoolAndQuotaToSaleExactlyOnce",
+          "confirmedRefundKeepsStockUnchangedAfterSaleEndOrWhenTheEventIsDisrupted"
+        ]
+      },
       "refund-requests": {
         "org.ticketbox.ticketing.order.application.RefundRequestIntegrationTest": [],
         "org.ticketbox.ticketing.order.domain.RefundRequestTest": [],

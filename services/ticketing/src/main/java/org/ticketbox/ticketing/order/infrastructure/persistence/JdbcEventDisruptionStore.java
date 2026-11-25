@@ -24,6 +24,11 @@ class JdbcEventDisruptionStore implements EventDisruptionStore {
 
     JdbcEventDisruptionStore(JdbcTemplate db) { this.db = db; }
 
+    public boolean disrupted(UUID concertId) {
+        return Boolean.TRUE.equals(db.queryForObject("SELECT EXISTS (SELECT 1 FROM event_disruptions WHERE concert_id=?)",
+                Boolean.class, concertId));
+    }
+
     public boolean accept(Operation operation) {
         db.update("""
                 INSERT INTO event_disruptions(id,concert_id,kind,reason,actor_id,event_date)

@@ -219,7 +219,9 @@ class RefundRequestIntegrationTest {
         effects.apply(result);
         assertThat(status(request.id())).isEqualTo("REFUNDED");
         assertThat(jdbc.queryForObject("SELECT status FROM tickets WHERE id=?", String.class, confirmed.ticket)).isEqualTo("CANCELLED");
+        assertThat(available(confirmed)).isEqualTo(10);
         effects.apply(result);
+        assertThat(available(confirmed)).isEqualTo(10);
         assertThat(status(request.id())).isEqualTo("REFUNDED");
 
         var aborted = order("3 days");
@@ -233,6 +235,24 @@ class RefundRequestIntegrationTest {
         effects.apply(abort);
         assertThat(status(second.id())).isEqualTo("FAILED");
         assertThat(jdbc.queryForObject("SELECT status FROM tickets WHERE id=?", String.class, aborted.ticket)).isEqualTo("VALID");
+        assertThat(available(aborted)).isEqualTo(9);
+    }
+
+    @Test
+    void aGeneralAdmissionRefundDoesNotRestockAClosedSale() {
+        var closed = order("3 days");
+        jdbc.update("UPDATE concerts SET sale_end_at = now() - interval '1 minute' WHERE id=?", closed.concert);
+        UUID caseId = UUID.randomUUID();
+        prepared(closed, caseId);
+        effects.apply(new RefundOrderEffects.Result(1, caseId, closed.order, "CONFIRMED", 100000, "MOCK", "pay-" + closed.order,
+                "bank-ref-2", OffsetDateTime.now(), false));
+        assertThat(jdbc.queryForObject("SELECT status FROM tickets WHERE id=?", String.class, closed.ticket)).isEqualTo("CANCELLED");
+        assertThat(available(closed)).isEqualTo(9);
+    }
+
+    private int available(Fixture fixture) {
+        return jdbc.queryForObject("SELECT i.available_qty FROM ticket_inventory i JOIN ticket_types t ON t.id=i.ticket_type_id"
+                + " WHERE t.concert_id=?", Integer.class, fixture.concert);
     }
 
     @Test
@@ -271,6 +291,7 @@ class RefundRequestIntegrationTest {
                 """, concert, "Refund proof", "Venue", "Address", doorsIn, doorsIn, UUID.randomUUID(), organization);
         jdbc.update("INSERT INTO ticket_types(id,concert_id,name,price,total_quantity,available_qty,max_per_account,zone_color,is_active)"
                 + " VALUES(?,?,'General',100000,10,9,4,'#123456',true)", type, concert);
+        jdbc.update("INSERT INTO ticket_inventory(ticket_type_id,total_quantity,available_qty,active) VALUES (?,10,9,true)", type);
         jdbc.update("INSERT INTO orders(id,user_id,concert_id,status,total_amount,idempotency_key,paid_at,payment_provider,payment_ref)"
                 + " VALUES(?,?,?,'PAID',100000,?,now(),'MOCK',?)", order, buyer, concert, UUID.randomUUID().toString(), "pay-" + order);
         jdbc.update("INSERT INTO order_items(id,order_id,ticket_type_id,quantity,unit_price,subtotal) VALUES(?,?,?,1,100000,100000)",
