@@ -17,6 +17,7 @@ import {
 } from '../../features/account/orders';
 import { orderView } from '../../features/event/eventView';
 import { seatDescription } from '../../features/performance/checkoutPresentation';
+import { OrderTransfers } from './OrderTransfers';
 import './OrderDetailPage.css';
 
 const dateTime = dateFormatter({ dateStyle: 'medium', timeStyle: 'short' });
@@ -204,6 +205,7 @@ function OrderDetail({ orderId }: { orderId: string }) {
                 </li>
               ))}
             </ul>
+            {status === 'PAID' ? <OrderTransfers orderId={order.id} /> : null}
             <div className="buyer-order-total order-detail-total">
               <span>{t('customer:profilePage_orderTotal')}</span>
               <strong>{currency.format(order.totalAmount)}</strong>
