@@ -114,6 +114,21 @@
       "vietnamese-pdfs": {
         "org.ticketbox.ticketing.reporting.VietnamesePdfTest": []
       },
+      "ticket-transfer": {
+        "org.ticketbox.ticketing.issuance.application.TicketTransferIntegrationTest": [],
+        "org.ticketbox.ticketing.issuance.domain.TicketTransferTest": []
+      },
+      "refund-restock": {
+        "org.ticketbox.ticketing.order.application.OrderConcurrencyIntegrationTest": [
+          "confirmedRefundReturnsSeatPoolAndQuotaToSaleExactlyOnce",
+          "confirmedRefundKeepsStockUnchangedAfterSaleEndOrWhenTheEventIsDisrupted"
+        ]
+      },
+      "refund-requests": {
+        "org.ticketbox.ticketing.order.application.RefundRequestIntegrationTest": [],
+        "org.ticketbox.ticketing.order.domain.RefundRequestTest": [],
+        "org.ticketbox.ticketing.order.domain.RefundEligibilityTest": []
+      },
       "architecture": {
         "org.ticketbox.ticketing.architecture.ArchitectureTest": [
           "domainIsIndependentOfFrameworksAndOuterLayers",

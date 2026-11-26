@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { RemoteImage } from './RemoteImage';
 import { currency, dateFormatter } from '../data/formatters';
 import { eventSaleLabels, type ConcertSaleState } from '../features/concert/concertSale';
+import { categoryText } from '../features/discovery/categories';
 import { concertTimeZone } from '../features/discovery/filters';
 import './EventCard.css';
 
@@ -14,6 +15,7 @@ export type EventCardItem = {
   title: string;
   venue: string;
   city?: string | null;
+  category?: string | null;
   eventDate: string;
   status: ConcertSaleState;
   image: string | null;
@@ -71,6 +73,7 @@ export function EventCard({
     .join(' · ');
   const hasPrice = typeof event.minPrice === 'number' && event.status !== 'cancelled';
   const dates = event.performanceCount ?? 1;
+  const category = event.category ? categoryText(event.category, t) : '';
 
   return (
     <article className="concert-card">
@@ -115,8 +118,9 @@ export function EventCard({
               <MapPin aria-hidden="true" />
               {place}
             </p>
-            {hasPrice || dates > 1 ? (
+            {category || hasPrice || dates > 1 ? (
               <p className="concert-card-meta">
+                {category ? <span className="concert-card-category">{category}</span> : null}
                 {hasPrice ? (
                   <span className="concert-card-price">
                     {t('public:discovery_fromPrice', {

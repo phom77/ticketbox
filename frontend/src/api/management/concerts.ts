@@ -72,6 +72,30 @@ export function updateConcert(
   );
 }
 
+/** The category of the event mapped to a legacy concert; null when it has none. */
+export function getConcertCategory(
+  concertId: string,
+  signal?: AbortSignal,
+  scope: ManagementApiScope = 'admin',
+) {
+  return apiGet<{ category: string | null }>(
+    `${managementBase(scope)}/concerts/${encodeURIComponent(concertId)}/category`,
+    signal,
+  );
+}
+
+export function setConcertCategory(
+  concertId: string,
+  category: string | null,
+  scope: ManagementApiScope = 'admin',
+) {
+  return apiCommand<{ category: string | null }>(
+    'put',
+    `${managementBase(scope)}/concerts/${encodeURIComponent(concertId)}/category`,
+    { category },
+  );
+}
+
 export function updateConcertStatus(
   concertId: string,
   status: ConcertStatus,

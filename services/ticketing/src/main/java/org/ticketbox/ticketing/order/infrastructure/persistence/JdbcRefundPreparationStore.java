@@ -29,6 +29,10 @@ class JdbcRefundPreparationStore implements RefundPreparationStore {
                 preparation.caseId(), preparation.orderId(), ids, preparation.state().name(), preparation.compensation());
     }
 
+    public void markStockReleased(UUID caseId) {
+        db.update("UPDATE order_refunds SET stock_released=TRUE WHERE case_id=?", caseId);
+    }
+
     public void finish(UUID caseId, State state, String reference) {
         db.update("UPDATE order_refunds SET state=?,external_reference=? WHERE case_id=?", state.name(), reference, caseId);
     }

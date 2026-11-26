@@ -261,6 +261,23 @@ public class JdbcPerformanceStore implements PerformanceStore {
     }
 
     @Override
+    public Optional<ConcertCategory> legacyEventCategory(UUID concert, UUID organizer) {
+        return jdbc.query("""
+                SELECT e.category FROM events e JOIN concerts c ON c.id=e.legacy_concert_id
+                WHERE e.legacy_concert_id=? AND (?::uuid IS NULL OR c.organization_id=?)
+                """, (rs, row) -> new ConcertCategory(rs.getString("category")), concert, organizer, organizer)
+                .stream().findFirst();
+    }
+
+    @Override
+    public boolean updateLegacyEventCategory(UUID concert, UUID organizer, String category) {
+        return jdbc.update("""
+                UPDATE events e SET category=? FROM concerts c
+                WHERE c.id=e.legacy_concert_id AND e.legacy_concert_id=? AND (?::uuid IS NULL OR c.organization_id=?)
+                """, category, concert, organizer, organizer) > 0;
+    }
+
+    @Override
     public List<Venue> venues(UUID organizer) {
         return jdbc.query(venueSelect() + " WHERE v.organization_id=? ORDER BY v.name,v.id LIMIT 500",
                 this::venue, organizer);

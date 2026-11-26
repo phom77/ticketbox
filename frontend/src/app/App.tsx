@@ -25,6 +25,8 @@ import { PaymentResultPage } from '../pages/customer/PaymentResultPage';
 import { LegacyProfileRedirect, ProfilePage } from '../pages/customer/ProfilePage';
 import { OrderDetailPage } from '../pages/customer/OrderDetailPage';
 import { TicketDetailPage } from '../pages/customer/TicketDetailPage';
+import { TransferOfferPage } from '../pages/customer/TransferOfferPage';
+import { EventOptionsPage } from '../pages/customer/EventOptionsPage';
 import '../pages/public/Performances.css';
 import { TicketSelectionPage } from '../pages/customer/TicketSelectionPage';
 import { WaitingRoomPage } from '../pages/customer/WaitingRoomPage';
@@ -72,6 +74,10 @@ const AdminSettingsPage = lazyNamed(
 const OperationsReportsPage = lazyNamed(
   () => import('../pages/operations/OperationsReportsPage'),
   'OperationsReportsPage',
+);
+const RefundRequestsPage = lazyNamed(
+  () => import('../pages/organizer/RefundRequestsPage'),
+  'RefundRequestsPage',
 );
 const ReconciliationPage = lazyNamed(
   () => import('../pages/organizer/ReconciliationPage'),
@@ -203,6 +209,14 @@ export function App() {
               <Route path="/payment/result" element={audiencePage(<PaymentResultPage />)} />
               <Route path="/my-tickets" element={audiencePage(<MyTicketsPage />)} />
               <Route path="/notifications" element={audiencePage(<NotificationsPage />)} />
+              <Route
+                path="/my-tickets/transfers/:transferId"
+                element={audiencePage(<TransferOfferPage />)}
+              />
+              <Route
+                path="/my-tickets/events/:eventId/options"
+                element={audiencePage(<EventOptionsPage />)}
+              />
               <Route path="/my-tickets/:ticketId" element={audiencePage(<TicketDetailPage />)} />
               <Route path="/profile" element={<LegacyProfileRedirect />} />
               <Route path="/account" element={audiencePage(<ProfilePage />)} />
@@ -345,6 +359,14 @@ export function App() {
                 element={
                   <RequireOrganizationGrant grant="FINANCE">
                     <ReconciliationPage scope="organizer" />
+                  </RequireOrganizationGrant>
+                }
+              />
+              <Route
+                path="refund-requests"
+                element={
+                  <RequireOrganizationGrant grant="FINANCE">
+                    <RefundRequestsPage />
                   </RequireOrganizationGrant>
                 }
               />

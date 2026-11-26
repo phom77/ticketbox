@@ -12,6 +12,8 @@ export type ConcertFormState = {
   saleStartAt: string;
   saleEndAt: string;
   seatMapSvg: string;
+  /** A category id from `eventCategories`, or empty for none. */
+  category: string;
 };
 
 export const emptyForm: ConcertFormState = {
@@ -23,6 +25,7 @@ export const emptyForm: ConcertFormState = {
   saleStartAt: '',
   saleEndAt: '',
   seatMapSvg: '',
+  category: '',
 };
 
 function toLocalInput(value: string | null) {
@@ -42,6 +45,7 @@ export function formFromConcert(concert: ConcertDetail): ConcertFormState {
     saleStartAt: toLocalInput(concert.saleStartAt),
     saleEndAt: toLocalInput(concert.saleEndAt),
     seatMapSvg: concert.seatMapSvg ?? '',
+    category: '',
   };
 }
 

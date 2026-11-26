@@ -30,6 +30,12 @@ const ticketLabels: Record<string, string> = {
     return translate('admin:orderSupportSections_daChuyenNhuong');
   },
 };
+function originLabel(origin?: string | null) {
+  if (origin === 'BUYER') return translate('admin:orderSupportSections_originBuyer');
+  if (origin === 'POSTPONEMENT') return translate('admin:orderSupportSections_originPostponement');
+  return '';
+}
+
 const paymentLabels: Record<string, string> = {
   get CREATED() {
     return translate('admin:orderSupportSections_daTao');
@@ -255,7 +261,9 @@ export function OrderSupportSections(props: DetailScope) {
               rows={cases.map((item) => ({
                 id: item.id,
                 values: [
-                  paymentLabels[item.state] ?? item.state,
+                  [paymentLabels[item.state] ?? item.state, originLabel(item.origin)]
+                    .filter(Boolean)
+                    .join(' · '),
                   currency.format(item.amount),
                   item.externalReference || '—',
                   date(item.recordedAt),

@@ -24,6 +24,13 @@ public interface PaymentGatewayClient {
 
     record PaymentSupport(Attempt attempt, List<Review> cases) {}
     record Attempt(String state, String provider, long requestedAmount, String transactionId, java.time.OffsetDateTime verifiedAt) {}
+    /** {@code origin} is BUYER or POSTPONEMENT for cases opened from a buyer refund request, null for operator cases. */
     record Review(UUID id, String state, long amount, String externalReference, java.time.OffsetDateTime recordedAt,
-                  UUID requestedBy, UUID approvedBy, java.time.OffsetDateTime occurredAt) {}
+                  UUID requestedBy, UUID approvedBy, java.time.OffsetDateTime occurredAt, String origin,
+                  UUID refundRequestId) {
+        public Review(UUID id, String state, long amount, String externalReference, java.time.OffsetDateTime recordedAt,
+                      UUID requestedBy, UUID approvedBy, java.time.OffsetDateTime occurredAt) {
+            this(id, state, amount, externalReference, recordedAt, requestedBy, approvedBy, occurredAt, null, null);
+        }
+    }
 }

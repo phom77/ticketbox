@@ -12,4 +12,7 @@ public interface RefundPreparationStore {
     Optional<Preparation> find(UUID orderId);
     void insert(Preparation preparation);
     void finish(UUID caseId, State state, String reference);
+
+    /** Notes that the refund returned the order's seats or quantity to sale. */
+    void markStockReleased(UUID caseId);
 }

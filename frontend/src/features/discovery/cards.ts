@@ -22,6 +22,7 @@ export function eventCard(
     title: concertTitle(concert),
     venue: concert.venueName,
     city: concert.city,
+    category: concert.category,
     href: discoveryHref(concert),
     eventDate: concert.eventDate,
     image: concert.posterUrl,

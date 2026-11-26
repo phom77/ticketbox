@@ -3,9 +3,11 @@ import { ImagePlus, Map, X } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import { useTranslation } from 'react-i18next';
 import type { ConcertDetail } from '../../../api/concerts';
+import { WorkspaceSelect } from '../../../components/WorkspaceSelect';
 import { ModalPortal } from '../../../components/feedback/ModalPortal';
 import { useToast } from '../../../components/feedback/toast-context';
 import { ConcertTextFields } from '../../../features/concert/ConcertTextFields';
+import { eventCategories } from '../../../features/discovery/categories';
 import { translate } from '../../../i18n';
 import type { ConcertFormState } from './concertForm';
 
@@ -55,7 +57,9 @@ export function ConcertForm({
 
   const posterPreview = selectedPosterPreview ?? editing?.posterUrl ?? null;
 
-  const field = (name: Exclude<keyof ConcertFormState, 'original' | 'translations'>) => ({
+  const field = (
+    name: Exclude<keyof ConcertFormState, 'original' | 'translations' | 'category'>,
+  ) => ({
     value: form[name],
     onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       onChange({ ...form, [name]: event.target.value }),
@@ -120,6 +124,21 @@ export function ConcertForm({
               translations={form.translations}
               onChange={(text) => onChange({ ...form, ...text })}
             />
+            <label className="admin-field">
+              <span>{translate('performances:categoryOptional')}</span>
+              <WorkspaceSelect
+                label={translate('performances:categoryOptional')}
+                value={form.category}
+                options={[
+                  { value: '', label: translate('performances:categoryNone') },
+                  ...eventCategories.map((entry) => ({
+                    value: entry.id,
+                    label: translate(entry.label),
+                  })),
+                ]}
+                onChange={(category) => onChange({ ...form, category })}
+              />
+            </label>
             <label className="admin-field">
               <span>{translate('admin:adminConcertsPage_thoiGianDienRa')}</span>
               <input required type="datetime-local" {...field('eventDate')} />

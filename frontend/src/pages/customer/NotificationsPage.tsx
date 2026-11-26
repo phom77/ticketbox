@@ -28,6 +28,14 @@ const noticeLabels = new Map([
   ['ORDER_REFUNDED', 'notificationsPage_orderRefunded'],
   ['EVENT_CANCELLED', 'notificationsPage_eventCancelled'],
   ['EVENT_POSTPONED', 'notificationsPage_eventPostponed'],
+  ['TICKET_TRANSFER_OFFERED', 'notificationsPage_ticketTransfer'],
+  ['TICKET_TRANSFER_ACCEPTED', 'notificationsPage_ticketTransfer'],
+  ['TICKET_TRANSFER_DECLINED', 'notificationsPage_ticketTransfer'],
+  ['TICKET_TRANSFER_CANCELLED', 'notificationsPage_ticketTransfer'],
+  ['TICKET_TRANSFER_EXPIRED', 'notificationsPage_ticketTransfer'],
+  ['REFUND_REQUEST_RECEIVED', 'notificationsPage_refundRequest'],
+  ['REFUND_REQUEST_APPROVED', 'notificationsPage_refundRequest'],
+  ['REFUND_REQUEST_REJECTED', 'notificationsPage_refundRequest'],
 ]);
 
 export function NotificationsPage() {

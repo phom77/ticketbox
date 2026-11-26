@@ -731,5 +731,7 @@
   "adminGuestImportsPage_guestListLoadFailed": "Không thể tải danh sách khách mời.",
   "eventDisruptionPanel_confirmCancellation": "Tôi xác nhận hủy buổi diễn và dừng bán vé, check-in trực tuyến.",
   "eventDisruptionPanel_confirmPostponement": "Tôi xác nhận hoãn buổi diễn và dừng bán vé, check-in trực tuyến.",
-  "orderRefundActions_recordProviderRefund": "Hoàn tiền toàn bộ đơn qua {{provider}}, sau đó ghi mã tham chiếu và thời điểm hoàn tiền."
+  "orderRefundActions_recordProviderRefund": "Hoàn tiền toàn bộ đơn qua {{provider}}, sau đó ghi mã tham chiếu và thời điểm hoàn tiền.",
+  "orderSupportSections_originBuyer": "Yêu cầu của người mua",
+  "orderSupportSections_originPostponement": "Hoàn tiền do hoãn sự kiện"
 }

@@ -95,7 +95,8 @@ public class OrderSupportService {
         if (organization == null) return details;
         return new PaymentGatewayClient.PaymentSupport(details.attempt(), details.cases().stream()
                 .map(review -> new PaymentGatewayClient.Review(review.id(), review.state(), review.amount(),
-                        review.externalReference(), review.recordedAt(), null, null, review.occurredAt())).toList());
+                        review.externalReference(), review.recordedAt(), null, null, review.occurredAt(), review.origin(),
+                        review.refundRequestId())).toList());
     }
 
     public OrderSupportQueue.Page queue(OrderSupportQueue.Kind kind, int page, int size) {

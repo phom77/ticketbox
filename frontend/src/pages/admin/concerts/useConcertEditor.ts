@@ -1,8 +1,10 @@
-import { type FormEvent, useEffect, useState } from 'react';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   createConcert,
+  getConcertCategory,
   removeConcertPoster,
+  setConcertCategory,
   updateConcert,
   uploadConcertPoster,
   type ManagementApiScope,
@@ -36,6 +38,10 @@ export function useConcertEditor({
   const [owner, setOwner] = useState(requestedOwner);
   const [organizationsError, setOrganizationsError] = useState('');
   const [posterFile, setPosterFile] = useState<File | null>(null);
+  // The category the dialog opened with; the category is only written when it differs.
+  const [savedCategory, setSavedCategory] = useState('');
+  // The concert whose category is being read, so a late reply for another dialog is ignored.
+  const categoryFor = useRef<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [removingPoster, setRemovingPoster] = useState(false);
 
@@ -77,6 +83,8 @@ export function useConcertEditor({
   function openCreate() {
     setEditing(null);
     setForm(emptyForm);
+    categoryFor.current = null;
+    setSavedCategory('');
     setPosterFile(null);
     setOwner('');
     setFormOpen(true);
@@ -85,8 +93,18 @@ export function useConcertEditor({
   function openEdit(concert: ConcertDetail) {
     setEditing(concert);
     setForm(formFromConcert(concert));
+    categoryFor.current = concert.id;
+    setSavedCategory('');
     setPosterFile(null);
     setFormOpen(true);
+    void getConcertCategory(concert.id, undefined, apiScope)
+      .then((result) => {
+        if (categoryFor.current !== concert.id) return;
+        const category = result.category ?? '';
+        setSavedCategory(category);
+        setForm((current) => (current.category ? current : { ...current, category }));
+      })
+      .catch(() => undefined);
   }
 
   function closeForm() {
@@ -105,6 +123,21 @@ export function useConcertEditor({
         ? await updateConcert(editing.id, payload, apiScope)
         : await createConcert(payload, apiScope, owner);
 
+      let categoryFailed = false;
+      if (form.category !== savedCategory) {
+        try {
+          await setConcertCategory(result.data.id, form.category || null, apiScope);
+        } catch (categoryError) {
+          // The concert is saved; report the category and still apply a chosen poster.
+          toast.error(
+            categoryError instanceof Error
+              ? categoryError.message
+              : translate('admin:adminConcertsPage_khongTheLuuConcert'),
+          );
+          categoryFailed = true;
+        }
+      }
+
       if (posterFile) {
         try {
           await uploadConcertPoster(result.data.id, posterFile, apiScope);
@@ -122,13 +155,15 @@ export function useConcertEditor({
         }
       }
 
-      toast.success(
-        editing
-          ? translate('admin:adminConcertsPage_daCapNhatConcert')
-          : apiScope === 'admin'
-            ? translate('concert-directory:createdFor', { organization: ownerName })
-            : translate('admin:adminConcertsPage_daTaoConcertOTrangThaiBan'),
-      );
+      if (!categoryFailed) {
+        toast.success(
+          editing
+            ? translate('admin:adminConcertsPage_daCapNhatConcert')
+            : apiScope === 'admin'
+              ? translate('concert-directory:createdFor', { organization: ownerName })
+              : translate('admin:adminConcertsPage_daTaoConcertOTrangThaiBan'),
+        );
+      }
       closeForm();
       await loadConcerts();
     } catch (requestError) {

@@ -62,6 +62,8 @@ beforeEach(() => {
     } as never),
   );
   vi.mocked(admin.updateConcert).mockResolvedValue({ data: onSale } as never);
+  vi.mocked(admin.getConcertCategory).mockResolvedValue({ category: 'comedy' } as never);
+  vi.mocked(admin.setConcertCategory).mockResolvedValue({ data: { category: 'sports' } } as never);
   vi.mocked(admin.updateConcertStatus).mockResolvedValue({} as never);
   vi.mocked(admin.deleteConcert).mockResolvedValue({} as never);
   vi.mocked(organizations.getApprovedOrganizations).mockResolvedValue([
@@ -113,6 +115,23 @@ describe('AdminConcertsPage', () => {
     expect(await screen.findByText("I've updated the concert.")).toBeInTheDocument();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(admin.getAdminConcerts).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows the mapped event category and saves a new one', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: 'Edit Autumn Jazz Night' }));
+    const dialog = screen.getByRole('dialog', { name: 'Autumn Jazz Night' });
+    const select = within(dialog).getByRole('combobox', { name: 'Category (optional)' });
+    await waitFor(() => expect(select).toHaveTextContent('Comedy'));
+    await user.click(select);
+    await user.click(screen.getByRole('option', { name: 'Sports' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() =>
+      expect(admin.setConcertCategory).toHaveBeenCalledWith('c1', 'sports', 'admin'),
+    );
   });
 
   it('rejects a poster that is not JPEG, PNG or WebP', async () => {

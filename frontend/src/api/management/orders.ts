@@ -68,6 +68,9 @@ export type RefundReview = {
   recordedAt: string | null;
   requestedBy: string | null;
   approvedBy: string | null;
+  /** Set when the case was opened from a buyer refund request; absent for operator cases. */
+  origin?: 'BUYER' | 'POSTPONEMENT' | null;
+  refundRequestId?: string | null;
 };
 
 export type RefundDecision = 'REQUEST' | 'APPROVE' | 'CONFIRM' | 'ABORT';

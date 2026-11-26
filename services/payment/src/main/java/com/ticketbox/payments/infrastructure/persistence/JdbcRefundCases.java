@@ -29,6 +29,11 @@ class JdbcRefundCases implements RefundCases {
                 || command.detail() == null || command.detail().isBlank() || command.detail().length() > 1000) {
             throw invalid("Refund action, actor and reason are required");
         }
+        if ((command.origin() == null) != (command.refundRequestId() == null)
+                || (command.origin() != null && !List.of("BUYER", "POSTPONEMENT").contains(command.origin()))
+                || (command.origin() != null && command.action() != Action.REQUEST)) {
+            throw invalid("Refund origin needs a known value, a request id and the request action");
+        }
         Receipt receipt = lockReceipt(order);
         Case existing = current(receipt);
         String fingerprint = fingerprint(command);
@@ -72,12 +77,14 @@ class JdbcRefundCases implements RefundCases {
 
     private Case current(Receipt receipt) {
         return db.query("""
-                SELECT request_id,state,amount,requested_by,approved_by,external_reference,provider_refunded_at
+                SELECT request_id,state,amount,requested_by,approved_by,external_reference,provider_refunded_at,
+                    origin,refund_request_id
                 FROM refund_reviews WHERE provider=? AND transaction_id=?
                 """, (row, n) -> new Case(row.getObject("request_id", UUID.class), receipt.order(), row.getString("state"),
                 row.getLong("amount"), row.getObject("requested_by", UUID.class), row.getObject("approved_by", UUID.class),
                 receipt.provider(), receipt.transaction(), row.getString("external_reference"),
-                row.getObject("provider_refunded_at", OffsetDateTime.class), receipt.compensation()),
+                row.getObject("provider_refunded_at", OffsetDateTime.class), receipt.compensation(),
+                row.getString("origin"), row.getObject("refund_request_id", UUID.class)),
                 receipt.provider(), receipt.transaction()).stream().findFirst().orElse(null);
     }
 
@@ -86,14 +93,15 @@ class JdbcRefundCases implements RefundCases {
             if (!"REVIEW_REQUIRED".equals(existing.state()) || existing.requestedBy() != null) {
                 throw conflict("A refund case already exists for this collection");
             }
-            db.update("UPDATE refund_reviews SET requested_by=?, state='REQUESTED' WHERE request_id=?",
-                    command.actorId(), existing.id());
+            db.update("UPDATE refund_reviews SET requested_by=?, state='REQUESTED', origin=?, refund_request_id=? WHERE request_id=?",
+                    command.actorId(), command.origin(), command.refundRequestId(), existing.id());
         } else {
             db.update("""
-                    INSERT INTO refund_reviews(request_id,intent_id,order_id,provider,transaction_id,amount,state,reason,requested_by)
-                    VALUES (?,?,?,?,?,?,'REQUESTED',?,?)
+                    INSERT INTO refund_reviews(request_id,intent_id,order_id,provider,transaction_id,amount,state,reason,requested_by,
+                        origin,refund_request_id)
+                    VALUES (?,?,?,?,?,?,'REQUESTED',?,?,?,?)
                     """, UUID.randomUUID(), receipt.intent(), receipt.order(), receipt.provider(), receipt.transaction(),
-                    receipt.amount(), command.detail(), command.actorId());
+                    receipt.amount(), command.detail(), command.actorId(), command.origin(), command.refundRequestId());
         }
     }
 
@@ -152,6 +160,8 @@ class JdbcRefundCases implements RefundCases {
 
     private String fingerprint(Command command) {
         try {
+            // The origin fields are omitted when null (see RefundCases.Command), so fingerprints of actions
+            // recorded before they existed stay valid.
             return json.writeValueAsString(command);
         } catch (JsonProcessingException failure) {
             throw new IllegalStateException("Refund action cannot be encoded", failure);

@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.ticketbox.catalog.application.error.AppException;
 import org.ticketbox.catalog.application.error.ErrorCode;
 import org.ticketbox.catalog.performance.application.PerformanceViews.*;
+import org.ticketbox.catalog.performance.domain.EventCategory;
 import org.ticketbox.catalog.performance.domain.PerformanceLayout;
 import org.ticketbox.catalog.performance.domain.PerformanceRules;
 import org.ticketbox.catalog.performance.domain.PerformanceSale;
@@ -64,9 +65,9 @@ public class PerformanceCatalog {
 
     @Transactional
     public Event createEvent(UUID owner, String title, String description, String category) {
-        validateEvent(title, description, category);
+        String stored = validateEvent(title, description, category);
         UUID id = UUID.randomUUID();
-        store.createEvent(id, owner, title.trim(), description, category);
+        store.createEvent(id, owner, title.trim(), description, stored);
         return event(id, owner);
     }
 
@@ -75,15 +76,37 @@ public class PerformanceCatalog {
         long current = store.lockNativeEventVersion(id, owner).orElseThrow(PerformanceCatalog::missing);
         require(!store.hasReleasedPerformances(id), "error.performance.event-draft-locked");
         requireDraftVersion(expected, current);
-        validateEvent(title, description, category);
-        store.updateDraftEvent(id, title.trim(), description, category);
+        String stored = validateEvent(title, description, category);
+        store.updateDraftEvent(id, title.trim(), description, stored);
         return event(id, owner);
     }
 
-    private static void validateEvent(String title, String description, String category) {
-        require(PerformanceRules.text(title, 500) && (description == null || description.length() <= 60_000)
-                        && (category == null || PerformanceRules.text(category, 100)),
+    /** The category of the event mapped to a legacy concert; `owner` is null for an admin. */
+    @Transactional(readOnly = true)
+    public ConcertCategory legacyEventCategory(UUID concert, UUID owner) {
+        return store.legacyEventCategory(concert, owner).orElseThrow(PerformanceCatalog::missing);
+    }
+
+    @Transactional
+    public ConcertCategory setLegacyEventCategory(UUID concert, UUID owner, String category) {
+        String stored = validCategory(category);
+        require(stored != null || category == null || category.isBlank(), "error.performance.invalid-category");
+        if (!store.updateLegacyEventCategory(concert, owner, stored)) throw missing();
+        return new ConcertCategory(stored);
+    }
+
+    /** Returns the category to store: null for none, otherwise a known id. */
+    private static String validCategory(String category) {
+        if (category == null || category.isBlank()) return null;
+        return EventCategory.parse(category.strip()).map(EventCategory::id).orElse(null);
+    }
+
+    private static String validateEvent(String title, String description, String category) {
+        String stored = validCategory(category);
+        require(PerformanceRules.text(title, 500) && (description == null || description.length() <= 60_000),
                 "error.performance.invalid-event");
+        require(stored != null || category == null || category.isBlank(), "error.performance.invalid-category");
+        return stored;
     }
 
     @Transactional(readOnly = true)
