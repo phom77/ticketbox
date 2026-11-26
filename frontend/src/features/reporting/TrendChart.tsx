@@ -48,13 +48,17 @@ export function TrendChart({ points }: { points: TrendPoint[] }) {
       </div>
     );
 
+  // Scale over [min(0, ...), max(1, ...)] so negative buckets (refunds above sales) stay inside the plot.
+  const min = Math.min(0, ...points.map(value));
   const max = Math.max(1, ...points.map(value));
+  const span = max - min;
+  const yOf = (amount: number) => padding.top + chartHeight - ((amount - min) / span) * chartHeight;
   const placed = points.map((point, index) => ({
     point,
     x:
       padding.left +
       (points.length === 1 ? chartWidth / 2 : (index * chartWidth) / (points.length - 1)),
-    y: padding.top + chartHeight - (value(point) / max) * chartHeight,
+    y: yOf(value(point)),
   }));
   const path = placed
     .map((item, index) => `${index ? 'L' : 'M'} ${item.x.toFixed(2)} ${item.y.toFixed(2)}`)
@@ -115,11 +119,21 @@ export function TrendChart({ points }: { points: TrendPoint[] }) {
                   textAnchor="end"
                   className="revenue-axis-label"
                 >
-                  {compact.format(max * ratio)}
+                  {compact.format(min + span * ratio)}
                 </text>
               </g>
             );
           })}
+          {min < 0 && (
+            <line
+              x1={padding.left}
+              x2={width - padding.right}
+              y1={yOf(0)}
+              y2={yOf(0)}
+              className="revenue-zero-line"
+              data-testid="zero-line"
+            />
+          )}
           <path d={path} className="revenue-line" />
           {placed.map((item, index) => (
             <circle

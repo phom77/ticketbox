@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SalesBreakdown, SalesSummary, SalesTrend } from '../../api/sales';
@@ -9,14 +9,12 @@ const api = vi.hoisted(() => ({
   getSalesSummary: vi.fn(),
   getSalesTrend: vi.fn(),
   getSalesBreakdown: vi.fn(),
+  getSalesEvents: vi.fn(),
   getSalesOnSale: vi.fn(),
   getSalesUpcoming: vi.fn(),
   exportSalesReport: vi.fn(),
 }));
 vi.mock('../../api/sales', () => api);
-vi.mock('../../api/operations', () => ({
-  getOperationsEvents: vi.fn().mockResolvedValue({ content: [], totalElements: 0 }),
-}));
 vi.mock('../../api/management/checkin', () => ({
   getManagedCheckinSummary: vi.fn().mockResolvedValue({
     checkedIn: 3,
@@ -87,8 +85,84 @@ function load(money: boolean) {
   api.getSalesBreakdown.mockResolvedValue(money ? breakdown : { ...breakdown, rows: [] });
 }
 
+const noEvents = { content: [], page: 0, size: 20, hasMore: false };
+
 describe('Reports > Sales', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    api.getSalesEvents.mockResolvedValue(noEvents);
+  });
+
+  it('lets a finance-only member pick an event from the sales events', async () => {
+    load(true);
+    api.getSalesEvents.mockResolvedValue({
+      ...noEvents,
+      content: [
+        {
+          eventId: 'e1',
+          title: 'Spring tour',
+          performances: [
+            {
+              id: 'p1',
+              title: 'Opening night',
+              startsAt: '2026-12-02T12:00:00Z',
+              timezone: 'Asia/Ho_Chi_Minh',
+            },
+          ],
+        },
+      ],
+    });
+    render(
+      <MemoryRouter>
+        <SalesReport finance />
+      </MemoryRouter>,
+    );
+    await screen.findByText('Net sales', { selector: 'span' });
+    fireEvent.click(screen.getByRole('button', { name: /all events/i }));
+    fireEvent.click(await screen.findByRole('option', { name: /spring tour/i }));
+    await waitFor(() =>
+      expect(api.getSalesSummary).toHaveBeenLastCalledWith(
+        expect.objectContaining({ eventId: 'e1' }),
+        expect.anything(),
+      ),
+    );
+    expect(await screen.findByRole('option', { name: /opening night/i })).toBeInTheDocument();
+  });
+
+  it('ignores a grouping from the URL that does not fit the range', async () => {
+    load(false);
+    render(
+      <MemoryRouter initialEntries={['/?from=2026-01-01&to=2026-12-01&groupBy=hour']}>
+        <SalesReport finance={false} />
+      </MemoryRouter>,
+    );
+    await screen.findByText('Tickets sold', { selector: 'span' });
+    expect(api.getSalesTrend).toHaveBeenCalledWith(expect.anything(), undefined, expect.anything());
+  });
+
+  it('names the export after the server filename', async () => {
+    load(true);
+    api.exportSalesReport.mockResolvedValue({
+      blob: new Blob(['x']),
+      filename: 'sales-spring-tour.csv',
+    });
+    URL.createObjectURL = vi.fn(() => 'blob:x');
+    URL.revokeObjectURL = vi.fn();
+    const names: string[] = [];
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      names.push(this.download);
+    });
+    render(
+      <MemoryRouter>
+        <SalesReport finance />
+      </MemoryRouter>,
+    );
+    fireEvent.click(await screen.findByRole('button', { name: /export csv/i }));
+    await waitFor(() => expect(names).toEqual(['sales-spring-tour.csv']));
+    click.mockRestore();
+  });
 
   it('shows money figures and exports to a finance member', async () => {
     load(true);

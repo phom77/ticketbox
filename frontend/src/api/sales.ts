@@ -68,6 +68,19 @@ export type SalesPerformanceStatus = {
   sellThrough?: number;
 };
 
+export type SalesEventOption = {
+  eventId: string;
+  title: string;
+  performances: { id: string; title: string; startsAt: string; timezone: string }[];
+};
+
+export type SalesEventPage = {
+  content: SalesEventOption[];
+  page: number;
+  size: number;
+  hasMore: boolean;
+};
+
 export type SalesQuery = {
   eventId?: string;
   performanceId?: string;
@@ -100,6 +113,13 @@ export function getSalesBreakdown(
   return apiGet<SalesBreakdown>(`${base}/breakdown?${query(input, { by })}`, signal);
 }
 
+/** Events with performances in the organization. Needs EVENTS or FINANCE, unlike the Catalog event directory. */
+export function getSalesEvents(search: string | undefined, size = 20, signal?: AbortSignal) {
+  const params = new URLSearchParams({ size: String(size) });
+  if (search) params.set('q', search);
+  return apiGet<SalesEventPage>(`${base}/events?${params}`, signal);
+}
+
 export function getSalesOnSale(signal?: AbortSignal) {
   return apiGet<SalesPerformanceStatus[]>(`${base}/on-sale`, signal);
 }
@@ -108,9 +128,32 @@ export function getSalesUpcoming(days: number, signal?: AbortSignal) {
   return apiGet<SalesPerformanceStatus[]>(`${base}/upcoming?days=${days}`, signal);
 }
 
-export function exportSalesReport(input: SalesQuery, format: 'csv' | 'pdf', signal?: AbortSignal) {
-  return api.get<unknown, Blob>(`${base}/export?${query(input, { format })}`, {
-    responseType: 'blob',
-    signal,
-  });
+/** The filename the server chose in Content-Disposition, when present. */
+export function filenameFromDisposition(header: unknown): string | undefined {
+  if (typeof header !== 'string') return undefined;
+  const encoded = /filename\*\s*=\s*(?:UTF-8|utf-8)''([^;]+)/.exec(header);
+  if (encoded) {
+    try {
+      return decodeURIComponent(encoded[1].trim());
+    } catch {
+      /* fall through to the plain form */
+    }
+  }
+  const plain = /filename\s*=\s*"?([^";]+)"?/.exec(header);
+  return plain ? plain[1].trim() : undefined;
+}
+
+export async function exportSalesReport(
+  input: SalesQuery,
+  format: 'csv' | 'pdf',
+  signal?: AbortSignal,
+): Promise<{ blob: Blob; filename?: string }> {
+  const response = await api.get<unknown, { data: Blob; headers: Record<string, unknown> }>(
+    `${base}/export?${query(input, { format })}`,
+    { responseType: 'blob', includeHeaders: true, signal },
+  );
+  return {
+    blob: response.data,
+    filename: filenameFromDisposition(response.headers?.['content-disposition']),
+  };
 }

@@ -274,6 +274,20 @@ class SalesLedgerIntegrationTest {
             assertThat(status(web, as(get("/api/organizer/sales/summary?from=2026-12-05&to=2026-12-01"), both, org))).isEqualTo(400);
             assertThat(status(web, as(get("/api/organizer/sales/summary" + query + "&eventId=" + UUID.randomUUID()), both, org)))
                     .isEqualTo(404);
+
+            // The event picker works from Ticketing's own data for any member with EVENTS or FINANCE, in one organization.
+            UUID nativeEvent = UUID.randomUUID();
+            var nativeFixture = order(org, nativeEvent, "PAID");
+            var foreign = order(UUID.randomUUID(), null, "PAID");
+            for (UUID member : List.of(financeOnly, eventsOnly)) {
+                String events = body(web, as(get("/api/organizer/sales/events?q=ledger"), member, org));
+                assertThat(events).contains(fixture.concert.toString(), nativeEvent.toString(),
+                        nativeFixture.concert.toString(), "\"timezone\":\"Asia/Ho_Chi_Minh\"")
+                        .doesNotContain(foreign.concert.toString());
+            }
+            assertThat(body(web, as(get("/api/organizer/sales/events?q=no-such-event"), financeOnly, org)))
+                    .contains("\"content\":[]");
+            assertThat(status(web, as(get("/api/organizer/sales/events"), neither, org))).isEqualTo(403);
         } finally {
             identity.stop(0);
         }

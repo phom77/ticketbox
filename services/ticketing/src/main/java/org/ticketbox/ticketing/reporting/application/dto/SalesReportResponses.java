@@ -46,6 +46,12 @@ public final class SalesReportResponses {
     public record PerformanceStatus(UUID performanceId, UUID eventId, String title, OffsetDateTime startsAt,
                                     long netTickets, Long capacity, BigDecimal sellThrough) {}
 
+    public record PerformanceOption(UUID id, String title, OffsetDateTime startsAt, String timezone) {}
+
+    public record EventOption(UUID eventId, String title, List<PerformanceOption> performances) {}
+
+    public record EventPage(List<EventOption> content, int page, int size, boolean hasMore) {}
+
     /** Everything an export contains: the same figures the screen shows. */
     public record Report(Summary summary, Trend trend, Breakdown performances, Breakdown offers) {}
 }

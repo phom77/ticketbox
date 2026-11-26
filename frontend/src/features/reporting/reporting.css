@@ -148,3 +148,9 @@
   block-size: 100%;
   background: var(--violet);
 }
+
+.revenue-zero-line {
+  stroke: #98a2b3;
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3;
+}

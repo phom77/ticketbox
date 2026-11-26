@@ -36,6 +36,13 @@ public interface SalesReportStore {
     record PerformanceStatus(UUID performanceId, UUID eventId, String title, OffsetDateTime startsAt,
                              long netTickets, Long capacity) {}
 
+    record PerformanceOption(UUID id, String title, OffsetDateTime startsAt, String timezone) {}
+
+    record EventOption(UUID eventId, String title, List<PerformanceOption> performances) {}
+
+    /** Events with performances in the organization, newest first; a legacy concert is its own event. */
+    List<EventOption> events(UUID organizationId, String search, int offset, int limit);
+
     /** Empty when the event or performance does not belong to the organization. */
     Optional<ScopeInfo> resolve(Scope scope);
 

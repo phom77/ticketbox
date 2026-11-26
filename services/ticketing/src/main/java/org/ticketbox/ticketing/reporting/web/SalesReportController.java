@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.ticketbox.ticketing.reporting.application.RevenueReportExport;
 import org.ticketbox.ticketing.reporting.application.SalesReportService;
 import org.ticketbox.ticketing.reporting.application.dto.SalesReportResponses.Breakdown;
+import org.ticketbox.ticketing.reporting.application.dto.SalesReportResponses.EventPage;
 import org.ticketbox.ticketing.reporting.application.dto.SalesReportResponses.PerformanceStatus;
 import org.ticketbox.ticketing.reporting.application.dto.SalesReportResponses.Summary;
 import org.ticketbox.ticketing.reporting.application.dto.SalesReportResponses.Trend;
@@ -73,6 +74,15 @@ public class SalesReportController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(defaultValue = "performance") String by) {
         return ok(sales.breakdown(organization, eventId, performanceId, from, to, by, finance(grants)));
+    }
+
+    /** Events with performances in the organization, for choosing a report scope. */
+    @GetMapping("/events")
+    public ResponseEntity<ApiResponse<EventPage>> events(
+            @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID organization,
+            @RequestParam(required = false) String q, @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ok(sales.events(organization, q, page, size));
     }
 
     /** Performances open for sale now, with all-time net tickets and sell-through. */

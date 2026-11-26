@@ -3,14 +3,15 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ApiClientError, isRequestCanceled } from '../../api/client';
-import { getOperationsEvents } from '../../api/operations';
 import {
   exportSalesReport,
   getSalesBreakdown,
+  getSalesEvents,
   getSalesSummary,
   getSalesTrend,
   type SalesBreakdown,
   type SalesBreakdownRow,
+  type SalesEventOption,
   type SalesGrouping,
   type SalesQuery,
   type SalesSummary,
@@ -60,15 +61,18 @@ export function SalesReport({ finance }: { finance: boolean }) {
   const defaults = presetRange('last7', today);
   const from = params.get('from') ?? defaults.from;
   const to = params.get('to') ?? defaults.to;
-  const groupBy = (params.get('groupBy') as SalesGrouping | null) ?? undefined;
   const error = periodError(from, to);
+  const days = error ? 1 : periodDays(from, to);
+  // An unknown or out-of-range grouping in the URL is ignored; the server then picks one that fits the range.
+  const requestedGroupBy = params.get('groupBy');
+  const groupBy = allowedGroupings(days).find((option) => option === requestedGroupBy);
   const preset = presetOf(from, to, today);
   const [custom, setCustom] = useState(preset === 'custom');
   const [draft, setDraft] = useState({ from, to });
   const [draftError, setDraftError] = useState<ReturnType<typeof periodError>>();
   const [state, setState] = useState<State>();
   const [attempt, setAttempt] = useState(0);
-  const [events, setEvents] = useState<ConcertPickerItem[]>([]);
+  const [events, setEvents] = useState<SalesEventOption[]>([]);
   const [eventsError, setEventsError] = useState(false);
   const [eventSearch, setEventSearch] = useState('');
   const [performanceOptions, setPerformanceOptions] = useState<SalesBreakdownRow[]>([]);
@@ -93,18 +97,14 @@ export function SalesReport({ finance }: { finance: boolean }) {
     [params, setParams],
   );
 
-  // Event choices come from the event directory and follow the search text.
+  // Event choices come from Ticketing's own sales events (EVENTS or FINANCE) and follow the search text.
   useEffect(() => {
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
-      getOperationsEvents(
-        'organizer',
-        { query: eventSearch.trim() || undefined, size: 20 },
-        controller.signal,
-      )
+      getSalesEvents(eventSearch.trim() || undefined, 20, controller.signal)
         .then((page) => {
           setEventsError(false);
-          setEvents(page.content.map((event) => ({ id: event.id, title: event.title })));
+          setEvents(page.content);
         })
         .catch((failure: unknown) => {
           if (!isRequestCanceled(failure)) setEventsError(true);
@@ -162,8 +162,6 @@ export function SalesReport({ finance }: { finance: boolean }) {
 
   const current = state && state.key === key ? state : undefined;
   const loaded = current && 'summary' in current ? current : undefined;
-  const days = error ? 1 : periodDays(from, to);
-
   function choosePreset(next: PeriodPreset) {
     if (next === 'custom') {
       setCustom(true);
@@ -188,12 +186,13 @@ export function SalesReport({ finance }: { finance: boolean }) {
     exportRequest.current = controller;
     setExporting(format);
     try {
-      const blob = await exportSalesReport(scope, format, controller.signal);
+      const result = await exportSalesReport(scope, format, controller.signal);
       if (controller.signal.aborted) return;
-      const url = URL.createObjectURL(blob);
+      const url = URL.createObjectURL(result.blob);
       const anchor = document.createElement('a');
       anchor.href = url;
-      anchor.download = `sales-${from}-to-${to}.${format}`;
+      const scopeName = performanceId || eventId || 'all-events';
+      anchor.download = result.filename ?? `sales-${scopeName}-${from}-to-${to}.${format}`;
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
@@ -210,9 +209,14 @@ export function SalesReport({ finance }: { finance: boolean }) {
   const selectedEvent: ConcertPickerItem | undefined = eventId
     ? {
         id: eventId,
-        title: loaded?.summary.scope.name ?? events.find((e) => e.id === eventId)?.title ?? '',
+        title: loaded?.summary.scope.name ?? events.find((e) => e.eventId === eventId)?.title ?? '',
       }
     : undefined;
+  const pickerItems: ConcertPickerItem[] = events.map((event) => ({
+    id: event.eventId,
+    title: event.title,
+  }));
+  const chosenEvent = events.find((event) => event.eventId === eventId);
   const errorText = (failure: 'invalid' | 'reversed' | 'tooLong') =>
     failure === 'tooLong'
       ? t('operations-reports:salesPeriodTooLong', { days: 1096 })
@@ -224,7 +228,7 @@ export function SalesReport({ finance }: { finance: boolean }) {
         <div className="sales-filter-row">
           <div>
             <ConcertPicker
-              concerts={events}
+              concerts={pickerItems}
               value={eventId}
               onChange={(id) =>
                 update({ eventId: id || undefined, performanceId: undefined, groupBy: undefined })
@@ -253,8 +257,19 @@ export function SalesReport({ finance }: { finance: boolean }) {
                 }
               >
                 <option value="">{t('operations-reports:salesAllPerformances')}</option>
-                {performanceOptions.map((row) => (
-                  <option key={row.performanceId} value={row.performanceId}>
+                {(chosenEvent
+                  ? chosenEvent.performances.map((p) => ({
+                      id: p.id,
+                      label: p.title,
+                      startsAt: p.startsAt as string | undefined,
+                    }))
+                  : performanceOptions.map((row) => ({
+                      id: row.performanceId,
+                      label: row.label,
+                      startsAt: row.startsAt,
+                    }))
+                ).map((row) => (
+                  <option key={row.id} value={row.id}>
                     {row.startsAt
                       ? `${row.label} · ${startTime.format(new Date(row.startsAt))}`
                       : row.label}

@@ -35,7 +35,7 @@
   "openSalesReport": "Open sales report",
   "salesOnSaleNow": "On sale now",
   "noOnSale": "No performances are on sale right now.",
-  "sellThrough": "{{percent}} sold ({{sold}} of {{capacity}})",
+  "sellThrough": "{{percent}} sold to date ({{sold}} of {{capacity}})",
   "sellThroughLabel": "Sell-through for {{title}}",
   "checkedIn": "{{checked}} of {{total}} checked in",
   "checkinUnavailable": "Check-in progress is unavailable."

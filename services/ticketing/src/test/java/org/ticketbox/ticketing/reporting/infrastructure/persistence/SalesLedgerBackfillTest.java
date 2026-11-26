@@ -35,6 +35,10 @@ class SalesLedgerBackfillTest {
         UUID refundedOrder = order(db, concert, type, "REFUNDED", paid.plusHours(1), 1, 100000);
         db.update("INSERT INTO order_events(order_id,stream_version,event_type,payload,recorded_at) VALUES (?,2,'OrderRefunded','{}',?)",
                 refundedOrder, refundedAt);
+        // Imported from Core: REFUNDED with no OrderRefunded event, so the refund falls back to updated_at.
+        OffsetDateTime importedAt = OffsetDateTime.parse("2026-11-04T09:00:00Z");
+        UUID importedRefund = order(db, concert, type, "REFUNDED", paid.plusHours(2), 1, 100000);
+        db.update("UPDATE orders SET updated_at = ? WHERE id = ?", importedAt, importedRefund);
         order(db, concert, type, "EXPIRED", null, 1, 100000);
         UUID seedLike = order(db, unattributed, otherType, "PAID", paid, 3, 50000);
         // An order that predates the organization trigger still resolves through its concert.
@@ -57,14 +61,16 @@ class SalesLedgerBackfillTest {
         long refunds = db.queryForObject("SELECT COALESCE(SUM(amount),0) FROM sales_ledger WHERE performance_id=? AND kind='REFUND'", Long.class, concert);
         assertThat(sold - refundedTickets).isEqualTo(onDemandTickets);
         assertThat(gross - refunds).isEqualTo(onDemandRevenue);
-        assertThat(refundedTickets).isEqualTo(1);
+        assertThat(refundedTickets).isEqualTo(2);
 
         // Sales keep their payment date, refunds the OrderRefunded event time, and unpaid orders have no rows.
         assertThat(db.queryForObject("SELECT occurred_at FROM sales_ledger WHERE order_id=? AND kind='SALE'", OffsetDateTime.class, refundedOrder).toInstant())
                 .isEqualTo(paid.plusHours(1).toInstant());
         assertThat(db.queryForObject("SELECT occurred_at FROM sales_ledger WHERE order_id=? AND kind='REFUND'", OffsetDateTime.class, refundedOrder).toInstant())
                 .isEqualTo(refundedAt.toInstant());
-        assertThat(db.queryForObject("SELECT count(*) FROM sales_ledger WHERE performance_id=?", Integer.class, concert)).isEqualTo(3);
+        assertThat(db.queryForObject("SELECT occurred_at FROM sales_ledger WHERE order_id=? AND kind='REFUND'", OffsetDateTime.class, importedRefund).toInstant())
+                .isEqualTo(importedAt.toInstant());
+        assertThat(db.queryForObject("SELECT count(*) FROM sales_ledger WHERE performance_id=?", Integer.class, concert)).isEqualTo(5);
         // Attribution falls back to the concert's organization; unattributed concerts stay unattributed.
         assertThat(db.queryForObject("SELECT organization_id FROM sales_ledger WHERE order_id=?", UUID.class, paidOrder)).isEqualTo(org);
         assertThat(db.queryForObject("SELECT organization_id FROM sales_ledger WHERE order_id=?", UUID.class, seedLike)).isNull();

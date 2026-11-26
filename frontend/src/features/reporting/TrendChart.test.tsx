@@ -28,6 +28,32 @@ describe('TrendChart', () => {
     expect(document.querySelector('.revenue-chart-summary')).toHaveTextContent(/500/);
   });
 
+  it('keeps negative buckets inside the plot and draws a zero line', () => {
+    render(
+      <TrendChart
+        points={[
+          { key: 'a', axis: '01/12', label: '1 Dec', tickets: 4 },
+          { key: 'b', axis: '02/12', label: '2 Dec', tickets: -3 },
+          { key: 'c', axis: '03/12', label: '3 Dec', tickets: 0 },
+        ]}
+      />,
+    );
+    const top = 24;
+    const bottom = 280 - 42;
+    const heights = Array.from(document.querySelectorAll('circle')).map((c) =>
+      Number(c.getAttribute('cy')),
+    );
+    expect(heights).toHaveLength(3);
+    for (const y of heights) {
+      expect(y).toBeGreaterThanOrEqual(top);
+      expect(y).toBeLessThanOrEqual(bottom);
+    }
+    const zero = Number(screen.getByTestId('zero-line').getAttribute('y1'));
+    expect(heights[1]).toBeGreaterThan(zero);
+    expect(heights[0]).toBeLessThan(zero);
+    expect(heights[2]).toBeCloseTo(zero);
+  });
+
   it('shows an empty state without points', () => {
     render(<TrendChart points={[]} />);
     expect(screen.getByText(/no sales/i)).toBeInTheDocument();

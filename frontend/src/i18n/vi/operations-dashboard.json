@@ -35,7 +35,7 @@
   "openSalesReport": "Mở báo cáo doanh số",
   "salesOnSaleNow": "Đang mở bán",
   "noOnSale": "Hiện chưa có suất diễn nào đang mở bán.",
-  "sellThrough": "Đã bán {{percent}} ({{sold}}/{{capacity}})",
+  "sellThrough": "Đã bán đến nay {{percent}} ({{sold}}/{{capacity}})",
   "sellThroughLabel": "Tỷ lệ bán của {{title}}",
   "checkedIn": "Đã check-in {{checked}}/{{total}}",
   "checkinUnavailable": "Chưa có tiến độ check-in."

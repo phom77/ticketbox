@@ -72,9 +72,11 @@ class JdbcReconciliationStore implements ReconciliationStore {
                   AND payment_reconciliation.attempted_at = excluded.attempted_at
                 """, new SimplePropertySqlParameterSource(s));
         jdbc.update("""
-                UPDATE ticketing_payment_intents SET effective_at = :attemptedAt
-                 WHERE intent_id = :intentId AND order_id = :orderId AND provider = :provider
-                   AND amount = :requestedAmount AND effective_at <> :attemptedAt
+                UPDATE ticketing_payment_intents i SET effective_at = p.attempted_at
+                  FROM payment_reconciliation p
+                 WHERE i.intent_id = :intentId AND p.intent_id = i.intent_id AND p.order_id = i.order_id
+                   AND p.provider = i.provider AND p.requested_amount = i.amount
+                   AND i.effective_at <> p.attempted_at
                 """, new SimplePropertySqlParameterSource(s));
     }
 

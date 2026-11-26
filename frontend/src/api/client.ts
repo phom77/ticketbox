@@ -5,10 +5,13 @@ import { currentLanguage, translate } from '../i18n';
 declare module 'axios' {
   export interface AxiosRequestConfig {
     preserveEnvelope?: boolean;
+    /** Resolve to `{ data, headers }` with the body untouched, for downloads that need response headers. */
+    includeHeaders?: boolean;
   }
 
   export interface InternalAxiosRequestConfig {
     preserveEnvelope?: boolean;
+    includeHeaders?: boolean;
   }
 }
 
@@ -78,6 +81,9 @@ api.interceptors.request.use(
 
 api.interceptors.response.use(
   (response) => {
+    if (response.config.includeHeaders) {
+      return { data: response.data, headers: response.headers };
+    }
     const body = response.data;
     if (body && typeof body === 'object' && 'code' in body && 'data' in body) {
       const envelope = body as ApiEnvelope<unknown>;

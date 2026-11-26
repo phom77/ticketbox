@@ -59,13 +59,16 @@ class SalesLedgerScaleTest {
         LocalDate to = LocalDate.now(), from = to.minusDays(29);
         var summary = new ArrayList<Long>();
         var trend = new ArrayList<Long>();
+        var breakdown = new ArrayList<Long>();
         for (int i = 0; i < RUNS; i++) {
             summary.add(time(() -> reports.summary(org, null, null, from, to, true)));
             trend.add(time(() -> reports.trend(org, null, null, from, to, "day", true)));
+            breakdown.add(time(() -> reports.breakdown(org, null, null, from, to, "performance", true)));
         }
-        long summaryP95 = p95(summary), trendP95 = p95(trend);
-        System.out.printf("sales-ledger scale: summary p95=%d ms, trend p95=%d ms (1,000,000 rows, 30 days)%n",
-                summaryP95, trendP95);
+        long summaryP95 = p95(summary), trendP95 = p95(trend), breakdownP95 = p95(breakdown);
+        System.out.printf("sales-ledger scale: summary p95=%d ms, trend p95=%d ms, breakdown p95=%d ms (1,000,000 rows, 30 days)%n",
+                summaryP95, trendP95, breakdownP95);
+        assertThat(breakdownP95).isLessThanOrEqualTo(THRESHOLD_MS);
         assertThat(summaryP95).isLessThanOrEqualTo(THRESHOLD_MS);
         assertThat(trendP95).isLessThanOrEqualTo(THRESHOLD_MS);
     }

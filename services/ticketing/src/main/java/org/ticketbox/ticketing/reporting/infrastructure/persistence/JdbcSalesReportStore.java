@@ -28,7 +28,14 @@ public class JdbcSalesReportStore implements SalesReportStore {
             COALESCE(SUM(l.amount) FILTER (WHERE l.kind = 'SALE'), 0) AS gross,
             COALESCE(SUM(l.amount) FILTER (WHERE l.kind = 'REFUND'), 0) AS refunds
             """;
-    private static final String ENDED = "(c.status IN ('COMPLETED','CANCELLED') OR COALESCE(ps.ends_at, c.event_date) <= now())";
+    /**
+     * A performance is final once it is completed, or its end (native) or event date plus one day (legacy) has passed.
+     * A cancelled performance stays provisional while paid orders still await their refund.
+     */
+    private static final String ENDED = """
+            (c.status = 'COMPLETED'
+             OR (c.status = 'CANCELLED' AND NOT EXISTS (SELECT 1 FROM orders po WHERE po.concert_id = c.id AND po.status = 'PAID'))
+             OR (c.status <> 'CANCELLED' AND COALESCE(ps.ends_at, c.event_date + interval '1 day') <= now()))""";
     /** Performances of one event: a legacy concert is its own event. */
     private static final String EVENT_MATCH = "(c.id = :event OR ps.event_id = :event)";
 
@@ -148,7 +155,7 @@ public class JdbcSalesReportStore implements SalesReportStore {
         }
         return jdbc.queryForList("""
                 SELECT c.id FROM concerts c LEFT JOIN performance_sales ps ON ps.id = c.id
-                 WHERE c.organization_id = :org AND %s
+                 WHERE c.organization_id = :org AND %s AND c.status NOT IN ('DRAFT', 'CANCELLED')
                 """.formatted(EVENT_MATCH), new MapSqlParameterSource("org", scope.organizationId())
                 .addValue("event", scope.eventId()), UUID.class);
     }
@@ -167,8 +174,9 @@ public class JdbcSalesReportStore implements SalesReportStore {
                                                  WHERE s.performance_id = g.performance_id AND s.group_id = g.id
                                                    AND s.status <> 'BLOCKED') END)
                             FROM performance_groups g WHERE g.performance_id = c.id),
-                         (SELECT SUM(tt.total_quantity) FROM ticket_types tt
-                           WHERE tt.concert_id = c.id AND NOT tt.performance_offer), 0) AS capacity
+                         (SELECT SUM(ti.total_quantity) FROM ticket_types tt
+                            JOIN ticket_inventory ti ON ti.ticket_type_id = tt.id
+                           WHERE tt.concert_id = c.id AND NOT tt.performance_offer AND ti.active), 0) AS capacity
                   FROM concerts c WHERE c.id IN (:ids)
                 """, new MapSqlParameterSource("ids", ids),
                 (org.springframework.jdbc.core.RowCallbackHandler) r ->
@@ -195,7 +203,7 @@ public class JdbcSalesReportStore implements SalesReportStore {
     @Override
     public List<PerformanceStatus> onSale(UUID organizationId, OffsetDateTime now, int limit) {
         return statuses(organizationId, """
-                c.status = 'ON_SALE' AND NOT COALESCE(c.sales_suspended, false) AND c.sale_start_at <= :now
+                c.status IN ('ON_SALE', 'SOLD_OUT') AND NOT COALESCE(c.sales_suspended, false) AND c.sale_start_at <= :now
                 AND (c.sale_end_at IS NULL OR c.sale_end_at > :now) AND COALESCE(ps.ends_at, c.event_date) > :now
                 """, new MapSqlParameterSource("now", now), limit);
     }
@@ -205,6 +213,42 @@ public class JdbcSalesReportStore implements SalesReportStore {
         return statuses(organizationId, """
                 c.status NOT IN ('DRAFT','CANCELLED') AND c.event_date >= :now AND c.event_date < :until
                 """, new MapSqlParameterSource("now", now).addValue("until", until), limit);
+    }
+
+    @Override
+    public List<EventOption> events(UUID organizationId, String search, int offset, int limit) {
+        String pattern = "%" + (search == null ? "" : search.strip().replace("\\", "\\\\").replace("%", "\\%")
+                .replace("_", "\\_")) + "%";
+        var params = new MapSqlParameterSource("org", organizationId).addValue("pattern", pattern)
+                .addValue("offset", offset).addValue("limit", limit);
+        var events = jdbc.query("""
+                SELECT COALESCE(ps.event_id, c.id) AS event_id,
+                       (array_agg(c.title ORDER BY c.event_date, c.id))[1] AS title
+                  FROM concerts c LEFT JOIN performance_sales ps ON ps.id = c.id
+                 WHERE c.organization_id = :org AND c.status <> 'DRAFT' AND c.title ILIKE :pattern
+                 GROUP BY 1 ORDER BY max(c.event_date) DESC, 1 LIMIT :limit OFFSET :offset
+                """, params, (r, n) -> new UUID[] {r.getObject("event_id", UUID.class)}).stream()
+                .map(row -> row[0]).toList();
+        if (events.isEmpty()) {
+            return List.of();
+        }
+        Map<UUID, List<PerformanceOption>> performances = new HashMap<>();
+        Map<UUID, String> titles = new HashMap<>();
+        jdbc.query("""
+                SELECT c.id, COALESCE(ps.event_id, c.id) AS event_id, c.title, c.event_date, ps.timezone
+                  FROM concerts c LEFT JOIN performance_sales ps ON ps.id = c.id
+                 WHERE c.organization_id = :org AND c.status <> 'DRAFT' AND COALESCE(ps.event_id, c.id) IN (:events)
+                 ORDER BY c.event_date, c.id
+                """, new MapSqlParameterSource("org", organizationId).addValue("events", events),
+                (org.springframework.jdbc.core.RowCallbackHandler) r -> {
+                    UUID event = r.getObject("event_id", UUID.class);
+                    titles.putIfAbsent(event, r.getString("title"));
+                    performances.computeIfAbsent(event, k -> new java.util.ArrayList<>()).add(new PerformanceOption(
+                            r.getObject("id", UUID.class), r.getString("title"),
+                            r.getObject("event_date", OffsetDateTime.class),
+                            r.getString("timezone") == null ? DEFAULT_ZONE.getId() : r.getString("timezone")));
+                });
+        return events.stream().map(id -> new EventOption(id, titles.get(id), performances.get(id))).toList();
     }
 
     private List<PerformanceStatus> statuses(UUID organizationId, String condition, MapSqlParameterSource params,

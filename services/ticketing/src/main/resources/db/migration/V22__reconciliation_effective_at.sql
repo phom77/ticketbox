@@ -1,5 +1,7 @@
 -- Reconciliation reads filter and page by indexed columns on the intent: the owning organization and the
 -- effective attempt time (the Payment attempt time once reported, otherwise the intent's creation time).
+-- Note: the backfill UPDATE and SET NOT NULL below rewrite and lock ticketing_payment_intents for the duration of the
+-- migration. That is acceptable at the current table size; revisit with a batched backfill if it grows large.
 ALTER TABLE ticketing_payment_intents ADD COLUMN organization_id uuid;
 ALTER TABLE ticketing_payment_intents ADD COLUMN effective_at timestamptz;
 

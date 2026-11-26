@@ -70,10 +70,6 @@ public class ReconciliationService {
                 to.atStartOfDay(REPORTING_ZONE).toOffsetDateTime(), basis == DateBasis.COLLECTION);
     }
 
-    public Report report(Filter filter, int page, int size) {
-        return report(filter, page, size, null);
-    }
-
     /**
      * {@code after} is the {@code next} value of the previous page. It pages by key, so rows inserted meanwhile do not
      * shift later pages. Without it the page index is used as an offset over the same stable order.

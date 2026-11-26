@@ -1,11 +1,15 @@
 package org.ticketbox.ticketing.reporting.application;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import org.ticketbox.ticketing.application.error.AppException;
 import org.ticketbox.ticketing.application.error.ErrorCode;
 import org.ticketbox.ticketing.reporting.application.dto.SalesReportResponses.Breakdown;
 import org.ticketbox.ticketing.reporting.application.dto.SalesReportResponses.BreakdownRow;
+import org.ticketbox.ticketing.reporting.application.dto.SalesReportResponses.EventOption;
+import org.ticketbox.ticketing.reporting.application.dto.SalesReportResponses.EventPage;
+import org.ticketbox.ticketing.reporting.application.dto.SalesReportResponses.PerformanceOption;
 import org.ticketbox.ticketing.reporting.application.dto.SalesReportResponses.PerformanceStatus;
 import org.ticketbox.ticketing.reporting.application.dto.SalesReportResponses.Report;
 import org.ticketbox.ticketing.reporting.application.dto.SalesReportResponses.Scope;
@@ -134,12 +138,24 @@ public class SalesReportService {
     }
 
     /** The whole report for exports: money is always included, so callers must check FINANCE first. */
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public Report report(UUID organization, UUID eventId, UUID performanceId, LocalDate from, LocalDate to) {
         boolean scoped = eventId != null || performanceId != null;
         return new Report(summary(organization, eventId, performanceId, from, to, true),
                 trend(organization, eventId, performanceId, from, to, null, true),
                 breakdown(organization, eventId, performanceId, from, to, "performance", true),
                 scoped ? breakdown(organization, eventId, performanceId, from, to, "offer", true) : null);
+    }
+
+    /** Events of the organization for the scope picker, from Ticketing's own data. */
+    public EventPage events(UUID organization, String search, int page, int size) {
+        int limit = Math.clamp(size, 1, 50);
+        int index = Math.max(page, 0);
+        var rows = store.events(organization, search, index * limit, limit + 1);
+        var content = rows.stream().limit(limit).map(event -> new EventOption(event.eventId(), event.title(),
+                event.performances().stream().map(p -> new PerformanceOption(p.id(), p.title(), p.startsAt(),
+                        p.timezone())).toList())).toList();
+        return new EventPage(content, index, limit, rows.size() > limit);
     }
 
     public List<PerformanceStatus> onSale(UUID organization, OffsetDateTime now) {
