@@ -35,6 +35,11 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * @deprecated Replaced by {@link SalesReportController} (live sales for any event or performance). Kept for one
+ *     release, then removed with its web client.
+ */
+@Deprecated(since = "organizer-sales-reporting", forRemoval = true)
 @RestController
 @OrganizerPermission(OrganizerPermission.Grant.FINANCE)
 @RequestMapping("/api/organizer/concerts")

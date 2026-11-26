@@ -69,11 +69,37 @@ class JdbcReconciliationStoreTest {
         assertThat(report.totals().paidOrderSales()).isZero();
         assertThat(report.totals().verifiedCollections()).isEqualTo(100);
         assertThat(reconciliation.report(filter, 1, 1).content()).isEmpty();
+        // Another organization sees none of these intents.
+        var foreign = reconciliation.filter(UUID.randomUUID(), false, null, day, day.plusDays(1), DateBasis.ATTEMPT);
+        assertThat(reconciliation.report(foreign, 0, 10).content()).isEmpty();
         var previousDay = reconciliation.filter(organization, false, concert, day.minusDays(1), day, DateBasis.COLLECTION);
         assertThat(reconciliation.report(previousDay, 0, 1).content()).isEmpty();
         var exceptions = reconciliation.filter(null, true, null, day, day.plusDays(1), DateBasis.ATTEMPT);
         assertThat(reconciliation.report(exceptions, 0, 1).content()).singleElement()
                 .satisfies(row -> assertThat(row.intentId()).isEqualTo(unmatched.intentId()));
+
+        // Keyset paging: the cursor of one page continues after it, and each row is returned once.
+        UUID second = UUID.randomUUID();
+        UUID secondIntent = UUID.randomUUID();
+        sql.update("""
+                INSERT INTO orders(id,user_id,concert_id,status,total_amount,idempotency_key,organization_id)
+                VALUES (?,?,?,'EXPIRED',100,?,?)
+                """, second, buyer, concert, second.toString(), organization);
+        sql.update("UPDATE orders SET organization_id=? WHERE id=?", organization, second);
+        sql.update("""
+                INSERT INTO ticketing_payment_intents(order_id,intent_id,user_id,provider,amount,currency,request_id,expires_at,created_at)
+                VALUES (?,?,?,'VNPAY',100,'VND',?,?,?)
+                """, second, secondIntent, buyer, secondIntent.toString(), start.plusMinutes(15), start.plusHours(1));
+        var firstPage = reconciliation.report(filter, 0, 1, null);
+        assertThat(firstPage.content()).hasSize(1);
+        assertThat(firstPage.content().get(0).intentId()).isEqualTo(secondIntent);
+        var nextPage = reconciliation.report(filter, 0, 1, firstPage.next());
+        assertThat(nextPage.content()).singleElement().satisfies(row -> assertThat(row.intentId()).isEqualTo(intent));
+        assertThat(reconciliation.report(filter, 0, 1, nextPage.next()).content()).isEmpty();
+        assertThat(firstPage.totals().transactions()).isEqualTo(2);
+        // A concurrent insert does not shift the rows after the cursor.
+        assertThat(sql.queryForObject("SELECT effective_at FROM ticketing_payment_intents WHERE intent_id=?",
+                OffsetDateTime.class, intent).toInstant()).isEqualTo(start.toInstant());
 
         var stream = new ByteArrayOutputStream();
         reconciliation.writeCsv(filter, stream);

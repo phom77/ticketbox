@@ -27,11 +27,18 @@ The default gateway is `http://localhost:18091`. Most APIs return an envelope co
 | Offline dataset | `GET /api/staff/concerts/{id}/checkin-dataset` | Staff |
 | Guest lookup / attendance | `/api/staff/guestlist/**` | Staff |
 | Concert management | `/api/admin/concerts/**`, `/api/organizer/manage/concerts/**` | Admin / organizer |
-| Revenue | `/api/organizer/concerts/{id}/revenue-summary`, `.../zone-revenue`, `.../sales-trend` | Owning organizer, completed concert |
+| Sales | `/api/organizer/sales/summary`, `/trend`, `/breakdown`, `/on-sale`, `/upcoming`, `/export` | Organizer `EVENTS` or `FINANCE`; money fields and export need `FINANCE` |
+| Revenue (deprecated) | `/api/organizer/concerts/{id}/revenue-summary`, `.../zone-revenue`, `.../sales-trend` | Owning organizer, completed concert. Replaced by Sales, removed in the next release |
 | User management | `/api/admin/users/**` | Admin |
 | Payment review | `/api/admin/payment-workflows/**` | Admin |
 
 The controllers in each module's `web/` package define the full route and validation details. Service-level contracts are in [`contracts/`](../contracts/).
+
+## Organizer sales
+
+`/api/organizer/sales/*` take the `X-Organization-Id` header and `from` / `to` dates (inclusive, in the reporting timezone). `eventId` or `performanceId` narrows the scope, and another organization's id returns 404. A period is at most 1096 days. `trend?groupBy=hour|day|week` allows up to 7, 366 and 1096 days (default by length). `breakdown?by=performance|offer`; `by=offer` needs an event or performance. Figures come from the sales ledger: sales count on the payment date and refunds on the refund confirmation date (ADR 0005). Responses state `timezone` and `provisional` (some performance has not ended). `grossSales`, `refunds` and `netSales` are present only for callers with `FINANCE`; `export?format=csv|pdf` requires `FINANCE`. `GET /on-sale` and `GET /upcoming?days=7` list performances with all-time net tickets, capacity and sell-through.
+
+Reconciliation reports accept an optional `after` cursor (the previous page's `next`) to page by key instead of by offset.
 
 ## Purchase requests
 
