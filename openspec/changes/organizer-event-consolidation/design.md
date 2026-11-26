@@ -23,9 +23,11 @@
 
 - `event_content_revisions` has one row per event: `event_id` (PK), `base_draft_version`, `details jsonb` (title, description, translations, artist bio, age rating, refund policy), `poster_url`, `poster_public_id`, `state` (`DRAFTING`, `SUBMITTED`, `CHANGES_REQUESTED`, `REJECTED`, `APPROVED`), submitter, reviewer, reason and timestamps.
 - Before any performance is released, edits write the event directly, as today.
-- After release, edits go to the revision in `DRAFTING`. The organizer submits it. A platform reviewer approves, requests changes or rejects. Approval applies the details to `events` under the event lock, bumps `draft_version`, invalidates the buyer cache after commit and marks the revision `APPROVED`. A replaced staged poster is deleted when the revision is discarded.
+- After release, edits go to the revision in `DRAFTING`. The organizer submits it. A platform reviewer approves, requests changes or rejects. Approval applies the details to `events` under the event lock, bumps `content_version` (never `draft_version`), invalidates the buyer cache after commit and marks the revision `APPROVED`. The revision keeps its number after approval, and the next edit continues from it (revision `n + 1`); clients send the server's number unchanged. A replaced staged poster is deleted when the revision is discarded.
 - A decision is accepted only for the submitted revision. Repeating a completed decision returns the recorded outcome.
-- Content revisions are separate from performance publication reviews, so a pending content change does not block a performance release, and the reverse. Schedule and ticket changes after release stay with their existing paths (sale revisions, disruption).
+- Content revisions are separate from performance publication reviews, so a pending content change does not block a performance release, and the reverse. Content has its own optimistic lock, `events.content_version`, used by every content editor (draft save, poster, bio, revision base). `events.draft_version` remains the token of publication reviews (`event_draft_version` in a review snapshot) and is not touched by approvals or by content-only draft writes, so approving a revision never supersedes a SCHEDULED or SUBMITTED performance review.
+- **Pre-release title and description.** A review snapshot captures the event title and description, so the direct draft write bumps `draft_version` only when title or description actually change, which supersedes a pending review ("changes to reviewed public content require updated approval"). Poster, translations, bio, age rating and refund policy are not part of the review snapshot and only bump `content_version`; before the first release they take effect at release without a new approval. After release every change goes through the content revision instead.
+- **Title re-sync.** The sale snapshot (v2) carries the event title. When an approved revision changes the title, Catalog re-issues a versioned publication (`sale_version + 1`, same status, same sale and layout) for every released performance of the event, through the existing publication outbox. Ticketing (`JdbcPerformanceCatalog.apply`) and Check-in (`CheckinProjectionReceiver.performance`) already update the title for a newer snapshot version of an active performance and ignore older or replayed versions; tests pin this. Orders keep the title they were placed with. The approval takes the performance row locks before the event lock, the same order as releasing a scheduled performance. Schedule and ticket changes after release stay with their existing paths (sale revisions, disruption).
 - Admin reviews content revisions in a *Content changes* tab of the existing publication queue, with a side-by-side current/proposed view.
 
 ### Preview
@@ -34,7 +36,7 @@
 
 ### Delete drafts
 
-- `DELETE /api/organizer/manage/v2/performances/{id}` succeeds when the performance is DRAFT, has no SUBMITTED or SCHEDULED review and was never released. Draft data cascades. V21 changes `layout_backgrounds.source_performance_id` to `ON DELETE SET NULL` so shared backgrounds and templates survive.
+- `DELETE /api/organizer/manage/v2/performances/{id}` succeeds when the performance is DRAFT, has no SUBMITTED or SCHEDULED review and was never released. A draft whose last review was HELD, REJECTED, CHANGES_REQUESTED, SUPERSEDED or MISSED can be deleted: it was never released and nothing is active. Draft data cascades. V21 changes `layout_backgrounds.source_performance_id` to `ON DELETE SET NULL`, and deleting a performance then removes the backgrounds it uploaded that no layout, draft layout, template revision or other performance still references.
 - `DELETE /api/organizer/manage/v2/events/{id}` succeeds when every performance meets the same rule, then removes the event, its performances and its native artist-bio jobs and poster.
 - Both require the caller's current `draft_version` (409 on mismatch) and are audited. Legacy-linked events cannot be deleted by organizers.
 
@@ -58,7 +60,7 @@
 
 ### Legacy concerts for organizers
 
-- **Refused:** organizer write endpoints for legacy concerts (create, update, status, poster, category, ticket-type writes, legacy artist-bio writes) return 403 `error.concert.organizer-legacy-read-only`. Organizer reads stay.
+- **Refused:** organizer write endpoints for legacy concerts (create, update, status, poster, category, ticket-type writes, publication requests, legacy artist-bio writes) return 403 `error.concert.organizer-legacy-read-only`. Organizer reads stay.
 - **Unchanged:** Admin endpoints, and guest import for legacy concerts. Guest import is an operation, not a content edit.
 - **Workspace:** the native workspace replaces the "open legacy workspace" link with a read-only summary: schedule, venue, ticket types and prices, publication state, guests, orders and report links, and *Request a change* (explains that TicketBox support makes changes, with the support contact).
 - **Redirects:** `/organizer/concerts/:id[/preview]` goes to `/organizer/events/:id` (the event id equals the legacy concert id). `/organizer/concerts`, `/organizer/ticket-types`, `/organizer/guests` and `/organizer/artist-bio` go to `/organizer/events`. Links in the directory, Overview, reports and revenue page now point into `/organizer/events`.
@@ -69,6 +71,10 @@
 - After release the step shows the live version, *Edit* opens the staged revision, and a status line shows Drafting, In review, Changes requested (with reason) or Rejected.
 - The performance switcher gains *Guests* (released performances) and *Delete draft*. The header gains *Preview*.
 - New and changed screens use the workspace records styles and toasts for outcomes, with inline text for validation.
+
+### Capability boundaries
+
+Deleting an event removes its bio PDFs, which the `artistbio` capability owns. `EventDrafts` depends on the `EventBioCleanup` port in `performance.application`, implemented by `ArtistBioJobService`, and `JdbcEventContentStore` no longer reads `artist_pdf_jobs`. `artistbio` already depends on `performance` through `EventArtistBioPort`; the reverse dependency is gone, so the two capabilities no longer form a cycle. Artist bio job lists carry `eventTitle` for native-event jobs.
 
 ## Defaults to confirm in review
 

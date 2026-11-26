@@ -108,8 +108,8 @@ Native events carry buyer content: `posterUrl`, `translations` (`vi` and `en` ti
 
 | Method and path | Access |
 | --- | --- |
-| `POST /api/organizer/manage/v2/events`, `PUT .../events/{id}` | Organizer `EVENTS`. Accept the content fields. `PUT` works until a performance is released, with `expectedDraftVersion`. |
-| `PUT`, `DELETE .../events/{id}/poster` | Organizer `EVENTS`. Multipart `file` (JPEG, PNG or WebP). Writes the draft directly, or stages the poster once a performance is released. Optional `expectedVersion` and `expectedRevision`. |
+| `POST /api/organizer/manage/v2/events`, `PUT .../events/{id}` | Organizer `EVENTS`. Accept the content fields. `PUT` works until a performance is released, with `expectedContentVersion` (the event's `contentVersion`). |
+| `PUT`, `DELETE .../events/{id}/poster` | Organizer `EVENTS`. Multipart `file` (JPEG, PNG or WebP). Writes the draft directly, or stages the poster once a performance is released. `expectedVersion` (the event's `contentVersion`) is required while no performance is released; `expectedRevision` (the server revision, unchanged after an approval) when staging. |
 | `GET .../events/{id}/content` | The event and its pending revision, if any |
 | `PUT .../events/{id}/content-revision` | Stage content of a released event. Body: content fields and `expectedRevision` (0 for none). A stale value returns 409. |
 | `POST .../events/{id}/content-revision/submit`, `.../withdraw`, `DELETE .../content-revision` | Submit with `expectedRevision`, take back a submitted revision, or discard a revision that is not in review |
@@ -121,7 +121,7 @@ Native events carry buyer content: `posterUrl`, `translations` (`vi` and `en` ti
 | `POST /api/admin/v2/event-content-revisions/{eventId}/decision` | Body `action` (`APPROVE`, `REQUEST_CHANGES`, `REJECT`), `reason` (required unless approving) and the `revision` number. A stale revision returns 409. Repeating a completed decision returns the recorded outcome. |
 | `GET /api/admin/v2/events/{id}/preview` | Platform preview of any event |
 
-A revision has the states `DRAFTING`, `SUBMITTED`, `CHANGES_REQUESTED`, `REJECTED` and `APPROVED`. Approval applies the content to the event and bumps its `draftVersion`. A pending revision does not block releasing another performance.
+A revision has the states `DRAFTING`, `SUBMITTED`, `CHANGES_REQUESTED`, `REJECTED` and `APPROVED`. Approval applies the content to the event and bumps its `contentVersion`, never its `draftVersion`, so it never supersedes a performance publication review. When the title changes, every released performance gets a new publication version with the new title. A pending revision does not block releasing another performance.
 
 Organizers cannot create or change legacy concerts: `POST/PUT/DELETE /api/organizer/manage/concerts/**`, ticket type writes, `.../category`, `.../poster` and legacy artist bio writes return 403 `error.concert.organizer-legacy-read-only`. Reads and guest import still work, and Admin routes are unchanged. Set `TICKETBOX_ORGANIZER_LEGACY_READ_ONLY=false` on Catalog to roll back.
 
