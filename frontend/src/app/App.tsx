@@ -132,10 +132,6 @@ const OrganizerOverviewPage = lazyNamed(
   () => import('../pages/organizer/OrganizerOverviewPage'),
   'OrganizerOverviewPage',
 );
-const OrganizerRevenuePage = lazyNamed(
-  () => import('../pages/organizer/OrganizerRevenuePage'),
-  'OrganizerRevenuePage',
-);
 
 const audiencePage = (page: React.ReactNode) => (
   <ProtectedRoute allowedRoles={['AUDIENCE']} redirectUnauthorized>
@@ -372,11 +368,7 @@ export function App() {
               />
               <Route
                 path="revenue"
-                element={
-                  <RequireOrganizationGrant grant="FINANCE">
-                    <OrganizerRevenuePage />
-                  </RequireOrganizationGrant>
-                }
+                element={<Navigate to="/organizer/reports?view=sales" replace />}
               />
               <Route
                 path="orders"

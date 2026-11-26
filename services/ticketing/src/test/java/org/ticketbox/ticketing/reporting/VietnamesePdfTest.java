@@ -19,6 +19,7 @@ import org.ticketbox.ticketing.order.application.port.OrderRepository;
 import org.ticketbox.ticketing.order.domain.Order;
 import org.ticketbox.ticketing.reporting.application.OrganizerRevenueService;
 import org.ticketbox.ticketing.reporting.application.dto.RevenueSummaryResponse;
+import org.ticketbox.ticketing.reporting.application.dto.SalesReportResponses;
 import org.ticketbox.ticketing.reporting.application.dto.ZoneRevenueResponse;
 import org.ticketbox.ticketing.reporting.infrastructure.RevenueReportExportService;
 
@@ -133,6 +134,30 @@ class VietnamesePdfTest {
                 new RevenueReportExportService(revenues)
                         .export(concert, organizer, "pdf")
                         .content());
+    }
+
+    @Test
+    void salesPdfAndCsvKeepVietnameseNames() throws Exception {
+        UUID performance = UUID.randomUUID(), event = UUID.randomUUID();
+        var scope = new SalesReportResponses.Scope("EVENT", event, null, TITLE);
+        var summary = new SalesReportResponses.Summary(scope, java.time.LocalDate.of(2026, 12, 1),
+                java.time.LocalDate.of(2026, 12, 5), "Asia/Ho_Chi_Minh", true, 2, 1, 1, 1, 10L,
+                BigDecimal.TEN, 200000L, 100000L, 100000L);
+        var trend = new SalesReportResponses.Trend("day", "Asia/Ho_Chi_Minh", summary.from(), summary.to(), true,
+                List.of(new SalesReportResponses.TrendBucket(java.time.LocalDateTime.of(2026, 12, 1, 0, 0),
+                        2, 1, 1, 1, 200000L, 100000L, 100000L)));
+        var row = new SalesReportResponses.BreakdownRow(performance, performance, event, ZONE, null, TITLE,
+                OffsetDateTime.now(), true, 2, 1, 1, 1, 10L, BigDecimal.TEN, 200000L, 100000L, 100000L);
+        var rows = new SalesReportResponses.Breakdown("performance", "Asia/Ho_Chi_Minh", summary.from(), summary.to(),
+                true, List.of(row));
+        var report = new SalesReportResponses.Report(summary, trend, rows, null);
+        var exporter = new org.ticketbox.ticketing.reporting.infrastructure.SalesReportExportService();
+
+        verifyPdf(exporter.export(report, "pdf").content());
+        var csv = exporter.export(report, "csv");
+        assertThat(new String(csv.content(), java.nio.charset.StandardCharsets.UTF_8))
+                .startsWith(String.valueOf((char) 0xFEFF)).contains(TITLE, ZONE, "\r\n");
+        assertThat(csv.filename()).startsWith("Đêm-nhạc-Ánh-Dương-sales-2026-12-01-to-2026-12-05");
     }
 
     private void verifyPdf(byte[] content) throws Exception {

@@ -111,6 +111,12 @@
           "hashMigrationPreservesEventsReplayChecksAndAppendOnlyPermissions"
         ]
       },
+      "sales-ledger": {
+        "org.ticketbox.ticketing.reporting.SalesLedgerIntegrationTest": [],
+        "org.ticketbox.ticketing.reporting.infrastructure.persistence.SalesLedgerBackfillTest": [],
+        "org.ticketbox.ticketing.reporting.infrastructure.persistence.SalesLedgerScaleTest": [],
+        "org.ticketbox.ticketing.reporting.infrastructure.persistence.JdbcReconciliationStoreTest": []
+      },
       "vietnamese-pdfs": {
         "org.ticketbox.ticketing.reporting.VietnamesePdfTest": []
       },

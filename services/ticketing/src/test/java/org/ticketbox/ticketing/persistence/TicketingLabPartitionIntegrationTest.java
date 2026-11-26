@@ -83,6 +83,22 @@ class TicketingLabPartitionIntegrationTest {
             assertThatThrownBy(() -> runtime.execute("TRUNCATE order_events"))
                     .rootCause()
                     .hasMessageContaining("permission denied");
+            // The sales ledger is append-only for the runtime role as well.
+            runtime.execute(
+                    "INSERT INTO sales_ledger(order_id,order_item_id,kind,event_id,performance_id,offer_id,"
+                            + "offer_name,quantity,amount,occurred_at) VALUES(gen_random_uuid(),"
+                            + "gen_random_uuid(),'SALE',gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),"
+                            + "'General',1,100,now())");
+            for (String statement :
+                    new String[] {
+                        "UPDATE sales_ledger SET amount=1 WHERE false",
+                        "DELETE FROM sales_ledger WHERE false",
+                        "TRUNCATE sales_ledger"
+                    }) {
+                assertThatThrownBy(() -> runtime.execute(statement))
+                        .rootCause()
+                        .hasMessageContaining("permission denied");
+            }
         }
     }
 

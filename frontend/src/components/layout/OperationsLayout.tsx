@@ -660,11 +660,11 @@ export function OperationsLayout({ mode }: { mode: WorkspaceMode }) {
                     pathname === '/organizer/reconciliation'
                       ? 'reconciliation'
                       : pathname === '/organizer/revenue'
-                        ? 'revenue'
+                        ? 'sales'
                         : new URLSearchParams(location.search).get('view');
                   const view =
                     currentView === 'reconciliation' ||
-                    currentView === 'revenue' ||
+                    currentView === 'sales' ||
                     currentView === 'operations'
                       ? currentView
                       : '';
