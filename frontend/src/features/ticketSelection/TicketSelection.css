@@ -408,6 +408,21 @@
   justify-items: end;
   gap: 0.25rem;
 }
+.ts-row-note {
+  grid-column: 1 / -1;
+  min-inline-size: 0;
+}
+.ts-row-note small {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+.ts-row-note .ts-reason {
+  color: var(--buyer-warning-text);
+}
 .ts-row-action .button {
   min-block-size: 2.75rem;
 }

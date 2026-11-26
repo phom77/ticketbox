@@ -104,10 +104,11 @@ export function Stepper({
           <Plus size={16} aria-hidden="true" />
         </button>
       </div>
-      {row.maxPerAccount != null ? (
+      {reason ? (
+        <small className="ts-reason">{reason}</small>
+      ) : row.maxPerAccount != null ? (
         <small>{t('customer:ticketSelection_maxPerAccount', { count: row.maxPerAccount })}</small>
       ) : null}
-      {reason ? <small className="ts-reason">{reason}</small> : null}
     </div>
   );
 }
@@ -116,10 +117,13 @@ export function OfferRowView({
   row,
   selected,
   children,
+  note,
 }: {
   row: OfferRow;
   selected: boolean;
   children: ReactNode;
+  /** Feedback shown on its own line across the card, so it never overlaps the row text. */
+  note?: ReactNode;
 }) {
   const { t } = useTranslation('customer');
   const level = stockLevel(row.available);
@@ -138,6 +142,7 @@ export function OfferRowView({
         </span>
       </div>
       <div className="ts-row-action">{children}</div>
+      {note ? <div className="ts-row-note">{note}</div> : null}
     </li>
   );
 }

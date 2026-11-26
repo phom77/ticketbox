@@ -99,6 +99,10 @@ ticketbox:
       capacity: ${PAYMENT_CALLBACK_BURST:128}
       refill-tokens: ${PAYMENT_CALLBACK_RATE:64}
       refill-period: 1s
+    release:
+      capacity: 20
+      refill-tokens: 10
+      refill-period: 1s
     purchase:
       capacity: 5
       refill-tokens: 1

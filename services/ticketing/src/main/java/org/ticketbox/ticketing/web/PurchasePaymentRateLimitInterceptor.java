@@ -66,11 +66,20 @@ public class PurchasePaymentRateLimitInterceptor implements HandlerInterceptor {
         }
 
         RateLimitProperties.Policy policy =
-                bucket == Bucket.PURCHASE ? properties.purchase() : properties.payment();
+                switch (bucket) {
+                    case PURCHASE -> properties.purchase();
+                    case RELEASE -> properties.release();
+                    case PAYMENT -> properties.payment();
+                };
 
         if (!rateLimiter.tryConsume(redisKey, policy)) {
             throw new AppException(
                     ErrorCode.RATE_LIMIT_EXCEEDED, "Too many requests. Please retry later.");
+        }
+        if (bucket == Bucket.RELEASE) {
+            // Releases return stock and do not compete for inventory, so they skip the global
+            // purchase throttle.
+            return true;
         }
 
         RateLimitProperties.Policy global =
@@ -86,6 +95,9 @@ public class PurchasePaymentRateLimitInterceptor implements HandlerInterceptor {
     }
 
     private Bucket resolveBucket(String uri) {
+        if (uri.startsWith("/api/reservations/") && uri.endsWith("/release")) {
+            return Bucket.RELEASE;
+        }
         if ("/api/orders".equals(uri) || uri.startsWith("/api/reservations/")
                 || (uri.startsWith("/api/v2/performances/") && (uri.endsWith("/hold") || uri.endsWith("/orders")))) {
             return Bucket.PURCHASE;
@@ -100,6 +112,7 @@ public class PurchasePaymentRateLimitInterceptor implements HandlerInterceptor {
 
     private enum Bucket {
         PURCHASE,
+        RELEASE,
         PAYMENT
     }
 }

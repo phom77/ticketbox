@@ -72,6 +72,9 @@ export function ConcertTickets({ id }: { id: string }) {
   }));
   const [tip, setTip] = useState<string | null>(null);
   const inFlight = useRef(new Set<string>());
+  // Clicks not yet confirmed by the server, per ticket type (+1 per add, -1 per remove).
+  const queued = useRef(new Map<string, number>());
+  const [pendingDelta, setPendingDelta] = useState<Record<string, number>>({});
   const active = useRef(false);
   const token = admission?.queueAccessToken;
   const {
@@ -238,32 +241,16 @@ export function ConcertTickets({ id }: { id: string }) {
     }
   }
 
-  async function updateQuantity(type: TicketType, action: HoldAction) {
-    if (!token || leaving || inFlight.current.has(type.id)) return;
-    if (!isCurrentSession()) {
-      returnToWaitingRoom(translate('customer:seatSelectionPage_phienMuaVeDaHetHanVui'));
-      return;
-    }
+  function syncPending(typeId: string) {
+    setPendingDelta((current) => ({ ...current, [typeId]: queued.current.get(typeId) ?? 0 }));
+  }
 
-    const quantity = heldQuantities[type.id] ?? 0;
-    if (action === 'reserve' && (type.availableQty <= 0 || quantity >= type.maxPerAccount)) return;
-    if (action === 'release' && quantity === 0) return;
-    if (action !== 'verify' && feedback[type.id]?.kind === 'unverified') return;
-
-    inFlight.current.add(type.id);
-    setSelectedZone(type.id);
-    setZoneFeedback(type.id, null);
-    setZoneLoading((current) => ({ ...current, [type.id]: action }));
-
+  /** One reserve or release call. Returns false when the queue for this type should stop. */
+  async function runHold(type: TicketType, action: 'reserve' | 'release', queueToken: string) {
     try {
-      if (action === 'verify') {
-        await verifyQuantity(type.id, token);
-        return;
-      }
-
       const mutate = action === 'reserve' ? reserveTicket : releaseTicket;
-      const hold = await mutate(id, type.id, 1, token);
-      if (!isCurrentSession()) return;
+      const hold = await mutate(id, type.id, 1, queueToken);
+      if (!isCurrentSession()) return false;
       if (
         hold?.ticketTypeId === type.id &&
         typeof hold.quantity === 'number' &&
@@ -271,11 +258,12 @@ export function ConcertTickets({ id }: { id: string }) {
         hold.quantity >= 0
       ) {
         setConfirmedQuantity(type.id, hold.quantity);
-      } else {
-        await verifyQuantity(type.id, token);
+        return true;
       }
+      await verifyQuantity(type.id, queueToken);
+      return false;
     } catch (error) {
-      if (!isCurrentSession()) return;
+      if (!isCurrentSession()) return false;
       if (error instanceof ApiClientError && error.status === 403) {
         returnToWaitingRoom(translate('customer:seatSelectionPage_phienMuaVeDaHetHanVui'));
       } else if (error instanceof ApiClientError && error.status === 429) {
@@ -295,8 +283,66 @@ export function ConcertTickets({ id }: { id: string }) {
         });
       } else {
         // A lost response may follow a committed write. Re-read the hold before allowing a new write.
-        await verifyQuantity(type.id, token);
+        await verifyQuantity(type.id, queueToken);
       }
+      return false;
+    }
+  }
+
+  /** Sends queued clicks for one ticket type one at a time, so the count updates without waiting. */
+  async function drain(type: TicketType, queueToken: string) {
+    inFlight.current.add(type.id);
+    try {
+      for (;;) {
+        const net = queued.current.get(type.id) ?? 0;
+        if (net === 0) break;
+        const step = net > 0 ? 1 : -1;
+        setZoneLoading((current) => ({ ...current, [type.id]: step > 0 ? 'reserve' : 'release' }));
+        const ok = await runHold(type, step > 0 ? 'reserve' : 'release', queueToken);
+        if (!isCurrentSession()) return;
+        queued.current.set(type.id, ok ? (queued.current.get(type.id) ?? 0) - step : 0);
+        syncPending(type.id);
+      }
+    } finally {
+      inFlight.current.delete(type.id);
+      if (isCurrentSession()) {
+        setZoneLoading((current) => {
+          const next = { ...current };
+          delete next[type.id];
+          return next;
+        });
+        refresh();
+      }
+    }
+  }
+
+  function step(type: TicketType, direction: 1 | -1) {
+    if (!token || leaving) return;
+    if (!isCurrentSession()) {
+      returnToWaitingRoom(translate('customer:seatSelectionPage_phienMuaVeDaHetHanVui'));
+      return;
+    }
+    if (feedback[type.id]?.kind === 'unverified' || zoneLoading[type.id] === 'verify') return;
+
+    const net = queued.current.get(type.id) ?? 0;
+    const shown = (heldQuantities[type.id] ?? 0) + net;
+    if (direction > 0 && (type.availableQty - Math.max(0, net) <= 0 || shown >= type.maxPerAccount))
+      return;
+    if (direction < 0 && shown <= 0) return;
+
+    queued.current.set(type.id, net + direction);
+    syncPending(type.id);
+    setSelectedZone(type.id);
+    setZoneFeedback(type.id, null);
+    if (!inFlight.current.has(type.id)) void drain(type, token);
+  }
+
+  async function retryVerify(type: TicketType) {
+    if (!token || leaving || inFlight.current.has(type.id)) return;
+    inFlight.current.add(type.id);
+    setZoneFeedback(type.id, null);
+    try {
+      await verifyQuantity(type.id, token);
     } finally {
       inFlight.current.delete(type.id);
       if (isCurrentSession()) {
@@ -501,13 +547,42 @@ export function ConcertTickets({ id }: { id: string }) {
               {listed.map((row) => {
                 const type = pickerTypes.find((entry) => entry.id === row.key)!;
                 const note = feedback[row.key];
-                const pending = zoneLoading[row.key];
-                const locked = Boolean(pending) || note?.kind === 'unverified' || leaving;
+                const verifying = zoneLoading[row.key] === 'verify';
+                const locked = verifying || note?.kind === 'unverified' || leaving;
+                const shown = (heldQuantities[row.key] ?? 0) + (pendingDelta[row.key] ?? 0);
                 return (
-                  <OfferRowView key={row.key} row={row} selected={currentType?.id === row.key}>
+                  <OfferRowView
+                    key={row.key}
+                    row={row}
+                    selected={currentType?.id === row.key}
+                    note={
+                      verifying ? (
+                        <small role="status">
+                          {translate('customer:seatSelectionPage_holdVerifying')}
+                        </small>
+                      ) : note ? (
+                        <small
+                          className="ts-reason"
+                          role={note.kind === 'confirmed' ? 'status' : 'alert'}
+                        >
+                          {note.message}
+                          {note.kind === 'unverified' ? (
+                            <button
+                              className="button button-secondary"
+                              type="button"
+                              disabled={leaving}
+                              onClick={() => void retryVerify(type)}
+                            >
+                              {translate('customer:seatSelectionPage_holdRetry')}
+                            </button>
+                          ) : null}
+                        </small>
+                      ) : null
+                    }
+                  >
                     <Stepper
                       row={row}
-                      quantity={heldQuantities[row.key] ?? 0}
+                      quantity={shown}
                       busy={locked}
                       addLabel={translate('customer:seatSelectionPage_themMotVe', {
                         arg1: type.name,
@@ -515,37 +590,9 @@ export function ConcertTickets({ id }: { id: string }) {
                       removeLabel={translate('customer:seatSelectionPage_boMotVe', {
                         arg1: type.name,
                       })}
-                      onAdd={() => void updateQuantity(type, 'reserve')}
-                      onRemove={() => void updateQuantity(type, 'release')}
+                      onAdd={() => step(type, 1)}
+                      onRemove={() => step(type, -1)}
                     />
-                    {pending ? (
-                      <small role="status">
-                        {translate(
-                          pending === 'reserve'
-                            ? 'customer:seatSelectionPage_dangGiu'
-                            : pending === 'release'
-                              ? 'customer:seatSelectionPage_dangGiaiPhong'
-                              : 'customer:seatSelectionPage_holdVerifying',
-                        )}
-                      </small>
-                    ) : note ? (
-                      <small
-                        className="ts-reason"
-                        role={note.kind === 'confirmed' ? 'status' : 'alert'}
-                      >
-                        {note.message}
-                        {note.kind === 'unverified' ? (
-                          <button
-                            className="button button-secondary"
-                            type="button"
-                            disabled={leaving}
-                            onClick={() => void updateQuantity(type, 'verify')}
-                          >
-                            {translate('customer:seatSelectionPage_holdRetry')}
-                          </button>
-                        ) : null}
-                      </small>
-                    ) : null}
                   </OfferRowView>
                 );
               })}

@@ -132,6 +132,25 @@ class PurchasePaymentRateLimitInterceptorTest {
     }
 
     @Test
+    void preHandle_ReleaseUsesReleaseBudgetWithoutGlobalPurchaseThrottle() {
+        request.setMethod("POST");
+        request.setRequestURI("/api/reservations/concerts/c1/ticket-types/t1/release");
+        SecurityContextHolder.getContext()
+                .setAuthentication(
+                        new UsernamePasswordAuthenticationToken(
+                                "user-123",
+                                "password",
+                                List.of(new SimpleGrantedAuthority("ROLE_USER"))));
+        when(rateLimiter.tryConsume(
+                        eq(RedisKeyConstants.RATE_LIMIT_USER + "user-123:release"),
+                        eq(properties.release())))
+                .thenReturn(true);
+
+        assertTrue(interceptor.preHandle(request, response, new Object()));
+        verify(rateLimiter, times(1)).tryConsume(any(), any());
+    }
+
+    @Test
     void preHandle_RateLimitExceeded_ShouldThrowAppException429() {
         request.setMethod("POST");
         request.setRequestURI("/api/orders");
