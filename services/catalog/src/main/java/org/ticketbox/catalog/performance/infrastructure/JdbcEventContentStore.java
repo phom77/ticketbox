@@ -60,16 +60,21 @@ public class JdbcEventContentStore implements EventContentStore {
     public void write(UUID eventId, EventContent content) {
         jdbc.update("""
                 UPDATE events SET title=?, description=?, localized_content=?, artist_bio=?, age_rating=?,
-                  refund_policy=?, content_version=content_version+1,
-                  draft_version=draft_version + CASE WHEN title IS DISTINCT FROM ? OR description IS DISTINCT FROM ?
-                      THEN 1 ELSE 0 END
+                  refund_policy=?, content_version=content_version+1, draft_version=draft_version+1
                 WHERE id=?
                 """, content.title(), content.description(), localized(content), content.artistBio(),
-                content.ageRating(), content.refundPolicy(), content.title(), content.description(), eventId);
+                content.ageRating(), content.refundPolicy(), eventId);
     }
 
     @Override
     public void writePoster(UUID eventId, Poster poster) {
+        jdbc.update("""
+                UPDATE events SET poster_url=?, poster_public_id=?, content_version=content_version+1,
+                  draft_version=draft_version+1 WHERE id=?
+                """, poster.url(), poster.publicId(), eventId);
+    }
+
+    private void applyPoster(UUID eventId, Poster poster) {
         jdbc.update("UPDATE events SET poster_url=?, poster_public_id=?, content_version=content_version+1 WHERE id=?",
                 poster.url(), poster.publicId(), eventId);
     }
@@ -81,7 +86,7 @@ public class JdbcEventContentStore implements EventContentStore {
                   refund_policy=?, content_version=content_version+1 WHERE id=?
                 """, content.title(), content.description(), localized(content), content.artistBio(),
                 content.ageRating(), content.refundPolicy(), eventId);
-        if (poster.changed()) writePoster(eventId, new Poster(poster.url(), poster.publicId()));
+        if (poster.changed()) applyPoster(eventId, new Poster(poster.url(), poster.publicId()));
     }
 
     @Override

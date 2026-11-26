@@ -29,12 +29,12 @@ public interface EventContentStore {
     void writeCategory(UUID eventId, String category);
 
     /**
-     * Writes the pre-release content and bumps the content version. The draft version, the token of publication
-     * reviews, moves only when the title or description changes, so such a change supersedes a pending review.
+     * Writes the pre-release content and bumps the content version and the draft version, the token of publication
+     * reviews, so any content write supersedes a pending review.
      */
     void write(UUID eventId, EventContent content);
 
-    /** Replaces or removes the poster and bumps the content version, never the draft version. */
+    /** Replaces or removes the pre-release poster and bumps the content and draft versions. */
     void writePoster(UUID eventId, Poster poster);
 
     /** Applies approved content under the caller's event lock. Bumps the content version, never the draft version. */

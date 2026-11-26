@@ -426,7 +426,7 @@ class EventContentIntegrationTest {
     }
 
     @Test
-    void draftPosterChangesRequireTheContentVersionAndContentWritesLeaveTheDraftVersionAlone() {
+    void draftPosterChangesRequireTheContentVersionAndEveryPreReleaseContentWriteBumpsTheDraftVersion() {
         var event = tx(() -> content.create(owner, input("Versioned show", "x")));
         assertThatThrownBy(() -> tx(() -> content.replacePoster(owner, event.id(), null, null, upload())))
                 .hasMessage("error.performance.expected-draft-version");
@@ -437,10 +437,11 @@ class EventContentIntegrationTest {
         var edited = tx(() -> content.updateDraft(owner, event.id(), posted.contentVersion(),
                 new Input("Versioned show", "x", "concerts", Map.of(), "New bio", "ALL", null)));
         assertThat(edited.contentVersion()).isEqualTo(event.contentVersion() + 2);
-        assertThat(edited.draftVersion()).isEqualTo(drafts);
+        assertThat(posted.draftVersion()).isEqualTo(drafts + 1);
+        assertThat(edited.draftVersion()).isEqualTo(drafts + 2);
         var renamed = tx(() -> content.updateDraft(owner, event.id(), edited.contentVersion(),
                 new Input("Renamed show", "x", "concerts", Map.of(), "New bio", "ALL", null)));
-        assertThat(renamed.draftVersion()).isEqualTo(drafts + 1);
+        assertThat(renamed.draftVersion()).isEqualTo(drafts + 3);
     }
 
     @Test

@@ -94,7 +94,8 @@ class PerformanceCatalogIntegrationTest {
         var store = new JdbcPerformanceStore(jdbc, json);
         catalog = new PerformanceCatalog(store, "*");
         content = new org.ticketbox.catalog.performance.application.EventContentService(
-                store, new org.ticketbox.catalog.performance.infrastructure.JdbcEventContentStore(jdbc, json), null, catalog);
+                store, new org.ticketbox.catalog.performance.infrastructure.JdbcEventContentStore(jdbc, json),
+                new org.ticketbox.catalog.performance.EventContentIntegrationTest.FakePosters(), catalog);
         reviews = new PerformancePublicationReview(store, new JdbcPerformanceReviewStore(jdbc, json), catalog);
         organizer = MockMvcBuilders.standaloneSetup(new OrganizerPerformanceController(catalog, reviews, content), new PerformanceOperationsController(catalog),
                 new org.ticketbox.catalog.performance.web.LegacyConcertCategoryController(catalog))
@@ -486,16 +487,28 @@ class PerformanceCatalogIntegrationTest {
     }
 
     @Test
-    void preReleaseContentOtherThanTheTitleKeepsAScheduledReleaseButATitleChangeSupersedesIt() {
+    void everyPreReleaseContentWriteSupersedesAPendingReview() {
         var plain = newPerformance(3);
         approvedReview(plain);
         var event0 = catalog.event(event, owner);
         var bio = new org.ticketbox.catalog.performance.application.EventContentService.Input(
                 event0.title(), event0.description(), "concerts", java.util.Map.of(), "A bio", "ALL", null);
         var after = tx(() -> content.updateDraft(owner, event, event0.contentVersion(), bio));
-        assertThat(after.draftVersion()).isEqualTo(event0.draftVersion());
+        assertThat(after.draftVersion()).isEqualTo(event0.draftVersion() + 1);
         tx(() -> { reviews.release(plain.id()); return null; });
-        assertThat(reviewState(plain.id())).isEqualTo("RELEASED");
+        assertThat(reviewState(plain.id())).isEqualTo("SUPERSEDED");
+    }
+
+    @Test
+    void aPreReleasePosterChangeSupersedesAPendingReview() {
+        var show = newPerformance(3);
+        approvedReview(show);
+        var event0 = catalog.event(event, owner);
+        var upload = new org.ticketbox.catalog.support.TestUpload("file", "poster.png", "image/png", new byte[] {1});
+        var after = tx(() -> content.replacePoster(owner, event, event0.contentVersion(), null, upload)).event();
+        assertThat(after.draftVersion()).isEqualTo(event0.draftVersion() + 1);
+        tx(() -> { reviews.release(show.id()); return null; });
+        assertThat(reviewState(show.id())).isEqualTo("SUPERSEDED");
     }
 
     @Test
