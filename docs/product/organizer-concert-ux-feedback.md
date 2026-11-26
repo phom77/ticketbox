@@ -4,7 +4,8 @@ This note records product-owner feedback from the TicketBox concert redesign
 conversation on 21 November 2026. Read it before changing organizer, admin,
 concert creation, ticket inventory, maps or operational pages. Treat it as
 product direction, then check the current implementation and permissions before
-proposing a change.
+proposing a change. The resulting audit and roadmap are in
+[organizer-workflow-audit.md](organizer-workflow-audit.md).
 
 ## What the product owner reported
 
