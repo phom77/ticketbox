@@ -30,4 +30,4 @@ Organizers cannot see how their events are selling. The only revenue report cove
 - **Check-in:** none. The Overview reads the existing `checkin-summary` endpoint (`EVENTS`).
 - **Catalog, Payment, Notification, contracts:** none.
 - **Web:** Reports › Sales, shared trend chart, Overview sales sections, redirect from the revenue page.
-- **Decision for approval:** ADR 0005 (sales ledger and reporting dates).
+- **Decision:** ADR 0005 (sales ledger and reporting dates), accepted 2026-11-27.

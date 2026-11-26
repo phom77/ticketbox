@@ -1,6 +1,6 @@
 # ADR 0005: Sales ledger and reporting dates
 
-- **Status:** Proposed (organizer-sales-reporting)
+- **Status:** Accepted (organizer-sales-reporting, approved by the product owner on 2026-11-27)
 - **Date:** 2026-11-27
 
 ## Context

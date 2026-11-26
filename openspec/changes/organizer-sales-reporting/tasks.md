@@ -2,7 +2,7 @@
 
 ## 1. Decision
 
-- [ ] 1.1 Accept ADR 0005 (sales ledger and reporting dates).
+- [x] 1.1 Accept ADR 0005 (sales ledger and reporting dates).
 
 ## 2. Ticketing
 
