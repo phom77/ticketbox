@@ -76,7 +76,7 @@ public class OrganizerPerformanceController {
     public ApiResponse<Event> updateDraftEvent(
             @PathVariable UUID id, @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID owner,
             @RequestBody EventRequest request) {
-        return ApiResponse.success(content.updateDraft(owner, id, request.expectedDraftVersion(), request.input()));
+        return ApiResponse.success(content.updateDraft(owner, id, request.expectedContentVersion(), request.input()));
     }
 
     @GetMapping("/venues")
@@ -194,7 +194,7 @@ public class OrganizerPerformanceController {
         return UUID.fromString(actor.getName());
     }
 
-    record EventRequest(String title, String description, String category, Long expectedDraftVersion,
+    record EventRequest(String title, String description, String category, Long expectedContentVersion,
                         Map<String, ConcertText> translations, String artistBio, String ageRating,
                         String refundPolicy) {
         EventContentService.Input input() {

@@ -48,4 +48,8 @@ What buyers read about a native event besides its schedule: poster, original and
 
 **Content revision**
 
-The one pending edit of a released event's content. A platform reviewer approves, returns or rejects it, and buyers see the live content until approval.
+The one pending edit of a released event's content. A platform reviewer approves, returns or rejects it, and buyers see the live content until approval. Its revision number keeps counting across approvals.
+
+**Content version**
+
+The optimistic lock of the event content editors (`events.content_version`). It is separate from the event draft version, which is the token of publication reviews and only moves when the title or description of a draft changes.

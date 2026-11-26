@@ -20,6 +20,7 @@ import org.ticketbox.catalog.artistbio.application.port.StoredArtistPdf;
 import org.ticketbox.catalog.artistbio.domain.ArtistPdfJob;
 import org.ticketbox.catalog.concert.application.port.ConcertArtistBioPort;
 import org.ticketbox.catalog.performance.application.EventArtistBioPort;
+import org.ticketbox.catalog.performance.application.EventBioCleanup;
 
 import java.nio.file.Path;
 import java.time.Duration;
@@ -28,7 +29,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
-public class ArtistBioJobService {
+public class ArtistBioJobService implements EventBioCleanup {
 
     private static final List<ArtistPdfJob.Status> DEDUPLICATED_STATUSES =
             List.of(
@@ -67,6 +68,19 @@ public class ArtistBioJobService {
         this.messages = messages;
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public Runnable documentsRemoval(UUID eventId) {
+        List<String> paths = jobRepository.findByEventId(eventId).stream().map(ArtistPdfJob::getFileUrl).toList();
+        return () -> paths.forEach(path -> {
+            try {
+                fileStorage.deleteQuietly(fileStorage.requireStoredPath(path));
+            } catch (AppException ignored) {
+                // A path outside the storage root is never touched.
+            }
+        });
+    }
+
     @Transactional(readOnly = true)
     public Page<ArtistBioJobResponse> list(
             UUID requesterId,
@@ -82,7 +96,18 @@ public class ArtistBioJobService {
         }
         return jobRepository
                 .search(concertId, accessible, status, pageable)
-                .map(ArtistBioJobResponse::from);
+                .map(job -> {
+                    var response = ArtistBioJobResponse.from(job);
+                    return job.getEventId() == null ? response : response.withEventTitle(eventTitle(job.getEventId()));
+                });
+    }
+
+    private String eventTitle(UUID eventId) {
+        try {
+            return eventPort.requireEvent(eventId).title();
+        } catch (AppException missing) {
+            return null;
+        }
     }
 
     @Transactional

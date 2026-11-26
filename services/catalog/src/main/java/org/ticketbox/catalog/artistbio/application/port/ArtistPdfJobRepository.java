@@ -18,6 +18,8 @@ public interface ArtistPdfJobRepository {
     Optional<ArtistPdfJob> findFirstByEventIdAndFileChecksumAndStatusInOrderByCreatedAtDesc(
             UUID eventId, String fileChecksum, Collection<ArtistPdfJob.Status> statuses);
 
+    List<ArtistPdfJob> findByEventId(UUID eventId);
+
     List<ArtistPdfJob> findByStatusAndCreatedAtBefore(
             ArtistPdfJob.Status status, OffsetDateTime createdBefore);
 

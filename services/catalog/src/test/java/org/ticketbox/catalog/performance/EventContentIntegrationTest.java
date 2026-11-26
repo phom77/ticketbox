@@ -93,8 +93,8 @@ class EventContentIntegrationTest {
     void setup() {
         var contents = new JdbcEventContentStore(jdbc, json);
         catalog = new PerformanceCatalog(store, "*");
-        content = new EventContentService(store, contents, posters);
-        drafts = new EventDrafts(store, contents, posters, new NoDocuments());
+        content = new EventContentService(store, contents, posters, catalog);
+        drafts = new EventDrafts(store, contents, posters, eventId -> () -> {});
         var converters = new MappingJackson2HttpMessageConverter(json);
         organizer = MockMvcBuilders.standaloneSetup(new OrganizerEventContentController(content, drafts, null))
                 .setControllerAdvice(new GlobalExceptionHandler()).setMessageConverters(converters).build();
@@ -122,20 +122,20 @@ class EventContentIntegrationTest {
         assertThat(created.artistBio()).isEqualTo("Bio text");
         assertThat(created.translations().get("vi").title()).isEqualTo("Đêm nhạc");
 
-        assertThatThrownBy(() -> tx(() -> content.updateDraft(owner, created.id(), created.draftVersion(),
+        assertThatThrownBy(() -> tx(() -> content.updateDraft(owner, created.id(), created.contentVersion(),
                 new Input("Native show", null, "concerts", Map.of(), null, "21+", null))))
                 .isInstanceOf(DomainViolation.class).hasMessage("error.event-content.invalid-age-rating");
-        assertThatThrownBy(() -> tx(() -> content.updateDraft(owner, created.id(), created.draftVersion(),
+        assertThatThrownBy(() -> tx(() -> content.updateDraft(owner, created.id(), created.contentVersion(),
                 new Input("Native show", null, "concerts", Map.of("fr", new ConcertText("x", null)), null, null, null))))
                 .isInstanceOf(DomainViolation.class).hasMessage("validation.concert.translation-language");
-        assertThatThrownBy(() -> tx(() -> content.updateDraft(owner, created.id(), created.draftVersion() + 5,
+        assertThatThrownBy(() -> tx(() -> content.updateDraft(owner, created.id(), created.contentVersion() + 5,
                 input("Native show", "x")))).isInstanceOf(AppException.class)
                 .hasMessage("error.performance.version-conflict");
 
-        var withPoster = tx(() -> content.replacePoster(owner, created.id(), created.draftVersion(), null,
+        var withPoster = tx(() -> content.replacePoster(owner, created.id(), created.contentVersion(), null,
                 new TestUpload("file", "poster.png", "image/png", new byte[] {1}))).event();
         assertThat(withPoster.posterUrl()).isEqualTo("https://cdn.test/1");
-        assertThat(withPoster.draftVersion()).isGreaterThan(created.draftVersion());
+        assertThat(withPoster.contentVersion()).isGreaterThan(created.contentVersion());
 
         // Not public until a performance is released.
         buyer.perform(get("/api/v2/events/" + created.id())).andExpect(status().isNotFound());
@@ -174,11 +174,11 @@ class EventContentIntegrationTest {
     @Test
     void failedUploadsRollbackAndOtherOrganizationsCannotChangeThePoster() {
         var event = tx(() -> content.create(owner, input("Poster show", null)));
-        var first = tx(() -> content.replacePoster(owner, event.id(), null, null, upload())).event();
+        var first = tx(() -> content.replacePoster(owner, event.id(), cv(event.id()), null, upload())).event();
         assertThat(first.posterUrl()).isNotNull();
 
         posters.fail = true;
-        assertThatThrownBy(() -> tx(() -> content.replacePoster(owner, event.id(), null, null, upload())))
+        assertThatThrownBy(() -> tx(() -> content.replacePoster(owner, event.id(), cv(event.id()), null, upload())))
                 .isInstanceOf(AppException.class).hasMessage("error.poster.upload-failed");
         posters.fail = false;
         assertThat(tx(() -> content.state(owner, event.id())).event().posterUrl()).isEqualTo(first.posterUrl());
@@ -189,10 +189,10 @@ class EventContentIntegrationTest {
         assertThat(posters.deleted).contains(posters.uploaded.get(uploads));
         assertThat(tx(() -> content.state(owner, event.id())).event().posterUrl()).isEqualTo(first.posterUrl());
 
-        assertThatThrownBy(() -> tx(() -> content.replacePoster(other, event.id(), null, null, upload())))
+        assertThatThrownBy(() -> tx(() -> content.replacePoster(other, event.id(), cv(event.id()), null, upload())))
                 .isInstanceOf(AppException.class).hasMessage("error.performance.not-found");
 
-        var removed = tx(() -> content.removePoster(owner, event.id(), null, null)).event();
+        var removed = tx(() -> content.removePoster(owner, event.id(), cv(event.id()), null)).event();
         assertThat(removed.posterUrl()).isNull();
         assertThat(posters.deleted).contains(posters.uploaded.get(0));
     }
@@ -201,7 +201,7 @@ class EventContentIntegrationTest {
     void releasedEventsStageContentUntilAReviewerApproves() {
         var event = tx(() -> content.create(owner, input("Reviewed show", "Old description")));
         released(event.id(), 10);
-        assertThatThrownBy(() -> tx(() -> content.updateDraft(owner, event.id(), event.draftVersion(),
+        assertThatThrownBy(() -> tx(() -> content.updateDraft(owner, event.id(), event.contentVersion(),
                 input("Reviewed show", "Direct edit")))).hasMessage("error.performance.event-draft-locked");
 
         var staged = tx(() -> content.stage(owner, event.id(), 0L, input("Reviewed show", "New description")));
@@ -229,14 +229,15 @@ class EventContentIntegrationTest {
         assertThat(approved.revision().state()).isEqualTo(State.APPROVED);
         var live = store.event(event.id(), null).orElseThrow();
         assertThat(live.description()).isEqualTo("New description");
-        assertThat(live.draftVersion()).isGreaterThan(event.draftVersion());
+        assertThat(live.contentVersion()).isGreaterThan(event.contentVersion());
+        assertThat(live.draftVersion()).isEqualTo(event.draftVersion());
         assertThat(jdbc.queryForObject("SELECT reviewer_id FROM event_content_revisions WHERE event_id=?", UUID.class,
                 event.id())).isEqualTo(reviewer);
 
         // Repeating the completed decision returns the recorded outcome without another change.
         var again = tx(() -> content.decide(reviewer, event.id(), Action.APPROVE, null, 1));
         assertThat(again.revision().state()).isEqualTo(State.APPROVED);
-        assertThat(store.event(event.id(), null).orElseThrow().draftVersion()).isEqualTo(live.draftVersion());
+        assertThat(store.event(event.id(), null).orElseThrow().contentVersion()).isEqualTo(live.contentVersion());
         assertThatThrownBy(() -> tx(() -> content.decide(reviewer, event.id(), Action.REJECT, "no", 1)))
                 .isInstanceOf(DomainViolation.class).hasMessage("error.event-content.revision-not-submitted");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM organizer_audit_log WHERE subject_id=?", Integer.class,
@@ -321,6 +322,14 @@ class EventContentIntegrationTest {
         UUID background = UUID.randomUUID();
         jdbc.update("INSERT INTO layout_backgrounds(id,organization_id,source_performance_id,content_type,content) VALUES (?,?,?,'image/png',?)",
                 background, owner, first, new byte[] {1});
+        UUID shared = UUID.randomUUID();
+        jdbc.update("INSERT INTO layout_backgrounds(id,organization_id,source_performance_id,content_type,content) VALUES (?,?,?,'image/png',?)",
+                shared, owner, first, new byte[] {2});
+        UUID template = UUID.randomUUID();
+        jdbc.update("INSERT INTO layout_templates(id,organization_id,venue_space_id,name,version) VALUES (?,?,?,'Template',1)",
+                template, owner, space);
+        jdbc.update("INSERT INTO layout_revisions(template_id,version,document) VALUES (?,1,CAST(? AS jsonb))",
+                template, "{\"backgroundUrl\":\"/api/organizer/layout/background/" + shared + "\"}");
         long version = jdbc.queryForObject("SELECT draft_version FROM performances WHERE id=?", Long.class, first);
 
         assertThatThrownBy(() -> run(() -> drafts.deletePerformance(owner, actor, first, version + 3)))
@@ -333,22 +342,24 @@ class EventContentIntegrationTest {
         });
         assertThat(count("performances", first)).isZero();
         assertThat(count("events", event.id())).isEqualTo(1);
+        // The unreferenced background goes with its performance; the one a template still uses stays.
+        assertThat(count("layout_backgrounds", background)).isZero();
         assertThat(jdbc.queryForObject("SELECT source_performance_id FROM layout_backgrounds WHERE id=?", UUID.class,
-                background)).isNull();
+                shared)).isNull();
 
         // A submitted review blocks deletion, then a rejected one does not.
         UUID review = reviewFor(second, "SUBMITTED");
         long secondVersion = jdbc.queryForObject("SELECT draft_version FROM performances WHERE id=?", Long.class, second);
         assertThatThrownBy(() -> run(() -> drafts.deletePerformance(owner, actor, second, secondVersion)))
                 .hasMessage("error.performance.not-deletable");
-        assertThatThrownBy(() -> run(() -> drafts.deleteEvent(owner, actor, event.id(), 0L)))
+        assertThatThrownBy(() -> run(() -> drafts.deleteEvent(owner, actor, event.id(), 99L)))
                 .hasMessage("error.performance.version-conflict");
         jdbc.update("UPDATE performance_publication_reviews SET state='SCHEDULED' WHERE id=?", review);
         assertThatThrownBy(() -> run(() -> drafts.deletePerformance(owner, actor, second, secondVersion)))
                 .hasMessage("error.performance.not-deletable");
         jdbc.update("UPDATE performance_publication_reviews SET state='REJECTED' WHERE id=?", review);
 
-        var poster = tx(() -> content.replacePoster(owner, event.id(), null, null, upload())).event();
+        var poster = tx(() -> content.replacePoster(owner, event.id(), cv(event.id()), null, upload())).event();
         long eventVersion = poster.draftVersion();
         tx(() -> {
             drafts.deleteEvent(owner, actor, event.id(), eventVersion);
@@ -392,6 +403,47 @@ class EventContentIntegrationTest {
     }
 
     @Test
+    void aSecondRevisionCanBeStagedAndSubmittedAfterTheFirstWasApproved() {
+        var event = tx(() -> content.create(owner, input("Twice show", "v0")));
+        released(event.id(), 10);
+        UUID reviewer = UUID.randomUUID();
+        tx(() -> content.stage(owner, event.id(), 0L, input("Twice show", "v1")));
+        tx(() -> content.submit(owner, actor, event.id(), 1L));
+        tx(() -> content.decide(reviewer, event.id(), Action.APPROVE, null, 1));
+
+        // The server revision stays 1 after approval, so the editor sends it back unchanged.
+        var staged = tx(() -> content.stage(owner, event.id(), 1L, input("Twice show", "v2")));
+        assertThat(staged.revision().revision()).isEqualTo(2);
+        assertThat(staged.revision().state()).isEqualTo(State.DRAFTING);
+        var poster = tx(() -> content.replacePoster(owner, event.id(), null, 2L, upload()));
+        assertThat(poster.revision().revision()).isEqualTo(3);
+        assertThat(poster.revision().posterChanged()).isTrue();
+        assertThatThrownBy(() -> tx(() -> content.stage(owner, event.id(), 0L, input("Twice show", "stale"))))
+                .hasMessage("error.performance.version-conflict");
+        assertThat(tx(() -> content.submit(owner, actor, event.id(), 3L)).revision().state()).isEqualTo(State.SUBMITTED);
+        tx(() -> content.decide(reviewer, event.id(), Action.APPROVE, null, 3));
+        assertThat(store.event(event.id(), null).orElseThrow().description()).isEqualTo("v2");
+    }
+
+    @Test
+    void draftPosterChangesRequireTheContentVersionAndContentWritesLeaveTheDraftVersionAlone() {
+        var event = tx(() -> content.create(owner, input("Versioned show", "x")));
+        assertThatThrownBy(() -> tx(() -> content.replacePoster(owner, event.id(), null, null, upload())))
+                .hasMessage("error.performance.expected-draft-version");
+        assertThatThrownBy(() -> tx(() -> content.removePoster(owner, event.id(), null, null)))
+                .hasMessage("error.performance.expected-draft-version");
+        long drafts = event.draftVersion();
+        var posted = tx(() -> content.replacePoster(owner, event.id(), event.contentVersion(), null, upload())).event();
+        var edited = tx(() -> content.updateDraft(owner, event.id(), posted.contentVersion(),
+                new Input("Versioned show", "x", "concerts", Map.of(), "New bio", "ALL", null)));
+        assertThat(edited.contentVersion()).isEqualTo(event.contentVersion() + 2);
+        assertThat(edited.draftVersion()).isEqualTo(drafts);
+        var renamed = tx(() -> content.updateDraft(owner, event.id(), edited.contentVersion(),
+                new Input("Renamed show", "x", "concerts", Map.of(), "New bio", "ALL", null)));
+        assertThat(renamed.draftVersion()).isEqualTo(drafts + 1);
+    }
+
+    @Test
     void directoryRollsPerformanceStatusesUpByPriority() {
         UUID org = UUID.randomUUID();
         UUID venue = UUID.randomUUID();
@@ -428,7 +480,7 @@ class EventContentIntegrationTest {
         reviewFor(shows(urgent, room, "DRAFT", 12), "CHANGES_REQUESTED");
         jdbc.update("UPDATE events SET poster_url='https://cdn.test/dir.png' WHERE id=?", onSale);
         jdbc.update("""
-                INSERT INTO event_content_revisions(event_id,revision,base_draft_version,details,state)
+                INSERT INTO event_content_revisions(event_id,revision,base_content_version,details,state)
                 VALUES (?,1,0,'{}','SUBMITTED')
                 """, onSale);
 
@@ -452,6 +504,9 @@ class EventContentIntegrationTest {
         assertThat(row.posterUrl()).isEqualTo("https://cdn.test/dir.png");
         assertThat(row.contentChangeInReview()).isTrue();
         assertThat(row.performanceCount()).isEqualTo(1);
+        assertThat(row.preparing()).isFalse();
+        assertThat(rows.stream().filter(value -> value.id().equals(review)).findFirst().orElseThrow().preparing()).isTrue();
+        assertThat(rows.stream().filter(value -> value.id().equals(scheduled)).findFirst().orElseThrow().preparing()).isFalse();
         assertThat(row.nextStartsAt()).isNotNull();
     }
 
@@ -505,6 +560,10 @@ class EventContentIntegrationTest {
         return shows(event, space, "DRAFT", days);
     }
 
+    private long cv(UUID event) {
+        return jdbc.queryForObject("SELECT content_version FROM events WHERE id=?", Long.class, event);
+    }
+
     private int count(String table, UUID id) {
         return jdbc.queryForObject("SELECT count(*) FROM " + table + " WHERE id=?", Integer.class, id);
     }
@@ -547,23 +606,4 @@ class EventContentIntegrationTest {
         }
     }
 
-    static final class NoDocuments implements org.ticketbox.catalog.artistbio.application.port.ArtistDocuments {
-        @Override
-        public org.ticketbox.catalog.artistbio.application.port.StoredArtistPdf store(UUID concertId, Upload file) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public org.ticketbox.catalog.artistbio.application.port.StoredArtistPdf storeForEvent(UUID eventId, Upload file) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public java.nio.file.Path requireStoredPath(String value) {
-            return java.nio.file.Path.of(value);
-        }
-
-        @Override
-        public void deleteQuietly(java.nio.file.Path path) {}
-    }
 }

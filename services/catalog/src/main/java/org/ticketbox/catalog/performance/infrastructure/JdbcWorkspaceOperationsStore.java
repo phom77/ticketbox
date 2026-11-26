@@ -79,7 +79,7 @@ public class JdbcWorkspaceOperationsStore implements WorkspaceOperationsStore {
             PERFORMANCE_STATUS.formatted(REVIEW_STATE));
     private static final String EVENT_COLUMNS = """
             SELECT e.id, e.title, e.description, e.category, e.organization_id, e.legacy_concert_id,
-                rollup.performance_count, (rollup.performance_count = 0 OR rollup.has_draft) AS preparing,
+                rollup.performance_count, (rollup.performance_count = 0 OR rollup.statuses && ARRAY['DRAFT', 'IN_REVIEW', 'CHANGES_REQUESTED']) AS preparing,
                 rollup.changes_requested, rollup.next_starts_at,
                 COALESCE(rollup.needs_change, rollup.first_draft) AS action_performance_id, rollup.change_reason,
                 COALESCE(ev.poster_url, lc.poster_url) AS poster_url,

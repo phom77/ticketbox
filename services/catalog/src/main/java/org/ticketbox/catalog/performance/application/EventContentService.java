@@ -33,11 +33,14 @@ public class EventContentService implements EventArtistBioPort {
     private final EventContentStore contents;
     private final PosterStorage posters;
     private final PosterCleanup cleanup;
+    private final PerformanceCatalog catalog;
 
-    public EventContentService(PerformanceStore store, EventContentStore contents, PosterStorage posters) {
+    public EventContentService(PerformanceStore store, EventContentStore contents, PosterStorage posters,
+                               PerformanceCatalog catalog) {
         this.store = store;
         this.contents = contents;
         this.posters = posters;
+        this.catalog = catalog;
         this.cleanup = new PosterCleanup(posters);
     }
 
@@ -70,7 +73,7 @@ public class EventContentService implements EventArtistBioPort {
 
     @Transactional
     public Event updateDraft(UUID owner, UUID id, Long expected, Input input) {
-        long current = store.lockNativeEventVersion(id, owner).orElseThrow(EventContentService::missing);
+        long current = lock(owner, id);
         require(!store.hasReleasedPerformances(id), "error.performance.event-draft-locked");
         requireVersion(expected, current);
         var content = input.content();
@@ -98,7 +101,7 @@ public class EventContentService implements EventArtistBioPort {
     private ContentState changePoster(UUID owner, UUID id, long current, Long expectedVersion, Long expectedRevision,
                                       Poster poster) {
         if (!store.hasReleasedPerformances(id)) {
-            if (expectedVersion != null) version(expectedVersion, current);
+            requireVersion(expectedVersion, current);
             var live = contents.live(id).orElseThrow(EventContentService::missing);
             contents.writePoster(id, poster);
             cleanup.deleteAfterCommit(live.poster().publicId());
@@ -194,6 +197,8 @@ public class EventContentService implements EventArtistBioPort {
 
     @Transactional
     public ContentState decide(UUID reviewer, UUID id, Action action, String reason, long expectedRevision) {
+        // Performance rows first, then the event row: the same order as releasing a scheduled performance.
+        contents.performanceIds(id);
         contents.lockEventNative(id).filter(Boolean::booleanValue).orElseThrow(EventContentService::missing);
         var revision = contents.revision(id).orElseThrow(EventContentService::missing);
         var decision = revision.decide(action, reviewer, reason, expectedRevision, OffsetDateTime.now());
@@ -202,6 +207,10 @@ public class EventContentService implements EventArtistBioPort {
             if (action == Action.APPROVE) {
                 var live = contents.live(id).orElseThrow(EventContentService::missing);
                 contents.apply(id, decided.content(), decided.poster());
+                if (!live.content().title().equals(decided.content().title())) {
+                    // The sale snapshot carries the event title: released performances get a new snapshot version.
+                    catalog.republishReleased(contents.organization(id).orElseThrow(), reviewer, id);
+                }
                 if (decided.poster().changed() && live.poster().publicId() != null
                         && !live.poster().publicId().equals(decided.poster().publicId())) {
                     cleanup.deleteAfterCommit(live.poster().publicId());
@@ -231,6 +240,7 @@ public class EventContentService implements EventArtistBioPort {
         content.translations().forEach((language, text) ->
                 translations.put(language, new DiscoveryText(text.title(), text.description())));
         return new Event(event.id(), content.title(), content.description(), event.category(), event.draftVersion(),
+                event.contentVersion(),
                 event.performances(), revision.poster().changed() ? revision.poster().url() : event.posterUrl(),
                 translations, content.artistBio(), content.ageRating(), content.refundPolicy());
     }
@@ -257,7 +267,7 @@ public class EventContentService implements EventArtistBioPort {
     public void applyArtistBio(UUID eventId, String artistBio, UUID requesterId, boolean admin, boolean overwrite) {
         var owner = contents.organization(eventId).orElseThrow(EventContentService::missing);
         if (!admin && !owner.equals(requesterId)) throw missing();
-        long current = store.lockNativeEventVersion(eventId, owner).orElseThrow(EventContentService::missing);
+        long current = lock(owner, eventId);
         var live = contents.live(eventId).orElseThrow(EventContentService::missing);
         boolean released = store.hasReleasedPerformances(eventId);
         var existing = released ? contents.revision(eventId) : java.util.Optional.<EventContentRevision>empty();
@@ -281,7 +291,7 @@ public class EventContentService implements EventArtistBioPort {
     // Helpers
 
     private long lock(UUID owner, UUID id) {
-        return store.lockNativeEventVersion(id, owner).orElseThrow(EventContentService::missing);
+        return contents.lockContentVersion(id, owner).orElseThrow(EventContentService::missing);
     }
 
     /** The content an edit starts from: the open revision, or the live content when there is none to continue. */

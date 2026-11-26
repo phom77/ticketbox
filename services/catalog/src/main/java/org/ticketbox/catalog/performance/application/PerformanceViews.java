@@ -15,11 +15,12 @@ public final class PerformanceViews {
      * poster, bio and translations of a legacy-linked event come from its concert.
      */
     public record Event(
-            UUID id, String title, String description, String category, long draftVersion, List<Performance> performances,
+            UUID id, String title, String description, String category, long draftVersion, long contentVersion,
+            List<Performance> performances,
             String posterUrl, Map<String, DiscoveryText> translations, String artistBio, String ageRating,
             String refundPolicy) {
         public Event withPerformances(List<Performance> value) {
-            return new Event(id, title, description, category, draftVersion, value, posterUrl, translations,
+            return new Event(id, title, description, category, draftVersion, contentVersion, value, posterUrl, translations,
                     artistBio, ageRating, refundPolicy);
         }
     }

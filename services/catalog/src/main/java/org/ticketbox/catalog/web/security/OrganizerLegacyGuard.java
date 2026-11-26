@@ -13,7 +13,8 @@ import org.ticketbox.catalog.application.error.ErrorCode;
 
 /**
  * Organizer sessions keep read access to legacy one-date concerts but cannot change them: creation, details, status,
- * poster, category, ticket types and artist bio. Platform operators use the Admin routes, which are not guarded. Writes
+ * poster, category, ticket types, publication requests and artist bio. Guest import lives in Check-in and is not
+ * affected. Platform operators use the Admin routes, which are not guarded. Writes
  * to artist bio jobs by id are decided by the job service, because a job may belong to a native event.
  * Set `ticketbox.organizer-legacy-read-only=false` to roll back.
  */
@@ -25,6 +26,7 @@ public final class OrganizerLegacyGuard implements HandlerInterceptor {
     private static final List<String> WRITE_PATTERNS = List.of(
             BASE + "/concerts", BASE + "/concerts/*", BASE + "/concerts/*/status", BASE + "/concerts/*/poster",
             BASE + "/concerts/*/category", BASE + "/concerts/*/ticket-types", BASE + "/ticket-types/**",
+            BASE + "/concerts/*/publication",
             BASE + "/concerts/*/artist-bio", BASE + "/concerts/*/artist-bio-jobs",
             BASE + "/concerts/*/artist-bio-jobs/compose");
     private final AntPathMatcher matcher = new AntPathMatcher();

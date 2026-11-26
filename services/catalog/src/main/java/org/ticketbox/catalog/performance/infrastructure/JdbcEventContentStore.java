@@ -35,12 +35,20 @@ public class JdbcEventContentStore implements EventContentStore {
     public Optional<Live> live(UUID eventId) {
         return jdbc.query("""
                 SELECT title, description, localized_content, artist_bio, age_rating, refund_policy, poster_url,
-                       poster_public_id, draft_version FROM events WHERE id=? AND legacy_concert_id IS NULL
+                       poster_public_id, content_version FROM events WHERE id=? AND legacy_concert_id IS NULL
                 """, (rs, n) -> new Live(new EventContent(rs.getString("title"), rs.getString("description"),
                         translations(rs.getString("localized_content")), rs.getString("artist_bio"),
                         rs.getString("age_rating"), rs.getString("refund_policy")),
                         new Poster(rs.getString("poster_url"), rs.getString("poster_public_id")),
-                        rs.getLong("draft_version")), eventId).stream().findFirst();
+                        rs.getLong("content_version")), eventId).stream().findFirst();
+    }
+
+    @Override
+    public Optional<Long> lockContentVersion(UUID eventId, UUID organization) {
+        return jdbc.query("""
+                SELECT content_version FROM events
+                WHERE id=? AND organization_id=? AND legacy_concert_id IS NULL FOR NO KEY UPDATE
+                """, (rs, n) -> rs.getLong("content_version"), eventId, organization).stream().findFirst();
     }
 
     @Override
@@ -52,20 +60,27 @@ public class JdbcEventContentStore implements EventContentStore {
     public void write(UUID eventId, EventContent content) {
         jdbc.update("""
                 UPDATE events SET title=?, description=?, localized_content=?, artist_bio=?, age_rating=?,
-                  refund_policy=?, draft_version=draft_version+1 WHERE id=?
+                  refund_policy=?, content_version=content_version+1,
+                  draft_version=draft_version + CASE WHEN title IS DISTINCT FROM ? OR description IS DISTINCT FROM ?
+                      THEN 1 ELSE 0 END
+                WHERE id=?
                 """, content.title(), content.description(), localized(content), content.artistBio(),
-                content.ageRating(), content.refundPolicy(), eventId);
+                content.ageRating(), content.refundPolicy(), content.title(), content.description(), eventId);
     }
 
     @Override
     public void writePoster(UUID eventId, Poster poster) {
-        jdbc.update("UPDATE events SET poster_url=?, poster_public_id=?, draft_version=draft_version+1 WHERE id=?",
+        jdbc.update("UPDATE events SET poster_url=?, poster_public_id=?, content_version=content_version+1 WHERE id=?",
                 poster.url(), poster.publicId(), eventId);
     }
 
     @Override
     public void apply(UUID eventId, EventContent content, PosterEdit poster) {
-        write(eventId, content);
+        jdbc.update("""
+                UPDATE events SET title=?, description=?, localized_content=?, artist_bio=?, age_rating=?,
+                  refund_policy=?, content_version=content_version+1 WHERE id=?
+                """, content.title(), content.description(), localized(content), content.artistBio(),
+                content.ageRating(), content.refundPolicy(), eventId);
         if (poster.changed()) writePoster(eventId, new Poster(poster.url(), poster.publicId()));
     }
 
@@ -78,17 +93,17 @@ public class JdbcEventContentStore implements EventContentStore {
     @Override
     public void save(EventContentRevision revision) {
         jdbc.update("""
-                INSERT INTO event_content_revisions(event_id, revision, base_draft_version, details, poster_changed,
+                INSERT INTO event_content_revisions(event_id, revision, base_content_version, details, poster_changed,
                     poster_url, poster_public_id, state, submitted_by, submitted_at, reviewer_id, decided_at, reason)
                 VALUES (?,?,?,CAST(? AS jsonb),?,?,?,?,?,?,?,?,?)
                 ON CONFLICT (event_id) DO UPDATE SET revision=EXCLUDED.revision,
-                    base_draft_version=EXCLUDED.base_draft_version, details=EXCLUDED.details,
+                    base_content_version=EXCLUDED.base_content_version, details=EXCLUDED.details,
                     poster_changed=EXCLUDED.poster_changed, poster_url=EXCLUDED.poster_url,
                     poster_public_id=EXCLUDED.poster_public_id, state=EXCLUDED.state,
                     submitted_by=EXCLUDED.submitted_by, submitted_at=EXCLUDED.submitted_at,
                     reviewer_id=EXCLUDED.reviewer_id, decided_at=EXCLUDED.decided_at, reason=EXCLUDED.reason,
                     updated_at=now()
-                """, revision.eventId(), revision.revision(), revision.baseDraftVersion(), write(revision.content()),
+                """, revision.eventId(), revision.revision(), revision.baseContentVersion(), write(revision.content()),
                 revision.poster().changed(), revision.poster().url(), revision.poster().publicId(),
                 revision.state().name(), revision.submittedBy(), revision.submittedAt(), revision.reviewerId(),
                 revision.decidedAt(), revision.reason());
@@ -150,18 +165,34 @@ public class JdbcEventContentStore implements EventContentStore {
     }
 
     @Override
-    public List<String> artistPdfPaths(UUID eventId) {
-        return jdbc.query("SELECT file_url FROM artist_pdf_jobs WHERE event_id=?", (rs, n) -> rs.getString(1), eventId);
-    }
-
-    @Override
     public void deletePerformance(UUID id) {
+        var backgrounds = jdbc.queryForList("SELECT id FROM layout_backgrounds WHERE source_performance_id=?",
+                UUID.class, id);
         jdbc.update("DELETE FROM performances WHERE id=?", id);
+        deleteUnreferencedBackgrounds(backgrounds);
     }
 
     @Override
     public void deleteEvent(UUID id) {
+        var backgrounds = jdbc.queryForList("""
+                SELECT b.id FROM layout_backgrounds b JOIN performances p ON p.id=b.source_performance_id
+                WHERE p.event_id=?
+                """, UUID.class, id);
         jdbc.update("DELETE FROM events WHERE id=?", id);
+        deleteUnreferencedBackgrounds(backgrounds);
+    }
+
+    /** The performance delete cascades its layouts; what remains referenced by a layout, draft or template stays. */
+    private void deleteUnreferencedBackgrounds(List<UUID> candidates) {
+        for (UUID background : candidates) {
+            jdbc.update("""
+                    DELETE FROM layout_backgrounds b WHERE b.id=?
+                      AND NOT EXISTS (SELECT 1 FROM performance_layouts l WHERE l.background_id=b.id)
+                      AND NOT EXISTS (SELECT 1 FROM performance_layout_drafts d
+                                      WHERE strpos(d.document::text, b.id::text) > 0)
+                      AND NOT EXISTS (SELECT 1 FROM layout_revisions r WHERE strpos(r.document::text, b.id::text) > 0)
+                    """, background);
+        }
     }
 
     @Override
@@ -172,7 +203,7 @@ public class JdbcEventContentStore implements EventContentStore {
 
     private EventContentRevision revision(ResultSet rs) throws SQLException {
         return new EventContentRevision(rs.getObject("event_id", UUID.class), rs.getLong("revision"),
-                rs.getLong("base_draft_version"), read(rs.getString("details")),
+                rs.getLong("base_content_version"), read(rs.getString("details")),
                 new PosterEdit(rs.getBoolean("poster_changed"), rs.getString("poster_url"), rs.getString("poster_public_id")),
                 State.valueOf(rs.getString("state")), rs.getObject("submitted_by", UUID.class),
                 rs.getObject("submitted_at", OffsetDateTime.class), rs.getObject("reviewer_id", UUID.class),

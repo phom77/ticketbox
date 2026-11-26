@@ -9,7 +9,7 @@ import org.ticketbox.catalog.domain.DomainViolation;
  * a SUBMITTED revision. Every edit increments `revision`, so a decision about an older text is stale.
  */
 public record EventContentRevision(
-        UUID eventId, long revision, long baseDraftVersion, EventContent content, PosterEdit poster, State state,
+        UUID eventId, long revision, long baseContentVersion, EventContent content, PosterEdit poster, State state,
         UUID submittedBy, OffsetDateTime submittedAt, UUID reviewerId, OffsetDateTime decidedAt, String reason) {
 
     public enum State { DRAFTING, SUBMITTED, CHANGES_REQUESTED, REJECTED, APPROVED }
@@ -38,28 +38,28 @@ public record EventContentRevision(
     /** The result of a decision; `repeated` is true when the same decision was already recorded. */
     public record Decision(EventContentRevision revision, boolean repeated) {}
 
-    public static EventContentRevision start(UUID eventId, long baseDraftVersion, EventContent content, PosterEdit poster) {
-        return new EventContentRevision(eventId, 1, baseDraftVersion, content, poster, State.DRAFTING,
+    public static EventContentRevision start(UUID eventId, long baseContentVersion, EventContent content, PosterEdit poster) {
+        return new EventContentRevision(eventId, 1, baseContentVersion, content, poster, State.DRAFTING,
                 null, null, null, null, null);
     }
 
     /** An edit replaces the text of any revision that is not in review; the result is a new DRAFTING revision. */
-    public EventContentRevision edited(long baseDraftVersion, EventContent newContent, PosterEdit newPoster) {
+    public EventContentRevision edited(long baseContentVersion, EventContent newContent, PosterEdit newPoster) {
         if (state == State.SUBMITTED) throw conflict("error.event-content.revision-in-review");
-        return new EventContentRevision(eventId, revision + 1, baseDraftVersion, newContent, newPoster, State.DRAFTING,
+        return new EventContentRevision(eventId, revision + 1, baseContentVersion, newContent, newPoster, State.DRAFTING,
                 null, null, null, null, null);
     }
 
     public EventContentRevision submit(UUID actor, OffsetDateTime at) {
         if (state != State.DRAFTING) throw conflict("error.event-content.revision-not-drafting");
-        return new EventContentRevision(eventId, revision, baseDraftVersion, content, poster, State.SUBMITTED,
+        return new EventContentRevision(eventId, revision, baseContentVersion, content, poster, State.SUBMITTED,
                 actor, at, null, null, null);
     }
 
     /** Takes a submitted revision back for editing. */
     public EventContentRevision withdraw() {
         if (state != State.SUBMITTED) throw conflict("error.event-content.revision-not-submitted");
-        return new EventContentRevision(eventId, revision, baseDraftVersion, content, poster, State.DRAFTING,
+        return new EventContentRevision(eventId, revision, baseContentVersion, content, poster, State.DRAFTING,
                 null, null, null, null, null);
     }
 
@@ -73,7 +73,7 @@ public record EventContentRevision(
         if (action != Action.APPROVE && (reason == null || reason.length() > 1000)) {
             throw new DomainViolation("VALIDATION_FAILED", "error.event-content.reason-required");
         }
-        return new Decision(new EventContentRevision(eventId, revision, baseDraftVersion, content, poster,
+        return new Decision(new EventContentRevision(eventId, revision, baseContentVersion, content, poster,
                 action.outcome(), submittedBy, submittedAt, reviewer, at, action == Action.APPROVE ? null : reason), false);
     }
 

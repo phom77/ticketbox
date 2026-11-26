@@ -19,6 +19,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.ticketbox.checkin.admission.application.port.RefundAdmission.Decision;
 import org.ticketbox.checkin.admission.infrastructure.JdbcRefundAdmission;
 import org.ticketbox.checkin.admission.infrastructure.LocalTickets;
+import org.ticketbox.checkin.application.port.catalog.PerformanceAdmissionSnapshot;
 import org.ticketbox.checkin.infrastructure.integration.CheckinProjectionReceiver;
 
 import java.time.OffsetDateTime;
@@ -222,6 +223,31 @@ SELECT version FROM projection_versions WHERE kind='catalog' AND id=?
                                 Long.class,
                                 id))
                 .isEqualTo(12);
+    }
+
+    @Test
+    void aNewerPerformanceSnapshotRenamesAnActivePerformanceAndAnOlderOneDoesNot() {
+        var receiver = new CheckinProjectionReceiver(jdbc, new ObjectMapper().findAndRegisterModules());
+        UUID id = UUID.randomUUID();
+        UUID organization = UUID.randomUUID();
+        var offer = new PerformanceAdmissionSnapshot.Offer(
+                UUID.randomUUID(), "Standard", java.math.BigDecimal.valueOf(100_000), true);
+        var starts = OffsetDateTime.now().plusDays(10).withNano(0);
+        java.util.function.BiFunction<Long, String, PerformanceAdmissionSnapshot> snapshot =
+                (version, title) ->
+                        new PerformanceAdmissionSnapshot(
+                                id, organization, null, version, title, "Hall", "Street", starts, null,
+                                starts.minusDays(5), starts.minusHours(1), "ON_SALE", false, null, true, 4,
+                                List.of(offer));
+
+        assertThat(transaction.<Long>execute(status -> receiver.performance(snapshot.apply(1L, "First name"))))
+                .isEqualTo(1L);
+        assertThat(transaction.<Long>execute(status -> receiver.performance(snapshot.apply(2L, "Renamed show"))))
+                .isEqualTo(2L);
+        assertThat(title(id)).isEqualTo("Renamed show");
+        assertThat(transaction.<Long>execute(status -> receiver.performance(snapshot.apply(1L, "First name"))))
+                .isEqualTo(2L);
+        assertThat(title(id)).isEqualTo("Renamed show");
     }
 
     private String ticketStatus(UUID id) {

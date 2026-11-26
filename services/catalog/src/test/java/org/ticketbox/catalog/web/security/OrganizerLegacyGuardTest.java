@@ -26,6 +26,7 @@ class OrganizerLegacyGuardTest {
                 {"DELETE", BASE + "/concerts" + ID + "/poster"}, {"PUT", BASE + "/concerts" + ID + "/category"},
                 {"POST", BASE + "/concerts" + ID + "/ticket-types"}, {"PUT", BASE + "/ticket-types" + ID},
                 {"PATCH", BASE + "/ticket-types" + ID + "/status"}, {"DELETE", BASE + "/ticket-types" + ID},
+                {"POST", BASE + "/concerts" + ID + "/publication"},
                 {"POST", BASE + "/concerts" + ID + "/artist-bio-jobs"},
                 {"POST", BASE + "/concerts" + ID + "/artist-bio-jobs/compose"},
                 {"PUT", BASE + "/concerts" + ID + "/artist-bio"}}) {
@@ -43,7 +44,7 @@ class OrganizerLegacyGuardTest {
         assertThat(allowed(guard, "GET", BASE + "/concerts")).isTrue();
         assertThat(allowed(guard, "GET", BASE + "/concerts" + ID + "/ticket-types")).isTrue();
         assertThat(allowed(guard, "GET", BASE + "/concerts" + ID + "/category")).isTrue();
-        assertThat(allowed(guard, "POST", BASE + "/concerts" + ID + "/publication")).isTrue();
+        assertThat(allowed(guard, "GET", BASE + "/concerts" + ID + "/publication")).isTrue();
         assertThat(allowed(guard, "POST", BASE + "/artist-bio-jobs" + ID + "/apply")).isTrue();
         assertThat(allowed(guard, "POST", BASE + "/v2/events")).isTrue();
         assertThat(allowed(guard, "PUT", BASE + "/v2/events" + ID + "/poster")).isTrue();

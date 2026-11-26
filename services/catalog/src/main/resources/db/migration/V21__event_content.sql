@@ -5,13 +5,15 @@ ALTER TABLE events
     ADD COLUMN localized_content TEXT,
     ADD COLUMN artist_bio TEXT,
     ADD COLUMN age_rating TEXT CHECK (age_rating IS NULL OR age_rating IN ('ALL', '13+', '16+', '18+')),
-    ADD COLUMN refund_policy TEXT CHECK (refund_policy IS NULL OR length(refund_policy) <= 2000);
+    ADD COLUMN refund_policy TEXT CHECK (refund_policy IS NULL OR length(refund_policy) <= 2000),
+    -- Optimistic lock of the content editors. draft_version stays the token of the publication review.
+    ADD COLUMN content_version BIGINT NOT NULL DEFAULT 0;
 
 -- One pending content revision per event; edits after release wait here until a reviewer approves them.
 CREATE TABLE event_content_revisions (
     event_id UUID PRIMARY KEY REFERENCES events(id) ON DELETE CASCADE,
     revision BIGINT NOT NULL CHECK (revision > 0),
-    base_draft_version BIGINT NOT NULL CHECK (base_draft_version >= 0),
+    base_content_version BIGINT NOT NULL CHECK (base_content_version >= 0),
     details JSONB NOT NULL,
     poster_changed BOOLEAN NOT NULL DEFAULT false,
     poster_url TEXT,

@@ -37,7 +37,7 @@ public class JdbcPerformanceStore implements PerformanceStore {
     private static final TypeReference<List<Space>> SPACES = new TypeReference<>() {};
     private static final TypeReference<Map<String, DiscoveryText>> TRANSLATIONS = new TypeReference<>() {};
     private static final String EVENT_SELECT = """
-            SELECT e.id,e.title,e.description,e.category,e.draft_version,
+            SELECT e.id,e.title,e.description,e.category,e.draft_version,ev.content_version,
                    COALESCE(ev.poster_url, c.poster_url) AS poster_url,
                    COALESCE(CAST(ev.localized_content AS jsonb), CAST(c.localized_content AS jsonb))->'translations' AS translations,
                    COALESCE(ev.artist_bio, c.artist_bio) AS artist_bio, ev.age_rating, ev.refund_policy
@@ -221,7 +221,7 @@ public class JdbcPerformanceStore implements PerformanceStore {
     private Event readEvent(ResultSet rs) throws SQLException {
         var translations = rs.getString("translations");
         return new Event(id(rs, "id"), rs.getString("title"), rs.getString("description"),
-                rs.getString("category"), rs.getLong("draft_version"), List.of(), rs.getString("poster_url"),
+                rs.getString("category"), rs.getLong("draft_version"), rs.getLong("content_version"), List.of(), rs.getString("poster_url"),
                 translations == null ? Map.of() : read(translations, TRANSLATIONS), rs.getString("artist_bio"),
                 rs.getString("age_rating"), rs.getString("refund_policy"));
     }

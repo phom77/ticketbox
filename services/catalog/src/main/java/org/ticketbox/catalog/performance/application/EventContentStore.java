@@ -15,23 +15,29 @@ public interface EventContentStore {
     record Poster(String url, String publicId) {}
 
     /** The live content of a native event. */
-    record Live(EventContent content, Poster poster, long draftVersion) {}
+    record Live(EventContent content, Poster poster, long contentVersion) {}
 
     record QueueRow(UUID eventId, UUID organizationId, String title, EventContentRevision.State state, long revision,
                     OffsetDateTime submittedAt, String reason) {}
 
     Optional<Live> live(UUID eventId);
 
-    /** Sets the category without bumping the draft version; callers bump it with the content write. */
+    /** Locks a native event of the organization and returns its content version. */
+    Optional<Long> lockContentVersion(UUID eventId, UUID organization);
+
+    /** Sets the category; the content write bumps the content version. */
     void writeCategory(UUID eventId, String category);
 
-    /** Writes the draft content and bumps the draft version. */
+    /**
+     * Writes the pre-release content and bumps the content version. The draft version, the token of publication
+     * reviews, moves only when the title or description changes, so such a change supersedes a pending review.
+     */
     void write(UUID eventId, EventContent content);
 
-    /** Replaces or removes the poster and bumps the draft version. */
+    /** Replaces or removes the poster and bumps the content version, never the draft version. */
     void writePoster(UUID eventId, Poster poster);
 
-    /** Applies approved content under the caller's event lock and bumps the draft version. */
+    /** Applies approved content under the caller's event lock. Bumps the content version, never the draft version. */
     void apply(UUID eventId, EventContent content, PosterEdit poster);
 
     Optional<EventContentRevision> revision(UUID eventId);
@@ -52,13 +58,13 @@ public interface EventContentStore {
 
     List<UUID> performanceIds(UUID eventId);
 
-    /** The poster public ids of the event and of its staged revision, and the stored PDF paths of its bio jobs. */
+    /** The poster public ids of the event and of its staged revision. */
     List<String> storedPosterIds(UUID eventId);
 
-    List<String> artistPdfPaths(UUID eventId);
-
+    /** Deletes the performance and the layout backgrounds nothing else references any more. */
     void deletePerformance(UUID id);
 
+    /** Deletes the event, its performances and the layout backgrounds nothing else references any more. */
     void deleteEvent(UUID id);
 
     void audit(UUID actor, UUID organization, String action, UUID subject, String details);

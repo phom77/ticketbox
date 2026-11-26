@@ -91,6 +91,7 @@ class ArtistBioJobControllerTest {
                 null,
                 null,
                 now.minusSeconds(3),
-                now);
+                now,
+                null);
     }
 }

@@ -8,7 +8,6 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.ticketbox.catalog.application.error.AppException;
 import org.ticketbox.catalog.application.error.ErrorCode;
-import org.ticketbox.catalog.artistbio.application.port.ArtistDocuments;
 import org.ticketbox.catalog.concert.application.port.PosterStorage;
 import org.ticketbox.catalog.performance.application.PerformanceViews.Performance;
 
@@ -21,14 +20,14 @@ public class EventDrafts {
     private final PerformanceStore store;
     private final EventContentStore contents;
     private final PosterCleanup posters;
-    private final ArtistDocuments documents;
+    private final EventBioCleanup bioCleanup;
 
     public EventDrafts(PerformanceStore store, EventContentStore contents, PosterStorage posters,
-                       ArtistDocuments documents) {
+                       EventBioCleanup bioCleanup) {
         this.store = store;
         this.contents = contents;
         this.posters = new PosterCleanup(posters);
-        this.documents = documents;
+        this.bioCleanup = bioCleanup;
     }
 
     @Transactional
@@ -48,17 +47,11 @@ public class EventDrafts {
             requireDeletable(store.lockOwnedPerformance(performanceId, owner).orElseThrow(EventDrafts::missing));
         }
         List<String> posterIds = contents.storedPosterIds(id);
-        List<String> pdfs = contents.artistPdfPaths(id);
+        Runnable removeDocuments = bioCleanup.documentsRemoval(id);
         contents.deleteEvent(id);
         contents.audit(actor, owner, "DRAFT_EVENT_DELETED", id, null);
         posterIds.forEach(posters::deleteAfterCommit);
-        afterCommit(() -> pdfs.forEach(path -> {
-            try {
-                documents.deleteQuietly(documents.requireStoredPath(path));
-            } catch (AppException ignored) {
-                // A path outside the storage root is never touched.
-            }
-        }));
+        afterCommit(removeDocuments);
     }
 
     private void requireDeletable(Performance performance) {

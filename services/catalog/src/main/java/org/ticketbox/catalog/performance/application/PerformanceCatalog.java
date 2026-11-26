@@ -221,6 +221,27 @@ public class PerformanceCatalog {
         return new Publication("ON_SALE", saleVersion, false, false);
     }
 
+    /**
+     * Issues a new versioned snapshot for every released performance of the event, so Ticketing and Check-in learn the
+     * current event title. Orders keep the title they were placed with.
+     */
+    @Transactional
+    public int republishReleased(UUID owner, UUID actor, UUID eventId) {
+        var event = event(eventId, owner);
+        int republished = 0;
+        for (var listed : event.performances()) {
+            var performance = owned(owner, listed.id());
+            if ("DRAFT".equals(performance.status())) continue;
+            long version = performance.saleVersion() + 1;
+            store.savePublication(snapshot(performance, event, owner, version, performance.layoutVersion(),
+                    checksum(performance), performance.status(), performance.salesSuspended(),
+                    performance.resumedAdmissionAt(), store.sale(performance.id())), actor,
+                    performance.layoutVersion(), performance.status(), performance.salesSuspended());
+            republished++;
+        }
+        return republished;
+    }
+
     Layout validatePublication(UUID owner, Performance performance, Long expectedSale, Long expectedLayout,
                                Long expectedEventDraft, Long expectedScheduleDraft) {
         if (!publishingOrganizations.contains("*") && !publishingOrganizations.contains(owner.toString())) {
