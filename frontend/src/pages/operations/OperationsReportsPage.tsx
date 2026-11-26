@@ -78,8 +78,8 @@ function performancePath(
   returnTo: string,
 ) {
   const params = new URLSearchParams({ returnTo });
-  if (row.legacyConcertId)
-    return `/${scope}/concerts/${encodeURIComponent(row.legacyConcertId)}?${params}`;
+  if (row.legacyConcertId && scope === 'admin')
+    return `/admin/concerts/${encodeURIComponent(row.legacyConcertId)}?${params}`;
   params.set('show', row.id);
   return `/${scope}/events/${encodeURIComponent(row.eventId)}?${params}`;
 }

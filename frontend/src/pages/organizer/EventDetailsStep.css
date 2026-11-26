@@ -1,0 +1,178 @@
+.event-poster {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.event-poster > legend {
+  padding: 0;
+  font-weight: 700;
+}
+
+.event-poster-previews {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 1rem;
+}
+
+.event-poster-previews figure {
+  margin: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.event-poster-previews figcaption {
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.event-poster-frame {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+.event-poster-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.event-poster-card {
+  width: 8.25rem;
+  aspect-ratio: 3 / 4;
+}
+
+.event-poster-banner {
+  width: min(22rem, 70vw);
+  aspect-ratio: 16 / 9;
+}
+
+.event-poster-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.event-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.event-poster-actions label.button:focus-within,
+.event-poster-actions:has(input:focus-visible) label.button {
+  outline: 2px solid var(--violet);
+  outline-offset: 2px;
+}
+
+.event-bio-generator {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.9rem;
+  border: 1px dashed var(--line);
+  border-radius: 0.65rem;
+}
+
+.event-bio-generator h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.event-bio-file {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.event-content-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  background: var(--surface-2);
+}
+
+.event-content-status[data-state='CHANGES_REQUESTED'],
+.event-content-status[data-state='REJECTED'] {
+  border-color: var(--coral);
+}
+
+.event-content-status p {
+  margin: 0;
+}
+
+.event-content-status .event-content-reason {
+  flex-basis: 100%;
+  color: var(--cream);
+}
+
+.event-content-live {
+  display: grid;
+  gap: 0.35rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+}
+
+.event-content-live h3,
+.event-content-live p {
+  margin: 0;
+}
+
+.event-content-live .event-content-excerpt {
+  color: var(--muted);
+  white-space: pre-line;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.event-counter {
+  justify-self: end;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+@media (max-width: 40rem) {
+  .event-poster-card {
+    width: 6.5rem;
+  }
+}
+
+.legacy-concert-summary {
+  display: grid;
+  gap: 1rem;
+}
+
+.legacy-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.75rem 1.25rem;
+  margin: 0 0 1rem;
+}
+
+.legacy-facts dt {
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.legacy-facts dd {
+  margin: 0;
+  font-weight: 600;
+}

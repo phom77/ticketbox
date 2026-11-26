@@ -382,16 +382,6 @@ export function PerformanceWorkspace({
     });
   }
 
-  if (performance.legacyConcertId) {
-    return (
-      <section className="performance-panel">
-        <Link to={'/organizer/concerts/' + performance.legacyConcertId}>
-          {t('performances:legacyWorkspace')}
-        </Link>
-      </section>
-    );
-  }
-
   function focusPane() {
     window.requestAnimationFrame(() => {
       paneHeading.current?.focus({ preventScroll: true });

@@ -10,6 +10,7 @@ import { useAuth } from '../../features/auth/AuthContext';
 import { waitingRoomLeadMs } from '../../features/concert/concertSale';
 import { categoryText } from '../../features/discovery/categories';
 import { downloadIcs } from '../../features/event/calendar';
+import { ageRatingLabelKey } from '../../features/event/eventContent';
 import {
   canPurchase,
   clampQuantity,
@@ -48,7 +49,8 @@ function EventDetailView({ id, preview }: { id: string; preview: boolean }) {
   const { t } = useTranslation('event-detail');
   const { user, loading: loadingUser } = useAuth();
   const [params, setParams] = useSearchParams();
-  const { source, error, retry } = useEventDetail(id, preview);
+  const revision = preview && params.get('revision') === '1';
+  const { source, error, retry } = useEventDetail(id, preview, revision);
   const [now, setNow] = useState(() => Date.now());
   const [notice, setNotice] = useState('');
 
@@ -126,7 +128,7 @@ function EventDetailView({ id, preview }: { id: string; preview: boolean }) {
       { replace: true },
     );
 
-  const returnPath = preview ? '/organizer/concerts/' + encodeURIComponent(id) : '/events';
+  const returnPath = preview ? '/organizer/events/' + encodeURIComponent(id) : '/events';
   if (error)
     return (
       <div className="buyer-page page-width ed-page">
@@ -201,7 +203,7 @@ function EventDetailView({ id, preview }: { id: string; preview: boolean }) {
       </Link>
       {preview ? (
         <p className="buyer-state" data-tone="info">
-          {t('event-detail:previewBanner')}
+          {t(revision ? 'event-detail:previewRevisionBanner' : 'event-detail:previewBanner')}
         </p>
       ) : null}
 
@@ -343,6 +345,14 @@ function EventDetailView({ id, preview }: { id: string; preview: boolean }) {
               <p className="ed-prose">{source.artistBio}</p>
             </details>
           ) : null}
+          {source.refundPolicy ? (
+            <details className="ed-section ed-collapse" open>
+              <summary>
+                <h2>{t('event-detail:refundTitle')}</h2>
+              </summary>
+              <p className="ed-prose">{source.refundPolicy}</p>
+            </details>
+          ) : null}
 
           {selectedDate ? (
             <section className="ed-section" aria-labelledby="ed-info-title">
@@ -376,6 +386,12 @@ function EventDetailView({ id, preview }: { id: string; preview: boolean }) {
                     <dd>
                       {t('event-detail:infoLimitValue', { count: selectedDate.maxPerAccount })}
                     </dd>
+                  </div>
+                ) : null}
+                {source.ageRating ? (
+                  <div>
+                    <dt>{t('event-detail:infoAge')}</dt>
+                    <dd>{t(ageRatingLabelKey(source.ageRating))}</dd>
                   </div>
                 ) : null}
                 {source.organizer ? (

@@ -1,5 +1,5 @@
-import type { ConcertStatus } from '../../api/concerts';
-import { eventPath, performancePath } from '../../api/performances';
+import type { ConcertStatus, ConcertTranslations } from '../../api/concerts';
+import { eventPath, performancePath, type AgeRating } from '../../api/performances';
 import { concertSaleState } from '../concert/concertSale';
 
 /** One performance (or the single date of a legacy concert) on the detail page. */
@@ -32,6 +32,10 @@ export type EventDetailModel = {
   organizer: string | null;
   seatMapSvg: string | null;
   dates: DetailDate[];
+  /** Per-language title and description of a native event. */
+  translations?: ConcertTranslations;
+  ageRating?: AgeRating | null;
+  refundPolicy?: string | null;
 };
 
 export type DateSaleState =

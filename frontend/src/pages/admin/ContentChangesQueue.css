@@ -1,0 +1,22 @@
+.content-diff th[scope='row'] {
+  white-space: nowrap;
+  text-align: start;
+}
+
+.content-diff-text {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  vertical-align: top;
+}
+
+.content-diff tr[data-changed] {
+  background: var(--surface-2);
+}
+
+.content-diff-poster {
+  display: block;
+  width: 7rem;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: 0.4rem;
+}

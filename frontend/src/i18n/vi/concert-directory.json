@@ -23,5 +23,18 @@
   "selectPerformance": "Chọn suất diễn",
   "chooseApprovedOwner": "Chọn một tổ chức đã duyệt hoặc TicketBox.",
   "reviewSaved": "Đã lưu quyết định · {{state}}",
-  "createdFor": "Đã tạo bản nháp cho {{organization}}."
+  "createdFor": "Đã tạo bản nháp cho {{organization}}.",
+  "contentInReview": "Thay đổi nội dung đang chờ duyệt",
+  "statusCancelled": "Đã hủy",
+  "statusChangesRequested": "Cần chỉnh sửa",
+  "statusDraft": "Bản nháp",
+  "statusInReview": "Đang chờ duyệt",
+  "statusOnSale": "Đang bán vé",
+  "statusPast": "Đã diễn ra",
+  "statusScheduled": "Đã lên lịch",
+  "statusSoldOut": "Hết vé",
+  "actions": "Thao tác",
+  "open": "Mở",
+  "preview": "Xem trước",
+  "report": "Báo cáo"
 }

@@ -13,7 +13,9 @@ export function dashboardConcertPath(
   performanceId?: string | null,
   step?: 'review',
 ) {
-  if (legacyConcertId) return `/${scope}/concerts/${encodeURIComponent(legacyConcertId)}`;
+  // Organizers open a legacy concert in the event workspace (its event id is the concert id).
+  if (legacyConcertId && scope === 'admin')
+    return `/admin/concerts/${encodeURIComponent(legacyConcertId)}`;
   const params = new URLSearchParams();
   if (performanceId) params.set('show', performanceId);
   if (step) params.set('step', step);

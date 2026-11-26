@@ -8,6 +8,7 @@ import {
 } from '../features/organizations/OrganizationProvider';
 import { useLayoutEffect } from 'react';
 import { lazyNamed } from './lazyNamed';
+import { OrganizerEventRedirect } from './OrganizerEventRedirect';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import { OperationsLayout } from '../components/layout/OperationsLayout';
 import { PublicLayout } from '../components/layout/PublicLayout';
@@ -306,53 +307,23 @@ export function App() {
                 }
               />
               <Route
-                path="concerts"
-                element={
-                  <RequireOrganizationGrant grant="EVENTS">
-                    <AdminConcertsPage apiScope="organizer" />
-                  </RequireOrganizationGrant>
-                }
-              />
-              <Route
-                path="concerts/:id/preview"
+                path="events/:eventId/preview"
                 element={
                   <RequireOrganizationGrant grant="EVENTS">
                     <EventDetailPage preview />
                   </RequireOrganizationGrant>
                 }
               />
+              {/* The one-date concert screens are retired for organizers; saved links land in the event workspace. */}
+              <Route path="concerts" element={<Navigate to="/organizer/events" replace />} />
               <Route
-                path="concerts/:id"
-                element={
-                  <RequireOrganizationGrant grant="EVENTS">
-                    <ConcertWorkspacePage apiScope="organizer" />
-                  </RequireOrganizationGrant>
-                }
+                path="concerts/:id/preview"
+                element={<OrganizerEventRedirect suffix="/preview" />}
               />
-              <Route
-                path="ticket-types"
-                element={
-                  <RequireOrganizationGrant grant="EVENTS">
-                    <AdminTicketTypesPage apiScope="organizer" />
-                  </RequireOrganizationGrant>
-                }
-              />
-              <Route
-                path="guests"
-                element={
-                  <RequireOrganizationGrant grant="EVENTS">
-                    <AdminGuestImportsPage apiScope="organizer" uploadMode="scheduled" />
-                  </RequireOrganizationGrant>
-                }
-              />
-              <Route
-                path="artist-bio"
-                element={
-                  <RequireOrganizationGrant grant="EVENTS">
-                    <AdminArtistBioPage apiScope="organizer" />
-                  </RequireOrganizationGrant>
-                }
-              />
+              <Route path="concerts/:id" element={<OrganizerEventRedirect />} />
+              <Route path="ticket-types" element={<Navigate to="/organizer/events" replace />} />
+              <Route path="guests" element={<Navigate to="/organizer/events" replace />} />
+              <Route path="artist-bio" element={<Navigate to="/organizer/events" replace />} />
               <Route path="reports" element={<OperationsReportsPage scope="organizer" />} />
               <Route
                 path="reconciliation"
