@@ -115,7 +115,7 @@ Cross-cutting UI work:
   - Rows are written in the same transaction that projects OrderPaid and OrderRefunded.
   - A backfill migration builds it from orders, order_items and order_refunds.
   - Indexes: (organization_id, occurred_at), (event_id, occurred_at), (performance_id, occurred_at).
-- **sales_daily.** A rollup keyed on (organization_id, performance_id, offer_id, local_date), upserted in the same transaction, so dashboards and trends don't join every order on each request.
+- **No daily rollup table yet.** Reports aggregate the ledger through its indexes; a rollup is added only if a measured p95 exceeds 500 ms (see organizer-sales-reporting design).
 - **New endpoints** under /api/organizer/sales (FINANCE grant), each scoped by eventId, performanceId or the whole organization plus a period: summary (gross, refunds, net, tickets, orders, sell-through), trend?groupBy=hour|day|week, by-performance, by-offer, and export (CSV/PDF).
   - There is **no COMPLETED gate**. Figures before the event ends are labelled provisional.
   - The old /api/organizer/concerts/* revenue routes stay for one release and are then removed.
@@ -145,7 +145,7 @@ Cross-cutting UI work:
    - Publish now or scheduled.
    - Organizer pause/resume sales and cancel/postpone requests.
 4. **D seating-and-ticket-authoring-polish.** Rename the user-facing concepts with inline help. Money input. Sale-window presets. Sample import files. Large-map lazy loading (task 5.2). Guided first-run template picker.
-5. **E organizer-sales-reporting.** The Ticketing sales_ledger and sales_daily tables plus backfill, the /api/organizer/sales endpoints, the redesigned Overview KPIs, the Reports › Sales view with a shared chart component, order and attendee CSV exports, and the reconciliation query fixes. This change can run in parallel with B through D after A.
+5. **E organizer-sales-reporting.** The Ticketing sales_ledger table plus backfill, the /api/organizer/sales endpoints, the redesigned Overview KPIs, the Reports › Sales view with a shared chart component, order and attendee CSV exports, and the reconciliation query fixes. This change can run in parallel with B through D after A.
 6. **F organizer-settings-and-statements.** Organization profile settings, and settlement statements.
 7. **G staff check-in for native performances** (coordinate with redesign-staff-scanner-mobile). Route the staff app and add a live check-in view for the organizer.
 
