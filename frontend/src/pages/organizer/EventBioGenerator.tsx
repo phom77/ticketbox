@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Sparkles } from 'lucide-react';
 import { getArtistBioJob } from '../../api/admin';
@@ -14,17 +14,28 @@ const maxPolls = 60;
  */
 export function EventBioGenerator({
   eventId,
+  currentBio,
   onGenerated,
 }: {
   eventId?: string;
+  /** The bio now in the form; a generated draft never replaces it without a confirmation. */
+  currentBio: string;
   onGenerated: (bio: string) => void;
 }) {
   const { t } = useTranslation();
   const inputId = useId();
   const [file, setFile] = useState<File | null>(null);
   const [jobId, setJobId] = useState('');
-  const [phase, setPhase] = useState<'idle' | 'sending' | 'working' | 'done' | 'failed'>('idle');
+  const [phase, setPhase] = useState<'idle' | 'sending' | 'working' | 'review' | 'done' | 'failed'>(
+    'idle',
+  );
   const [error, setError] = useState('');
+  const [proposed, setProposed] = useState('');
+  // The poll outlives many renders, so it reads the latest callback and bio instead of a stale closure.
+  const latest = useRef({ currentBio, onGenerated });
+  useEffect(() => {
+    latest.current = { currentBio, onGenerated };
+  });
 
   useEffect(() => {
     if (!jobId) return;
@@ -37,8 +48,13 @@ export function EventBioGenerator({
           if (controller.signal.aborted) return;
           if (job.status === 'DONE' && job.resultBio) {
             window.clearInterval(timer);
-            setPhase('done');
-            onGenerated(job.resultBio);
+            if (latest.current.currentBio.trim()) {
+              setProposed(job.resultBio);
+              setPhase('review');
+            } else {
+              setPhase('done');
+              latest.current.onGenerated(job.resultBio);
+            }
           } else if (job.status === 'FAILED' || polls >= maxPolls) {
             window.clearInterval(timer);
             setPhase('failed');
@@ -56,7 +72,7 @@ export function EventBioGenerator({
       controller.abort();
       window.clearInterval(timer);
     };
-    // The callback only reads the result; restarting the poll on every render would never finish.
+    // The latest callback is read through a ref; restarting the poll on every render would never finish.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId]);
 
@@ -115,6 +131,35 @@ export function EventBioGenerator({
             {phase === 'working' && t('event-content:bioWaiting')}
             {phase === 'done' && t('event-content:bioReady')}
           </p>
+          {phase === 'review' && (
+            <div role="alert" className="event-bio-replace">
+              <p>{t('event-content:bioReplacePrompt')}</p>
+              <blockquote className="event-content-excerpt">{proposed}</blockquote>
+              <div className="performance-flow-actions">
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  onClick={() => {
+                    setProposed('');
+                    setPhase('idle');
+                  }}
+                >
+                  {t('event-content:bioKeep')}
+                </button>
+                <button
+                  type="button"
+                  className="button button-primary"
+                  onClick={() => {
+                    latest.current.onGenerated(proposed);
+                    setProposed('');
+                    setPhase('done');
+                  }}
+                >
+                  {t('event-content:bioReplace')}
+                </button>
+              </div>
+            </div>
+          )}
           {phase === 'failed' && (
             <p className="performance-flow-error" role="alert">
               {error}

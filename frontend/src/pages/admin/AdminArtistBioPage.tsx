@@ -567,7 +567,9 @@ export function AdminArtistBioPage({ apiScope = 'admin' }: { apiScope?: Manageme
                       </td>
                       <td>
                         <strong className="admin-table-primary">
-                          {concertMap.get(job.concertId ?? '')?.title ??
+                          {(job.eventId
+                            ? job.eventTitle
+                            : concertMap.get(job.concertId ?? '')?.title) ??
                             translate('admin:adminArtistBioPage_concertKhongXacDinh')}
                         </strong>
                       </td>

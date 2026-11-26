@@ -24,5 +24,6 @@
   "scheduledPublication": "Lịch công khai",
   "eventsGrantRequired": "Hãy yêu cầu quản trị viên của tổ chức cấp quyền quản lý concert.",
   "organizationTools": "Công cụ tổ chức",
-  "financialReports": "Xem báo cáo tài chính"
+  "financialReports": "Xem báo cáo tài chính",
+  "legacyDraftReadOnly": "Concert chỉ xem. Mọi thay đổi do bộ phận hỗ trợ TicketBox thực hiện."
 }

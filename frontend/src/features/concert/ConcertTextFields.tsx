@@ -7,10 +7,12 @@ export function ConcertTextFields({
   original,
   translations,
   onChange,
+  disabled = false,
 }: {
   original?: ConcertText | null;
   translations?: ConcertTranslations;
   onChange: (value: { original?: ConcertText | null; translations: ConcertTranslations }) => void;
+  disabled?: boolean;
 }) {
   const { t } = useTranslation();
 
@@ -24,6 +26,7 @@ export function ConcertTextFields({
       <fieldset
         className="admin-field admin-field-wide concert-text-fields"
         key={lang ?? 'original'}
+        disabled={disabled}
       >
         <legend>{label}</legend>
         <label className="admin-field">

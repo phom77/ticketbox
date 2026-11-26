@@ -24,5 +24,6 @@
   "scheduledPublication": "Scheduled publication",
   "eventsGrantRequired": "Ask an organization administrator for permission to manage concerts.",
   "organizationTools": "Organization tools",
-  "financialReports": "View financial reports"
+  "financialReports": "View financial reports",
+  "legacyDraftReadOnly": "Read-only concert. Changes go through TicketBox support."
 }

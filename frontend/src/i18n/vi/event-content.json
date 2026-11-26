@@ -108,5 +108,9 @@
   "tabReleases": "Phát hành suất diễn",
   "withdraw": "Rút lại",
   "withdrawn": "Đã rút lại thay đổi. Bạn có thể tiếp tục chỉnh sửa.",
-  "approveContent": "Duyệt thay đổi"
+  "approveContent": "Duyệt thay đổi",
+  "bioKeep": "Giữ tiểu sử hiện tại",
+  "bioReplace": "Thay bằng bản nháp vừa tạo",
+  "bioReplacePrompt": "Sự kiện đã có tiểu sử. Bạn có muốn thay bằng bản nháp vừa tạo không?",
+  "decisionStale": "Bản chỉnh sửa này đã thay đổi trong lúc bạn xem xét. Phiên bản mới nhất đang được hiển thị; hãy xem lại trước khi quyết định."
 }

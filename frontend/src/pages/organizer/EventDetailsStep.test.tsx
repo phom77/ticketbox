@@ -16,6 +16,7 @@ const event = {
   description: 'Old description',
   category: 'concerts',
   draftVersion: 4,
+  contentVersion: 7,
   performances: [],
   posterUrl: null,
   translations: {},
@@ -75,7 +76,7 @@ describe('new event', () => {
   });
 
   it('creates the event with its content and then uploads the chosen poster', async () => {
-    const created = { ...event, id: 'new', draftVersion: 1 };
+    const created = { ...event, id: 'new', draftVersion: 1, contentVersion: 1 };
     vi.mocked(management.createManagedEvent).mockResolvedValue(created);
     vi.mocked(content.uploadEventPoster).mockResolvedValue({ event: created, revision: null });
     const onCreated = vi.fn();
@@ -153,6 +154,57 @@ describe('released event', () => {
     expect(await screen.findByText('Changes requested')).toBeInTheDocument();
     expect(screen.getByText(/Add the venue name/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Continue editing' })).toBeInTheDocument();
+  });
+
+  it('uses the content version, not the draft version, to save and to replace the poster of a draft', async () => {
+    const updated = { ...event, contentVersion: 8 };
+    vi.mocked(management.updateManagedEvent).mockResolvedValue(updated);
+    vi.mocked(content.uploadEventPoster).mockResolvedValue({ event: updated, revision: null });
+    renderStep({ event });
+    await userEvent.upload(
+      document.querySelector<HTMLInputElement>('input[type="file"][accept^="image"]')!,
+      new File(['png'], 'poster.png', { type: 'image/png' }),
+    );
+    await waitFor(() =>
+      expect(content.uploadEventPoster).toHaveBeenCalledWith('e1', expect.any(File), {
+        expectedVersion: 7,
+      }),
+    );
+    await userEvent.click(screen.getByRole('button', { name: /Save and continue/ }));
+    await waitFor(() =>
+      expect(management.updateManagedEvent).toHaveBeenCalledWith('e1', 7, expect.anything()),
+    );
+  });
+
+  it('sends the server revision number after a revision was approved, so the next edit is accepted', async () => {
+    vi.mocked(content.getEventContent).mockResolvedValue({
+      event,
+      revision: revision('APPROVED', { revision: 3 }),
+    });
+    vi.mocked(content.stageContentRevision).mockResolvedValue({
+      event,
+      revision: revision('DRAFTING', { revision: 4 }),
+    });
+    vi.mocked(content.uploadEventPoster).mockResolvedValue({
+      event,
+      revision: revision('DRAFTING', { revision: 5, posterChanged: true }),
+    });
+    renderStep({ event, released: true });
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit details' }));
+    await userEvent.upload(
+      document.querySelector<HTMLInputElement>('input[type="file"][accept^="image"]')!,
+      new File(['png'], 'poster.png', { type: 'image/png' }),
+    );
+    await waitFor(() =>
+      expect(content.uploadEventPoster).toHaveBeenCalledWith('e1', expect.any(File), {
+        expectedRevision: 3,
+      }),
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() =>
+      // The poster change moved the server revision on to 5; the next save sends that one.
+      expect(content.stageContentRevision).toHaveBeenCalledWith('e1', 5, expect.anything()),
+    );
   });
 
   it('treats an approved revision as live content', async () => {

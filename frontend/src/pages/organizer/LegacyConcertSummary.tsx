@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { Eye, FileBarChart, ShoppingCart } from 'lucide-react';
@@ -6,15 +6,10 @@ import { getAdminTicketTypes } from '../../api/admin';
 import type { TicketType } from '../../api/concerts';
 import type { ManagedPerformance } from '../../api/performanceManagement';
 import { currency, dateFormatter } from '../../data/formatters';
+import { useOrganization } from '../../features/organizations/OrganizationProvider';
 import { supportUrl } from '../../features/ticket/buyerInformation';
 import { performanceStatusKey } from './performanceSetup';
 import { PerformanceGuests } from './PerformanceGuests';
-
-const dateTime = dateFormatter({
-  dateStyle: 'medium',
-  timeStyle: 'short',
-  timeZone: 'Asia/Ho_Chi_Minh',
-});
 
 /**
  * A concert created before the native workspace. Organizers can read it and run guests, orders and reports;
@@ -30,6 +25,21 @@ export function LegacyConcertSummary({
   title: string;
 }) {
   const { t } = useTranslation();
+  const canViewOrders = !!useOrganization()?.selected?.grants.includes('FINANCE');
+  // Times are shown where the performance takes place, whatever zone the organizer's device is in.
+  const dateTime = useMemo(
+    () =>
+      dateFormatter({
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        timeZone: performance.timezone || 'Asia/Ho_Chi_Minh',
+        timeZoneName: 'short',
+      }),
+    [performance.timezone],
+  );
   const concertId = performance.legacyConcertId ?? performance.id;
   const [types, setTypes] = useState<TicketType[] | null>(null);
   const [error, setError] = useState('');
@@ -94,13 +104,15 @@ export function LegacyConcertSummary({
             <FileBarChart size={17} aria-hidden="true" />
             {t('event-content:legacyReport')}
           </Link>
-          <Link
-            className="button button-secondary"
-            to={'/organizer/orders?concertId=' + encodeURIComponent(concertId)}
-          >
-            <ShoppingCart size={17} aria-hidden="true" />
-            {t('event-content:legacyOrders')}
-          </Link>
+          {canViewOrders && (
+            <Link
+              className="button button-secondary"
+              to={'/organizer/orders?concertId=' + encodeURIComponent(concertId)}
+            >
+              <ShoppingCart size={17} aria-hidden="true" />
+              {t('event-content:legacyOrders')}
+            </Link>
+          )}
         </div>
       </section>
 

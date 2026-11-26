@@ -2,10 +2,12 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as admin from '../../api/admin';
+import * as organizations from '../../features/organizations/OrganizationProvider';
 import type { ManagedPerformance } from '../../api/performanceManagement';
 import { LegacyConcertSummary } from './LegacyConcertSummary';
 
 vi.mock('../../api/admin');
+vi.mock('../../features/organizations/OrganizationProvider');
 vi.mock('./PerformanceGuests', () => ({
   PerformanceGuests: ({ performanceId }: { performanceId: string }) => (
     <div>Guests for {performanceId}</div>
@@ -25,7 +27,16 @@ const performance = {
   salesSuspended: false,
 } as unknown as ManagedPerformance;
 
-beforeEach(() => vi.resetAllMocks());
+function grants(...values: string[]) {
+  vi.mocked(organizations.useOrganization).mockReturnValue({
+    selected: { id: 'o1', name: 'Org', grants: values },
+  } as unknown as ReturnType<typeof organizations.useOrganization>);
+}
+
+beforeEach(() => {
+  vi.resetAllMocks();
+  grants('EVENTS', 'FINANCE');
+});
 
 describe('LegacyConcertSummary', () => {
   it('shows a read-only summary with guests, orders and reports and no editing controls', async () => {
@@ -55,6 +66,33 @@ describe('LegacyConcertSummary', () => {
     expect(screen.getByRole('heading', { name: 'Request a change' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /edit|delete|save/i })).not.toBeInTheDocument();
     expect(admin.getAdminTicketTypes).toHaveBeenCalledWith('c1', expect.anything(), 'organizer');
+  });
+
+  it('hides the orders link from members without finance access', async () => {
+    grants('EVENTS');
+    vi.mocked(admin.getAdminTicketTypes).mockResolvedValue([]);
+    render(
+      <MemoryRouter>
+        <LegacyConcertSummary eventId="c1" performance={performance} title="Autumn Jazz" />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole('link', { name: 'Report' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Orders' })).not.toBeInTheDocument();
+  });
+
+  it("shows times in the performance's own time zone", async () => {
+    vi.mocked(admin.getAdminTicketTypes).mockResolvedValue([]);
+    render(
+      <MemoryRouter>
+        <LegacyConcertSummary
+          eventId="c1"
+          performance={{ ...performance, timezone: 'America/New_York' }}
+          title="Autumn Jazz"
+        />
+      </MemoryRouter>,
+    );
+    // 12:00 UTC on 20 December is 07:00 in New York.
+    expect(await screen.findByText(/7:00\s?AM/)).toBeInTheDocument();
   });
 
   it('lets the organizer retry when ticket types cannot be read', async () => {

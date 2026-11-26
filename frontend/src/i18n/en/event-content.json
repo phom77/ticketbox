@@ -108,5 +108,9 @@
   "tabReleases": "Performance releases",
   "withdraw": "Withdraw",
   "withdrawn": "Changes withdrawn. You can keep editing.",
-  "approveContent": "Approve changes"
+  "approveContent": "Approve changes",
+  "bioKeep": "Keep current biography",
+  "bioReplace": "Replace with generated draft",
+  "bioReplacePrompt": "The event already has a biography. Replace it with this generated draft?",
+  "decisionStale": "This revision changed while you were reviewing it. The latest version is shown; review it again before deciding."
 }

@@ -9,6 +9,8 @@ export type ArtistBioJob = {
   id: string;
   concertId: string | null;
   eventId?: string | null;
+  /** Title of the native event the job belongs to. */
+  eventTitle?: string | null;
   originalFileName: string;
   status: ArtistBioJobStatus;
   provider: string | null;

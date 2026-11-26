@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ApiClientError } from '../../api/client';
 import * as content from '../../api/eventContent';
 import type { ManagedEvent } from '../../api/performanceManagement';
 import { ToastProvider } from '../../components/feedback/ToastProvider';
@@ -96,6 +97,15 @@ describe('ContentChangesQueue', () => {
     await waitFor(() =>
       expect(content.decideContentRevision).toHaveBeenCalledWith('e1', 'APPROVE', 3, ''),
     );
+  });
+
+  it('shows the latest revision again when a decision hits a conflict', async () => {
+    vi.mocked(content.decideContentRevision).mockRejectedValue(new ApiClientError('Stale', 409));
+    renderQueue();
+    await userEvent.click(await screen.findByText('Live show', { selector: 'strong' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Approve changes' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/changed while you were reviewing/);
+    expect(content.getContentRevisionReview).toHaveBeenCalledTimes(2);
   });
 
   it('needs a reason before asking for changes or rejecting', async () => {

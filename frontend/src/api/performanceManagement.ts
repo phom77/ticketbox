@@ -35,7 +35,10 @@ export type ManagedPerformance = Performance & {
 };
 export type ManagedEvent = Omit<EventDetails, 'performances'> & {
   category?: string | null;
+  /** Token of the publication review; moves when the title or description changes. */
   draftVersion: number;
+  /** Optimistic lock of the content editors. */
+  contentVersion: number;
   performances: ManagedPerformance[];
 };
 export type DraftLayout = Omit<Layout, 'version' | 'sections'> & { sections: MapSection[] };
@@ -129,8 +132,8 @@ export const getManagedEvent = (id: string, signal?: AbortSignal) =>
   apiGet<ManagedEvent>(eventPath(id), signal);
 export const createManagedEvent = (body: EventInput) =>
   api.post<unknown, ManagedEvent>(events, body);
-export const updateManagedEvent = (id: string, expectedDraftVersion: number, body: EventInput) =>
-  api.put<unknown, ManagedEvent>(eventPath(id), { ...body, expectedDraftVersion });
+export const updateManagedEvent = (id: string, expectedContentVersion: number, body: EventInput) =>
+  api.put<unknown, ManagedEvent>(eventPath(id), { ...body, expectedContentVersion });
 export const deleteDraftPerformance = (id: string, expectedDraftVersion: number) =>
   api.delete<unknown, void>(performance(id) + '?expectedDraftVersion=' + expectedDraftVersion);
 export const deleteDraftEvent = (id: string, expectedDraftVersion: number) =>

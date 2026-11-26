@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router-dom';
+import { ApiClientError } from '../../api/client';
 import {
   decideContentRevision,
   getContentRevisionQueue,
@@ -23,10 +24,14 @@ import {
 import { DirectoryPagination } from '../operations/ConcertDirectoryPage';
 import './ContentChangesQueue.css';
 
+// The submission time is an instant: show it in the reviewer's own zone and name that zone.
 const formatDate = dateFormatter({
-  dateStyle: 'medium',
-  timeStyle: 'short',
-  timeZone: 'Asia/Ho_Chi_Minh',
+  year: 'numeric',
+  month: 'short',
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  timeZoneName: 'short',
 });
 const states: RevisionState[] = ['SUBMITTED', 'CHANGES_REQUESTED', 'REJECTED', 'APPROVED'];
 
@@ -137,6 +142,7 @@ function ContentChangeItem({ row, onChange }: { row: ContentQueueRow; onChange: 
   const [detail, setDetail] = useState<ContentState>();
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
+  const [stale, setStale] = useState(false);
 
   useEffect(() => {
     if (!open || detail) return;
@@ -156,7 +162,7 @@ function ContentChangeItem({ row, onChange }: { row: ContentQueueRow; onChange: 
     <details open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary>
         <strong>{row.title}</strong> · {t(revisionLabelKey(row.state))}
-        {row.submittedAt ? ' · ' + formatDate.format(new Date(row.submittedAt)) + ' (ICT)' : ''}
+        {row.submittedAt ? ' · ' + formatDate.format(new Date(row.submittedAt)) : ''}
       </summary>
       {open && (
         <>
@@ -176,14 +182,34 @@ function ContentChangeItem({ row, onChange }: { row: ContentQueueRow; onChange: 
             </p>
           )}
           {!detail && !error && <p role="status">{t('performances:loading')}</p>}
-          {detail && detail.revision && <ContentComparison state={detail} onChange={onChange} />}
+          {detail && detail.revision && (
+            <ContentComparison
+              state={detail}
+              onChange={onChange}
+              onStale={() => {
+                // Someone else decided or the organizer changed the revision: show what it is now.
+                setStale(true);
+                setDetail(undefined);
+                setRetry((value) => value + 1);
+              }}
+            />
+          )}
+          {stale && detail && <p role="alert">{t('event-content:decisionStale')}</p>}
         </>
       )}
     </details>
   );
 }
 
-function ContentComparison({ state, onChange }: { state: ContentState; onChange: () => void }) {
+function ContentComparison({
+  state,
+  onChange,
+  onStale,
+}: {
+  state: ContentState;
+  onChange: () => void;
+  onStale: () => void;
+}) {
   const { t } = useTranslation();
   const toast = useToast();
   const revision = state.revision!;
@@ -210,7 +236,8 @@ function ContentComparison({ state, onChange }: { state: ContentState; onChange:
       setReason('');
       onChange();
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : t('requestFailed'));
+      if (failure instanceof ApiClientError && failure.status === 409) onStale();
+      else setError(failure instanceof Error ? failure.message : t('requestFailed'));
     } finally {
       setBusy(false);
     }

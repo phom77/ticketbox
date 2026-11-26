@@ -82,14 +82,14 @@ function EventContentFields({
   eventId,
 }: {
   form: ContentForm;
-  onChange: (next: ContentForm) => void;
+  onChange: (update: (current: ContentForm) => ContentForm) => void;
   disabled: boolean;
   showCategory: boolean;
   poster: React.ReactNode;
   eventId?: string;
 }) {
   const { t } = useTranslation();
-  const set = (patch: Partial<ContentForm>) => onChange({ ...form, ...patch });
+  const set = (patch: Partial<ContentForm>) => onChange((current) => ({ ...current, ...patch }));
   const categoryOptions = [
     { value: '', label: t('performances:categoryNone') },
     ...eventCategories.map((entry) => ({ value: entry.id, label: t(entry.label) })),
@@ -139,6 +139,7 @@ function EventContentFields({
         <ConcertTextFields
           translations={form.translations}
           onChange={({ translations }) => set({ translations })}
+          disabled={disabled}
         />
       </div>
       <label>
@@ -182,7 +183,11 @@ function EventContentFields({
           onChange={(event) => set({ artistBio: event.target.value })}
         />
       </label>
-      <EventBioGenerator eventId={eventId} onGenerated={(artistBio) => set({ artistBio })} />
+      <EventBioGenerator
+        eventId={eventId}
+        currentBio={form.artistBio}
+        onGenerated={(artistBio) => set({ artistBio })}
+      />
     </>
   );
 }
@@ -237,7 +242,7 @@ function DraftContent({
   ) {
     if (!event) return;
     await run(async () => {
-      const state = await task(event.id, event.draftVersion);
+      const state = await task(event.id, event.contentVersion);
       onEventChange(state.event);
       toast.success(done);
     });
@@ -253,7 +258,7 @@ function DraftContent({
     const body = { ...contentInput(form), category: form.category || null };
     await run(async () => {
       if (event) {
-        const updated = await updateManagedEvent(event.id, event.draftVersion, body);
+        const updated = await updateManagedEvent(event.id, event.contentVersion, body);
         setBaseline(form);
         onSaved?.(updated);
         return;
@@ -261,7 +266,7 @@ function DraftContent({
       const created = await createManagedEvent(body);
       if (pending) {
         try {
-          await uploadEventPoster(created.id, pending, { expectedVersion: created.draftVersion });
+          await uploadEventPoster(created.id, pending, { expectedVersion: created.contentVersion });
         } catch (failure) {
           toast.error(failureText(failure, t('event-content:posterFailedAfterCreate')));
         }
@@ -372,6 +377,8 @@ function ReleasedContent({
   const live = state?.event ?? event;
   const revision: ContentRevision | null =
     state?.revision && openRevision(state.revision.state) ? state.revision : null;
+  // The server counts every revision, including an approved one; editors send that number back unchanged.
+  const serverRevision = state?.revision?.revision ?? 0;
   const dirty = editing && !sameContent(form, baseline);
   useEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange]);
 
@@ -413,7 +420,7 @@ function ReleasedContent({
       return;
     }
     await run(async () => {
-      apply(await stageContentRevision(event.id, revision?.revision ?? 0, revisionInput(form)));
+      apply(await stageContentRevision(event.id, serverRevision, revisionInput(form)));
       setEditing(false);
       toast.success(t('event-content:draftSaved'));
     });
@@ -584,7 +591,7 @@ function ReleasedContent({
                   void run(async () => {
                     apply(
                       await uploadEventPoster(event.id, file, {
-                        expectedRevision: revision?.revision ?? 0,
+                        expectedRevision: serverRevision,
                       }),
                     );
                     toast.success(t('event-content:posterStaged'));
@@ -596,7 +603,7 @@ function ReleasedContent({
                         void run(async () => {
                           apply(
                             await removeEventPoster(event.id, {
-                              expectedRevision: revision?.revision ?? 0,
+                              expectedRevision: serverRevision,
                             }),
                           );
                           toast.success(t('event-content:posterRemoved'));
