@@ -38,7 +38,7 @@
 - `event_id = COALESCE(orders.performance_event_id, orders.concert_id)`.
 - `organization_id = COALESCE(orders.organization_id, concerts.organization_id)`.
 - Writer: the `SalesLedger` port lives in `reporting/application/port` and `JdbcSalesLedger` in `reporting/infrastructure`. `OrderService` calls it right after saving the PAID order, and `RefundOrderEffects` right after recording `OrderRefunded`. Both are in the existing transaction, so the ledger cannot diverge from the order state. ArchitectureTest keeps application code free of JDBC.
-- Backfill (`V21`, SQL only): `SALE` rows for every PAID or REFUNDED order item with `paid_at`, and `REFUND` rows for every REFUNDED order item, dated by the `OrderRefunded` event's `recorded_at`.
+- Backfill (`V21`, SQL only): `SALE` rows for every PAID or REFUNDED order item with `paid_at`, and `REFUND` rows for every REFUNDED order item, dated by the `OrderRefunded` event's `recorded_at`. A REFUNDED order imported from Core has no such event, so its refund is dated by `orders.updated_at`.
   - A verification query in the integration test compares ledger totals with the current on-demand revenue query on the same data.
 - **No daily rollup table in this change.** Reports aggregate the ledger through its indexes. A rollup is added only if measurement shows a p95 above 500 ms for an organization with one million ledger rows. The large-data test records the timing.
 
@@ -47,7 +47,7 @@
 - Periods are dates in the reporting timezone. In this change that is `Asia/Ho_Chi_Minh` for organization and event scopes, and the performance's own timezone for a single native performance scope (`performance_sales.timezone`). Legacy performances use `Asia/Ho_Chi_Minh`.
 - Every response states its timezone and period bounds.
 - Trend buckets: `hour` for ranges up to 7 days, `day` up to 366 days, `week` (ISO weeks) up to 3 years. Wider requests return 400 with the allowed range.
-- A performance is **provisional** until it has ended. A scope containing any provisional performance is marked provisional.
+- A performance is **provisional** until it is final. A scope containing any provisional performance is marked provisional. Final means: status `COMPLETED`; or `CANCELLED` with no PAID order left (all refunds settled); or any other status once its end has passed. The end is `performance_sales.ends_at` for native performances and `event_date + 1 day` for legacy concerts, which store no end. A `CANCELLED` performance with PAID orders stays provisional because refunds are still pending.
 
 ### API
 
@@ -58,11 +58,15 @@ All endpoints live under `/api/organizer/sales` and take the `X-Organization-Id`
 | `GET /summary` | `ticketsSold`, `ticketsRefunded`, `netTickets`, `orders`, `capacity` and `sellThrough` (event or performance scope), `provisional`, plus `grossSales`, `refunds`, `netSales` when the caller has `FINANCE` |
 | `GET /trend?groupBy=hour|day|week` | buckets with the same fields |
 | `GET /breakdown?by=performance|offer` | rows with the same fields plus labels; `by=offer` needs an event or performance scope |
+| `GET /on-sale` | performances open for sale now (`ON_SALE` or `SOLD_OUT`, not suspended, inside the sale window, not ended) with all-time net tickets and sell-through |
+| `GET /upcoming?days=` | performances starting in the next 1 to 31 days (default 7), same fields |
+| `GET /events?q=&page=&size=` | events with performances in the organization (`EVENTS` or `FINANCE`), from Ticketing's own data: `eventId`, title, and performances with id, title, start and timezone. Feeds the scope picker so `FINANCE`-only members need no Catalog access |
 | `GET /export?format=csv|pdf` | summary, trend and breakdown (`FINANCE` only); filename names the scope and period |
 
 - **Permission:** `@OrganizerPermission` accepts several grants with any-of semantics, and `OrganizationAccess` stores the caller's grants as a request attribute. Sales endpoints need `EVENTS` or `FINANCE`. Money fields are omitted, not zeroed, without `FINANCE`.
 - **Validation:** an event or performance outside the organization returns 404. An invalid period returns 400 with a translated message.
-- **Capacity** for sell-through comes from `performance_groups` (native) or `ticket_inventory` (legacy) through `TicketingCatalogProjection`.
+- **Capacity** for sell-through comes from `performance_groups` (native) or active `ticket_inventory` rows (legacy). Event scope excludes `DRAFT` and `CANCELLED` performances.
+- **Sell-through is all-time** (net tickets since the first sale divided by sellable capacity), not limited to the report period. The UI labels it "to date".
 - **Deprecation:** `OrganizerRevenueController` stays, marked deprecated, for one release, then is removed with its client.
 
 ### Reconciliation query
@@ -75,7 +79,7 @@ All endpoints live under `/api/organizer/sales` and take the `X-Organization-Id`
 ### Web
 
 - **Reports › Sales** (`?view=sales`) is the first tab for members with `EVENTS` or `FINANCE`.
-  - Scope: All events, one event (searchable through the event directory API), or one performance of that event.
+  - Scope: All events, one event (searchable through `GET /events`, which needs only `EVENTS` or `FINANCE`), or one performance of that event.
   - Period presets: Today, Last 7 days, Last 30 days, This month and Custom, with dates validated next to the picker. Scope and period live in the URL.
   - KPI tiles, with money tiles only for `FINANCE`. A provisional note when relevant.
   - A trend chart and breakdown tables. Export buttons for `FINANCE`.
@@ -100,3 +104,4 @@ All endpoints live under `/api/organizer/sales` and take the `X-Organization-Id`
 1. Deploy `V20` with the writer, so new transitions are recorded.
 2. Run the `V21` backfill, which skips rows that already exist.
 3. Deploy the endpoints, then the web. Old revenue endpoints are removed in the following release.
+4. `V22` rewrites `ticketing_payment_intents` (backfill `UPDATE` and `SET NOT NULL`) and holds a table lock for the duration. That is acceptable at the current table size; a batched backfill is the fallback if the table grows large.

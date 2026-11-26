@@ -6,7 +6,7 @@ import { getOperationsEvents } from '../../api/operations';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { useOrganization } from '../../features/organizations/OrganizationProvider';
 import { DashboardMetric } from '../../features/operations-dashboard/DashboardMetric';
-import { PerformanceMetrics } from '../../features/operations-dashboard/PerformanceMetrics';
+import { OverviewSales } from '../../features/reporting/OverviewSales';
 import {
   dashboardConcertPath,
   dashboardTime,
@@ -17,7 +17,7 @@ const loadDrafts = (signal: AbortSignal) =>
 const loadChanges = (signal: AbortSignal) =>
   getOperationsEvents('organizer', { status: 'CHANGES_REQUESTED', size: 3 }, signal);
 
-function OrganizerConcertActivity({ name }: { name: string }) {
+function OrganizerConcertActivity({ name, finance }: { name: string; finance: boolean }) {
   const { t } = useTranslation();
   const [asOf] = useState(() => new Date().toISOString());
 
@@ -88,9 +88,9 @@ function OrganizerConcertActivity({ name }: { name: string }) {
               </li>
             )}
           />
-          <PerformanceMetrics scope="organizer" asOf={asOf} />
         </div>
       </section>
+      <OverviewSales finance={finance} />
     </>
   );
 }
@@ -106,7 +106,11 @@ export function OrganizerOverviewPage() {
   return (
     <>
       {canManageEvents && selected ? (
-        <OrganizerConcertActivity key={selected.id} name={selected.name} />
+        <OrganizerConcertActivity
+          key={selected.id}
+          name={selected.name}
+          finance={!!canReadFinance}
+        />
       ) : (
         <AdminPageHeader
           title={selected?.name ?? t('organizer:organizerOverviewPage_toChucCuaBan')}

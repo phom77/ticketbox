@@ -20,6 +20,7 @@ import org.ticketbox.ticketing.inventory.hold.application.port.PurchaseLock;
 import org.ticketbox.ticketing.performance.application.port.PerformanceStock;
 import org.ticketbox.ticketing.order.domain.RefundRequest;
 import org.ticketbox.ticketing.order.domain.Order;
+import org.ticketbox.ticketing.reporting.application.port.SalesLedger;
 
 import java.time.OffsetDateTime;
 import java.util.HashMap;
@@ -46,11 +47,14 @@ public class RefundOrderEffects {
     private final EventDisruptionStore disruptions;
     private final PurchaseLock purchaseGuard;
     private final ApplicationEventPublisher publications;
+    private final SalesLedger salesLedger;
 
     public RefundOrderEffects(OrderRepository orders, OrderEventRepository events, OrderItemRepository lines,
             TicketRepository tickets, RefundPreparationStore refunds, RefundRequestStore requests,
             OrderService orderService, PerformanceStock performanceStock, ConcertOrderPort concerts,
-            EventDisruptionStore disruptions, PurchaseLock purchaseGuard, ApplicationEventPublisher publications) {
+            EventDisruptionStore disruptions, PurchaseLock purchaseGuard, ApplicationEventPublisher publications,
+            SalesLedger salesLedger) {
+        this.salesLedger = salesLedger;
         this.orders = orders;
         this.events = events;
         this.lines = lines;
@@ -102,7 +106,7 @@ public class RefundOrderEffects {
             if (preparation == null) refunds.insert(new Preparation(result.caseId(), order.getId(), List.of(),
                     State.ABORTED, result.compensation(), null));
             else if (preparation.state() == State.CONFIRMED) throw conflict();
-            else refunds.finish(result.caseId(), State.ABORTED, null);
+            else refunds.finish(result.caseId(), State.ABORTED, null, null);
             requests.findByCase(result.caseId()).filter(r -> r.status() == RefundRequest.Status.APPROVED).ifPresent(r -> {
                 r.failed();
                 requests.update(r);
@@ -121,14 +125,15 @@ public class RefundOrderEffects {
             var issued = tickets.findByOrderIdForUpdate(order.getId());
             if (!issued.stream().map(Ticket::getId).sorted().toList().equals(preparation.ticketIds())
                     || issued.stream().anyMatch(ticket -> ticket.getStatus() != Ticket.Status.VALID)) throw conflict();
-            refunds.finish(result.caseId(), State.CONFIRMED, result.reference());
+            refunds.finish(result.caseId(), State.CONFIRMED, result.reference(), result.occurredAt());
             order.refund();
             events.record(order, version, OrderEventRepository.Transition.OrderRefunded);
+            salesLedger.recordRefund(order.getId(), result.provider(), result.occurredAt());
             issued.forEach(ticket -> ticket.setStatus(Ticket.Status.CANCELLED));
             closeRequest(order.getId(), result);
             restock(order, result.caseId());
         } else {
-            refunds.finish(result.caseId(), State.CONFIRMED, result.reference());
+            refunds.finish(result.caseId(), State.CONFIRMED, result.reference(), result.occurredAt());
         }
         var payload = new HashMap<String, Object>(Map.of("orderId", order.getId(), "amount", result.amount()));
         if (order.getReferenceCode() != null) payload.put("orderReference", order.getReferenceCode());

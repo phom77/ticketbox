@@ -30,6 +30,14 @@ The available, held and allocated quantities of a ticket type.
 
 Money confirmed by Payment. It can include a late payment for an order that Ticketing could no longer settle.
 
+**Sales ledger**
+
+An append-only record of each order item sold (SALE) and refunded (REFUND), written in the transaction of the order's PAID or REFUNDED transition. Sales are dated by payment time and refunds by refund confirmation time, so earlier periods never change. A reporting projection: Payment reconciliation remains the source for money movement.
+
+**Provisional**
+
+A sales figure that includes a performance that has not ended yet.
+
 **Performance**
 
 The scheduled occurrence a shopping session, allocation, order and issued ticket are for.

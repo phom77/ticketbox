@@ -27,7 +27,11 @@ public interface ReconciliationStore {
 
     Totals totals(Filter filter);
 
-    List<Row> page(Filter filter, long offset, int limit);
+    /** Keyset position: the basis time and intent id of the last row of the previous page. */
+    record Cursor(OffsetDateTime at, UUID intentId) {}
+
+    /** Pages by {@code after} when given (stable under inserts), otherwise by offset. */
+    List<Row> page(Filter filter, long offset, int limit, Cursor after);
 
     void scan(Filter filter, Consumer<Row> consumer);
 }

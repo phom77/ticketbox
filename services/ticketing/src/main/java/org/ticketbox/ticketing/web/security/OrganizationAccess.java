@@ -19,6 +19,8 @@ import java.util.UUID;
 
 public final class OrganizationAccess implements HandlerInterceptor {
     public static final String ORGANIZATION = "authorizedOrganizationId";
+    /** The caller's grants in the selected organization, as a Set of grant names. */
+    public static final String GRANTS = "authorizedOrganizationGrants";
     private static final String SCOPE_HEADER = "X-Organization-Id";
 
     private final RestClient http;
@@ -45,8 +47,9 @@ public final class OrganizationAccess implements HandlerInterceptor {
             if (mapping.startsWith("/api/admin")) {
                 requirePlatformAccess(authorization);
             } else {
-                UUID organization = requireOrganizationAccess(request, method, authorization);
-                request.setAttribute(ORGANIZATION, organization);
+                Authorized organization = requireOrganizationAccess(request, method, authorization);
+                request.setAttribute(ORGANIZATION, organization.id());
+                request.setAttribute(GRANTS, organization.grants());
             }
         } catch (RestClientResponseException failure) {
             if (failure.getStatusCode().value() == 401 || failure.getStatusCode().value() == 403) {
@@ -67,7 +70,7 @@ public final class OrganizationAccess implements HandlerInterceptor {
         }
     }
 
-    private UUID requireOrganizationAccess(HttpServletRequest request, HandlerMethod method, String authorization) {
+    private Authorized requireOrganizationAccess(HttpServletRequest request, HandlerMethod method, String authorization) {
         OrganizerPermission permission = method.getMethodAnnotation(OrganizerPermission.class);
         if (permission == null) {
             permission = method.getBeanType().getAnnotation(OrganizerPermission.class);
@@ -87,8 +90,10 @@ public final class OrganizationAccess implements HandlerInterceptor {
         if (Arrays.stream(permission.value()).map(Enum::name).noneMatch(access.grants()::contains)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
-        return organization;
+        return new Authorized(organization, Set.copyOf(access.grants()));
     }
+
+    private record Authorized(UUID id, Set<String> grants) {}
 
     private UUID selectedOrganization(HttpServletRequest request) {
         String value = request.getHeader(SCOPE_HEADER);
