@@ -2,14 +2,14 @@
 
 ## 1. Catalog
 
-- [ ] 1.1 `V21__event_content.sql`: event content columns, `event_content_revisions`, `artist_pdf_jobs.event_id` with the exactly-one CHECK, `layout_backgrounds.source_performance_id ON DELETE SET NULL`. Move `ConcertContent`/`ConcertText` to a shared `content` domain package and update ArchitectureTest if needed.
-- [ ] 1.2 Event content use cases: draft edit with translations, age rating and refund policy; poster upload and removal on events (Cloudinary, after-commit cleanup); native artist-bio jobs and apply. Unit tests for validation, integration tests for poster rollback and organization scope.
-- [ ] 1.3 Content revisions: stage, submit, withdraw, Admin decide (approve applies under the event lock, idempotent repeat, stale decision refused), buyer cache invalidation. Integration tests for each state, a concurrent edit (409) and a pending revision alongside a performance release.
-- [ ] 1.4 Buyer reads: discovery card, `GET /api/v2/events/{id}` and checkout presentation return event poster, translations, bio, age rating and refund policy, falling back to the legacy concert. Tests for native, legacy and mixed events.
-- [ ] 1.5 Preview endpoints (organizer and Admin), no-store, organization-scoped. HTTP test proves another organization and anonymous callers get no draft content.
-- [ ] 1.6 Delete draft performance and draft event with version checks and audit. Tests: released, under review, scheduled, legacy-linked and another organization's event are refused; a shared background survives.
-- [ ] 1.7 Directory status rollup and filter (with the `PREPARING` alias). Tests for each status and the priority rule.
-- [ ] 1.8 Organizer legacy write guard and flag. HTTP tests: organizer writes refused, reads and guest import allowed, Admin unchanged. Update `docs/api.md` and the Catalog glossary (event content, content revision).
+- [x] 1.1 `V21__event_content.sql`: event content columns, `event_content_revisions`, `artist_pdf_jobs.event_id` with the exactly-one CHECK, `layout_backgrounds.source_performance_id ON DELETE SET NULL`. Move `ConcertContent`/`ConcertText` to a shared `content` domain package and update ArchitectureTest if needed.
+- [x] 1.2 Event content use cases: draft edit with translations, age rating and refund policy; poster upload and removal on events (Cloudinary, after-commit cleanup); native artist-bio jobs and apply. Unit tests for validation, integration tests for poster rollback and organization scope.
+- [x] 1.3 Content revisions: stage, submit, withdraw, Admin decide (approve applies under the event lock, idempotent repeat, stale decision refused), buyer cache invalidation. Integration tests for each state, a concurrent edit (409) and a pending revision alongside a performance release.
+- [x] 1.4 Buyer reads: discovery card, `GET /api/v2/events/{id}` and checkout presentation return event poster, translations, bio, age rating and refund policy, falling back to the legacy concert. Tests for native, legacy and mixed events.
+- [x] 1.5 Preview endpoints (organizer and Admin), no-store, organization-scoped. HTTP test proves another organization and anonymous callers get no draft content.
+- [x] 1.6 Delete draft performance and draft event with version checks and audit. Tests: released, under review, scheduled, legacy-linked and another organization's event are refused; a shared background survives.
+- [x] 1.7 Directory status rollup and filter (with the `PREPARING` alias). Tests for each status and the priority rule.
+- [x] 1.8 Organizer legacy write guard and flag. HTTP tests: organizer writes refused, reads and guest import allowed, Admin unchanged. Update `docs/api.md` and the Catalog glossary (event content, content revision).
 
 ## 2. Web
 

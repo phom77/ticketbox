@@ -41,3 +41,11 @@ A description of an arrangement of a venue space. A performance uses the layout 
 **Sale offer**
 
 A named way to buy access to a performance at a price during a sale window. Offers can draw from the same capacity group.
+
+**Event content**
+
+What buyers read about a native event besides its schedule: poster, original and translated title and description, artist bio, age rating and refund policy. It is edited directly until a performance is released.
+
+**Content revision**
+
+The one pending edit of a released event's content. A platform reviewer approves, returns or rejects it, and buyers see the live content until approval.

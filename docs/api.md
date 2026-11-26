@@ -102,6 +102,31 @@ Use the existing queue endpoints with the performance ID. The hold command repla
 
 Before publication, `PUT /api/organizer/manage/v2/events/{eventId}` updates the event details and `PUT /api/organizer/manage/v2/performances/{id}/schedule` updates an individual schedule. Each route takes the same fields as its create request and the last `draftVersion` as `expectedDraftVersion`. The organizer submits `POST /api/organizer/manage/v2/performances/{id}/publication` with `expectedEventDraftVersion`, `expectedScheduleDraftVersion`, `expectedSaleVersion`, `expectedLayoutVersion` and an explicit `publishAt` at or before the performance sale start. A stale version returns 409. Platform Admin reads the submitted version and its offer terms at `GET /api/admin/v2/performance-reviews` and decides at `POST /api/admin/v2/performance-reviews/{id}` with the revision ID and action. Approval schedules release. Catalog issues the activation snapshot at the approved time. The matching Ticketing acknowledgment makes the performance discoverable when its listing is public.
 
+## Event content, revisions and drafts
+
+Native events carry buyer content: `posterUrl`, `translations` (`vi` and `en` title and description), `artistBio`, `ageRating` (`ALL`, `13+`, `16+`, `18+`) and `refundPolicy` (up to 2,000 characters). `GET /api/v2/events/{eventId}`, discovery cards and the organizer event reads return them, falling back to the legacy concert's poster, translations and bio for legacy-linked events (an event value wins when set).
+
+| Method and path | Access |
+| --- | --- |
+| `POST /api/organizer/manage/v2/events`, `PUT .../events/{id}` | Organizer `EVENTS`. Accept the content fields. `PUT` works until a performance is released, with `expectedDraftVersion`. |
+| `PUT`, `DELETE .../events/{id}/poster` | Organizer `EVENTS`. Multipart `file` (JPEG, PNG or WebP). Writes the draft directly, or stages the poster once a performance is released. Optional `expectedVersion` and `expectedRevision`. |
+| `GET .../events/{id}/content` | The event and its pending revision, if any |
+| `PUT .../events/{id}/content-revision` | Stage content of a released event. Body: content fields and `expectedRevision` (0 for none). A stale value returns 409. |
+| `POST .../events/{id}/content-revision/submit`, `.../withdraw`, `DELETE .../content-revision` | Submit with `expectedRevision`, take back a submitted revision, or discard a revision that is not in review |
+| `GET .../events/{id}/preview?revision=true` | Private buyer-shaped detail with draft performances and the staged revision. `Cache-Control: no-store`. Another organization receives 404. |
+| `POST .../events/{id}/artist-bio-jobs` | Multipart PDF. Poll and apply with the existing `/api/organizer/manage/artist-bio-jobs/{jobId}` routes. |
+| `DELETE .../performances/{id}`, `DELETE .../events/{id}` | Delete a draft performance, or an event whose performances are all drafts, with `expectedDraftVersion`. Refused (400) when a performance is in review, scheduled, released or legacy-linked. |
+| `GET /api/admin/v2/event-content-revisions?state=SUBMITTED` | Platform queue of content revisions |
+| `GET /api/admin/v2/event-content-revisions/{eventId}` | Live and proposed content side by side |
+| `POST /api/admin/v2/event-content-revisions/{eventId}/decision` | Body `action` (`APPROVE`, `REQUEST_CHANGES`, `REJECT`), `reason` (required unless approving) and the `revision` number. A stale revision returns 409. Repeating a completed decision returns the recorded outcome. |
+| `GET /api/admin/v2/events/{id}/preview` | Platform preview of any event |
+
+A revision has the states `DRAFTING`, `SUBMITTED`, `CHANGES_REQUESTED`, `REJECTED` and `APPROVED`. Approval applies the content to the event and bumps its `draftVersion`. A pending revision does not block releasing another performance.
+
+Organizers cannot create or change legacy concerts: `POST/PUT/DELETE /api/organizer/manage/concerts/**`, ticket type writes, `.../category`, `.../poster` and legacy artist bio writes return 403 `error.concert.organizer-legacy-read-only`. Reads and guest import still work, and Admin routes are unchanged. Set `TICKETBOX_ORGANIZER_LEGACY_READ_ONLY=false` on Catalog to roll back.
+
+The organizer concert directory `status` accepts `DRAFT`, `IN_REVIEW`, `CHANGES_REQUESTED`, `SCHEDULED`, `ON_SALE`, `SOLD_OUT`, `PAST` and `CANCELLED`. An event matches when any performance has that status. `PREPARING` remains an alias for draft, in review or changes requested. Rows add `status` (the most urgent: changes requested, in review, on sale, scheduled, sold out, draft, past, cancelled), `posterUrl` and `contentChangeInReview`.
+
 Platform administrators can search published native performances with `GET /api/admin/v2/performances`. The optional `query` matches the event title, venue, room or performance ID. Page numbers start at zero and page size ranges from 1 to 100. Active and future dates come first, sorted by start time. Historical dates follow from newest to oldest. `GET /api/admin/v2/performances/{id}` returns the current local schedule, sale status and service acknowledgments. Organizer drafts and legacy concerts are outside this directory. Both routes use the existing platform administrator role and responses are never cached.
 
 Catalog publishes the [performance sale snapshot](../contracts/catalog.performance-sale-snapshot.v2.json) to authenticated Ticketing and Check-in receivers. A version must arrive whole before activation. Repeated equal versions are safe. An equal version with different content is rejected. Offer references and capacity invariants are checked by the receiver in addition to JSON shape. See also the [purchase command bodies](../contracts/ticketing.performance-purchase.v2.json) and [performance ticket snapshot](../contracts/ticketing.ticket-snapshot.v2.json).
