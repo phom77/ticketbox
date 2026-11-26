@@ -31,6 +31,9 @@ public interface PerformanceStore {
 
     Optional<Event> event(UUID id, UUID organizer);
 
+    /** The event with every performance, drafts included; `organizer` null means any owner (platform preview). */
+    Optional<Event> previewEvent(UUID id, UUID organizer);
+
     boolean ownsNativeEvent(UUID id, UUID organizer);
 
     Optional<Long> lockNativeEventVersion(UUID id, UUID organizer);

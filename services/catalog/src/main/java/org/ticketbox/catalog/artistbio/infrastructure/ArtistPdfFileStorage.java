@@ -43,10 +43,18 @@ public class ArtistPdfFileStorage
     }
 
     public StoredArtistPdf store(UUID concertId, Upload file) {
+        return store(root.resolve(concertId.toString()), file);
+    }
+
+    public StoredArtistPdf storeForEvent(UUID eventId, Upload file) {
+        return store(root.resolve("events").resolve(eventId.toString()), file);
+    }
+
+    private StoredArtistPdf store(Path target, Upload file) {
         validateMetadata(file);
         Path stored = null;
         try {
-            Path directory = requireUnderRoot(root.resolve(concertId.toString()));
+            Path directory = requireUnderRoot(target);
             Files.createDirectories(directory);
             stored = directory.resolve(UUID.randomUUID() + ".pdf");
             try (InputStream input = file.getInputStream()) {

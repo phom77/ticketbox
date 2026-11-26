@@ -3,6 +3,8 @@ package org.ticketbox.catalog.concert.domain;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import org.ticketbox.catalog.content.domain.ConcertContent;
+import org.ticketbox.catalog.content.domain.ConcertText;
 import org.ticketbox.catalog.domain.BaseEntity;
 
 import java.time.OffsetDateTime;

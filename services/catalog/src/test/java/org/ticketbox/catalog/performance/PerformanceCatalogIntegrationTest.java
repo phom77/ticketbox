@@ -75,6 +75,7 @@ class PerformanceCatalogIntegrationTest {
     private static TransactionTemplate transaction;
     private static ObjectMapper json;
     private static PerformanceCatalog catalog;
+    private static org.ticketbox.catalog.performance.application.EventContentService content;
     private static PerformancePublicationReview reviews;
     private static MockMvc organizer;
     private static MockMvc publicCatalog;
@@ -92,8 +93,10 @@ class PerformanceCatalogIntegrationTest {
         json = new ObjectMapper().findAndRegisterModules().disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         var store = new JdbcPerformanceStore(jdbc, json);
         catalog = new PerformanceCatalog(store, "*");
+        content = new org.ticketbox.catalog.performance.application.EventContentService(
+                store, new org.ticketbox.catalog.performance.infrastructure.JdbcEventContentStore(jdbc, json), null);
         reviews = new PerformancePublicationReview(store, new JdbcPerformanceReviewStore(jdbc, json), catalog);
-        organizer = MockMvcBuilders.standaloneSetup(new OrganizerPerformanceController(catalog, reviews), new PerformanceOperationsController(catalog),
+        organizer = MockMvcBuilders.standaloneSetup(new OrganizerPerformanceController(catalog, reviews, content), new PerformanceOperationsController(catalog),
                 new org.ticketbox.catalog.performance.web.LegacyConcertCategoryController(catalog))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setMessageConverters(new MappingJackson2HttpMessageConverter(json))

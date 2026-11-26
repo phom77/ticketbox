@@ -8,6 +8,7 @@ import java.util.UUID;
 public record ArtistBioJobResponse(
         UUID id,
         UUID concertId,
+        UUID eventId,
         String originalFileName,
         String status,
         String provider,
@@ -26,6 +27,7 @@ public record ArtistBioJobResponse(
         return new ArtistBioJobResponse(
                 job.getId(),
                 job.getConcertId(),
+                job.getEventId(),
                 job.getOriginalFileName(),
                 job.getStatus().name(),
                 job.getProvider(),

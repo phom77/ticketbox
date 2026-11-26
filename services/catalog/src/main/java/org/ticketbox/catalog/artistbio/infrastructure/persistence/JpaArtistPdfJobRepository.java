@@ -25,6 +25,9 @@ public interface JpaArtistPdfJobRepository
     Optional<ArtistPdfJob> findFirstByConcertIdAndFileChecksumAndStatusInOrderByCreatedAtDesc(
             UUID concertId, String fileChecksum, Collection<ArtistPdfJob.Status> statuses);
 
+    Optional<ArtistPdfJob> findFirstByEventIdAndFileChecksumAndStatusInOrderByCreatedAtDesc(
+            UUID eventId, String fileChecksum, Collection<ArtistPdfJob.Status> statuses);
+
     List<ArtistPdfJob> findByStatusAndCreatedAtBefore(
             ArtistPdfJob.Status status, OffsetDateTime createdBefore);
 

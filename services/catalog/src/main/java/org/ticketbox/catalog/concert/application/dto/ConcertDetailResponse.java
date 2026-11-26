@@ -1,7 +1,7 @@
 package org.ticketbox.catalog.concert.application.dto;
 
 import org.ticketbox.catalog.sales.application.dto.TicketTypeResponse;
-import org.ticketbox.catalog.concert.domain.ConcertText;
+import org.ticketbox.catalog.content.domain.ConcertText;
 
 import java.time.OffsetDateTime;
 import java.util.List;

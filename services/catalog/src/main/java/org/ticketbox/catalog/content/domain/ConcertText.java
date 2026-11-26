@@ -1,4 +1,4 @@
-package org.ticketbox.catalog.concert.domain;
+package org.ticketbox.catalog.content.domain;
 
 import org.ticketbox.catalog.domain.DomainViolation;
 
@@ -11,7 +11,7 @@ public record ConcertText(String title, String description) {
         return new ConcertText(title, normalize(description));
     }
 
-    boolean isEmpty() {
+    public boolean hasNoText() {
         return title == null && description == null;
     }
 

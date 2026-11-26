@@ -78,6 +78,7 @@ class ArtistBioJobControllerTest {
         return new ArtistBioJobResponse(
                 UUID.randomUUID(),
                 concertId,
+                null,
                 "artist.pdf",
                 "DONE",
                 "mock",

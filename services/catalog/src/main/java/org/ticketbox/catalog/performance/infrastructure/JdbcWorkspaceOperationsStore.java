@@ -34,8 +34,28 @@ public class JdbcWorkspaceOperationsStore implements WorkspaceOperationsStore {
     private static final String REVIEW_STATE = "COALESCE(native_review.state, legacy_review.state)";
     private static final String REVIEW_SUBMITTED = "COALESCE(native_review.submitted_at, legacy_review.submitted_at)";
     private static final String REVIEW_REASON = "COALESCE(native_review.reason, legacy_review.reason)";
+    /** The lifecycle status of one performance, from its status, latest review and schedule. */
+    private static final String PERFORMANCE_STATUS = """
+            CASE
+                WHEN p.status = 'CANCELLED' THEN 'CANCELLED'
+                WHEN p.status = 'COMPLETED' OR (p.status <> 'DRAFT' AND COALESCE(p.ends_at, p.starts_at) < CURRENT_TIMESTAMP)
+                    THEN 'PAST'
+                WHEN p.status = 'DRAFT' THEN CASE %1$s
+                    WHEN 'SUBMITTED' THEN 'IN_REVIEW'
+                    WHEN 'CHANGES_REQUESTED' THEN 'CHANGES_REQUESTED'
+                    WHEN 'SCHEDULED' THEN 'SCHEDULED'
+                    ELSE 'DRAFT' END
+                WHEN p.status = 'SOLD_OUT' THEN 'SOLD_OUT'
+                ELSE 'ON_SALE'
+            END
+            """;
+    private static final String STATUS_PRIORITY = """
+            ARRAY['CHANGES_REQUESTED', 'IN_REVIEW', 'ON_SALE', 'SCHEDULED', 'SOLD_OUT', 'DRAFT', 'PAST', 'CANCELLED']
+            """;
     private static final String EVENT_ROWS = """
             FROM catalog_event_view e
+            JOIN events ev ON ev.id = e.id
+            LEFT JOIN concerts lc ON lc.id = e.legacy_concert_id
             CROSS JOIN LATERAL (
                 SELECT count(*) AS performance_count,
                     COALESCE(bool_or(p.status = 'DRAFT'), false) AS has_draft,
@@ -48,19 +68,26 @@ public class JdbcWorkspaceOperationsStore implements WorkspaceOperationsStore {
                     (array_agg(p.id ORDER BY %2$s DESC, p.id)
                         FILTER (WHERE %1$s = 'CHANGES_REQUESTED'))[1] AS needs_change,
                     (array_agg(%3$s ORDER BY %2$s DESC, p.id)
-                        FILTER (WHERE %1$s = 'CHANGES_REQUESTED'))[1] AS change_reason
+                        FILTER (WHERE %1$s = 'CHANGES_REQUESTED'))[1] AS change_reason,
+                    COALESCE(array_agg(%5$s), CAST(ARRAY[] AS text[])) AS statuses
                 FROM catalog_performance_view p
                 %4$s
                 WHERE p.event_id = e.id
             ) rollup
             WHERE true
-            """.formatted(REVIEW_STATE, REVIEW_SUBMITTED, REVIEW_REASON, CURRENT_REVIEW);
+            """.formatted(REVIEW_STATE, REVIEW_SUBMITTED, REVIEW_REASON, CURRENT_REVIEW,
+            PERFORMANCE_STATUS.formatted(REVIEW_STATE));
     private static final String EVENT_COLUMNS = """
             SELECT e.id, e.title, e.description, e.category, e.organization_id, e.legacy_concert_id,
                 rollup.performance_count, (rollup.performance_count = 0 OR rollup.has_draft) AS preparing,
                 rollup.changes_requested, rollup.next_starts_at,
-                COALESCE(rollup.needs_change, rollup.first_draft) AS action_performance_id, rollup.change_reason
-            """;
+                COALESCE(rollup.needs_change, rollup.first_draft) AS action_performance_id, rollup.change_reason,
+                COALESCE(ev.poster_url, lc.poster_url) AS poster_url,
+                COALESCE((SELECT s FROM unnest(%s) WITH ORDINALITY AS priority(s, rank)
+                          WHERE s = ANY(rollup.statuses) ORDER BY rank LIMIT 1), 'DRAFT') AS status,
+                EXISTS (SELECT 1 FROM event_content_revisions r WHERE r.event_id = e.id AND r.state = 'SUBMITTED')
+                    AS content_change_in_review
+            """.formatted(STATUS_PRIORITY);
     private static final String SHOWS = """
             FROM catalog_performance_view p JOIN catalog_event_view e ON e.id = p.event_id
             """;
@@ -101,9 +128,12 @@ public class JdbcWorkspaceOperationsStore implements WorkspaceOperationsStore {
         String where = EVENT_ROWS + equals(args, "e.organization_id", "organization", filters.organizationId())
                 + search(args, filters.query());
         if (filters.status() == EventStatus.PREPARING) {
-            where += " AND (rollup.performance_count = 0 OR rollup.has_draft)";
-        } else if (filters.status() == EventStatus.CHANGES_REQUESTED) {
-            where += " AND rollup.changes_requested";
+            where += " AND (rollup.performance_count = 0 OR rollup.statuses && ARRAY['DRAFT', 'IN_REVIEW', 'CHANGES_REQUESTED'])";
+        } else if (filters.status() == EventStatus.DRAFT) {
+            where += " AND (rollup.performance_count = 0 OR 'DRAFT' = ANY(rollup.statuses))";
+        } else if (filters.status() != null) {
+            where += " AND :status = ANY(rollup.statuses)";
+            args.addValue("status", filters.status().name());
         }
         return page(EVENT_COLUMNS, where, " ORDER BY e.created_at DESC, e.id", args, page, this::eventRow);
     }
@@ -199,7 +229,8 @@ public class JdbcWorkspaceOperationsStore implements WorkspaceOperationsStore {
                 row.getObject("legacy_concert_id", UUID.class), row.getLong("performance_count"),
                 row.getBoolean("preparing"), row.getBoolean("changes_requested"),
                 row.getObject("next_starts_at", OffsetDateTime.class), row.getObject("action_performance_id", UUID.class),
-                row.getString("change_reason"));
+                row.getString("change_reason"), row.getString("poster_url"), row.getString("status"),
+                row.getBoolean("content_change_in_review"));
     }
 
     private PerformanceRow performanceRow(ResultSet row, int index) throws SQLException {

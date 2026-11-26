@@ -36,6 +36,13 @@ public class JdbcPerformanceStore implements PerformanceStore {
     private static final TypeReference<List<PerformanceLayout.Shape>> SHAPES = new TypeReference<>() {};
     private static final TypeReference<List<Space>> SPACES = new TypeReference<>() {};
     private static final TypeReference<Map<String, DiscoveryText>> TRANSLATIONS = new TypeReference<>() {};
+    private static final String EVENT_SELECT = """
+            SELECT e.id,e.title,e.description,e.category,e.draft_version,
+                   COALESCE(ev.poster_url, c.poster_url) AS poster_url,
+                   COALESCE(CAST(ev.localized_content AS jsonb), CAST(c.localized_content AS jsonb))->'translations' AS translations,
+                   COALESCE(ev.artist_bio, c.artist_bio) AS artist_bio, ev.age_rating, ev.refund_policy
+            FROM catalog_event_view e JOIN events ev ON ev.id=e.id LEFT JOIN concerts c ON c.id=e.legacy_concert_id
+            """;
     private static final String PUBLIC_EVENT = """
             EXISTS (SELECT 1 FROM catalog_performance_view p WHERE p.event_id = e.id AND p.discoverable)
             """;
@@ -49,16 +56,20 @@ public class JdbcPerformanceStore implements PerformanceStore {
             COALESCE((SELECT min(o.price) FROM performance_sale_offers o WHERE o.performance_id=p.id AND o.active),
                      (SELECT min(t.price) FROM ticket_types t WHERE t.concert_id=p.legacy_concert_id AND t.is_active))
             """;
+    private static final String CONTENT = """
+            COALESCE(CAST(ev.localized_content AS jsonb), CAST(c.localized_content AS jsonb))
+            """;
     private static final String DISCOVERY = """
             WITH base AS (
                 SELECT e.id AS catalog_event_id, COALESCE(p.legacy_concert_id, p.id) AS id,
                        CASE WHEN p.legacy_concert_id IS NULL THEN e.id END AS event_id,
                        e.title, p.venue_name, p.starts_at AS event_date, p.sale_start_at, p.sale_end_at,
-                       p.status, p.sales_suspended, c.poster_url, e.category,
+                       p.status, p.sales_suspended, COALESCE(ev.poster_url, c.poster_url) AS poster_url, e.category,
                        {city} AS city, {minPrice} AS min_price,
-                       CAST(c.localized_content AS jsonb)->'translations' AS translations,
+                       {content}->'translations' AS translations,
                        CASE WHEN :saleStartFirst THEN p.sale_start_at ELSE p.starts_at END AS sort_date
                 FROM catalog_event_view e JOIN catalog_performance_view p ON p.event_id=e.id
+                JOIN events ev ON ev.id=e.id
                 LEFT JOIN concerts c ON c.id=p.legacy_concert_id
                 WHERE p.discoverable
                   AND (CAST(:startsFrom AS timestamptz) IS NULL OR p.starts_at >= :startsFrom)
@@ -75,7 +86,7 @@ public class JdbcPerformanceStore implements PerformanceStore {
                       SELECT 1 FROM regexp_split_to_table(:words, ' ') AS search(word)
                       WHERE strpos(replace(regexp_replace(lower(normalize(concat_ws(' ', e.title, p.venue_name,
                           (SELECT string_agg(translation.value->>'title', ' ')
-                           FROM jsonb_each(CAST(c.localized_content AS jsonb)->'translations') AS translation)), NFD)),
+                           FROM jsonb_each({content}->'translations') AS translation)), NFD)),
                            U&'[\\0300-\\036f]', '', 'g'), U&'\\0111', 'd'), search.word) = 0
                   ))
             ), matching AS (
@@ -97,7 +108,7 @@ public class JdbcPerformanceStore implements PerformanceStore {
             FROM (SELECT count(*) AS total_elements FROM representatives) total
             LEFT JOIN card_page ON TRUE
             ORDER BY card_page.sort_date, card_page.event_date, card_page.id
-            """.replace("{city}", CITY).replace("{minPrice}", MIN_PRICE);
+            """.replace("{city}", CITY).replace("{minPrice}", MIN_PRICE).replace("{content}", CONTENT);
 
     private static final String FACETS = """
             SELECT DISTINCT {city} AS city, e.category
@@ -139,9 +150,8 @@ public class JdbcPerformanceStore implements PerformanceStore {
                 .addValue("organizer", organizer).addValue("limit", page.getPageSize()).addValue("offset", page.getOffset());
         long total = named.queryForObject(
                 "SELECT count(*) FROM catalog_event_view e WHERE " + where, params, Long.class);
-        var rows = named.query("""
-                SELECT e.id,e.title,e.description,e.category,e.draft_version FROM catalog_event_view e WHERE %s
-                ORDER BY e.created_at DESC,e.id LIMIT :limit OFFSET :offset
+        var rows = named.query(EVENT_SELECT + """
+                WHERE %s ORDER BY e.created_at DESC,e.id LIMIT :limit OFFSET :offset
                 """.formatted(where), params, (rs, n) -> readEvent(rs));
         return new PageImpl<>(withPerformances(rows, organizer == null), page, total);
     }
@@ -196,15 +206,24 @@ public class JdbcPerformanceStore implements PerformanceStore {
         var where = organizer == null ? PUBLIC_EVENT : "e.organization_id = :organizer";
         var params = new org.springframework.jdbc.core.namedparam.MapSqlParameterSource()
                 .addValue("id", id).addValue("organizer", organizer);
-        var rows = named.query("""
-                SELECT e.id,e.title,e.description,e.category,e.draft_version FROM catalog_event_view e WHERE e.id=:id AND %s
-                """.formatted(where), params, (rs, n) -> readEvent(rs));
+        var rows = named.query(EVENT_SELECT + " WHERE e.id=:id AND " + where, params, (rs, n) -> readEvent(rs));
         return withPerformances(rows, organizer == null).stream().findFirst();
     }
 
-    private static Event readEvent(ResultSet rs) throws SQLException {
+    @Override
+    public Optional<Event> previewEvent(UUID id, UUID organizer) {
+        var params = new MapSqlParameterSource().addValue("id", id).addValue("organizer", organizer);
+        var rows = named.query(EVENT_SELECT + " WHERE e.id=:id AND (CAST(:organizer AS uuid) IS NULL OR e.organization_id=:organizer)",
+                params, (rs, n) -> readEvent(rs));
+        return withPerformances(rows, false).stream().findFirst();
+    }
+
+    private Event readEvent(ResultSet rs) throws SQLException {
+        var translations = rs.getString("translations");
         return new Event(id(rs, "id"), rs.getString("title"), rs.getString("description"),
-                rs.getString("category"), rs.getLong("draft_version"), List.of());
+                rs.getString("category"), rs.getLong("draft_version"), List.of(), rs.getString("poster_url"),
+                translations == null ? Map.of() : read(translations, TRANSLATIONS), rs.getString("artist_bio"),
+                rs.getString("age_rating"), rs.getString("refund_policy"));
     }
 
     private List<Event> withPerformances(List<Event> events, boolean publicOnly) {
@@ -214,8 +233,7 @@ public class JdbcPerformanceStore implements PerformanceStore {
                 """ + (publicOnly ? " AND discoverable" : "") + " ORDER BY starts_at,id",
                 Map.of("ids", events.stream().map(Event::id).toList()), this::performance)
                 .stream().collect(Collectors.groupingBy(Performance::eventId));
-        return events.stream().map(event -> new Event(event.id(), event.title(), event.description(),
-                event.category(), event.draftVersion(), performances.getOrDefault(event.id(), List.of()))).toList();
+        return events.stream().map(event -> event.withPerformances(performances.getOrDefault(event.id(), List.of()))).toList();
     }
 
     @Override
