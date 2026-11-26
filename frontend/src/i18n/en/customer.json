@@ -232,7 +232,7 @@
   "checkoutPage_thanhToanChuaHoanTatDonCua": "Payment is incomplete. Your order is still available.",
   "checkoutPage_phienMuaVeDaHetHanDang": "Your booking session expired. Returning to the waiting room…",
   "checkoutPage_chuaTheXacNhanDonHangYeu": "I can't confirm the order, it's probably still being processed, so check it before you pick another ticket.",
-  "checkoutPage_khongTheTaoDonHangCuaBan": "Can't make your order.",
+  "checkoutPage_khongTheTaoDonHangCuaBan": "Could not create your order.",
   "checkoutPage_conDuoi3PhutDeHoanTat": "Less than three minutes to complete the payment.",
   "checkoutPage_thoiGianThanhToanDaHetVui": "The payment deadline has passed. Check your order status in order history.",
   "checkoutPage_daHetThoiGianThanhToan": "Payment deadline is up.",
