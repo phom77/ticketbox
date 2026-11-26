@@ -46,6 +46,13 @@
       },
       "domain-rules": {
         "org.ticketbox.catalog.concert.domain.ConcertRulesTest": []
+      },
+      "event-content": {
+        "org.ticketbox.catalog.performance.EventContentIntegrationTest": [],
+        "org.ticketbox.catalog.performance.domain.EventContentRevisionTest": []
+      },
+      "organizer-legacy-guard": {
+        "org.ticketbox.catalog.web.security.OrganizerLegacyGuardTest": []
       }
     }
   },

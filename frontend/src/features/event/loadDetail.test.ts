@@ -4,8 +4,12 @@ import { ApiClientError } from '../../api/client';
 vi.mock('../../api/concerts', () => ({ getConcert: vi.fn(), getConcertTicketTypes: vi.fn() }));
 vi.mock('../../api/performances', () => ({ getEvent: vi.fn(), getAvailability: vi.fn() }));
 vi.mock('../../api/publication', () => ({ getConcertPreview: vi.fn() }));
+vi.mock('../../api/eventContent', () => ({ getEventPreview: vi.fn() }));
+vi.mock('../../api/performanceManagement', () => ({ getSaleDraft: vi.fn() }));
 
 import { getConcert } from '../../api/concerts';
+import { getEventPreview } from '../../api/eventContent';
+import { getSaleDraft } from '../../api/performanceManagement';
 import { getEvent } from '../../api/performances';
 import { loadDetail } from './useEventDetail';
 
@@ -88,5 +92,48 @@ describe('loadDetail', () => {
     const model = await loadDetail('c1', false, signal);
     expect(model.eventId).toBeNull();
     expect(model.organizer).toBe('Organizer Co');
+  });
+
+  it('carries the content of a native event to the buyer page', async () => {
+    vi.mocked(getEvent).mockResolvedValue({
+      id: 'e1',
+      title: 'Native show',
+      description: 'About',
+      posterUrl: 'https://img.example/native.jpg',
+      translations: { vi: { title: 'Buổi diễn', description: null } },
+      artistBio: 'Native bio',
+      ageRating: '16+',
+      refundPolicy: 'Refund up to 7 days before',
+      performances: [performance(null)],
+    } as never);
+    const model = await loadDetail('e1', false, signal);
+    expect(model.posterUrl).toBe('https://img.example/native.jpg');
+    expect(model.artistBio).toBe('Native bio');
+    expect(model.ageRating).toBe('16+');
+    expect(model.refundPolicy).toBe('Refund up to 7 days before');
+    expect(model.translations?.vi?.title).toBe('Buổi diễn');
+  });
+
+  it('previews a native event with ticket rows from its sale setup', async () => {
+    vi.mocked(getEventPreview).mockResolvedValue({
+      id: 'e1',
+      title: 'Draft show',
+      description: '',
+      performances: [{ ...performance(null), status: 'DRAFT' }],
+    } as never);
+    vi.mocked(getSaleDraft).mockResolvedValue({
+      version: 1,
+      groups: [{ id: 'g1', sectionLabel: 'Floor', capacity: 40 }],
+      offers: [
+        { id: 'o1', groupId: 'g1', name: 'Standard', price: 100_000, active: true },
+        { id: 'o2', groupId: 'g1', name: 'Hidden', price: 1, active: false },
+      ],
+    } as never);
+    const model = await loadDetail('e1', true, signal, true);
+    expect(getEventPreview).toHaveBeenCalledWith('e1', true, signal);
+    expect(model.previewRows?.p1).toEqual([
+      expect.objectContaining({ name: 'Standard', group: 'Floor', price: 100_000, available: 40 }),
+    ]);
+    expect(getConcert).not.toHaveBeenCalled();
   });
 });

@@ -13,18 +13,18 @@
 
 ## 2. Web
 
-- [ ] 2.1 API clients for content, poster, revisions, preview, delete and bio jobs.
-- [ ] 2.2 Event details step: poster with crop preview, translations, age rating, refund policy, artist bio with PDF generation. Released events: staged revision editor and status line.
-- [ ] 2.3 Preview route and header action. Buyer page and discovery card read event content.
-- [ ] 2.4 Guests section per released performance (reuse guest import components with the performance id). Pre-release explanation.
-- [ ] 2.5 Delete draft performance and event with named confirmations and toasts.
-- [ ] 2.6 Directory: full status filter, poster thumbnail, rolled-up status, content-revision badge, row actions (Open, Preview, Report).
-- [ ] 2.7 Read-only legacy summary in the native workspace. Organizer legacy routes become redirects, and every organizer link into `/organizer/concerts` is re-pointed.
-- [ ] 2.8 Admin publication queue: Content changes tab with current/proposed comparison and decisions.
-- [ ] 2.9 Unit tests for the new components and redirects. en/vi catalogs.
+- [x] 2.1 API clients for content, poster, revisions, preview, delete and bio jobs.
+- [x] 2.2 Event details step: poster with crop preview, translations, age rating, refund policy, artist bio with PDF generation. Released events: staged revision editor and status line.
+- [x] 2.3 Preview route and header action. Buyer page and discovery card read event content.
+- [x] 2.4 Guests section per released performance (reuse guest import components with the performance id). Pre-release explanation.
+- [x] 2.5 Delete draft performance and event with named confirmations and toasts.
+- [x] 2.6 Directory: full status filter, poster thumbnail, rolled-up status, content-revision badge, row actions (Open, Preview, Report).
+- [x] 2.7 Read-only legacy summary in the native workspace. Organizer legacy routes become redirects, and every organizer link into `/organizer/concerts` is re-pointed.
+- [x] 2.8 Admin publication queue: Content changes tab with current/proposed comparison and decisions.
+- [x] 2.9 Unit tests for the new components and redirects. en/vi catalogs.
 
 ## 3. Verification
 
-- [ ] 3.1 Catalog Maven verify and `verify-service-boundaries.py --service catalog`; web lint, test and build.
+- [x] 3.1 Catalog Maven verify and `verify-service-boundaries.py --service catalog`; web lint, test and build.
 - [ ] 3.2 Compose stack walk-through: create a native event with poster, translations and bio → release → edit content → Admin approves → buyer page shows the new version; delete a draft performance; open a legacy concert read-only; import guests for a released performance. Screenshots at 1440, 834 and 390.
-- [ ] 3.3 `openspec validate organizer-event-consolidation --type change --strict`.
+- [x] 3.3 `openspec validate organizer-event-consolidation --type change --strict`.

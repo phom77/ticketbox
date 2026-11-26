@@ -107,5 +107,6 @@
   "tabContent": "Content changes",
   "tabReleases": "Performance releases",
   "withdraw": "Withdraw",
-  "withdrawn": "Changes withdrawn. You can keep editing."
+  "withdrawn": "Changes withdrawn. You can keep editing.",
+  "approveContent": "Approve changes"
 }

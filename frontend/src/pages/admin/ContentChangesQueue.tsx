@@ -282,7 +282,7 @@ function ContentComparison({ state, onChange }: { state: ContentState; onChange:
             disabled={busy}
             onClick={() => void decide('APPROVE')}
           >
-            {t('shared:releaseApprove')}
+            {t('event-content:approveContent')}
           </button>
           <button
             type="button"
