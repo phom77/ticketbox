@@ -207,6 +207,14 @@ const organizerNavigation: NavigationItem[] = [
     icon: BarChart3,
   },
   {
+    to: '/organizer/orders',
+    grant: 'FINANCE',
+    get label() {
+      return translate('shared:operationsOrganizerOrders');
+    },
+    icon: Receipt,
+  },
+  {
     to: '/organizer/refund-requests',
     grant: 'FINANCE',
     get label() {

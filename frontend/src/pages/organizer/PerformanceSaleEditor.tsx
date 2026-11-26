@@ -1,4 +1,5 @@
 import { WorkspaceSelect } from '../../components/WorkspaceSelect';
+import { MoneyInput } from '../../components/admin/MoneyInput';
 import { useId, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import type {
@@ -39,6 +40,7 @@ export function PerformanceSaleEditor({
   const { t } = useTranslation();
   const idPrefix = useId();
   const [admissionArea, setAdmissionArea] = useState('');
+  const [admissionPrice, setAdmissionPrice] = useState(0);
   const opensAt = toPerformanceLocalDateTime(performance.saleStartAt, performance.timezone);
   const closesAt = toPerformanceLocalDateTime(performance.saleEndAt, performance.timezone);
   const sections = layout?.sections ?? [];
@@ -56,7 +58,7 @@ export function PerformanceSaleEditor({
     const values = new FormData(form);
     const name = String(values.get('name') ?? '').trim();
     const capacity = Number(values.get('capacity'));
-    const price = Number(values.get('price'));
+    const price = admissionPrice;
     const section = availableGaSections.find((entry) => entry.id === values.get('sectionId'));
     if (!name || (layout && !section) || !validCapacity(capacity) || !validPrice(price)) return;
     const id = window.crypto.randomUUID();
@@ -76,6 +78,7 @@ export function PerformanceSaleEditor({
       offers: [...sale.offers, newOffer(id, performance, name, price)],
     });
     form.reset();
+    setAdmissionPrice(0);
   }
 
   function updateGroup(next: SaleGroup) {
@@ -155,7 +158,13 @@ export function PerformanceSaleEditor({
             </label>
             <label>
               {t('performances:price')}
-              <input name="price" type="number" min={1} max={maxPrice} step={1} required />
+              <MoneyInput
+                name="price"
+                required
+                max={maxPrice}
+                value={admissionPrice}
+                onValueChange={setAdmissionPrice}
+              />
             </label>
             <div className="performance-wide performance-options">
               <button className="button button-secondary">
@@ -302,15 +311,10 @@ export function PerformanceSaleEditor({
                 </label>
                 <label>
                   {t('performances:price')}
-                  <input
-                    type="number"
-                    min={1}
+                  <MoneyInput
                     max={maxPrice}
-                    step={1}
-                    value={offer.price || ''}
-                    onChange={(event) =>
-                      updateOffer(offer.id, { price: Number(event.target.value) })
-                    }
+                    value={offer.price}
+                    onValueChange={(price) => updateOffer(offer.id, { price })}
                   />
                 </label>
                 <label className="performance-inline">

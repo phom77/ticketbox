@@ -125,3 +125,24 @@ export function formatPerformanceDateTime(
     timeStyle: 'short',
   }).format(timestamp);
 }
+
+type PublishAtCheck =
+  | { ok: true; instant: string }
+  | { ok: false; reason: 'invalid' | 'nonexistent' | 'ambiguous' | 'past' | 'afterSaleStart' };
+
+/** Resolves the release time in the performance's timezone and checks the window the review accepts. */
+export function checkPublishAt(
+  local: string,
+  performance: { timezone: string; saleStartAt: string | null },
+  now: number,
+): PublishAtCheck {
+  const resolved = resolvePerformanceDateTime(local, performance.timezone);
+  if (!resolved.ok) return resolved;
+  if (!resolved.instant) return { ok: false, reason: 'invalid' };
+  const instant = Date.parse(resolved.instant);
+  if (instant <= now) return { ok: false, reason: 'past' };
+  const saleStart = Date.parse(performance.saleStartAt ?? '');
+  if (Number.isFinite(saleStart) && instant > saleStart)
+    return { ok: false, reason: 'afterSaleStart' };
+  return { ok: true, instant: resolved.instant };
+}

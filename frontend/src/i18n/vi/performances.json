@@ -340,5 +340,13 @@
   "unavailable": "Sự kiện không khả dụng",
   "unavailableBody": "Sự kiện này chưa được công bố hoặc không còn tồn tại. Hãy xem các sự kiện khác.",
   "loadFailedTitle": "Không tải được sự kiện",
-  "retry": "Thử lại"
+  "retry": "Thử lại",
+  "publishAtHelp": "Người mua thấy suất diễn từ thời điểm này. Thời điểm phải ở tương lai và không muộn hơn giờ mở bán.",
+  "publishAtSoon": "Sau 15 phút",
+  "publishAtSaleStart": "Khi mở bán",
+  "publishAt_invalid": "Nhập ngày giờ hợp lệ.",
+  "publishAt_nonexistent": "Giờ địa phương này bị bỏ qua khi đổi giờ. Hãy chọn giờ khác.",
+  "publishAt_ambiguous": "Giờ địa phương này lặp lại hai lần khi đổi giờ. Hãy chọn giờ khác.",
+  "publishAt_past": "Chọn thời điểm ở tương lai.",
+  "publishAt_afterSaleStart": "Chọn thời điểm không muộn hơn giờ mở bán."
 }

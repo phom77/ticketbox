@@ -348,5 +348,13 @@
   "unavailable": "Event unavailable",
   "unavailableBody": "This event is not published or no longer exists. Browse other events instead.",
   "loadFailedTitle": "Could not load the event",
-  "retry": "Try again"
+  "retry": "Try again",
+  "publishAtHelp": "Buyers can see the performance from this time. It must be in the future and no later than the sale start.",
+  "publishAtSoon": "In 15 minutes",
+  "publishAtSaleStart": "When sales open",
+  "publishAt_invalid": "Enter a valid date and time.",
+  "publishAt_nonexistent": "This local time is skipped when clocks change. Choose another time.",
+  "publishAt_ambiguous": "This local time occurs twice when clocks change. Choose another time.",
+  "publishAt_past": "Choose a time in the future.",
+  "publishAt_afterSaleStart": "Choose a time no later than the sale start."
 }

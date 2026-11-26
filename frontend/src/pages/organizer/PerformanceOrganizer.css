@@ -256,3 +256,28 @@
   line-height: 1.25;
   outline: none;
 }
+
+.money-input {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.money-input > input {
+  flex: 1;
+  min-width: 0;
+  padding-right: 2rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.money-input-unit {
+  position: absolute;
+  right: 0.75rem;
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.performance-release-time {
+  display: grid;
+  gap: 0.5rem;
+}

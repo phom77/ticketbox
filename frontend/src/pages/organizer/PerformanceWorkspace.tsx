@@ -32,7 +32,13 @@ import {
   type SellingModel,
 } from './performanceSetup';
 import './PerformanceOrganizer.css';
-import { formatPerformanceDateTime, resolvePerformanceDateTime } from './performanceDateTime';
+import {
+  checkPublishAt,
+  formatPerformanceDateTime,
+  resolvePerformanceDateTime,
+  toPerformanceLocalDateTime,
+} from './performanceDateTime';
+import { PerformanceDateTimeField } from './PerformanceDateTimeField';
 import {
   inspectSaleDraft,
   offerDateFields,
@@ -362,13 +368,15 @@ export function PerformanceWorkspace({
 
   async function publish() {
     if (!sale || !draft || !ready || immutable || stage !== 'review' || !publishAt) return;
+    const release = checkPublishAt(publishAt, performance, Date.now());
+    if (!release.ok) return;
     await run(async () => {
       const scheduled = await publishPerformance(
         id,
         sale.version,
         draft.version,
         { event: event.draftVersion, schedule: performance.draftVersion },
-        publishAt + ':00+07:00',
+        release.instant,
       );
       setPublication(scheduled);
     });
@@ -855,7 +863,14 @@ function ReviewPerformance({
     review?.state === 'RELEASED' && !publication?.ticketingAcknowledged ? 'PENDING' : review?.state;
   const releaseTime =
     review &&
-    formatPerformanceDateTime(review.publishAt, 'Asia/Ho_Chi_Minh', i18n.resolvedLanguage);
+    formatPerformanceDateTime(review.publishAt, performance.timezone, i18n.resolvedLanguage);
+  const release = publishAt ? checkPublishAt(publishAt, performance, Date.now()) : null;
+  const releaseError = release && !release.ok ? t(`performances:publishAt_${release.reason}`) : '';
+  function suggestPublishAt(instant: number) {
+    onPublishAt(toPerformanceLocalDateTime(new Date(instant).toISOString(), performance.timezone));
+  }
+  const soon = Math.ceil((Date.now() + 15 * 60_000) / 300_000) * 300_000;
+  const saleOpens = Date.parse(performance.saleStartAt ?? '');
   const activeOffers = sale.offers.filter((offer) => offer.active);
   const groups = new Map(sale.groups.map((group) => [group.id, group]));
   const activeGroupIds = new Set(activeOffers.map((offer) => offer.groupId));
@@ -957,7 +972,7 @@ function ReviewPerformance({
       )}
       {state && (
         <p role="status">
-          {t(`shared:release_${state}`)} · {releaseTime} (ICT)
+          {t(`shared:release_${state}`)} · {releaseTime} ({performance.timezone})
         </p>
       )}
       {review?.reason && <p>{review.reason}</p>}
@@ -993,19 +1008,41 @@ function ReviewPerformance({
         </button>
         {!immutable && (
           <>
-            <label className="admin-field">
-              {t('shared:releasePublishAt')} (ICT)
-              <input
-                type="datetime-local"
-                required
+            <div className="performance-release-time">
+              <PerformanceDateTimeField
+                name="publishAt"
+                label={`${t('shared:releasePublishAt')} (${performance.timezone})`}
                 value={publishAt}
-                onChange={(event) => onPublishAt(event.target.value)}
+                onChange={onPublishAt}
+                required
+                disabled={disabled}
+                max={toPerformanceLocalDateTime(performance.saleStartAt, performance.timezone)}
+                error={releaseError}
+                description={t('performances:publishAtHelp')}
               />
-            </label>
+              <div className="performance-options">
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  disabled={disabled || !(saleOpens > soon)}
+                  onClick={() => suggestPublishAt(soon)}
+                >
+                  {t('performances:publishAtSoon')}
+                </button>
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  disabled={disabled || !(saleOpens > Date.now() + 60_000)}
+                  onClick={() => suggestPublishAt(saleOpens)}
+                >
+                  {t('performances:publishAtSaleStart')}
+                </button>
+              </div>
+            </div>
             <button
               type="button"
               className="button button-primary"
-              disabled={disabled || !ready || !publishAt}
+              disabled={disabled || !ready || !publishAt || !release?.ok}
               onClick={onPublish}
             >
               {t('shared:releaseSend')}
