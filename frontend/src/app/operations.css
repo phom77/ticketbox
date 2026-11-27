@@ -692,12 +692,13 @@
   ) {
   color: var(--cream);
 }
-.operations-shell :is(.concert-workspace-tabs button.active, .concert-workspace-metric > span) {
+.operations-shell
+  :is(.concert-workspace-tabs :is(button, a).active, .concert-workspace-metric > span) {
   color: var(--violet);
   background: var(--ops-selection-bg);
   box-shadow: none;
 }
-.operations-shell .concert-workspace-tabs button:not(.active) {
+.operations-shell .concert-workspace-tabs :is(button, a):not(.active) {
   color: var(--muted);
 }
 .operations-shell .admin-filter-controls::before {
