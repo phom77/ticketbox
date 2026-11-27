@@ -7,7 +7,8 @@ export type OfferDates = Record<string, Partial<Record<OfferDateField, string>> 
 export function inspectSaleDraft(
   layout: DraftLayout | null,
   sale: SaleDraft,
-  performance: Pick<ManagedPerformance, 'saleStartAt' | 'saleEndAt'>,
+  performance: Pick<ManagedPerformance, 'saleStartAt' | 'saleEndAt'> &
+    Partial<Pick<ManagedPerformance, 'maxPerAccount'>>,
   now: number,
 ) {
   const starts = Date.parse(performance.saleStartAt);
@@ -62,6 +63,20 @@ export function inspectSaleDraft(
         offer.price > 999_999_999_999
       ) {
         saveIssue = 'reviewInvalidOffer';
+        break;
+      }
+      const minimum = offer.minPerOrder ?? 1;
+      const pool = sale.groups.find((group) => group.id === offer.groupId);
+      if (!Number.isInteger(minimum) || minimum < 1 || minimum > 100) {
+        saveIssue = 'reviewInvalidMinimum';
+        break;
+      }
+      if (performance.maxPerAccount !== undefined && minimum > performance.maxPerAccount) {
+        saveIssue = 'reviewMinAboveLimit';
+        break;
+      }
+      if (pool && minimum > pool.capacity) {
+        saveIssue = 'reviewMinAboveCapacity';
         break;
       }
       const offerStart = Date.parse(offer.saleStartAt);

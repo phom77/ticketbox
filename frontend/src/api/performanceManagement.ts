@@ -60,6 +60,10 @@ export type SaleOffer = {
   saleStartAt: string;
   saleEndAt: string;
   active: boolean;
+  /** Buyer-facing perks, up to 500 characters. */
+  description?: string | null;
+  /** Fewest places of this ticket type in one order. Absent means 1. */
+  minPerOrder?: number;
 };
 export type SaleDraft = { version: number; groups: SaleGroup[]; offers: SaleOffer[] };
 export type PerformanceReview = {

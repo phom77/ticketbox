@@ -780,13 +780,51 @@ class PerformanceCatalogIntegrationTest {
         assertThatThrownBy(() -> catalog.layoutOverview(another.id())).isInstanceOf(AppException.class);
 
         var revisedOffer = new PerformanceSale.Offer(offer.id(), offer.groupId(), offer.name(),
-                BigDecimal.valueOf(200_000), offer.currency(), offer.saleStartAt(), offer.saleEndAt(), true);
+                BigDecimal.valueOf(200_000), offer.currency(), offer.saleStartAt(), offer.saleEndAt(), true, "Includes a poster", 1);
         var revised = tx(() -> catalog.saveSale(owner, owner, night.id(), 2,
                 new PerformanceSale(List.of(group), List.of(revisedOffer))));
         assertThat(revised.version()).isEqualTo(3);
         assertThat(jdbc.queryForObject("""
+                SELECT payload->'offers'->0->>'minPerOrder' FROM performance_sale_publications
+                WHERE performance_id=? AND version=3
+                """, String.class, night.id())).isEqualTo("1");
+        assertThat(jdbc.queryForObject("""
+                SELECT payload->'offers'->0->>'description' FROM performance_sale_publications
+                WHERE performance_id=? AND version=3
+                """, String.class, night.id())).isEqualTo("Includes a poster");
+        assertSnapshotMatchesContract(jdbc.queryForObject("""
+                SELECT payload::text FROM performance_sale_publications WHERE performance_id=? AND version=3
+                """, String.class, night.id()));
+        // A seated pool of one seat cannot require two seats per order.
+        var aboveSeats = new PerformanceSale.Offer(offer.id(), offer.groupId(), offer.name(), offer.price(),
+                offer.currency(), offer.saleStartAt(), offer.saleEndAt(), true, null, 2);
+        assertThatThrownBy(() -> tx(() -> catalog.saveSale(owner, owner, night.id(), 3,
+                new PerformanceSale(List.of(group), List.of(aboveSeats)))))
+                .hasMessage("error.performance.offer-min-above-capacity");
+        var tooHigh = new PerformanceSale.Offer(offer.id(), offer.groupId(), offer.name(), offer.price(),
+                offer.currency(), offer.saleStartAt(), offer.saleEndAt(), true, null, 101);
+        assertThatThrownBy(() -> tx(() -> catalog.saveSale(owner, owner, night.id(), 3,
+                new PerformanceSale(List.of(group), List.of(tooHigh)))))
+                .isInstanceOf(RuntimeException.class);
+        assertThat(jdbc.queryForObject("SELECT min_per_order FROM performance_sale_offers WHERE performance_id=?",
+                Integer.class, night.id())).isEqualTo(1);
+        assertThat(jdbc.queryForObject("""
                 SELECT count(DISTINCT payload->>'layoutChecksum') FROM performance_sale_publications WHERE performance_id=?
                 """, Integer.class, night.id())).isEqualTo(1);
+    }
+
+    /** The emitted payload must satisfy the contract Ticketing and Check-in consume. */
+    private static void assertSnapshotMatchesContract(String payload) {
+        try {
+            var contract = java.nio.file.Path.of("..", "..", "contracts", "catalog.performance-sale-snapshot.v2.json");
+            var schema = com.networknt.schema.JsonSchemaFactory
+                    .getInstance(com.networknt.schema.SpecVersion.VersionFlag.V202012)
+                    .getSchema(java.nio.file.Files.readString(contract));
+            var errors = schema.validate(new ObjectMapper().readTree(payload));
+            assertThat(errors).as("snapshot payload %s", payload).isEmpty();
+        } catch (java.io.IOException failure) {
+            throw new java.io.UncheckedIOException(failure);
+        }
     }
 
     @Test
@@ -840,7 +878,7 @@ class PerformanceCatalogIntegrationTest {
 
     private static PerformanceSale.Offer standard(UUID pool, OffsetDateTime start, OffsetDateTime end) {
         return new PerformanceSale.Offer(UUID.randomUUID(), pool, "Standard", BigDecimal.valueOf(100_000),
-                "VND", start, end, true);
+                "VND", start, end, true, null, null);
     }
 
     private static PerformanceLayout assignedLayout() {

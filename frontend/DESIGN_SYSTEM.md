@@ -63,3 +63,10 @@ The Admin and Organizer workspaces use the available width beside the sidebar. K
 The workspace follows the browser color preference on first use and remembers an explicit light or dark choice on the device. Use the scoped palette in `src/app/operations.css` for surfaces, text and borders. Use its semantic tokens for selection, focus and status. Workspace text uses a 16px base with 15px table cells and controls. Verify contrast and visible focus in both themes.
 
 Use `WorkspaceSelect` for finite options in the workspace and `ConcertPicker` for concert search. Use `ClassificationPicker` for an event's category (radio group), main genre (searchable combobox over the category's genres) and up to three additional genres (multi-select combobox with removable chips); it follows the ARIA list-autocomplete pattern and works with the keyboard alone. Keep date and time fields on their native controls.
+
+## Ticket setup terminology and inputs
+
+- Organizers see an offer as a **Ticket type** (Loại vé) and an inventory group as a **Stock pool** (Nhóm chỗ), or **Seat pool** (Nhóm ghế) for numbered seats. API, storage and code keep `offer` and `group`; do not show those words in the UI.
+- Every price an organizer or admin types uses `MoneyInput` (whole VND, thousands separators, ₫ unit). A test fails if a raw `type="number"` price input appears under `pages/organizer` or `pages/admin`. Format prices shown in summaries with the shared VND formatter.
+- Sale windows are chosen with the presets in `features/performance/saleWindowPresets.ts` (Whole sale period, Early bird, Final days, Starts later, Custom). Presets compute times in the venue timezone, stay inside the performance sale window and show a one-line summary.
+- A map without a layout starts from the guided picker (saved templates, starter layouts, General admission without a map, Blank canvas). Each import has a sample file and a "File format" disclosure; errors name the line and column.

@@ -40,7 +40,7 @@ A description of an arrangement of a venue space. A performance uses the layout 
 
 **Sale offer**
 
-A named way to buy access to a performance at a price during a sale window. Offers can draw from the same capacity group.
+A named way to buy access to a performance at a price during a sale window. Offers can draw from the same capacity group. Organizers see an offer as a **Ticket type** (Loại vé) and a capacity group as a **Stock pool** (Nhóm chỗ), or a **Seat pool** (Nhóm ghế) for numbered seats; API and storage keep `offer` and `group`. An offer can carry a buyer-facing description (up to 500 characters) and a minimum quantity per order.
 
 **Event content**
 

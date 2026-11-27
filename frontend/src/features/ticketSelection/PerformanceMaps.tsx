@@ -116,6 +116,7 @@ export function SeatMap({
   section,
   accessibleOnly,
   heldSeats,
+  pendingSeats,
   isAvailable,
   describe,
   onSelect,
@@ -124,6 +125,7 @@ export function SeatMap({
   section: MapSection;
   accessibleOnly: boolean;
   heldSeats: ReadonlySet<string>;
+  pendingSeats: ReadonlySet<string>;
   isAvailable: (seatId: string) => boolean;
   describe: (row: string, seat: string, seatId: string) => string;
   onSelect: (seatId: string) => void;
@@ -139,13 +141,14 @@ export function SeatMap({
           .filter((seat) => !accessibleOnly || seat.accessible)
           .map((seat) => {
             const held = heldSeats.has(seat.id);
+            const pending = !held && pendingSeats.has(seat.id);
             const free = isAvailable(seat.id);
             return (
               <g
                 key={seat.id}
                 className="ts-seat"
                 data-seat-id={seat.id}
-                data-state={held ? 'selected' : free ? 'available' : 'sold'}
+                data-state={held ? 'selected' : pending ? 'pending' : free ? 'available' : 'sold'}
                 data-accessible={seat.accessible}
                 data-restricted={seat.restrictedView}
                 onClick={() => onSelect(seat.id)}

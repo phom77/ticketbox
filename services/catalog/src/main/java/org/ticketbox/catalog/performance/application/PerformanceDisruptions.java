@@ -73,7 +73,8 @@ public class PerformanceDisruptions {
             if (!request.saleEndAt().isAfter(OffsetDateTime.now())) throw invalid();
             if (request.offers() != null) sale = new PerformanceSale(sale.groups(), request.offers());
             PerformanceRules.validateSale(sale, request.saleStartAt(), request.saleEndAt(),
-                    performances.draftLayout(id).map(PerformanceViews.Layout::layout).orElse(null), false);
+                    performances.draftLayout(id).map(PerformanceViews.Layout::layout).orElse(null), false,
+                    performance.maxPerAccount());
             if (!PerformanceCatalog.retainsOfferScopes(performances.sale(id), sale)) throw invalid();
             performances.changeTiming(id, request.startsAt(), request.endsAt(), request.doorsOpenAt(),
                     request.saleStartAt(), request.saleEndAt(), null);

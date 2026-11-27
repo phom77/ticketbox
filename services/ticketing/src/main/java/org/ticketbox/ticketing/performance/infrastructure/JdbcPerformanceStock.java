@@ -71,14 +71,16 @@ class JdbcPerformanceStock implements PerformanceStock {
     @Override
     public List<Offer> offers(UUID performanceId) {
         return jdbc.query("""
-                SELECT o.id,o.group_id,t.name,g.section_label,g.kind,t.price,o.sale_start_at,o.sale_end_at,t.is_active
+                SELECT o.id,o.group_id,t.name,g.section_label,g.kind,t.price,o.sale_start_at,o.sale_end_at,t.is_active,
+                  o.description,o.min_per_order
                 FROM performance_offers o JOIN ticket_types t ON t.id=o.id
                 JOIN performance_groups g ON g.performance_id=o.performance_id AND g.id=o.group_id
                 WHERE o.performance_id=? ORDER BY t.price,o.id
                 """, (row, n) -> new Offer(row.getObject("id", UUID.class), row.getObject("group_id", UUID.class),
                 row.getString("name"), row.getString("section_label"), Kind.valueOf(row.getString("kind")),
                 row.getBigDecimal("price"), row.getObject("sale_start_at", OffsetDateTime.class),
-                row.getObject("sale_end_at", OffsetDateTime.class), row.getBoolean("is_active")), performanceId);
+                row.getObject("sale_end_at", OffsetDateTime.class), row.getBoolean("is_active"),
+                row.getString("description"), row.getInt("min_per_order")), performanceId);
     }
 
     @Override

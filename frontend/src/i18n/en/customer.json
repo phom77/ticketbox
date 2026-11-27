@@ -384,6 +384,7 @@
   "ticketSelection_heldInSection_one": "{{count}} ticket selected",
   "ticketSelection_heldInSection_other": "{{count}} tickets selected",
   "ticketSelection_selectedState": "Selected",
+  "ticketSelection_pendingState": "Selected, not yet reserved",
   "ticketSelection_backToVenue": "Back to venue map",
   "ticketSelection_noMap": "There is no map for this show. Choose tickets from the list.",
   "ticketSelection_mapHint": "Select a section to see its seats. Zoom with the buttons, Ctrl + scroll or pinch. Everything on the map is also in the list.",
@@ -685,5 +686,11 @@
   "refund_blocked_REFUND_IN_PROGRESS": "A refund for this order is already being processed.",
   "refund_blocked_CANCELLED": "This event was cancelled, so your refund is processed automatically.",
   "refund_blocked_EVENT_PASSED": "The new event date has passed, so a refund can no longer be requested.",
-  "refund_blocked_WINDOW_CLOSED": "Refunds can be requested until 24 hours before doors open. That time has passed."
+  "refund_blocked_WINDOW_CLOSED": "Refunds can be requested until 24 hours before doors open. That time has passed.",
+  "ticketSelection_problem_minimum": "This ticket type now needs more tickets per order. Availability was refreshed, so adjust the quantity and try again.",
+  "ticketSelection_reasonMinimum": "Fewer than {{count}} places left, so this ticket type is unavailable.",
+  "ticketSelection_minPerOrder": "Minimum {{count}} per order",
+  "ticketSelection_seatMinimumHint": "Choose at least {{count}} seats for {{name}} ({{chosen}} chosen so far).",
+  "ticketSelection_mapUnavailable": "The map is unavailable right now. Choose your tickets from the list instead.",
+  "ticketSelection_retryMap": "Retry the map"
 }

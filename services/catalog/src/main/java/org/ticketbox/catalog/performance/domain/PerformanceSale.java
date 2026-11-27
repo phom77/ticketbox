@@ -13,5 +13,12 @@ public record PerformanceSale(List<Group> groups, List<Offer> offers) {
 
     public record Offer(
             UUID id, UUID groupId, String name, BigDecimal price, String currency,
-            OffsetDateTime saleStartAt, OffsetDateTime saleEndAt, boolean active) {}
+            OffsetDateTime saleStartAt, OffsetDateTime saleEndAt, boolean active,
+            String description, Integer minPerOrder) {
+        /** Plain text, trimmed; blank means none. A missing minimum means 1. */
+        public Offer {
+            description = description == null || description.isBlank() ? null : description.strip();
+            minPerOrder = minPerOrder == null ? Integer.valueOf(1) : minPerOrder;
+        }
+    }
 }

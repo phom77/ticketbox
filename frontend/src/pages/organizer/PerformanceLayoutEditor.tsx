@@ -55,7 +55,21 @@ import {
   rectanglePoints,
   resizeMapSelection,
 } from '../../features/performance/layoutGeometry';
-import { mapBounds, readSeatCsv, seatsAlongRow } from '../../features/performance/layoutTools';
+import {
+  mapBounds,
+  readSeatCsv,
+  SeatCsvError,
+  seatCsvProblemKey,
+  seatsAlongRow,
+} from '../../features/performance/layoutTools';
+import {
+  downloadTextFile,
+  layoutSvgSample,
+  sampleCsvFileName,
+  sampleSvgFileName,
+  seatCsvSample,
+} from '../../features/performance/layoutSamples';
+import { PerformanceLayoutStarter } from './PerformanceLayoutStarter';
 import { maxLayoutSvgBytes, readLayoutSvg } from '../../features/performance/layoutSvgImport';
 import {
   PerformanceMapCanvas,
@@ -85,6 +99,7 @@ export function PerformanceLayoutEditor({
   onBusyChange,
   readOnly,
   preferredZone = 'ASSIGNED',
+  onUseAdmission,
 }: {
   performance: ManagedPerformance;
   venue?: Venue;
@@ -94,6 +109,7 @@ export function PerformanceLayoutEditor({
   onBusyChange: (busy: boolean) => void;
   readOnly: boolean;
   preferredZone?: 'GA' | 'ASSIGNED';
+  onUseAdmission?: () => void;
 }) {
   const { t } = useTranslation();
   const [history, setHistory] = useState<LayoutHistory>(() => ({
@@ -121,6 +137,8 @@ export function PerformanceLayoutEditor({
   const [rowSeats, setRowSeats] = useState('12');
   const [rowFirst, setRowFirst] = useState('1');
   const [rowCurve, setRowCurve] = useState(0);
+  const [starterDismissed, setStarterDismissed] = useState(false);
+  const [focusRequest, setFocusRequest] = useState<{ id: string; nonce: number }>();
   const sources = useRef<HTMLDetailsElement>(null);
   const inspectorId = useId();
   const venueId = venue?.id;
@@ -507,7 +525,7 @@ export function PerformanceLayoutEditor({
   async function importSeats(file: File) {
     await runOperation(
       async () => {
-        if (file.size > 5 * 1024 * 1024) throw new Error('1');
+        if (file.size > 5 * 1024 * 1024) throw new SeatCsvError(1, undefined, 'limit');
         const entries = readSeatCsv(await file.text());
         const next = structuredClone(layout);
         const sections = new Map(next.sections.map((entry) => [entry.code, entry]));
@@ -524,18 +542,17 @@ export function PerformanceLayoutEditor({
         );
         for (const [index, entry] of entries.entries()) {
           const target = sections.get(entry.section);
-          if (
-            !target ||
-            target.kind !== 'ASSIGNED' ||
-            !pointInMapPolygon(entry, target.points) ||
-            totalSeats + index >= maximumLayoutSeats
-          )
-            throw new Error(String(index + 2));
+          if (!target || target.kind !== 'ASSIGNED')
+            throw new SeatCsvError(index + 2, 'section', 'section');
+          if (!pointInMapPolygon(entry, target.points))
+            throw new SeatCsvError(index + 2, 'x', 'outside');
+          if (totalSeats + index >= maximumLayoutSeats)
+            throw new SeatCsvError(index + 2, undefined, 'limit');
           const rows = rowIndex.get(target.id)!;
           let indexed = rows.get(entry.row);
           if (!indexed) {
             if (target.rows.length >= 1000 || entry.row.length > 100)
-              throw new Error(String(index + 2));
+              throw new SeatCsvError(index + 2, 'row', 'limit');
             const row: MapSection['rows'][number] = {
               id: key(),
               code: entry.row,
@@ -547,8 +564,9 @@ export function PerformanceLayoutEditor({
             rows.set(entry.row, indexed);
           }
           const { row, labels } = indexed;
-          if (labels.has(entry.seat) || row.seats.length >= 1000 || entry.seat.length > 100)
-            throw new Error(String(index + 2));
+          if (labels.has(entry.seat)) throw new SeatCsvError(index + 2, 'seat', 'duplicate');
+          if (row.seats.length >= 1000 || entry.seat.length > 100)
+            throw new SeatCsvError(index + 2, 'seat', 'limit');
           labels.add(entry.seat);
           row.seats.push({
             id: key(),
@@ -567,7 +585,9 @@ export function PerformanceLayoutEditor({
         setStatus(t('performances:csvImported', { items: entries.length }));
       },
       (failure) =>
-        t('performances:csvError', { line: failure instanceof Error ? failure.message : '?' }),
+        failure instanceof SeatCsvError
+          ? t(seatCsvProblemKey(failure), { line: failure.line, column: failure.column })
+          : t('performance-layout:csvProblem_format', { line: '?' }),
     );
   }
 
@@ -911,6 +931,39 @@ export function PerformanceLayoutEditor({
           )}
         </p>
       )}
+      {layout.sections.length > 0 && (
+        <section className="layout-editor-zones" aria-labelledby={`${inspectorId}-zones`}>
+          <h4 id={`${inspectorId}-zones`}>{t('performance-layout:zones')}</h4>
+          <p>{t('performance-layout:zonesHelp')}</p>
+          <ul>
+            {layout.sections.map((zone) => (
+              <li key={zone.id}>
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  aria-pressed={section?.id === zone.id}
+                  disabled={busy}
+                  onClick={() => {
+                    setTool('select');
+                    chooseSelection({ kind: 'section', id: zone.id });
+                    setFocusRequest((current) => ({
+                      id: zone.id,
+                      nonce: (current?.nonce ?? 0) + 1,
+                    }));
+                  }}
+                >
+                  <strong>{zone.label}</strong>
+                  <span>
+                    {zone.kind === 'GA'
+                      ? t('performance-layout:zoneCapacityStanding')
+                      : `${t('performance-layout:zoneSeated')} · ${t('performance-layout:zoneSeats', { count: countSectionSeats(zone) })}`}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <div className="layout-editor-object-list">
         <label>
           {t('performance-layout:mapObjects')}
@@ -961,6 +1014,20 @@ export function PerformanceLayoutEditor({
             }}
           />
         </label>
+        <div className="layout-editor-format">
+          <button
+            type="button"
+            className="button button-secondary"
+            onClick={() => downloadTextFile(sampleSvgFileName, layoutSvgSample(), 'image/svg+xml')}
+          >
+            <ArrowDownToLine size={16} aria-hidden />
+            {t('performance-layout:downloadSvgSample')}
+          </button>
+          <details>
+            <summary>{t('performance-layout:fileFormat')}</summary>
+            <p>{t('performance-layout:svgFormatBody')}</p>
+          </details>
+        </div>
         <label>
           <ImagePlus size={17} aria-hidden />
           {t('performances:background')}
@@ -985,28 +1052,44 @@ export function PerformanceLayoutEditor({
           />
         </label>
         {layout.sections.some((area) => area.kind === 'ASSIGNED') && (
-          <label>
-            {t('performances:importCsv')}
-            <small>
-              {t('performance-layout:csvSourceHelp', {
-                codes: layout.sections
-                  .filter((area) => area.kind === 'ASSIGNED')
-                  .slice(0, 5)
-                  .map((area) => area.code)
-                  .join(', '),
-              })}
-            </small>
-            <input
-              type="file"
-              accept=".csv,text/csv"
-              disabled={busy}
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) void importSeats(file);
-                event.target.value = '';
-              }}
-            />
-          </label>
+          <>
+            <label>
+              {t('performances:importCsv')}
+              <small>
+                {t('performance-layout:csvSourceHelp', {
+                  codes: layout.sections
+                    .filter((area) => area.kind === 'ASSIGNED')
+                    .slice(0, 5)
+                    .map((area) => area.code)
+                    .join(', '),
+                })}
+              </small>
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                disabled={busy}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) void importSeats(file);
+                  event.target.value = '';
+                }}
+              />
+            </label>
+            <div className="layout-editor-format">
+              <button
+                type="button"
+                className="button button-secondary"
+                onClick={() => downloadTextFile(sampleCsvFileName, seatCsvSample(), 'text/csv')}
+              >
+                <ArrowDownToLine size={16} aria-hidden />
+                {t('performance-layout:downloadCsvSample')}
+              </button>
+              <details>
+                <summary>{t('performance-layout:fileFormat')}</summary>
+                <p>{t('performance-layout:csvFormatBody')}</p>
+              </details>
+            </div>
+          </>
         )}
         {templates.length > 0 && (
           <div>
@@ -1115,6 +1198,26 @@ export function PerformanceLayoutEditor({
           {status}
         </p>
       )}
+      {editorOpen &&
+        !saved.layout &&
+        !layout.sections.length &&
+        !layout.shapes.length &&
+        !starterDismissed && (
+          <PerformanceLayoutStarter
+            templates={templates}
+            disabled={busy}
+            onTemplate={(chosen) =>
+              void submit(() => copyLayoutTemplate(performance.id, chosen, saved.version), true)
+            }
+            onStarter={(starter, summary) => {
+              update(starter);
+              setStarterDismissed(true);
+              setStatus(t('performance-layout:starterApplied', { seats: summary.seats }));
+            }}
+            onBlank={() => setStarterDismissed(true)}
+            onAdmission={onUseAdmission}
+          />
+        )}
       {editorOpen && sourceControls}
       {editorOpen && (
         <div
@@ -1225,6 +1328,7 @@ export function PerformanceLayoutEditor({
           readOnly={!editorOpen}
           disabled={busy}
           resetKey={canvasRevision}
+          focusRequest={focusRequest}
           onSelect={chooseSelection}
           onDraw={(points) => (tool === 'row' ? addRow(points) : createObject(points))}
           onMove={(target, delta) => applyGeometry(moveMapSelection(layout, target, delta))}

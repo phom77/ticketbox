@@ -46,6 +46,7 @@ import {
   defaultFilters,
   heldUntil,
   holdProblem,
+  nextQuantity,
   parseQuantity,
   visibleRows,
   type OfferRow,
@@ -59,6 +60,7 @@ const problemKeys = {
   soldOut: 'customer:ticketSelection_problem_soldOut',
   conflict: 'customer:ticketSelection_problem_conflict',
   rateLimit: 'customer:ticketSelection_problem_rateLimit',
+  minimum: 'customer:ticketSelection_problem_minimum',
   generic: 'customer:ticketSelection_problem_generic',
 } as const;
 type Detail = Awaited<ReturnType<typeof getEventPerformance>>;
@@ -85,9 +87,13 @@ export function PerformanceTickets({ id, eventId }: { id: string; eventId: strin
   const [busy, setBusy] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [mapFailed, setMapFailed] = useState(false);
+  const [zoneFailed, setZoneFailed] = useState(false);
   const [refresh, setRefresh] = useState(0);
   const [accessibleOnly, setAccessibleOnly] = useState(false);
   const [visibleSeatRows, setVisibleSeatRows] = useState(20);
+  // Seats chosen for a ticket type whose minimum per order is not met yet; they are not held.
+  const [pendingSeats, setPendingSeats] = useState<Record<string, string[]>>({});
   const [filters] = useState<SelectionFilters>(() => ({
     ...defaultFilters,
     quantity: parseQuantity(search),
@@ -159,10 +165,14 @@ export function PerformanceTickets({ id, eventId }: { id: string; eventId: strin
         if (detail.performance.layoutVersion != null) {
           void getLayout(id, signal)
             .then((map) => {
-              if (!signal.aborted) setLayout(map);
+              if (signal.aborted) return;
+              setLayout(map);
+              setMapFailed(false);
             })
             .catch(() => {
-              if (!signal.aborted) setLayout(null);
+              if (signal.aborted) return;
+              setLayout(null);
+              setMapFailed(true);
             });
         }
       })
@@ -215,12 +225,15 @@ export function PerformanceTickets({ id, eventId }: { id: string; eventId: strin
     const { signal } = controller;
     let timer: number | undefined;
 
+    setZoneFailed(false);
     getMapSection(id, selectedSection, signal)
       .then((detail) => {
         if (!signal.aborted) setSectionLayout(detail);
       })
       .catch(() => {
-        if (!signal.aborted) setNotice(t('performances:sectionFailed'));
+        if (signal.aborted) return;
+        setZoneFailed(true);
+        setNotice(t('performances:sectionFailed'));
       });
 
     async function refreshSection(sectionId: string, first: boolean) {
@@ -246,6 +259,27 @@ export function PerformanceTickets({ id, eventId }: { id: string; eventId: strin
     };
   }, [id, selectedSection, assigned, refresh, t]);
 
+  // A seat that is now held, or no longer available, is no longer a pending choice.
+  const holdSeatKey = hold.items.map((item) => item.seatId ?? '').join('|');
+  const unavailableKey = (sectionAvailability?.seats ?? [])
+    .filter((seat) => !seat.available)
+    .map((seat) => seat.id)
+    .join('|');
+  useEffect(() => {
+    const held = new Set(holdSeatKey.split('|'));
+    const gone = new Set(unavailableKey.split('|'));
+    setPendingSeats((current) => {
+      let changed = false;
+      const next: Record<string, string[]> = {};
+      for (const [offerId, seats] of Object.entries(current)) {
+        const kept = seats.filter((seatId) => !held.has(seatId) && !gone.has(seatId));
+        if (kept.length !== seats.length) changed = true;
+        next[offerId] = kept;
+      }
+      return changed ? next : current;
+    });
+  }, [holdSeatKey, unavailableKey]);
+
   if (!admission && !pendingOrderKey) return <Navigate to={waitingRoom} replace />;
 
   const performance = context?.performance;
@@ -261,7 +295,17 @@ export function PerformanceTickets({ id, eventId }: { id: string; eventId: strin
       ? sectionAvailability
       : null;
   const stock = new Map(sectionStock?.seats.map((seat) => [seat.id, seat]));
-  const heldSeats = new Set(hold.items.flatMap((item) => (item.seatId ? [item.seatId] : [])));
+  const confirmedSeats = new Set(hold.items.flatMap((item) => (item.seatId ? [item.seatId] : [])));
+  const pendingSet = new Set(
+    Object.values(pendingSeats)
+      .flat()
+      .filter((seatId) => !confirmedSeats.has(seatId)),
+  );
+  const heldSeats = new Set([...confirmedSeats, ...pendingSet]);
+  const offerMinimum = new Map<string, { name: string; minimum: number }>();
+  for (const group of availability?.groups ?? [])
+    for (const offer of group.offers)
+      offerMinimum.set(offer.id, { name: offer.name, minimum: offer.minPerOrder ?? 1 });
   const cannotChange = busy || !availability || !admission || leaving;
   const sectionOrder = new Map(shownLayout?.sections.map((section, index) => [section.id, index]));
 
@@ -285,6 +329,8 @@ export function PerformanceTickets({ id, eventId }: { id: string; eventId: strin
         available: group.available,
         kind: group.kind,
         maxPerAccount: performance?.maxPerAccount ?? null,
+        description: offer.description,
+        minPerOrder: offer.minPerOrder,
       });
   }
   const listed = visibleRows(rows, filters, (row) =>
@@ -327,12 +373,16 @@ export function PerformanceTickets({ id, eventId }: { id: string; eventId: strin
   }
   function canSelectSeat(seatId: string) {
     if (cannotChange) return false;
-    if (heldSeats.has(seatId)) return true;
+    if (confirmedSeats.has(seatId)) return true;
     const current = stock.get(seatId);
-    return Boolean(current?.available && offerByGroup.has(current.groupId));
+    const offer = current && offerByGroup.get(current.groupId);
+    if (!current?.available || !offer) return false;
+    const group = availability?.groups.find((entry) => entry.id === current.groupId);
+    return (group?.available ?? 0) >= (offer.minPerOrder ?? 1);
   }
 
   function seatOfferDescription(seatId: string) {
+    if (pendingSet.has(seatId)) return t('customer:ticketSelection_pendingState');
     const held = hold.items.find((item) => item.seatId === seatId);
     if (held)
       return `${held.offerName} · ${formatPrice(held.unitPrice)} · ${t('customer:ticketSelection_selectedState')}`;
@@ -358,8 +408,8 @@ export function PerformanceTickets({ id, eventId }: { id: string; eventId: strin
     );
   }
 
-  async function changeHold(items: Selection[]) {
-    if (!admission || !availability || transaction.current) return;
+  async function changeHold(items: Selection[]): Promise<boolean> {
+    if (!admission || !availability || transaction.current) return false;
     const body = { layoutVersion: availability.layoutVersion, holdVersion: hold.version, items };
     const payload = JSON.stringify(body);
     const key =
@@ -370,16 +420,20 @@ export function PerformanceTickets({ id, eventId }: { id: string; eventId: strin
     setNotice(null);
     try {
       const confirmed = await replaceHold(id, admission.queueAccessToken, key, body);
-      if (!mounted.current) return;
+      if (!mounted.current) return false;
       setHold(confirmed);
       recovery.current = null;
+      return true;
     } catch (requestError) {
-      if (!mounted.current) return;
+      if (!mounted.current) return false;
       if (requestError instanceof ApiClientError && [401, 403].includes(requestError.status)) {
         backToWaitingRoom(t('customer:ticketSelection_sessionExpired'));
-        return;
+        return false;
       }
-      if (requestError instanceof ApiClientError && requestError.status === 409) {
+      if (
+        requestError instanceof ApiClientError &&
+        (requestError.status === 409 || holdProblem(requestError) === 'minimum')
+      ) {
         recovery.current = null;
         setRefresh((value) => value + 1);
       }
@@ -388,6 +442,7 @@ export function PerformanceTickets({ id, eventId }: { id: string; eventId: strin
           ? t(problemKeys[holdProblem(requestError)])
           : t('performances:holdFailed'),
       );
+      return false;
     } finally {
       if (mounted.current) setBusy(false);
       transaction.current = null;
@@ -400,16 +455,70 @@ export function PerformanceTickets({ id, eventId }: { id: string; eventId: strin
     void changeHold(items);
   }
 
-  function selectSeat(seatId: string) {
+  function withoutDuplicates(selections: Selection[]): Selection[] {
+    const seen = new Set<string>();
+    return selections.filter((item) => {
+      if (!('seatId' in item)) return true;
+      if (seen.has(item.seatId)) return false;
+      seen.add(item.seatId);
+      return true;
+    });
+  }
+
+  async function selectSeat(seatId: string) {
     if (!canSelectSeat(seatId)) return;
     const items = holdSelections();
-    if (heldSeats.has(seatId)) {
+    const pendingOffer = Object.keys(pendingSeats).find((offerId) =>
+      pendingSeats[offerId].includes(seatId),
+    );
+    if (pendingOffer) {
+      setPendingSeats({
+        ...pendingSeats,
+        [pendingOffer]: pendingSeats[pendingOffer].filter((entry) => entry !== seatId),
+      });
+      return;
+    }
+    if (confirmedSeats.has(seatId)) {
+      const line = hold.items.find((item) => item.seatId === seatId);
+      const remaining = hold.items
+        .filter((item) => item.seatId && item.offerId === line?.offerId && item.seatId !== seatId)
+        .map((item) => item.seatId as string);
+      const minimum = offerMinimum.get(line?.offerId ?? '')?.minimum ?? 1;
+      if (line && remaining.length > 0 && remaining.length < minimum) {
+        // Fewer seats than the minimum cannot stay held: release them and keep them as a pending
+        // choice, but only once the release is confirmed.
+        const released = await changeHold(
+          items.filter((item) => !('seatId' in item) || item.offerId !== line.offerId),
+        );
+        if (released && mounted.current)
+          setPendingSeats((current) => ({
+            ...current,
+            [line.offerId]: [...new Set([...(current[line.offerId] ?? []), ...remaining])],
+          }));
+        return;
+      }
       void changeHold(items.filter((item) => !('seatId' in item) || item.seatId !== seatId));
       return;
     }
     const available = stock.get(seatId);
     const offer = available && offerByGroup.get(available.groupId);
-    if (offer) void changeHold([...items, { offerId: offer.id, seatId }]);
+    if (!offer) return;
+    const pending = pendingSeats[offer.id] ?? [];
+    const heldForOffer = hold.items.filter(
+      (item) => item.seatId && item.offerId === offer.id,
+    ).length;
+    if (heldForOffer + pending.length + 1 < (offer.minPerOrder ?? 1)) {
+      setPendingSeats({ ...pendingSeats, [offer.id]: [...new Set([...pending, seatId])] });
+      return;
+    }
+    // The pending choice stays visible until the server confirms the hold.
+    await changeHold(
+      withoutDuplicates([
+        ...items,
+        ...pending.map((id) => ({ offerId: offer.id, seatId: id })),
+        { offerId: offer.id, seatId },
+      ]),
+    );
   }
 
   async function checkout() {
@@ -542,7 +651,8 @@ export function PerformanceTickets({ id, eventId }: { id: string; eventId: strin
           <SeatMap
             section={selectedMapSection}
             accessibleOnly={accessibleOnly}
-            heldSeats={heldSeats}
+            heldSeats={confirmedSeats}
+            pendingSeats={pendingSet}
             isAvailable={(seatId) => Boolean(stock.get(seatId)?.available)}
             describe={(row, seat, seatId) =>
               selectedMapSection.label +
@@ -551,10 +661,25 @@ export function PerformanceTickets({ id, eventId }: { id: string; eventId: strin
               ' · ' +
               seatOfferDescription(seatId)
             }
-            onSelect={selectSeat}
+            onSelect={(seatId) => void selectSeat(seatId)}
             onTip={setTip}
           />
         </MapViewport>
+      ) : assigned && selectedSection && zoneFailed ? (
+        <BuyerState
+          tone="error"
+          actions={
+            <button
+              className="button button-secondary"
+              type="button"
+              onClick={() => setRefresh((v) => v + 1)}
+            >
+              {t('customer:ticketSelection_retryMap')}
+            </button>
+          }
+        >
+          {t('customer:ticketSelection_mapUnavailable')}
+        </BuyerState>
       ) : assigned && selectedSection ? (
         <p role="status">{t('performances:loadingSeats')}</p>
       ) : shownLayout ? (
@@ -567,6 +692,21 @@ export function PerformanceTickets({ id, eventId }: { id: string; eventId: strin
             onTip={setTip}
           />
         </MapViewport>
+      ) : mapFailed ? (
+        <BuyerState
+          tone="error"
+          actions={
+            <button
+              className="button button-secondary"
+              type="button"
+              onClick={() => setRefresh((v) => v + 1)}
+            >
+              {t('customer:ticketSelection_retryMap')}
+            </button>
+          }
+        >
+          {t('customer:ticketSelection_mapUnavailable')}
+        </BuyerState>
       ) : (
         <BuyerState tone="empty">{t('customer:ticketSelection_noMap')}</BuyerState>
       )}
@@ -597,6 +737,19 @@ export function PerformanceTickets({ id, eventId }: { id: string; eventId: strin
           ) : null}
         </p>
       ) : null}
+      {Object.entries(pendingSeats).map(([offerId, seats]) => {
+        const info = offerMinimum.get(offerId);
+        if (!seats.length || !info) return null;
+        return (
+          <p className="ts-notice" role="status" key={offerId}>
+            {t('customer:ticketSelection_seatMinimumHint', {
+              count: info.minimum,
+              name: info.name,
+              chosen: seats.length,
+            })}
+          </p>
+        );
+      })}
       {listed.length ? (
         <ul className="ts-rows">
           {listed.map((row) => {
@@ -610,15 +763,22 @@ export function PerformanceTickets({ id, eventId }: { id: string; eventId: strin
                     row={row}
                     quantity={quantity}
                     busy={cannotChange}
-                    onAdd={() => changeQuantity(row.offerId, quantity + 1)}
-                    onRemove={() => changeQuantity(row.offerId, quantity - 1)}
+                    onAdd={() => changeQuantity(row.offerId, nextQuantity(row, quantity, 'add'))}
+                    onRemove={() =>
+                      changeQuantity(row.offerId, nextQuantity(row, quantity, 'remove'))
+                    }
                   />
                 ) : (
                   <button
                     type="button"
                     className="button button-secondary"
                     aria-pressed={row.sectionId === selectedSection}
-                    disabled={row.available <= 0}
+                    disabled={row.available <= 0 || row.available < (row.minPerOrder ?? 1)}
+                    title={
+                      row.available > 0 && row.available < (row.minPerOrder ?? 1)
+                        ? t('customer:ticketSelection_reasonMinimum', { count: row.minPerOrder })
+                        : undefined
+                    }
                     onClick={() => selectSection(row.sectionId)}
                   >
                     {t('customer:ticketSelection_viewSeats')}
@@ -691,7 +851,7 @@ export function PerformanceTickets({ id, eventId }: { id: string; eventId: strin
                           data-accessible={seat.accessible}
                           data-restricted={seat.restrictedView}
                           disabled={!canSelectSeat(seat.id)}
-                          onClick={() => selectSeat(seat.id)}
+                          onClick={() => void selectSeat(seat.id)}
                           onMouseEnter={() =>
                             setTip(
                               selectedMapSection.label +

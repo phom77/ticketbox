@@ -17,6 +17,8 @@ type DateTimeProps = FieldProps & {
   max?: string;
   error?: string;
   description?: string;
+  /** Shows a calendar-only control; the value is still read as an ISO date prefix. */
+  dateOnly?: boolean;
 };
 
 export function PerformanceDateTimeField({
@@ -30,6 +32,7 @@ export function PerformanceDateTimeField({
   disabled,
   error,
   description,
+  dateOnly,
 }: DateTimeProps) {
   const id = useId();
   const labelId = `${id}-label`;
@@ -41,15 +44,15 @@ export function PerformanceDateTimeField({
       <input
         id={id}
         name={name}
-        type="datetime-local"
+        type={dateOnly ? 'date' : 'datetime-local'}
         lang={formatLanguage()}
-        value={value}
+        value={dateOnly ? value.slice(0, 10) : value}
         onChange={(event) => onChange(event.target.value)}
         required={required}
         disabled={disabled}
-        min={min}
-        max={max}
-        step={value.length > 16 ? 'any' : undefined}
+        min={dateOnly ? min?.slice(0, 10) : min}
+        max={dateOnly ? max?.slice(0, 10) : max}
+        step={!dateOnly && value.length > 16 ? 'any' : undefined}
         aria-labelledby={labelId}
         aria-invalid={error ? true : undefined}
         aria-describedby={feedbackId}

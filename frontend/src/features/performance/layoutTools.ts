@@ -77,10 +77,42 @@ export function seatsAlongRow(first: Point, last: Point, count: number, curve: n
 
 type SeatCsvEntry = Point & { section: string; row: string; seat: string };
 
+export const seatCsvColumns = ['section', 'row', 'seat', 'x', 'y'] as const;
+export type SeatCsvColumn = (typeof seatCsvColumns)[number];
+
+/** A CSV problem at a 1-based line, and at a column when one value is at fault. */
+export type SeatCsvReason =
+  | 'format'
+  | 'empty'
+  | 'number'
+  | 'duplicate'
+  | 'section'
+  | 'outside'
+  | 'limit';
+
+export class SeatCsvError extends Error {
+  constructor(
+    readonly line: number,
+    readonly column?: SeatCsvColumn,
+    readonly reason: SeatCsvReason = 'format',
+  ) {
+    super(String(line));
+  }
+}
+
+/** The catalog key for a failed CSV import. A size or count limit is never reported as a line-1 header problem. */
+export function seatCsvProblemKey(failure: SeatCsvError) {
+  if (failure.reason === 'limit') return 'performance-layout:csvProblem_limit';
+  if (failure.column) return `performance-layout:csvProblem_${failure.reason}`;
+  return failure.line === 1
+    ? 'performance-layout:csvProblem_header'
+    : 'performance-layout:csvProblem_format';
+}
+
 export function readSeatCsv(text: string): SeatCsvEntry[] {
   const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/);
   const header = lines.shift()?.trim().toLowerCase();
-  if (header !== 'section,row,seat,x,y') throw new Error('1');
+  if (header !== seatCsvColumns.join(',')) throw new SeatCsvError(1);
   const seats: SeatCsvEntry[] = [];
   const labels = new Set<string>();
   for (const [index, line] of lines.entries()) {
@@ -91,7 +123,7 @@ export function readSeatCsv(text: string): SeatCsvEntry[] {
       const field = /(?:"((?:[^"]|"")*)"|([^,"]*))(,|$)/y;
       field.lastIndex = cursor;
       const match = field.exec(line);
-      if (!match) throw new Error(String(index + 2));
+      if (!match) throw new SeatCsvError(index + 2);
       fields.push((match[1]?.replace(/""/g, '"') ?? match[2]).trim());
       if (field.lastIndex === cursor) break;
       cursor = field.lastIndex;
@@ -99,15 +131,13 @@ export function readSeatCsv(text: string): SeatCsvEntry[] {
     }
     const [section, row, seat, x, y] = fields;
     const key = JSON.stringify([section, row, seat]);
-    if (
-      fields.length !== 5 ||
-      fields.some((entry) => !entry) ||
-      labels.has(key) ||
-      !Number.isFinite(Number(x)) ||
-      !Number.isFinite(Number(y))
-    ) {
-      throw new Error(String(index + 2));
-    }
+    const lineNumber = index + 2;
+    if (fields.length !== 5) throw new SeatCsvError(lineNumber);
+    const empty = fields.findIndex((entry) => !entry);
+    if (empty >= 0) throw new SeatCsvError(lineNumber, seatCsvColumns[empty], 'empty');
+    if (!Number.isFinite(Number(x))) throw new SeatCsvError(lineNumber, 'x', 'number');
+    if (!Number.isFinite(Number(y))) throw new SeatCsvError(lineNumber, 'y', 'number');
+    if (labels.has(key)) throw new SeatCsvError(lineNumber, 'seat', 'duplicate');
     labels.add(key);
     seats.push({ section, row, seat, x: Number(x), y: Number(y) });
   }
