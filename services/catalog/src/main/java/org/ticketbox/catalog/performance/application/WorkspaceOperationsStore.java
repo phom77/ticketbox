@@ -14,10 +14,16 @@ public interface WorkspaceOperationsStore {
     enum ReviewStatus { ALL, SUBMITTED, SCHEDULED, CHANGES_REQUESTED, REJECTED, HELD, RELEASED, MISSED }
     enum ReviewModel { LEGACY, PERFORMANCE }
 
-    record EventRow(UUID id, String title, String description, String category, UUID organizationId,
+    record EventRow(UUID id, String title, String description, String segment, String primaryGenre, UUID organizationId,
                     UUID legacyConcertId, long performanceCount, boolean preparing, boolean changesRequested,
                     OffsetDateTime nextStartsAt, UUID actionPerformanceId, String changeReason, String posterUrl,
-                    String status, boolean contentChangeInReview) {}
+                    String status, boolean contentChangeInReview) {
+        /** Deprecated: the segment id, kept for one release. */
+        @com.fasterxml.jackson.annotation.JsonProperty("category")
+        public String category() {
+            return segment;
+        }
+    }
 
     record PerformanceRow(UUID id, UUID eventId, String title, UUID organizationId, UUID legacyConcertId,
                           String venueName, String spaceName, OffsetDateTime startsAt, OffsetDateTime endsAt,

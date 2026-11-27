@@ -8,7 +8,7 @@ import {
   type ManagementApiScope,
 } from '../../../api/admin';
 import type { Page } from '../../../api/concerts';
-import { isRequestCanceled } from '../../../api/client';
+import { ApiClientError, isRequestCanceled } from '../../../api/client';
 import { translate } from '../../../i18n';
 import { isActiveBatch, sources, statuses } from './batchLabels';
 
@@ -21,6 +21,8 @@ export function useBatchLogs(apiScope: ManagementApiScope) {
   const [logs, setLogs] = useState<Page<BatchLog> | null>(null);
   const [loadingLogs, setLoadingLogs] = useState(true);
   const [logsError, setLogsError] = useState('');
+  // Check-in has no record of a concert before its release; that is not a failure.
+  const [logsNotFound, setLogsNotFound] = useState(false);
 
   const page = Math.max(0, Math.floor(Number(searchParams.get('page')) || 0));
   const concertFilter = searchParams.get('concertId') ?? '';
@@ -37,6 +39,7 @@ export function useBatchLogs(apiScope: ManagementApiScope) {
     async (signal?: AbortSignal, silent = false) => {
       if (!silent) setLoadingLogs(true);
       setLogsError('');
+      setLogsNotFound(false);
       try {
         setLogs(
           await getBatchLogs(
@@ -52,7 +55,10 @@ export function useBatchLogs(apiScope: ManagementApiScope) {
           ),
         );
       } catch (requestError) {
-        if (!isRequestCanceled(requestError)) {
+        if (requestError instanceof ApiClientError && requestError.status === 404) {
+          setLogs(null);
+          setLogsNotFound(true);
+        } else if (!isRequestCanceled(requestError)) {
           setLogsError(
             requestError instanceof Error
               ? requestError.message
@@ -98,6 +104,7 @@ export function useBatchLogs(apiScope: ManagementApiScope) {
     logs,
     loadingLogs,
     logsError,
+    logsNotFound,
     page,
     concertFilter,
     statusFilter,

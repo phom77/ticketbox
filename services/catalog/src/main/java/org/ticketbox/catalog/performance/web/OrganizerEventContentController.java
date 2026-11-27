@@ -1,6 +1,7 @@
 package org.ticketbox.catalog.performance.web;
 
 import java.security.Principal;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.http.CacheControl;
@@ -130,10 +131,12 @@ public class OrganizerEventContentController {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(ApiResponse.success(value));
     }
 
-    record RevisionRequest(String title, String description, Map<String, ConcertText> translations, String artistBio,
-                           String ageRating, String refundPolicy, Long expectedRevision) {
+    record RevisionRequest(String title, String description, String segment, String primaryGenre, List<String> genres,
+                           Map<String, ConcertText> translations, String artistBio, String ageRating,
+                           String refundPolicy, Long expectedRevision) {
         EventContentService.Input input() {
-            return new EventContentService.Input(title, description, null, translations, artistBio, ageRating, refundPolicy);
+            return new EventContentService.Input(title, description, null, segment, primaryGenre, genres, translations,
+                    artistBio, ageRating, refundPolicy);
         }
     }
 

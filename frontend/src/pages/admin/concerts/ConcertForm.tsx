@@ -7,7 +7,7 @@ import { WorkspaceSelect } from '../../../components/WorkspaceSelect';
 import { ModalPortal } from '../../../components/feedback/ModalPortal';
 import { useToast } from '../../../components/feedback/toast-context';
 import { ConcertTextFields } from '../../../features/concert/ConcertTextFields';
-import { eventCategories } from '../../../features/discovery/categories';
+import { segmentIds, segmentLabelKey } from '../../../features/discovery/classification';
 import { translate } from '../../../i18n';
 import type { ConcertFormState } from './concertForm';
 
@@ -131,10 +131,7 @@ export function ConcertForm({
                 value={form.category}
                 options={[
                   { value: '', label: translate('performances:categoryNone') },
-                  ...eventCategories.map((entry) => ({
-                    value: entry.id,
-                    label: translate(entry.label),
-                  })),
+                  ...segmentIds.map((id) => ({ value: id, label: translate(segmentLabelKey(id)) })),
                 ]}
                 onChange={(category) => onChange({ ...form, category })}
               />

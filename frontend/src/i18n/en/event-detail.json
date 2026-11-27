@@ -83,5 +83,6 @@
   "previewPanel": "Purchasing is turned off in preview.",
   "infoAge": "Age rating",
   "refundTitle": "Refund policy",
-  "previewRevisionBanner": "Organizer preview of your pending changes. Buyers see the live version until TicketBox approves them; purchasing is turned off."
+  "previewRevisionBanner": "Organizer preview of your pending changes. Buyers see the live version until TicketBox approves them; purchasing is turned off.",
+  "genres": "Genres"
 }

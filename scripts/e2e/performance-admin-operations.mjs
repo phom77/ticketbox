@@ -55,7 +55,8 @@ try {
   const organizerHeaders = { ...token(organizer), 'X-Organization-Id': organization.id };
   const venue = await api('POST', manage + '/venues', organizerHeaders,
     { name: venueName, address: 'South Avenue', spaceName: 'Concert hall' });
-  const event = await api('POST', manage + '/events', organizerHeaders, { title });
+  const event = await api('POST', manage + '/events', organizerHeaders,
+    { title, segment: 'concerts', primaryGenre: 'vpop' });
   const schedule = {
     venueSpaceId: venue.spaces[0].id, startsAt: at(72), endsAt: at(75), doorsOpenAt: at(71),
     timezone: 'Asia/Ho_Chi_Minh', saleStartAt: at(1), saleEndAt: at(24), maxPerAccount: 4, publicVisible: false,

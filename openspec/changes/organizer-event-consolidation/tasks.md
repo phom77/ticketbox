@@ -26,5 +26,5 @@
 ## 3. Verification
 
 - [x] 3.1 Catalog Maven verify and `verify-service-boundaries.py --service catalog`; web lint, test and build.
-- [ ] 3.2 Compose stack walk-through: create a native event with poster, translations and bio → release → edit content → Admin approves → buyer page shows the new version; delete a draft performance; open a legacy concert read-only; import guests for a released performance. Screenshots at 1440, 834 and 390.
+- [x] 3.2 Compose stack walk-through: create a native event with poster, translations and bio → release → edit content → Admin approves → buyer page shows the new version; delete a draft performance; open a legacy concert read-only; import guests for a released performance. Screenshots at 1440, 834 and 390.
 - [x] 3.3 `openspec validate organizer-event-consolidation --type change --strict`.

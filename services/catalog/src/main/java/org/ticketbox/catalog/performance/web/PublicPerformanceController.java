@@ -45,6 +45,7 @@ public class PublicPerformanceController {
             @RequestParam(defaultValue = "") String from, @RequestParam(defaultValue = "") String to,
             @RequestParam(defaultValue = "") String status, @RequestParam(defaultValue = "") String sort,
             @RequestParam(defaultValue = "") String city, @RequestParam(defaultValue = "") String category,
+            @RequestParam(defaultValue = "") String segment, @RequestParam(defaultValue = "") String genre,
             @RequestParam(defaultValue = "") String minPrice, @RequestParam(defaultValue = "") String maxPrice,
             @RequestParam(defaultValue = "0") String page, @RequestParam(defaultValue = "24") String size) {
         var query = q.strip();
@@ -76,7 +77,7 @@ public class PublicPerformanceController {
         if (!sort.isEmpty() && !sort.equals("sale-start")) {
             throw new AppException(ErrorCode.INVALID_REQUEST, "error.invalid-value");
         }
-        if (city.length() > 120 || category.length() > 120) {
+        if (city.length() > 120 || category.length() > 120 || segment.length() > 120 || genre.length() > 120) {
             throw new AppException(ErrorCode.INVALID_REQUEST, "error.invalid-value");
         }
         var lowest = price(minPrice);
@@ -91,12 +92,12 @@ public class PublicPerformanceController {
             throw new AppException(ErrorCode.INVALID_REQUEST, "error.pagination.invalid");
         }
         return ApiResponse.success(catalog.discover(DiscoveryQuery.of(query, preset, start, end, saleStatus,
-                sort.equals("sale-start"), city, category, lowest, highest), paging));
+                sort.equals("sale-start"), city, category, segment, genre, lowest, highest), paging));
     }
 
     @GetMapping("/events/discovery/facets")
-    public ApiResponse<DiscoveryFacets> discoveryFacets() {
-        return ApiResponse.success(catalog.discoveryFacets());
+    public ApiResponse<DiscoveryFacets> discoveryFacets(@RequestParam(defaultValue = "") String segment) {
+        return ApiResponse.success(catalog.discoveryFacets(segment));
     }
 
     private static Long price(String value) {

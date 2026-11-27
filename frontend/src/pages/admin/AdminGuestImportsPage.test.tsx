@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as admin from '../../api/admin';
+import { ApiClientError } from '../../api/client';
 import { ToastProvider } from '../../components/feedback/ToastProvider';
 import { AdminGuestImportsPage } from './AdminGuestImportsPage';
 
@@ -97,13 +98,20 @@ describe('AdminGuestImportsPage', () => {
 
     const row = (await screen.findByText('vip-guests.csv')).closest('tr')!;
     await waitFor(() => expect(within(row).getByText('Autumn Jazz Night')).toBeInTheDocument());
-    expect(within(row).getByText('Uploaded manually.')).toBeInTheDocument();
+    expect(within(row).getByText('Manual upload')).toBeInTheDocument();
     expect(within(row).getByText('Successful')).toBeInTheDocument();
     expect(admin.getBatchLogs).toHaveBeenCalledWith(
       { page: 0, size: 20, concertId: undefined, status: undefined, source: undefined },
       expect.anything(),
       'admin',
     );
+  });
+
+  it('explains instead of alerting when Check-in has no record before release', async () => {
+    vi.mocked(admin.getBatchLogs).mockRejectedValue(new ApiClientError('Concert not found', 404));
+    renderPage();
+    expect(await screen.findByText('Guest import is not available yet.')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('reads filters from the address and clears them', async () => {
@@ -134,10 +142,10 @@ describe('AdminGuestImportsPage', () => {
     )!;
 
     fireEvent.change(input, { target: { files: [new File(['x'], 'guests.xlsx')] } });
-    expect(await screen.findByText('Only accept files in .csv format.')).toBeInTheDocument();
+    expect(await screen.findByText('Only .csv files are accepted.')).toBeInTheDocument();
 
     fireEvent.change(input, { target: { files: [csv('empty.csv', '')] } });
-    expect(await screen.findByText('CSV files are not allowed to be empty.')).toBeInTheDocument();
+    expect(await screen.findByText('The CSV file cannot be empty.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Start importing' })).toBeDisabled();
   });
 
@@ -159,10 +167,12 @@ describe('AdminGuestImportsPage', () => {
         false,
       ),
     );
-    expect(await screen.findByText('Received the CSV file for processing.')).toBeInTheDocument();
+    expect(
+      await screen.findByText('The CSV file was received and is being processed.'),
+    ).toBeInTheDocument();
     const dialog = await screen.findByRole('dialog', { name: 'guests.csv' });
     expect(await within(dialog).findByText('Lan Nguyen')).toBeInTheDocument();
-    expect(within(dialog).getByText('Total flow').nextElementSibling).toHaveTextContent('3');
+    expect(within(dialog).getByText('Total rows').nextElementSibling).toHaveTextContent('3');
   });
 
   it('opens a batch from the history and closes it with Escape', async () => {

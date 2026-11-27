@@ -8,10 +8,11 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.temporal.TemporalAdjusters;
 import java.util.Locale;
+import org.ticketbox.catalog.classification.domain.EventClassification;
 
 public record DiscoveryQuery(String words, OffsetDateTime now, OffsetDateTime startsFrom,
-                             OffsetDateTime startsBefore, SaleStatus status, boolean saleStartFirst, String city, String category,
-                             Long minPrice, Long maxPrice) {
+                             OffsetDateTime startsBefore, SaleStatus status, boolean saleStartFirst, String city, String segment,
+                             String genre, Long minPrice, Long maxPrice) {
     private static final ZoneId VIETNAM = ZoneId.of("Asia/Ho_Chi_Minh");
 
     public enum DatePreset { ANY, TODAY, WEEKEND, NEXT_30, CUSTOM }
@@ -20,7 +21,13 @@ public record DiscoveryQuery(String words, OffsetDateTime now, OffsetDateTime st
 
     public static DiscoveryQuery of(String query, DatePreset preset, LocalDate from, LocalDate to,
                                     SaleStatus status, boolean saleStartFirst, String city, String category,
-                                    Long minPrice, Long maxPrice) {
+                                    String segment, String genre, Long minPrice, Long maxPrice) {
+        // Deprecated `category` alias: an old category id maps to a segment (and for comedy a genre).
+        if (isBlank(segment) && isBlank(genre) && !isBlank(category)) {
+            var legacy = EventClassification.fromLegacyCategory(category);
+            segment = legacy == null ? category.strip().toLowerCase(Locale.ROOT) : legacy.segment();
+            genre = legacy == null ? null : legacy.primaryGenre();
+        }
         var now = OffsetDateTime.now(ZoneOffset.UTC);
         var today = now.atZoneSameInstant(VIETNAM).toLocalDate();
         switch (preset) {
@@ -46,7 +53,15 @@ public record DiscoveryQuery(String words, OffsetDateTime now, OffsetDateTime st
                 .toLowerCase(Locale.ROOT).replace('\u0111', 'd').replaceAll("(?U)\\s+", " ").strip();
         return new DiscoveryQuery(words, now, startsFrom, startsBefore, status, saleStartFirst,
                 city == null || city.isBlank() ? null : city.strip(),
-                category == null || category.isBlank() ? null : category.strip(), minPrice, maxPrice);
+                blankToNull(segment), blankToNull(genre), minPrice, maxPrice);
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.strip();
     }
 
     private static OffsetDateTime atMidnight(LocalDate date) {

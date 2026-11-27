@@ -39,7 +39,7 @@ export async function submitPerformanceReview(region, request, adminToken, optio
 }
 
 export async function submitReviewFromPage(region) {
-  const release = region.getByLabel('Public release time (ICT)', { exact: true });
+  const release = region.getByLabel(/^Public release time \(/);
   assert.equal(await release.inputValue(), '');
   const local = new Date(Date.now() + 7 * 3600000 + 10 * 60000).toISOString().slice(0, 16);
   await release.fill(local);
