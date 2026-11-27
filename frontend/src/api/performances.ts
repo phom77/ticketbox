@@ -79,7 +79,16 @@ export type Layout = {
   sections: Section[];
 };
 
-export type Offer = { id: string; name: string; price: number; active: boolean };
+export type Offer = {
+  id: string;
+  name: string;
+  price: number;
+  active: boolean;
+  /** Perks the organizer describes for buyers. */
+  description?: string | null;
+  /** Fewest places of this ticket type in one order. Absent means 1. */
+  minPerOrder?: number;
+};
 export type AvailableGroup = {
   id: string;
   sectionId: string | null;

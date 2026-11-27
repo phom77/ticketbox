@@ -648,6 +648,7 @@ export function PerformanceWorkspace({
                         onBusyChange={setLayoutBusy}
                         readOnly={immutable || busy}
                         preferredZone={model === 'reserved' ? 'ASSIGNED' : 'GA'}
+                        onUseAdmission={hasMap ? undefined : () => chooseModel('admission')}
                       />
                     </div>
                   )}

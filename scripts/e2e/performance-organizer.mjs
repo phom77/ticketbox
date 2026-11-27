@@ -232,22 +232,23 @@ ${code},Z,2,365,125`) });
   await page.getByRole('button', { name: 'Continue to tickets' }).click();
 
   const sale = page.getByRole('region', { name: 'Sale configuration' });
-  await sale.getByText('Inventory and pricing', { exact: true }).click();
-  await sale.getByRole('button', { name: 'Add inventory group' }).click();
+  await sale.getByRole('button', { name: 'Add stock pool' }).click();
   await sale.getByRole('group', { name: 'Floor' }).getByLabel('Capacity').fill('120');
-  await sale.getByRole('button', { name: 'Add offer' }).click();
-  const standing = sale.getByRole('group', { name: 'Sale offer' });
+  await sale.getByRole('button', { name: 'Add ticket type to this pool' }).click();
+  const standing = sale.getByRole('group', { name: 'Ticket type', exact: true });
   await standing.getByLabel('Price in VND').fill('150000');
   await standing.getByLabel('Name', { exact: true }).fill('Standing');
   const standingTicket = sale.getByRole('group', { name: 'Standing' });
-  await standingTicket.getByText('Ticket sale window', { exact: true }).click();
+  await selectWorkspaceOption(standingTicket.getByLabel('When is it on sale?'), { label: 'Custom' });
   const offerOpens = standingTicket.getByLabel('Sale opens at');
   assert.equal(await offerOpens.getAttribute('type'), 'datetime-local');
   await offerOpens.fill(localTime(-12));
   await sale.getByRole('button', { name: 'Save sale' }).click();
   await standingTicket.getByText(/Each ticket sale window must fit/).first().waitFor();
-  await standingTicket.getByRole('button', { name: 'Use performance sale window' }).click();
-  await offerOpens.waitFor({ state: 'visible' });
+  await selectWorkspaceOption(standingTicket.getByLabel('When is it on sale?'), {
+    label: 'Whole sale period',
+  });
+  await offerOpens.waitFor({ state: 'detached' });
 
   const assignment = sale.getByRole('region', { name: 'Seat assignment' });
   await selectWorkspaceOption(assignment.getByLabel('Seating section'), { label: 'Balcony' });

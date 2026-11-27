@@ -65,7 +65,7 @@ export function Stepper({
   addLabel,
   removeLabel,
 }: {
-  row: Pick<OfferRow, 'offerName' | 'available' | 'maxPerAccount'>;
+  row: Pick<OfferRow, 'offerName' | 'available' | 'maxPerAccount' | 'minPerOrder'>;
   addLabel?: string;
   removeLabel?: string;
   quantity: number;
@@ -82,7 +82,9 @@ export function Stepper({
       ? t('customer:ticketSelection_reasonSoldOut')
       : addReason === 'limit'
         ? t('customer:ticketSelection_reasonLimit', { count: row.maxPerAccount ?? 0 })
-        : null;
+        : addReason === 'minimum'
+          ? t('customer:ticketSelection_reasonMinimum', { count: row.minPerOrder ?? 1 })
+          : null;
   return (
     <div className="ts-stepper">
       <div className="ts-stepper-controls" aria-busy={busy}>
@@ -132,7 +134,13 @@ export function OfferRowView({
       <div className="ts-row-info">
         <strong>{row.sectionLabel}</strong>
         {row.offerName !== row.sectionLabel ? <span>{row.offerName}</span> : null}
+        {row.description ? <span className="ts-row-description">{row.description}</span> : null}
         <span className="ts-row-price">{formatPrice(row.price)}</span>
+        {(row.minPerOrder ?? 1) > 1 ? (
+          <span className="ts-row-minimum">
+            {t('customer:ticketSelection_minPerOrder', { count: row.minPerOrder })}
+          </span>
+        ) : null}
         <span className="ts-row-stock" data-stock={level}>
           {level === 'sold'
             ? t('customer:ticketSelection_soldOut')

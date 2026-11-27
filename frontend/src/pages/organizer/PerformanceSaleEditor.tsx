@@ -9,10 +9,9 @@ import type {
   SaleGroup,
   SaleOffer,
 } from '../../api/performanceManagement';
-import { PerformanceDateTimeField } from './PerformanceDateTimeField';
-import { toPerformanceLocalDateTime } from './performanceDateTime';
-
-import { offerDateFields, type OfferDateField, type OfferDates } from './performanceSaleReview';
+import { applyPreset, venueDate } from '../../features/performance/saleWindowPresets';
+import { PerformanceTicketTypeFields } from './PerformanceTicketTypeFields';
+import type { OfferDateField, OfferDates } from './performanceSaleReview';
 
 export function PerformanceSaleEditor({
   sale,
@@ -41,8 +40,8 @@ export function PerformanceSaleEditor({
   const idPrefix = useId();
   const [admissionArea, setAdmissionArea] = useState('');
   const [admissionPrice, setAdmissionPrice] = useState(0);
-  const opensAt = toPerformanceLocalDateTime(performance.saleStartAt, performance.timezone);
-  const closesAt = toPerformanceLocalDateTime(performance.saleEndAt, performance.timezone);
+  const [existingPool, setExistingPool] = useState('');
+  const [earlyBirdError, setEarlyBirdError] = useState({ group: '', message: '' });
   const sections = layout?.sections ?? [];
   const availableGaSections = sections.filter(
     (section) =>
@@ -57,8 +56,16 @@ export function PerformanceSaleEditor({
     if (disabled || immutable || !canAddGa) return;
     const values = new FormData(form);
     const name = String(values.get('name') ?? '').trim();
-    const capacity = Number(values.get('capacity'));
     const price = admissionPrice;
+    const pool = sale.groups.find((group) => group.id === existingPool);
+    if (pool) {
+      if (!name || !validPrice(price)) return;
+      setSale({ ...sale, offers: [...sale.offers, newOffer(pool.id, performance, name, price)] });
+      form.reset();
+      setAdmissionPrice(0);
+      return;
+    }
+    const capacity = Number(values.get('capacity'));
     const section = availableGaSections.find((entry) => entry.id === values.get('sectionId'));
     if (!name || (layout && !section) || !validCapacity(capacity) || !validPrice(price)) return;
     const id = window.crypto.randomUUID();
@@ -98,9 +105,39 @@ export function PerformanceSaleEditor({
     setSale({ ...sale, groups: [...sale.groups, group] });
   }
 
-  function addOffer() {
-    if (!sale.groups.length) return;
-    setSale({ ...sale, offers: [...sale.offers, newOffer(sale.groups[0].id, performance, '', 0)] });
+  function addOffer(groupId: string) {
+    setSale({ ...sale, offers: [...sale.offers, newOffer(groupId, performance, '', 0)] });
+  }
+
+  /** A second ticket type in the same pool that sells at the early price until the middle of the sale. */
+  function addEarlyBird(offer: SaleOffer) {
+    const middle = new Date(
+      (Date.parse(performance.saleStartAt) + Date.parse(performance.saleEndAt)) / 2,
+    ).toISOString();
+    const result = applyPreset('early', performance, {
+      date: venueDate(middle, performance.timezone),
+    });
+    if (!result.ok) {
+      setEarlyBirdError({ group: offer.groupId, message: t('performances:presetEmpty') });
+      return;
+    }
+    setEarlyBirdError({ group: '', message: '' });
+    setSale({
+      ...sale,
+      offers: [
+        ...sale.offers,
+        {
+          ...newOffer(
+            offer.groupId,
+            performance,
+            t('performances:earlyBirdName', { name: offer.name }).trim(),
+            offer.price,
+          ),
+          ...result.window,
+          minPerOrder: offer.minPerOrder,
+        },
+      ],
+    });
   }
 
   const offersByGroup = new Map<string, string[]>();
@@ -121,9 +158,14 @@ export function PerformanceSaleEditor({
     return `${group.sectionLabel} · ${offersByGroup.get(group.id)?.join(' / ') || fallback}`;
   }
 
+  const poolOptions = sale.groups.map((group, index) => ({
+    value: group.id,
+    label: groupOptionLabel(group, index),
+  }));
+
   return (
     <>
-      {!immutable && canAddGa && (
+      {!immutable && (canAddGa || sale.groups.length > 0) && (
         <form
           className="performance-form"
           onSubmit={addAdmission}
@@ -131,7 +173,21 @@ export function PerformanceSaleEditor({
         >
           <fieldset className="performance-wide performance-form" disabled={disabled}>
             <legend>{t('performances:addGeneralAdmissionTicket')}</legend>
-            {layout && (
+            {sale.groups.length > 0 && (
+              <label>
+                {t('performances:sellFromPool')}
+                <WorkspaceSelect
+                  label={t('performances:sellFromPool')}
+                  value={existingPool}
+                  onChange={setExistingPool}
+                  options={[
+                    ...(canAddGa ? [{ value: '', label: t('performances:newPoolOption') }] : []),
+                    ...poolOptions,
+                  ]}
+                />
+              </label>
+            )}
+            {layout && !existingPool && (
               <label>
                 {t('performances:sections')}
                 <WorkspaceSelect
@@ -152,10 +208,13 @@ export function PerformanceSaleEditor({
               {t('performances:ticketTypeName')}
               <input name="name" required maxLength={200} pattern={`.*\\S.*`} />
             </label>
-            <label>
-              {t('performances:capacity')}
-              <input name="capacity" type="number" min={1} max={maxCapacity} step={1} required />
-            </label>
+            {!existingPool && (
+              <label>
+                {t('performances:capacity')}
+                <input name="capacity" type="number" min={1} max={maxCapacity} step={1} required />
+                <small>{t('performances:newPoolHelp')}</small>
+              </label>
+            )}
             <label>
               {t('performances:price')}
               <MoneyInput
@@ -174,91 +233,139 @@ export function PerformanceSaleEditor({
           </fieldset>
         </form>
       )}
-      <details
-        className="performance-sales-advanced"
-        open={sale.offers.length > 0 || sale.groups.length > 0 || immutable || undefined}
-      >
-        <summary>{t('performances:inventoryAndPricing')}</summary>
+      <section className="performance-sales-advanced" aria-labelledby={`${idPrefix}-stock`}>
+        <h4 id={`${idPrefix}-stock`}>{t('performances:inventoryAndPricing')}</h4>
+        <p>{t('performances:ticketsAndStockHelp')}</p>
+        <details>
+          <summary>{t('performances:howPoolsWork')}</summary>
+          <p>{t('performances:howPoolsWorkBody')}</p>
+        </details>
         <fieldset className="performance-admin performance-sales-fields" disabled={disabled}>
-          <div className="performance-admin">
-            {sale.groups.map((group) => {
-              const current = sections.find((section) => section.id === group.sectionId);
-              return (
-                <fieldset className="performance-form" key={group.id}>
-                  <legend>{group.sectionLabel || t('performances:inventoryGroup')}</legend>
-                  {layout && (
-                    <label>
-                      {t('performances:sections')}
-                      <WorkspaceSelect
-                        label={t('performances:sections')}
-                        disabled={immutable}
-                        value={current ? (group.sectionId ?? '') : ''}
-                        placeholder={t('performances:selectSection')}
-                        onChange={(value) => {
-                          const section = sections.find((entry) => entry.id === value);
-                          if (!section || section.id === group.sectionId) return;
-                          updateGroup({
-                            ...group,
-                            sectionId: section.id,
-                            sectionLabel: section.label,
-                            seats: [],
-                            capacity: section.kind === 'GA' ? group.capacity : 0,
-                          });
-                        }}
-                        options={sections
-                          .filter(
-                            (entry) =>
-                              entry.kind === group.kind &&
-                              (entry.kind === 'ASSIGNED' ||
-                                !sale.groups.some(
-                                  (other) => other.sectionId === entry.id && other.id !== group.id,
-                                )),
-                          )
-                          .map(({ id, label }) => ({ value: id, label }))}
-                      />
-                    </label>
-                  )}
-                  {layout && !current && (
-                    <p className="performance-wide">
-                      {t('performances:inventoryGroupMissingSection')}
-                    </p>
-                  )}
-                  {!layout && (
-                    <label>
-                      {t('performances:name')}
-                      <input
-                        disabled={immutable}
-                        maxLength={200}
-                        value={group.sectionLabel}
-                        onChange={(change) =>
-                          updateGroup({ ...group, sectionLabel: change.target.value })
-                        }
-                      />
-                    </label>
-                  )}
-                  {group.kind === 'GA' && (
-                    <label>
-                      {t('performances:capacity')}
-                      <input
-                        disabled={immutable}
-                        type="number"
-                        min={1}
-                        max={maxCapacity}
-                        step={1}
-                        value={group.capacity || ''}
-                        onChange={(event) =>
-                          updateGroup({ ...group, capacity: Number(event.target.value) })
-                        }
-                      />
-                    </label>
-                  )}
-                  {group.kind === 'ASSIGNED' && current && (
-                    <a href="#performance-seat-assignment">
-                      {t('performances:seatAssignment')} ·{' '}
-                      {t('performances:seatCountValue', { count: group.capacity })}
-                    </a>
-                  )}
-                  {!immutable && (
+          {immutable && <p>{t('performances:poolFixedAfterRelease')}</p>}
+          {sale.groups.map((group, index) => {
+            const current = sections.find((section) => section.id === group.sectionId);
+            const members = sale.offers.filter((offer) => offer.groupId === group.id);
+            return (
+              <fieldset className="performance-form performance-pool" key={group.id}>
+                <legend>
+                  {group.sectionLabel || groupOptionLabel(group, index)} ·{' '}
+                  {group.kind === 'ASSIGNED'
+                    ? t('performances:seatPool')
+                    : t('performances:inventoryGroup')}
+                </legend>
+                {layout && (
+                  <label>
+                    {t('performances:sections')}
+                    <WorkspaceSelect
+                      label={t('performances:sections')}
+                      disabled={immutable}
+                      value={current ? (group.sectionId ?? '') : ''}
+                      placeholder={t('performances:selectSection')}
+                      onChange={(value) => {
+                        const section = sections.find((entry) => entry.id === value);
+                        if (!section || section.id === group.sectionId) return;
+                        updateGroup({
+                          ...group,
+                          sectionId: section.id,
+                          sectionLabel: section.label,
+                          seats: [],
+                          capacity: section.kind === 'GA' ? group.capacity : 0,
+                        });
+                      }}
+                      options={sections
+                        .filter(
+                          (entry) =>
+                            entry.kind === group.kind &&
+                            (entry.kind === 'ASSIGNED' ||
+                              !sale.groups.some(
+                                (other) => other.sectionId === entry.id && other.id !== group.id,
+                              )),
+                        )
+                        .map(({ id, label }) => ({ value: id, label }))}
+                    />
+                  </label>
+                )}
+                {layout && !current && (
+                  <p className="performance-wide">
+                    {t('performances:inventoryGroupMissingSection')}
+                  </p>
+                )}
+                {!layout && (
+                  <label>
+                    {t('performances:name')}
+                    <input
+                      disabled={immutable}
+                      maxLength={200}
+                      value={group.sectionLabel}
+                      onChange={(change) =>
+                        updateGroup({ ...group, sectionLabel: change.target.value })
+                      }
+                    />
+                  </label>
+                )}
+                {group.kind === 'GA' && (
+                  <label>
+                    {t('performances:capacity')}
+                    <input
+                      disabled={immutable}
+                      type="number"
+                      min={1}
+                      max={maxCapacity}
+                      step={1}
+                      value={group.capacity || ''}
+                      onChange={(event) =>
+                        updateGroup({ ...group, capacity: Number(event.target.value) })
+                      }
+                    />
+                  </label>
+                )}
+                {group.kind === 'ASSIGNED' && current && (
+                  <a href="#performance-seat-assignment">
+                    {t('performances:seatAssignment')} ·{' '}
+                    {t('performances:seatCountValue', { count: group.capacity })}
+                  </a>
+                )}
+                {members.length > 1 && (
+                  <p className="performance-wide">{t('performances:poolSharedHelp')}</p>
+                )}
+                <div className="performance-wide performance-admin">
+                  {members.map((offer) => (
+                    <PerformanceTicketTypeFields
+                      key={offer.id}
+                      offer={offer}
+                      group={group}
+                      groups={poolOptions}
+                      performance={performance}
+                      immutable={immutable}
+                      editedDates={editedDates}
+                      dateErrors={dateErrors}
+                      onChange={(patch) => updateOffer(offer.id, patch)}
+                      onDateChange={(field, value) => onDateChange(offer.id, field, value)}
+                      onResetDates={() => onResetDates(offer)}
+                      onAddEarlyBird={() => addEarlyBird(offer)}
+                      onRemove={() =>
+                        setSale({
+                          ...sale,
+                          offers: sale.offers.filter((entry) => entry.id !== offer.id),
+                        })
+                      }
+                    />
+                  ))}
+                </div>
+                {earlyBirdError.group === group.id && (
+                  <p role="alert" className="performance-wide">
+                    {earlyBirdError.message}
+                  </p>
+                )}
+                {!immutable && (
+                  <div className="performance-wide performance-options">
+                    <button
+                      type="button"
+                      className="button button-secondary"
+                      onClick={() => addOffer(group.id)}
+                    >
+                      {t('performances:addTicketTypeToPool')}
+                    </button>
                     <button
                       type="button"
                       className="button button-secondary"
@@ -270,125 +377,22 @@ export function PerformanceSaleEditor({
                         })
                       }
                     >
-                      {t('performances:remove')}
+                      {t('performances:removePool')}
                     </button>
-                  )}
-                </fieldset>
-              );
-            })}
-            {!immutable && canAddGa && (
-              <div className="performance-options">
-                <button type="button" className="button button-secondary" onClick={addGroup}>
-                  {t('performances:addGroup')}
-                </button>
-              </div>
-            )}
-          </div>
-          <div className="performance-admin">
-            {sale.offers.map((offer) => (
-              <fieldset key={offer.id} className="performance-form">
-                <legend>{offer.name || t('performances:offer')}</legend>
-                <label>
-                  {t('performances:name')}
-                  <input
-                    value={offer.name}
-                    maxLength={200}
-                    onChange={(event) => updateOffer(offer.id, { name: event.target.value })}
-                  />
-                </label>
-                <label>
-                  {t('performances:inventoryGroup')}
-                  <WorkspaceSelect
-                    label={t('performances:inventoryGroup')}
-                    value={offer.groupId}
-                    disabled={immutable}
-                    onChange={(groupId) => updateOffer(offer.id, { groupId })}
-                    options={sale.groups.map((group, index) => ({
-                      value: group.id,
-                      label: groupOptionLabel(group, index),
-                    }))}
-                  />
-                </label>
-                <label>
-                  {t('performances:price')}
-                  <MoneyInput
-                    max={maxPrice}
-                    value={offer.price}
-                    onValueChange={(price) => updateOffer(offer.id, { price })}
-                  />
-                </label>
-                <label className="performance-inline">
-                  <input
-                    type="checkbox"
-                    checked={offer.active}
-                    onChange={(event) => updateOffer(offer.id, { active: event.target.checked })}
-                  />
-                  {t('performances:active')}
-                </label>
-                <details
-                  className="performance-wide"
-                  ref={(element) => {
-                    if (element && dateErrors[offer.id]) element.open = true;
-                  }}
-                >
-                  <summary>{t('performances:offerSaleWindow')}</summary>
-                  <div className="performance-form">
-                    {offerDateFields.map((field) => (
-                      <PerformanceDateTimeField
-                        key={field}
-                        name={`${idPrefix}-${offer.id}-${field}`}
-                        label={t(`performances:${field}`)}
-                        value={
-                          editedDates[offer.id]?.[field] ??
-                          toPerformanceLocalDateTime(offer[field], performance.timezone)
-                        }
-                        onChange={(value) => onDateChange(offer.id, field, value)}
-                        min={opensAt}
-                        max={closesAt}
-                        required
-                        error={dateErrors[offer.id]?.[field]}
-                      />
-                    ))}
-                    <div className="performance-wide performance-options">
-                      <button
-                        type="button"
-                        className="button button-secondary"
-                        onClick={() => onResetDates(offer)}
-                      >
-                        {t('performances:usePerformanceSaleWindow')}
-                      </button>
-                    </div>
                   </div>
-                </details>
-                {!immutable && (
-                  <button
-                    type="button"
-                    className="button button-secondary"
-                    onClick={() =>
-                      setSale({
-                        ...sale,
-                        offers: sale.offers.filter((entry) => entry.id !== offer.id),
-                      })
-                    }
-                  >
-                    {t('performances:remove')}
-                  </button>
                 )}
               </fieldset>
-            ))}
+            );
+          })}
+          {!immutable && canAddGa && sale.groups.length > 0 && (
             <div className="performance-options">
-              <button
-                type="button"
-                className="button button-secondary"
-                disabled={!sale.groups.length}
-                onClick={addOffer}
-              >
-                {t('performances:addOffer')}
+              <button type="button" className="button button-secondary" onClick={addGroup}>
+                {t('performances:addGroup')}
               </button>
             </div>
-          </div>
+          )}
         </fieldset>
-      </details>
+      </section>
     </>
   );
 

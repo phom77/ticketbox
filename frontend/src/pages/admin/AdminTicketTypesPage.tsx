@@ -17,6 +17,7 @@ import {
 } from '../../api/admin';
 import type { ConcertDetail, TicketType as TicketTypeModel } from '../../api/concerts';
 import { isRequestCanceled } from '../../api/client';
+import { MoneyInput } from '../../components/admin/MoneyInput';
 import { AdminConfirmDialog } from '../../components/admin/AdminConfirmDialog';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { ConcertPicker } from '../../components/admin/ConcertPicker';
@@ -587,13 +588,11 @@ function TicketTypeForm({
               </label>
               <label className="admin-field">
                 <span>{translate('admin:adminTicketTypesPage_giaVe')}</span>
-                <input
+                <MoneyInput
                   required
-                  min="0"
-                  step="1000"
-                  type="number"
-                  inputMode="numeric"
-                  {...field('price')}
+                  max={999_999_999_999}
+                  value={Number(form.price) || 0}
+                  onValueChange={(price) => onChange({ ...form, price: String(price) })}
                 />
               </label>
               <label className="admin-field">

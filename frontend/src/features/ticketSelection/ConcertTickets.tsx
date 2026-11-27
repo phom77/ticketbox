@@ -46,6 +46,7 @@ const problemKeys = {
   soldOut: 'customer:ticketSelection_problem_soldOut',
   conflict: 'customer:ticketSelection_problem_conflict',
   rateLimit: 'customer:ticketSelection_problem_rateLimit',
+  minimum: 'customer:ticketSelection_problem_minimum',
   generic: 'customer:ticketSelection_problem_generic',
 } as const;
 const eventDateTime = dateFormatter({ dateStyle: 'medium', timeStyle: 'short' });
