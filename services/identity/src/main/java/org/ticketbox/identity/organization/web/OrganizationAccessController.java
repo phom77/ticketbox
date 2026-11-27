@@ -36,8 +36,9 @@ class OrganizationAccessController {
             @PathVariable UUID id,
             @RequestHeader(name = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
         var actor = sessions.organizationAccount(authorization);
+        var access = organizations.scopedAccess(actor, id);
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
-                .body(new Access(actor.getId(), id, organizations.access(actor, id), profiles.reportingTimezone(id)));
+                .body(new Access(actor.getId(), id, access.grants(), access.reportingTimezone()));
     }
 
     @GetMapping("/platform-access")
@@ -80,5 +81,7 @@ class OrganizationAccessController {
                            String billingAddress, String contactEmail, String contactPhone, String website,
                            String logoUrl, String logoPngUrl, String reportingTimezone, long version) {}
 
+    /** The timezone is omitted when the organization has no readable profile; callers fall back to their default. */
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
     record Access(UUID accountId, UUID organizationId, Set<OrganizationGrant> grants, String reportingTimezone) {}
 }

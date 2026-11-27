@@ -1,7 +1,9 @@
 package org.ticketbox.identity.organization.application;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.ticketbox.identity.application.error.AppException;
@@ -49,9 +51,11 @@ public class OrganizationProfiles {
     private final OrganizationStore organizations;
     private final OrganizationProfileStore profiles;
     private final OrganizationImageStorage images;
+    private final TransactionTemplate transaction;
 
     public OrganizationProfiles(OrganizationStore organizations, OrganizationProfileStore profiles,
-                                OrganizationImageStorage images) {
+                                OrganizationImageStorage images, TransactionTemplate transaction) {
+        this.transaction = transaction;
         this.organizations = organizations;
         this.profiles = profiles;
         this.images = images;
@@ -70,11 +74,6 @@ public class OrganizationProfiles {
     /** Internal contract read for other services. */
     public View internalView(UUID organization) {
         return view(organization, Set.of());
-    }
-
-    public String reportingTimezone(UUID organization) {
-        return organizations.displayName(organization).isEmpty() ? OrganizationProfile.DEFAULT_TIMEZONE
-                : profiles.find(organization).reportingTimezone();
     }
 
     @Transactional
@@ -109,11 +108,15 @@ public class OrganizationProfiles {
         return write(actor, organization, grants, next, expectedVersion, "STATEMENT_DETAILS_UPDATED", fields);
     }
 
-    @Transactional
+    /**
+     * Validates and uploads the image before the organization row lock is taken, so the lock is never held across
+     * a network call. A lost version race or any failure afterwards deletes the uploaded image again.
+     */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public View replaceLogo(UUID actor, UUID organization, LogoUpload upload, long expectedVersion) {
-        var grants = lockedGrants(actor, organization);
-        if (!grants.contains(OrganizationGrant.MEMBERS)) throw forbidden();
-        var current = currentOrConflict(organization, grants, expectedVersion);
+        var early = organizations.grants(organization, actor);
+        if (early.isEmpty()) throw notFound();
+        if (!early.contains(OrganizationGrant.MEMBERS)) throw forbidden();
         var problem = LogoImage.check(upload.bytes(), upload.contentType());
         if (problem != null) {
             throw new AppException(ErrorCode.INVALID_REQUEST, switch (problem) {
@@ -124,12 +127,24 @@ public class OrganizationProfiles {
                 case EMPTY -> "error.logo.required";
             });
         }
+        if (profiles.find(organization).version() != expectedVersion) {
+            throw new ProfileConflict(view(organization, early));
+        }
         var stored = images.uploadLogo(organization, upload.bytes());
-        deleteAfterRollback(stored.publicId());
-        var next = current.withLogo(stored.secureUrl(), stored.publicId());
-        var view = write(actor, organization, grants, next, expectedVersion, "LOGO_REPLACED", List.of("logo"));
-        deleteAfterCommit(current.logoPublicId());
-        return view;
+        try {
+            return transaction.execute(status -> {
+                var grants = lockedGrants(actor, organization);
+                if (!grants.contains(OrganizationGrant.MEMBERS)) throw forbidden();
+                var current = currentOrConflict(organization, grants, expectedVersion);
+                var next = current.withLogo(stored.secureUrl(), stored.publicId());
+                var view = write(actor, organization, grants, next, expectedVersion, "LOGO_REPLACED", List.of("logo"));
+                deleteAfterCommit(current.logoPublicId());
+                return view;
+            });
+        } catch (RuntimeException failed) {
+            images.deleteBestEffort(stored.publicId());
+            throw failed;
+        }
     }
 
     @Transactional
@@ -182,16 +197,6 @@ public class OrganizationProfiles {
             @Override
             public void afterCommit() {
                 images.deleteBestEffort(publicId);
-            }
-        });
-    }
-
-    private void deleteAfterRollback(String publicId) {
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) return;
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCompletion(int status) {
-                if (status != STATUS_COMMITTED) images.deleteBestEffort(publicId);
             }
         });
     }

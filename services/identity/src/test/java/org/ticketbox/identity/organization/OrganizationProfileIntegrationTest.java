@@ -3,6 +3,7 @@ package org.ticketbox.identity.organization;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mockingDetails;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -199,6 +200,13 @@ class OrganizationProfileIntegrationTest {
         mvc.perform(get("/api/organizations/{id}/profile", org.id()).header("Authorization", manager))
                 .andExpect(jsonPath("$.data.version").value(2))
                 .andExpect(jsonPath("$.data.logoUrl").value("https://res.cloudinary.com/demo/image/upload/v1/logo-2.png"));
+
+        // A stale version is refused before anything is uploaded, so no image is orphaned.
+        var uploadsBefore = mockingDetails(images).getInvocations().stream()
+                .filter(call -> call.getMethod().getName().equals("uploadLogo")).count();
+        mvc.perform(logo(org, manager, png(200), 0)).andExpect(status().isConflict());
+        assertThat(mockingDetails(images).getInvocations().stream()
+                .filter(call -> call.getMethod().getName().equals("uploadLogo")).count()).isEqualTo(uploadsBefore);
 
         mvc.perform(delete("/api/organizations/{id}/profile/logo", org.id()).param("version", "2")
                         .header("Authorization", manager)).andExpect(status().isOk())

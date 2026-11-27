@@ -89,6 +89,16 @@ class JdbcOrganizationStore implements OrganizationStore {
     }
 
     @Override
+    public MemberAccess memberAccess(UUID organizationId, UUID accountId) {
+        return jdbc.query("""
+                SELECT m.grants, COALESCE(p.reporting_timezone, 'Asia/Ho_Chi_Minh') AS reporting_timezone FROM organization_members m
+                LEFT JOIN organization_profiles p ON p.organization_id = m.organization_id
+                WHERE m.organization_id = ? AND m.account_id = ?
+                """, (rs, row) -> new MemberAccess(readGrants(rs), rs.getString("reporting_timezone")),
+                organizationId, accountId).stream().findFirst().orElse(new MemberAccess(Set.of(), null));
+    }
+
+    @Override
     public void saveGrants(UUID organizationId, UUID accountId, Set<OrganizationGrant> grants) {
         if (grants.isEmpty()) {
             jdbc.update("DELETE FROM organization_members WHERE organization_id = ? AND account_id = ?",
