@@ -107,7 +107,7 @@
   "csvProblem_limit": "Dòng {{line}}: tệp vượt giới hạn 5 MB, 100.000 ghế, 1.000 hàng hoặc 1.000 ghế mỗi hàng.",
   "zones": "Khu",
   "zonesHelp": "Chọn một khu để phóng to và xem ghế của khu.",
-  "zoneSeats": "{{count}} ghế",
+  "zoneSeats_other": "{{count}} ghế",
   "zoneCapacityStanding": "Khu đứng",
   "zoneSeated": "Khu ngồi",
   "hiddenSeatsHint": "Phóng to hoặc chọn một khu để chỉnh ghế.",

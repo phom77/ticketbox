@@ -17,6 +17,11 @@ function Harness({ max }: { max?: number }) {
 }
 
 describe('MoneyInput', () => {
+  it('shows zero when a free price is allowed', () => {
+    render(<MoneyInput aria-label="Free" value={0} onValueChange={() => undefined} allowZero />);
+    expect(screen.getByRole('textbox', { name: 'Free' })).toHaveValue('0');
+  });
+
   it('groups digits and keeps the whole amount', () => {
     render(<Harness />);
     const input = screen.getByRole('textbox', { name: 'Price' });

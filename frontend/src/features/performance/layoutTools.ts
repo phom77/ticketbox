@@ -100,6 +100,15 @@ export class SeatCsvError extends Error {
   }
 }
 
+/** The catalog key for a failed CSV import. A size or count limit is never reported as a line-1 header problem. */
+export function seatCsvProblemKey(failure: SeatCsvError) {
+  if (failure.reason === 'limit') return 'performance-layout:csvProblem_limit';
+  if (failure.column) return `performance-layout:csvProblem_${failure.reason}`;
+  return failure.line === 1
+    ? 'performance-layout:csvProblem_header'
+    : 'performance-layout:csvProblem_format';
+}
+
 export function readSeatCsv(text: string): SeatCsvEntry[] {
   const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/);
   const header = lines.shift()?.trim().toLowerCase();

@@ -59,6 +59,7 @@ import {
   mapBounds,
   readSeatCsv,
   SeatCsvError,
+  seatCsvProblemKey,
   seatsAlongRow,
 } from '../../features/performance/layoutTools';
 import {
@@ -585,14 +586,7 @@ export function PerformanceLayoutEditor({
       },
       (failure) =>
         failure instanceof SeatCsvError
-          ? t(
-              failure.column
-                ? `performance-layout:csvProblem_${failure.reason}`
-                : failure.line === 1
-                  ? 'performance-layout:csvProblem_header'
-                  : 'performance-layout:csvProblem_format',
-              { line: failure.line, column: failure.column },
-            )
+          ? t(seatCsvProblemKey(failure), { line: failure.line, column: failure.column })
           : t('performance-layout:csvProblem_format', { line: '?' }),
     );
   }

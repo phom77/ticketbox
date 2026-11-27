@@ -259,6 +259,27 @@ export function PerformanceTickets({ id, eventId }: { id: string; eventId: strin
     };
   }, [id, selectedSection, assigned, refresh, t]);
 
+  // A seat that is now held, or no longer available, is no longer a pending choice.
+  const holdSeatKey = hold.items.map((item) => item.seatId ?? '').join('|');
+  const unavailableKey = (sectionAvailability?.seats ?? [])
+    .filter((seat) => !seat.available)
+    .map((seat) => seat.id)
+    .join('|');
+  useEffect(() => {
+    const held = new Set(holdSeatKey.split('|'));
+    const gone = new Set(unavailableKey.split('|'));
+    setPendingSeats((current) => {
+      let changed = false;
+      const next: Record<string, string[]> = {};
+      for (const [offerId, seats] of Object.entries(current)) {
+        const kept = seats.filter((seatId) => !held.has(seatId) && !gone.has(seatId));
+        if (kept.length !== seats.length) changed = true;
+        next[offerId] = kept;
+      }
+      return changed ? next : current;
+    });
+  }, [holdSeatKey, unavailableKey]);
+
   if (!admission && !pendingOrderKey) return <Navigate to={waitingRoom} replace />;
 
   const performance = context?.performance;
@@ -275,7 +296,12 @@ export function PerformanceTickets({ id, eventId }: { id: string; eventId: strin
       : null;
   const stock = new Map(sectionStock?.seats.map((seat) => [seat.id, seat]));
   const confirmedSeats = new Set(hold.items.flatMap((item) => (item.seatId ? [item.seatId] : [])));
-  const heldSeats = new Set([...confirmedSeats, ...Object.values(pendingSeats).flat()]);
+  const pendingSet = new Set(
+    Object.values(pendingSeats)
+      .flat()
+      .filter((seatId) => !confirmedSeats.has(seatId)),
+  );
+  const heldSeats = new Set([...confirmedSeats, ...pendingSet]);
   const offerMinimum = new Map<string, { name: string; minimum: number }>();
   for (const group of availability?.groups ?? [])
     for (const offer of group.offers)
@@ -347,12 +373,16 @@ export function PerformanceTickets({ id, eventId }: { id: string; eventId: strin
   }
   function canSelectSeat(seatId: string) {
     if (cannotChange) return false;
-    if (heldSeats.has(seatId)) return true;
+    if (confirmedSeats.has(seatId)) return true;
     const current = stock.get(seatId);
-    return Boolean(current?.available && offerByGroup.has(current.groupId));
+    const offer = current && offerByGroup.get(current.groupId);
+    if (!current?.available || !offer) return false;
+    const group = availability?.groups.find((entry) => entry.id === current.groupId);
+    return (group?.available ?? 0) >= (offer.minPerOrder ?? 1);
   }
 
   function seatOfferDescription(seatId: string) {
+    if (pendingSet.has(seatId)) return t('customer:ticketSelection_pendingState');
     const held = hold.items.find((item) => item.seatId === seatId);
     if (held)
       return `${held.offerName} · ${formatPrice(held.unitPrice)} · ${t('customer:ticketSelection_selectedState')}`;
@@ -378,8 +408,8 @@ export function PerformanceTickets({ id, eventId }: { id: string; eventId: strin
     );
   }
 
-  async function changeHold(items: Selection[]) {
-    if (!admission || !availability || transaction.current) return;
+  async function changeHold(items: Selection[]): Promise<boolean> {
+    if (!admission || !availability || transaction.current) return false;
     const body = { layoutVersion: availability.layoutVersion, holdVersion: hold.version, items };
     const payload = JSON.stringify(body);
     const key =
@@ -390,14 +420,15 @@ export function PerformanceTickets({ id, eventId }: { id: string; eventId: strin
     setNotice(null);
     try {
       const confirmed = await replaceHold(id, admission.queueAccessToken, key, body);
-      if (!mounted.current) return;
+      if (!mounted.current) return false;
       setHold(confirmed);
       recovery.current = null;
+      return true;
     } catch (requestError) {
-      if (!mounted.current) return;
+      if (!mounted.current) return false;
       if (requestError instanceof ApiClientError && [401, 403].includes(requestError.status)) {
         backToWaitingRoom(t('customer:ticketSelection_sessionExpired'));
-        return;
+        return false;
       }
       if (
         requestError instanceof ApiClientError &&
@@ -411,6 +442,7 @@ export function PerformanceTickets({ id, eventId }: { id: string; eventId: strin
           ? t(problemKeys[holdProblem(requestError)])
           : t('performances:holdFailed'),
       );
+      return false;
     } finally {
       if (mounted.current) setBusy(false);
       transaction.current = null;
@@ -423,7 +455,17 @@ export function PerformanceTickets({ id, eventId }: { id: string; eventId: strin
     void changeHold(items);
   }
 
-  function selectSeat(seatId: string) {
+  function withoutDuplicates(selections: Selection[]): Selection[] {
+    const seen = new Set<string>();
+    return selections.filter((item) => {
+      if (!('seatId' in item)) return true;
+      if (seen.has(item.seatId)) return false;
+      seen.add(item.seatId);
+      return true;
+    });
+  }
+
+  async function selectSeat(seatId: string) {
     if (!canSelectSeat(seatId)) return;
     const items = holdSelections();
     const pendingOffer = Object.keys(pendingSeats).find((offerId) =>
@@ -443,14 +485,16 @@ export function PerformanceTickets({ id, eventId }: { id: string; eventId: strin
         .map((item) => item.seatId as string);
       const minimum = offerMinimum.get(line?.offerId ?? '')?.minimum ?? 1;
       if (line && remaining.length > 0 && remaining.length < minimum) {
-        // Fewer seats than the minimum cannot stay held: release them and keep them as a pending choice.
-        setPendingSeats({
-          ...pendingSeats,
-          [line.offerId]: [...(pendingSeats[line.offerId] ?? []), ...remaining],
-        });
-        void changeHold(
+        // Fewer seats than the minimum cannot stay held: release them and keep them as a pending
+        // choice, but only once the release is confirmed.
+        const released = await changeHold(
           items.filter((item) => !('seatId' in item) || item.offerId !== line.offerId),
         );
+        if (released && mounted.current)
+          setPendingSeats((current) => ({
+            ...current,
+            [line.offerId]: [...new Set([...(current[line.offerId] ?? []), ...remaining])],
+          }));
         return;
       }
       void changeHold(items.filter((item) => !('seatId' in item) || item.seatId !== seatId));
@@ -464,15 +508,17 @@ export function PerformanceTickets({ id, eventId }: { id: string; eventId: strin
       (item) => item.seatId && item.offerId === offer.id,
     ).length;
     if (heldForOffer + pending.length + 1 < (offer.minPerOrder ?? 1)) {
-      setPendingSeats({ ...pendingSeats, [offer.id]: [...pending, seatId] });
+      setPendingSeats({ ...pendingSeats, [offer.id]: [...new Set([...pending, seatId])] });
       return;
     }
-    setPendingSeats({ ...pendingSeats, [offer.id]: [] });
-    void changeHold([
-      ...items,
-      ...pending.map((id) => ({ offerId: offer.id, seatId: id })),
-      { offerId: offer.id, seatId },
-    ]);
+    // The pending choice stays visible until the server confirms the hold.
+    await changeHold(
+      withoutDuplicates([
+        ...items,
+        ...pending.map((id) => ({ offerId: offer.id, seatId: id })),
+        { offerId: offer.id, seatId },
+      ]),
+    );
   }
 
   async function checkout() {
@@ -605,7 +651,8 @@ export function PerformanceTickets({ id, eventId }: { id: string; eventId: strin
           <SeatMap
             section={selectedMapSection}
             accessibleOnly={accessibleOnly}
-            heldSeats={heldSeats}
+            heldSeats={confirmedSeats}
+            pendingSeats={pendingSet}
             isAvailable={(seatId) => Boolean(stock.get(seatId)?.available)}
             describe={(row, seat, seatId) =>
               selectedMapSection.label +
@@ -614,7 +661,7 @@ export function PerformanceTickets({ id, eventId }: { id: string; eventId: strin
               ' · ' +
               seatOfferDescription(seatId)
             }
-            onSelect={selectSeat}
+            onSelect={(seatId) => void selectSeat(seatId)}
             onTip={setTip}
           />
         </MapViewport>
@@ -726,7 +773,12 @@ export function PerformanceTickets({ id, eventId }: { id: string; eventId: strin
                     type="button"
                     className="button button-secondary"
                     aria-pressed={row.sectionId === selectedSection}
-                    disabled={row.available <= 0}
+                    disabled={row.available <= 0 || row.available < (row.minPerOrder ?? 1)}
+                    title={
+                      row.available > 0 && row.available < (row.minPerOrder ?? 1)
+                        ? t('customer:ticketSelection_reasonMinimum', { count: row.minPerOrder })
+                        : undefined
+                    }
                     onClick={() => selectSection(row.sectionId)}
                   >
                     {t('customer:ticketSelection_viewSeats')}
@@ -799,7 +851,7 @@ export function PerformanceTickets({ id, eventId }: { id: string; eventId: strin
                           data-accessible={seat.accessible}
                           data-restricted={seat.restrictedView}
                           disabled={!canSelectSeat(seat.id)}
-                          onClick={() => selectSeat(seat.id)}
+                          onClick={() => void selectSeat(seat.id)}
                           onMouseEnter={() =>
                             setTip(
                               selectedMapSection.label +

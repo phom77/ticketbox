@@ -590,6 +590,7 @@ function TicketTypeForm({
                 <span>{translate('admin:adminTicketTypesPage_giaVe')}</span>
                 <MoneyInput
                   required
+                  allowZero
                   max={999_999_999_999}
                   value={Number(form.price) || 0}
                   onValueChange={(price) => onChange({ ...form, price: String(price) })}

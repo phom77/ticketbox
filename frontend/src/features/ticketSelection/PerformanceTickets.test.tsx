@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastContext } from '../../components/feedback/toast-context';
+import { ApiClientError } from '../../api/client';
 import * as api from '../../api/performances';
 import { PerformanceTickets } from './PerformanceTickets';
 
@@ -194,5 +195,132 @@ describe('PerformanceTickets', () => {
     expect(screen.queryByRole('heading', { name: 'Seats in Zone A' })).toBeNull();
     expect(screen.queryByText('A1')).toBeNull();
     expect(screen.getAllByText('B1').length).toBeGreaterThan(0);
+  });
+
+  describe('seated minimum', () => {
+    const seatedOffer = {
+      ...availability.groups[1],
+      offers: [offer('Offer A', { minPerOrder: 2 })],
+    };
+    const twoSeats = () => {
+      const base = mapSection('a', 'Zone A');
+      const seat = base.section.rows[0].seats[0];
+      return {
+        ...base,
+        section: {
+          ...base.section,
+          rows: [
+            {
+              ...base.section.rows[0],
+              seats: [seat, { ...seat, id: 's-a2', label: 'A2', x: 30, position: 2 }],
+            },
+          ],
+        },
+      };
+    };
+    const seatStock = {
+      ...stock('a'),
+      seats: [
+        { id: 's-a', available: true, groupId: 'ga-a' },
+        { id: 's-a2', available: true, groupId: 'ga-a' },
+      ],
+    };
+    const heldLine = (seatId: string, label: string) => ({
+      offerId: 'Offer A',
+      offerName: 'Offer A',
+      seatId,
+      rowLabel: 'R',
+      seatLabel: label,
+      sectionLabel: 'Zone A',
+      unitPrice: 100000,
+      quantity: 1,
+    });
+    async function openZone() {
+      vi.mocked(api.getLayout).mockResolvedValue(layout);
+      vi.mocked(api.getAvailability).mockResolvedValue({
+        ...availability,
+        groups: [availability.groups[0], seatedOffer, availability.groups[2]],
+      });
+      vi.mocked(api.getMapSection).mockResolvedValue(twoSeats());
+      vi.mocked(api.getSectionAvailability).mockResolvedValue(seatStock);
+      renderPage();
+      fireEvent.click((await screen.findAllByRole('button', { name: 'View seats' }))[0]);
+      await screen.findByRole('button', { name: 'Row R, seat A1' });
+    }
+    const seat = (label: string) => screen.getByRole('button', { name: 'Row R, seat ' + label });
+
+    it('keeps a lone seat pending with a hint, then holds both once the minimum is met', async () => {
+      vi.mocked(api.replaceHold).mockResolvedValue({
+        version: 1,
+        expiresAt: null,
+        totalAmount: 200000,
+        items: [heldLine('s-a', 'A1'), heldLine('s-a2', 'A2')],
+      });
+      await openZone();
+      fireEvent.click(seat('A1'));
+      expect(
+        await screen.findByText('Choose at least 2 seats for Offer A (1 chosen so far).'),
+      ).toBeVisible();
+      expect(api.replaceHold).not.toHaveBeenCalled();
+      expect(seat('A1')).toHaveAttribute('aria-pressed', 'true');
+      expect(seat('A1').getAttribute('aria-description')).toContain('Selected, not yet reserved');
+      fireEvent.click(seat('A2'));
+      await waitFor(() => expect(api.replaceHold).toHaveBeenCalledTimes(1));
+      expect(vi.mocked(api.replaceHold).mock.calls[0][3].items).toEqual([
+        { offerId: 'Offer A', seatId: 's-a' },
+        { offerId: 'Offer A', seatId: 's-a2' },
+      ]);
+      await waitFor(() => expect(screen.queryByText(/Choose at least 2 seats/)).toBeNull());
+    });
+
+    it('keeps the pending choice when the server refuses the hold', async () => {
+      vi.mocked(api.replaceHold).mockRejectedValue(new ApiClientError('Quota exceeded', 422));
+      await openZone();
+      fireEvent.click(seat('A1'));
+      fireEvent.click(seat('A2'));
+      await waitFor(() => expect(api.replaceHold).toHaveBeenCalledTimes(1));
+      expect(await screen.findByRole('alert')).toBeVisible();
+      expect(seat('A1')).toHaveAttribute('aria-pressed', 'true');
+      expect(seat('A1').getAttribute('aria-description')).toContain('not yet reserved');
+    });
+
+    it('does not turn the remaining seat into a pending one when the release fails', async () => {
+      vi.mocked(api.getHold).mockResolvedValue({
+        version: 3,
+        expiresAt: null,
+        totalAmount: 200000,
+        items: [heldLine('s-a', 'A1'), heldLine('s-a2', 'A2')],
+      });
+      vi.mocked(api.replaceHold).mockRejectedValue(new Error('down'));
+      await openZone();
+      await waitFor(() => expect(seat('A1')).toHaveAttribute('aria-pressed', 'true'));
+      fireEvent.click(seat('A1'));
+      await waitFor(() => expect(api.replaceHold).toHaveBeenCalledTimes(1));
+      expect(await screen.findByRole('alert')).toBeVisible();
+      expect(seat('A2').getAttribute('aria-description')).not.toContain('not yet reserved');
+      expect(seat('A1')).toHaveAttribute('aria-pressed', 'true');
+      expect(screen.queryByText(/Choose at least 2 seats/)).toBeNull();
+    });
+
+    it('moves the remaining seat to pending after a confirmed release', async () => {
+      vi.mocked(api.getHold).mockResolvedValue({
+        version: 3,
+        expiresAt: null,
+        totalAmount: 200000,
+        items: [heldLine('s-a', 'A1'), heldLine('s-a2', 'A2')],
+      });
+      vi.mocked(api.replaceHold).mockResolvedValue({
+        version: 4,
+        expiresAt: null,
+        totalAmount: 0,
+        items: [],
+      });
+      await openZone();
+      await waitFor(() => expect(seat('A1')).toHaveAttribute('aria-pressed', 'true'));
+      fireEvent.click(seat('A1'));
+      expect(await screen.findByText(/Choose at least 2 seats/)).toBeVisible();
+      expect(seat('A2').getAttribute('aria-description')).toContain('not yet reserved');
+      expect(seat('A1')).toHaveAttribute('aria-pressed', 'false');
+    });
   });
 });

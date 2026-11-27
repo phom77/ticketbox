@@ -4,7 +4,7 @@
 
 - [x] 1.1 Next free Ticketing migration (V23 unless another change took it): `performance_offers.description TEXT` (1–500 when set) and `min_per_order INTEGER NOT NULL DEFAULT 1 CHECK (min_per_order BETWEEN 1 AND 100)`. Never edit a merged migration.
 - [x] 1.2 `PerformanceSale.Offer` and `JdbcPerformanceCatalog.apply` accept optional `description` and `minPerOrder` (absent = null / 1), stored only for newer snapshot versions. `PerformanceAvailability.OfferView` returns both. Integration tests: snapshot with and without the fields, replayed older version ignored.
-- [x] 1.3 `PerformanceHolds`: refuse a positive quantity (GA quantity or seat count per offer) below `minPerOrder` before `pricedLines` and any stock change (`400 error.performance.offer-min-quantity` with offer id and minimum). Postgres integration tests: refusal leaves hold and stock unchanged, quantity 0 allowed, existing hold kept after the minimum is raised, replayed request key refused the same way, GA and seated lines.
+- [x] 1.3 `PerformanceHolds`: refuse a positive quantity (GA quantity or seat count per offer) below `minPerOrder` before `pricedLines` and any stock change (`400 error.performance.offer-min-quantity` with ticket type name and minimum). Postgres integration tests: refusal leaves hold and stock unchanged, quantity 0 allowed, existing hold kept after the minimum is raised, replayed request key refused the same way, GA and seated lines.
 - [x] 1.4 Error key in Ticketing messages (en/vi), `docs/api.md` availability and hold sections, Ticketing `GLOSSARY.md` (minimum per order).
 - [x] 1.5 Checks: `scripts/mvnw-docker.sh -B -ntp -f services/ticketing/pom.xml verify` and `python3 scripts/ci/verify-service-boundaries.py --service ticketing`.
 

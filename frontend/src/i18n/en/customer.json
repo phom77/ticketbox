@@ -384,6 +384,7 @@
   "ticketSelection_heldInSection_one": "{{count}} ticket selected",
   "ticketSelection_heldInSection_other": "{{count}} tickets selected",
   "ticketSelection_selectedState": "Selected",
+  "ticketSelection_pendingState": "Selected, not yet reserved",
   "ticketSelection_backToVenue": "Back to venue map",
   "ticketSelection_noMap": "There is no map for this show. Choose tickets from the list.",
   "ticketSelection_mapHint": "Select a section to see its seats. Zoom with the buttons, Ctrl + scroll or pinch. Everything on the map is also in the list.",

@@ -265,6 +265,12 @@
   stroke: var(--buyer-on-primary);
   stroke-width: 0.8;
 }
+.ts-seat[data-state='pending'] circle {
+  fill: var(--surface);
+  stroke: var(--buyer-primary);
+  stroke-width: 0.8;
+  stroke-dasharray: 1.2 0.8;
+}
 .ts-seat[data-accessible='true'] circle {
   stroke: var(--buyer-success-text);
   stroke-width: 1;
@@ -349,6 +355,11 @@
 .ts-swatch[data-kind='selected'] {
   background: var(--buyer-primary);
   color: var(--buyer-on-primary);
+}
+.ts-swatch[data-kind='pending'] {
+  border-style: dashed;
+  border-color: var(--buyer-primary);
+  background: var(--surface);
 }
 .ts-swatch[data-kind='sold'] {
   border-color: var(--line);

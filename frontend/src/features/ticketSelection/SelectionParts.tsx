@@ -34,6 +34,9 @@ export function Legend({ seats }: { seats?: boolean }) {
     ['available', t('customer:ticketSelection_legendAvailable')],
     ['few', t('customer:ticketSelection_legendFew')],
     ['selected', t('customer:ticketSelection_legendSelected')],
+    ...(seats
+      ? ([['pending', t('customer:ticketSelection_pendingState')]] as Array<[string, string]>)
+      : []),
     ['sold', t('customer:ticketSelection_legendSold')],
     ...(seats
       ? ([

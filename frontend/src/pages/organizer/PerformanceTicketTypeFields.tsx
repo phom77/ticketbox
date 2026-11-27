@@ -78,13 +78,21 @@ export function PerformanceTicketTypeFields({
   const opensAt = toPerformanceLocalDateTime(performance.saleStartAt, zone);
   const closesAt = toPerformanceLocalDateTime(performance.saleEndAt, zone);
   const description = offer.description ?? '';
-  const minimum = offer.minPerOrder ?? 1;
+  // The field keeps what the organizer typed; an unusable value is flagged on blur and blocks saving.
+  const [minimumText, setMinimumText] = useState(String(offer.minPerOrder ?? 1));
+  const [minimumTouched, setMinimumTouched] = useState(false);
+  const typed = /^\d{1,4}$/.test(minimumText.trim()) ? Number(minimumText.trim()) : 0;
+  const minimum = typed >= 1 && typed <= maxMinPerOrder ? typed : 0;
   const minimumError =
-    minimum > performance.maxPerAccount
-      ? t('performances:minPerOrderAboveLimit', { max: performance.maxPerAccount })
-      : group?.kind === 'GA' && group.capacity > 0 && minimum > group.capacity
-        ? t('performances:minPerOrderAboveCapacity', { capacity: group.capacity })
-        : '';
+    minimum === 0
+      ? minimumTouched
+        ? t('performances:reviewInvalidMinimum')
+        : ''
+      : minimum > performance.maxPerAccount
+        ? t('performances:minPerOrderAboveLimit', { max: performance.maxPerAccount })
+        : group && group.capacity > 0 && minimum > group.capacity
+          ? t('performances:minPerOrderAboveCapacity', { capacity: group.capacity })
+          : '';
   const priceError =
     offer.price < 1 || offer.price > maxPrice ? t('performances:priceRequired') : '';
 
@@ -181,9 +189,16 @@ export function PerformanceTicketTypeFields({
           min={1}
           max={maxMinPerOrder}
           step={1}
-          value={minimum}
+          value={minimumText}
           aria-invalid={Boolean(minimumError) || undefined}
-          onChange={(event) => onChange({ minPerOrder: Number(event.target.value) || 1 })}
+          onChange={(event) => {
+            setMinimumText(event.target.value);
+            const next = /^\d{1,4}$/.test(event.target.value.trim())
+              ? Number(event.target.value.trim())
+              : 0;
+            onChange({ minPerOrder: next >= 1 && next <= maxMinPerOrder ? next : 0 });
+          }}
+          onBlur={() => setMinimumTouched(true)}
         />
         <small>{minimumError || t('performances:minPerOrderHelp')}</small>
       </label>
@@ -204,7 +219,8 @@ export function PerformanceTicketTypeFields({
           <PerformanceDateTimeField
             name={`${idPrefix}-early`}
             label={t('performances:presetEarlyEnds')}
-            value={earlyDate ? earlyDate + 'T23:59' : ''}
+            dateOnly
+            value={earlyDate}
             min={opensAt}
             max={closesAt}
             onChange={(value) => {

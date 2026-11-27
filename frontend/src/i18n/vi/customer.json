@@ -374,6 +374,7 @@
   "ticketSelection_fromPrice": "từ {{price}}",
   "ticketSelection_heldInSection_other": "đã chọn {{count}} vé",
   "ticketSelection_selectedState": "Đã chọn",
+  "ticketSelection_pendingState": "Đã chọn, chưa giữ chỗ",
   "ticketSelection_backToVenue": "Về sơ đồ địa điểm",
   "ticketSelection_noMap": "Buổi diễn này chưa có sơ đồ. Hãy chọn vé trong danh sách.",
   "ticketSelection_mapHint": "Chọn một khu để xem chỗ ngồi. Phóng to bằng nút, Ctrl + cuộn chuột hoặc chụm hai ngón. Mọi thứ trên bản đồ cũng có trong danh sách.",

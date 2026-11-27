@@ -65,6 +65,10 @@ export function downloadTextFile(name: string, text: string, type: string) {
   const link = document.createElement('a');
   link.href = url;
   link.download = name;
+  link.hidden = true;
+  document.body.append(link);
   link.click();
-  URL.revokeObjectURL(url);
+  link.remove();
+  // Revoke after the browser has started the download.
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
