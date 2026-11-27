@@ -1,0 +1,16 @@
+.checkin-progress {
+  height: 0.6rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 15%, transparent);
+}
+
+.checkin-progress span {
+  display: block;
+  height: 100%;
+  background: var(--color-primary, #2563eb);
+}
+
+[data-stale] {
+  opacity: 0.75;
+}

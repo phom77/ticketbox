@@ -26,6 +26,8 @@ The default gateway is `http://localhost:18091`. Most APIs return an envelope co
 | Scan / sync | `POST /api/staff/checkins/scan`, `POST .../sync` | Staff |
 | Offline dataset | `GET /api/staff/concerts/{id}/checkin-dataset` | Staff |
 | Guest lookup / attendance | `/api/staff/guestlist/**` | Staff |
+| Performance admission | `/api/v2/staff/performances`, `/{id}/overview`, `/tickets`, `/checkins`, `/guests`, `/guests/{guestId}/check-in`, `/scan`, `/sync`, `/checkin-dataset` | `STAFF` account with `ADMISSION` and an active assignment to the performance; used by the scanner and the web staff app (the web app skips dataset and sync) |
+| Performance check-in monitoring | `GET /api/organizer/manage/concerts/{id}/checkin-summary` (adds `gates[{gate, checkedIn, latestCheckedAt}]`, `guestsTotal`, `guestsCheckedIn`), `GET /api/organizer/manage/v2/performances/{id}/checkins?page&size` (size up to 50, newest first, no `qrCode` or `deviceId`) | Organizer `EVENTS` in the owning organization |
 | Concert management | `/api/admin/concerts/**`, `/api/organizer/manage/concerts/**` | Admin / organizer |
 | Sales | `/api/organizer/sales/summary`, `/trend`, `/breakdown`, `/on-sale`, `/upcoming`, `/export` | Organizer `EVENTS` or `FINANCE`; money fields and export need `FINANCE` |
 | Organization profile | `GET/PUT /api/organizations/{id}/profile`, `PUT .../profile/statement-details`, `PUT/DELETE .../profile/logo`, `GET /api/admin/organizations/{id}/profile` | Active member reads; `MEMBERS` edits profile, logo and timezone; `MEMBERS` or `FINANCE` edits statement details |

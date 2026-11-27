@@ -1,92 +1,74 @@
-import { useEffect, useState } from 'react';
-import { ArrowUpRight, CalendarDays, MapPin, ScanLine } from 'lucide-react';
+import { CalendarDays, MapPin } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { getStaffConcerts, type StaffConcert } from '../../api/admin';
-import { isRequestCanceled } from '../../api/client';
+import type { StaffPerformance } from '../../api/admin';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
-import { staffDateTime } from './staffPageUtils';
+import { StaffAccessGate } from './StaffAccessGate';
+import { splitEarlier, staffDateTime } from './staffPageUtils';
+
+function PerformanceRow({ performance }: { performance: StaffPerformance }) {
+  const { t } = useTranslation();
+  const query = `?performance=${encodeURIComponent(performance.id)}`;
+  return (
+    <article className="staff-concert-row">
+      <div className="staff-concert-date">
+        <CalendarDays aria-hidden="true" size={18} />
+        <strong>{staffDateTime(performance.eventDate)}</strong>
+      </div>
+      <div>
+        <h2>{performance.title}</h2>
+        <p>
+          <MapPin aria-hidden="true" size={14} />
+          {performance.venueName}
+        </p>
+        <p>
+          {t('staff:statusLabel')}:{' '}
+          {t(`staff:status_${performance.status}`, { defaultValue: performance.status })}
+        </p>
+      </div>
+      <nav aria-label={performance.title} className="staff-row-links">
+        <Link className="admin-primary-action" to={`/staff/check-in${query}`}>
+          {t('staff:openCheckIn')}
+        </Link>
+        <Link className="admin-secondary-action" to={`/staff/guests${query}`}>
+          {t('staff:openGuests')}
+        </Link>
+        <Link className="admin-secondary-action" to={`/staff/history${query}`}>
+          {t('staff:openHistory')}
+        </Link>
+      </nav>
+    </article>
+  );
+}
 
 export function StaffOverviewPage() {
-  const [concerts, setConcerts] = useState<StaffConcert[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    const controller = new AbortController();
-    async function load() {
-      try {
-        const data = await getStaffConcerts('ON_SALE', controller.signal);
-        setConcerts(data.content);
-      } catch (requestError) {
-        if (!isRequestCanceled(requestError)) {
-          setError(
-            requestError instanceof Error ? requestError.message : 'Không thể tải ca làm việc.',
-          );
-        }
-      } finally {
-        if (!controller.signal.aborted) setLoading(false);
-      }
-    }
-    void load();
-    return () => controller.abort();
-  }, []);
-
+  const { t } = useTranslation();
   return (
     <>
       <AdminPageHeader
-        title="Ca làm việc"
-        description="Chọn concert đang mở bán để chuẩn bị check-in, tra khách mời và theo dõi lịch sử vào cổng."
-        actions={
-          <Link className="admin-primary-action" to="/staff/check-in">
-            <ScanLine aria-hidden="true" size={17} />
-            Mở check-in QR
-          </Link>
-        }
+        title={t('staff:overviewTitle')}
+        description={t('staff:overviewDescription')}
       />
-      {error ? (
-        <div className="admin-notice error" role="alert">
-          {error}
-        </div>
-      ) : null}
-      <section className="staff-concert-list" aria-label="Concert dành cho nhân viên">
-        {loading ? (
-          <div className="admin-row-skeleton" aria-label="Đang tải concert" aria-live="polite">
-            {[1, 2, 3].map((item) => (
-              <span key={item} />
-            ))}
-          </div>
-        ) : concerts.length ? (
-          concerts.map((concert) => (
-            <article key={concert.id} className="staff-concert-row">
-              <div className="staff-concert-date">
-                <CalendarDays size={18} />
-                <strong>{staffDateTime.format(new Date(concert.eventDate))}</strong>
-              </div>
-              <div>
-                <h2>{concert.title}</h2>
-                <p>
-                  <MapPin size={14} />
-                  {concert.venueName}, {concert.venueAddress}
-                </p>
-              </div>
-              <Link
-                to={`/staff/check-in?concert=${concert.id}`}
-                aria-label={`Mở check-in cho ${concert.title}`}
-              >
-                <ArrowUpRight size={18} />
-              </Link>
-            </article>
-          ))
-        ) : (
-          <div className="admin-empty-state">
-            <CalendarDays size={28} />
-            <h2>Không có concert đang mở bán</h2>
-            <p>
-              Concert dành cho nhân viên sẽ xuất hiện tại đây khi backend trả về trạng thái ON_SALE.
-            </p>
-          </div>
-        )}
-      </section>
+      <StaffAccessGate>
+        {({ performances }) => {
+          const { current, earlier } = splitEarlier(performances);
+          return (
+            <section className="staff-concert-list" aria-label={t('staff:overviewTitle')}>
+              {current.map((entry) => (
+                <PerformanceRow key={entry.id} performance={entry} />
+              ))}
+              {earlier.length ? (
+                <details>
+                  <summary>{t('staff:earlier')}</summary>
+                  {earlier.map((entry) => (
+                    <PerformanceRow key={entry.id} performance={entry} />
+                  ))}
+                </details>
+              ) : null}
+            </section>
+          );
+        }}
+      </StaffAccessGate>
     </>
   );
 }

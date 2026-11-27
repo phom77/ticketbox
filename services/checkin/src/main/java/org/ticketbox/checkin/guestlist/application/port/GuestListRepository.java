@@ -13,6 +13,10 @@ public interface GuestListRepository {
 
     Page<GuestList> findByConcertId(UUID concertId, Pageable pageable);
 
+    long countByConcertIdAndIsActiveTrue(UUID concertId);
+
+    long countByConcertIdAndIsActiveTrueAndCheckedInAtIsNotNull(UUID concertId);
+
     Page<GuestList> search(UUID concertId, String query, boolean activeOnly, Pageable pageable);
 
     Optional<GuestList> findByConcertIdAndPhone(UUID concertId, String phone);

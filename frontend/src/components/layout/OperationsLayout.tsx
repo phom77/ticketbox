@@ -377,13 +377,19 @@ export function OperationsLayout({ mode }: { mode: WorkspaceMode }) {
     if (isPlainLinkClick(event)) closeDrawer();
   }
 
+  const staffPerformance = new URLSearchParams(location.search).get('performance');
+
   function navigationLink(item: NavigationItem, collapsed: boolean) {
     const Icon = item.icon;
     const label = item.label;
     return (
       <NavLink
         key={item.to}
-        to={item.to}
+        to={
+          mode === 'staff' && item.to !== '/staff' && staffPerformance
+            ? { pathname: item.to, search: `?performance=${encodeURIComponent(staffPerformance)}` }
+            : item.to
+        }
         end={item.end}
         onClick={closeDrawerOnNavigation}
         {...railLabel(label, collapsed)}
@@ -637,12 +643,12 @@ export function OperationsLayout({ mode }: { mode: WorkspaceMode }) {
           </button>
           <div
             className={
-              mode === 'organizer'
+              mode === 'organizer' || mode === 'staff'
                 ? 'operations-context organization-context'
                 : 'operations-context'
             }
           >
-            {mode === 'organizer' && organization?.memberships.length ? (
+            {(mode === 'organizer' || mode === 'staff') && organization?.memberships.length ? (
               <WorkspaceSelect
                 className="operations-organization-select"
                 label={translate('shared:operationsLayout_toChucDangLamViec')}
@@ -651,6 +657,10 @@ export function OperationsLayout({ mode }: { mode: WorkspaceMode }) {
                   const destination = organization.memberships.find((entry) => entry.id === id);
                   if (!destination || id === organization.selected?.id) return;
                   organization.choose(id);
+                  if (mode === 'staff') {
+                    navigate('/staff', { replace: true });
+                    return;
+                  }
                   const reportRoute = [
                     '/organizer/reports',
                     '/organizer/reconciliation',

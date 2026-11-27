@@ -75,7 +75,9 @@ The web staff app lists assigned performances only. Legacy concerts have no assi
 ## Defaults to confirm in review
 
 - Live view refresh interval of 15 seconds while visible; no WebSocket.
-- The web camera ignores a repeated code for 3 seconds after a result.
+- The web camera ignores a repeated code for 3 seconds after a rejection, and after an admission until a different code is read or 30 seconds pass, so the confirmation stays on screen.
+- Staff pages show times in the browser time zone with its abbreviation, because the unchanged staff API does not carry the venue time zone. The organizer live view uses the performance's venue time zone.
+- The web scan request times out after 12 seconds, below the gateway's 15 seconds. A timeout reads "may not have been recorded - check History before retrying", and a retry of that code that is then rejected as already used says the earlier attempt probably went through.
 - Recent admissions list shows the 10 newest on the panel; the endpoint pages up to 50.
 - Gate is free text up to 100 characters (the API limit), pre-filled with the last gate used for that performance, `WEB` the first time.
 - Performances that ended more than one day ago are collapsed under *Earlier* in the staff list but still openable for history.
