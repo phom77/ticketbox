@@ -13,6 +13,7 @@ import {
   ArrowLeft,
   CalendarClock,
   Check,
+  Copy,
   Eye,
   FileCheck,
   Info,
@@ -31,6 +32,11 @@ import {
   type Venue,
 } from '../../api/performanceManagement';
 import { AdminConfirmDialog } from '../../components/admin/AdminConfirmDialog';
+import { AddDatesDialog } from './scheduling/AddDatesDialog';
+import { ApplyPricingDialog } from './scheduling/ApplyPricingDialog';
+import { DuplicateDialog } from './scheduling/DuplicateDialog';
+import { PerformanceSalesPanel } from './scheduling/PerformanceSalesPanel';
+import { VenueLibraryDialog } from './scheduling/VenueLibraryDialog';
 import { useToast } from '../../components/feedback/toast-context';
 import { performanceTime } from '../../features/performance/format';
 import { performanceStatusKey } from './performanceSetup';
@@ -188,6 +194,9 @@ function EventWorkspace({ id }: { id: string }) {
   const navigate = useNavigate();
   const toast = useToast();
   const [deleting, setDeleting] = useState<'performance' | 'event' | null>(null);
+  const [schedulingDialog, setSchedulingDialog] = useState<
+    'add' | 'duplicate' | 'apply' | 'venues' | null
+  >(null);
   const [event, setEvent] = useState<ManagedEvent | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedId = searchParams.get('show');
@@ -235,6 +244,9 @@ function EventWorkspace({ id }: { id: string }) {
   const legacyConcert = Boolean(active?.legacyConcertId);
   const allDrafts = event?.performances.every(
     (entry) => entry.status === 'DRAFT' && !entry.legacyConcertId,
+  );
+  const applyTargets = (event?.performances ?? []).filter(
+    (entry) => entry.id !== active?.id && entry.status === 'DRAFT' && !entry.legacyConcertId,
   );
   const released = Boolean(event?.performances.some((entry) => entry.status !== 'DRAFT'));
   const requestedStep = step ?? (active ? 'tickets' : 'schedule');
@@ -314,6 +326,16 @@ function EventWorkspace({ id }: { id: string }) {
           : [...entries, performance],
       };
     });
+  }
+
+  /** Reloads the event after dates were added or copied and opens the first new date. */
+  function afterDatesChanged(message: string, show?: string) {
+    setSchedulingDialog(null);
+    setDirty(false);
+    toast.success(message);
+    setEvent(null);
+    setRetry((current) => current + 1);
+    if (show) setStep('tickets', show);
   }
 
   function updatePerformance(performance: ManagedPerformance) {
@@ -520,6 +542,44 @@ function EventWorkspace({ id }: { id: string }) {
                 <Plus size={17} aria-hidden="true" />
                 {t('performances:addPerformance')}
               </button>
+              <button
+                type="button"
+                className="button button-secondary"
+                disabled={busy || !venues}
+                onClick={() => setSchedulingDialog('add')}
+              >
+                <CalendarClock size={17} aria-hidden="true" />
+                {t('scheduling:addDates')}
+              </button>
+              {active && !newSchedule && (
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  disabled={busy}
+                  onClick={() => setSchedulingDialog('duplicate')}
+                >
+                  <Copy size={17} aria-hidden="true" />
+                  {t('scheduling:duplicate')}
+                </button>
+              )}
+              {active && !newSchedule && applyTargets.length > 0 && (
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  disabled={busy}
+                  onClick={() => setSchedulingDialog('apply')}
+                >
+                  {t('scheduling:applyPricing')}
+                </button>
+              )}
+              <button
+                type="button"
+                className="button button-secondary"
+                disabled={busy || !venues}
+                onClick={() => setSchedulingDialog('venues')}
+              >
+                {t('scheduling:manageVenues')}
+              </button>
               {isDraft && !newSchedule && (
                 <button
                   type="button"
@@ -610,6 +670,9 @@ function EventWorkspace({ id }: { id: string }) {
               onEdit={() => setStep('tickets')}
             />
           )}
+          {active && !isDraft && !legacyConcert && activeStep !== 'event' && (
+            <PerformanceSalesPanel key={active.id + revision} performance={active} />
+          )}
           {active && activeStep === 'guests' && (
             <PerformanceGuests
               key={active.id}
@@ -617,6 +680,49 @@ function EventWorkspace({ id }: { id: string }) {
               label={`${event.title} · ${performanceTime(active)}`}
               released={!isDraft}
               reviewPath={manageEventPath(id) + '?' + queryForStep('review', active.id)}
+            />
+          )}
+          {schedulingDialog === 'add' && venues && (
+            <AddDatesDialog
+              eventId={id}
+              performances={event.performances}
+              venues={venues}
+              defaultSource={active}
+              onClose={() => setSchedulingDialog(null)}
+              onDone={(created) =>
+                afterDatesChanged(
+                  t('scheduling:datesAdded', { count: created.length }),
+                  created[0]?.id,
+                )
+              }
+            />
+          )}
+          {schedulingDialog === 'duplicate' && active && (
+            <DuplicateDialog
+              performance={active}
+              onClose={() => setSchedulingDialog(null)}
+              onDone={(copy) => afterDatesChanged(t('scheduling:duplicated'), copy.id)}
+            />
+          )}
+          {schedulingDialog === 'apply' && active && (
+            <ApplyPricingDialog
+              source={active}
+              candidates={applyTargets}
+              onClose={() => setSchedulingDialog(null)}
+              onDone={(count) => afterDatesChanged(t('scheduling:pricingApplied', { count }))}
+            />
+          )}
+          {schedulingDialog === 'venues' && venues && (
+            <VenueLibraryDialog
+              venues={venues}
+              onClose={() => setSchedulingDialog(null)}
+              onChange={(venue) =>
+                setVenues((current) =>
+                  (current ?? []).some((entry) => entry.id === venue.id)
+                    ? (current ?? []).map((entry) => (entry.id === venue.id ? venue : entry))
+                    : [...(current ?? []), venue],
+                )
+              }
             />
           )}
           {deleting && (

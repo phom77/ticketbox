@@ -70,7 +70,8 @@ public final class PerformanceViews {
     public record OperationsPerformance(
             UUID id, String title, String venueName, String spaceName, OffsetDateTime startsAt, OffsetDateTime endsAt,
             OffsetDateTime doorsOpenAt, String timezone, OffsetDateTime saleStartAt, OffsetDateTime saleEndAt,
-            String status, boolean salesSuspended, boolean ticketingAcknowledged, boolean checkinAcknowledged) {}
+            String status, boolean salesSuspended, boolean ticketingAcknowledged, boolean checkinAcknowledged,
+            boolean organizerPaused) {}
 
     /** `city` falls back to the address rule when empty; `version` guards concurrent venue edits. */
     public record Venue(UUID id, String name, String address, String city, String timezone, Integer capacityHint,

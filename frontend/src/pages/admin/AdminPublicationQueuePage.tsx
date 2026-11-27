@@ -306,7 +306,11 @@ function PerformanceReviewItem({
       <dl className="publication-status">
         <div>
           <dt>{t('shared:releasePublishAt')} (ICT)</dt>
-          <dd>{formatDate.format(new Date(row.publishAt))}</dd>
+          <dd>
+            {row.publishAt
+              ? formatDate.format(new Date(row.publishAt))
+              : t('scheduling:releaseWhenApproved')}
+          </dd>
         </div>
         <div>
           <dt>{t('shared:releaseSaleAt')} (ICT)</dt>

@@ -455,6 +455,7 @@ class GuidedSchedulingIntegrationTest {
         assertThat(version(live)).isEqualTo(3L);
         acknowledgeEverything();
         assertThat(tx(() -> sales.state(owner, live.id())).pause().state()).isEqualTo("PAUSED");
+        assertThat(store.operationsPerformance(live.id()).orElseThrow().organizerPaused()).isTrue();
 
         var resumed = tx(() -> sales.resume(owner, owner, live.id(), action));
         assertThat(resumed.state()).isIn("RESUMING", "RESUMED");
@@ -462,6 +463,7 @@ class GuidedSchedulingIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT sales_suspended FROM performances WHERE id=?", Boolean.class, live.id())).isFalse();
         assertThat(tx(() -> sales.resume(owner, owner, live.id(), action)).id()).isEqualTo(action);
         assertThat(version(live)).isEqualTo(4L);
+        assertThat(store.operationsPerformance(live.id()).orElseThrow().organizerPaused()).isFalse();
     }
 
     @Test

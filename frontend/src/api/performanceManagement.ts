@@ -22,6 +22,10 @@ export type Venue = {
   id: string;
   name: string;
   address: string;
+  city: string | null;
+  timezone: string;
+  capacityHint: number | null;
+  version: number;
   spaces: { id: string; name: string }[];
 };
 export type ManagedPerformance = Performance & {
@@ -69,7 +73,9 @@ export type SaleDraft = { version: number; groups: SaleGroup[]; offers: SaleOffe
 export type PerformanceReview = {
   id: string;
   performanceId: string;
-  publishAt: string;
+  /** Empty for a release-on-approval review until it is approved. */
+  publishAt: string | null;
+  releaseOnApproval?: boolean;
   state: PublicationReview['state'];
   reason: string | null;
   summary: {
@@ -206,11 +212,12 @@ export const publishPerformance = (
   expectedSaleVersion: number,
   expectedLayoutVersion: number,
   draftVersions: { event: number; schedule: number },
-  publishAt: string,
+  publishAt: string | null,
 ) =>
   api.post<unknown, Publication>(performance(id) + '/publication', {
     expectedSaleVersion,
     expectedLayoutVersion,
+    releaseMode: publishAt ? 'SCHEDULED' : 'ON_APPROVAL',
     publishAt,
     expectedEventDraftVersion: draftVersions.event,
     expectedScheduleDraftVersion: draftVersions.schedule,

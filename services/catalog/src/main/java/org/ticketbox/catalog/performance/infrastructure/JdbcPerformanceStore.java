@@ -158,7 +158,9 @@ public class JdbcPerformanceStore implements PerformanceStore {
     private static final String OPERATIONS_FIELDS = """
             SELECT p.id,e.title,v.name AS venue_name,s.name AS space_name,p.starts_at,p.ends_at,
                    p.doors_open_at,p.timezone,p.sale_start_at,p.sale_end_at,p.status,p.sales_suspended,
-                   COALESCE(pub.ticketing_ack,false) AS ticketing_ack,COALESCE(pub.checkin_ack,false) AS checkin_ack
+                   COALESCE(pub.ticketing_ack,false) AS ticketing_ack,COALESCE(pub.checkin_ack,false) AS checkin_ack,
+                   EXISTS(SELECT 1 FROM performance_sales_pauses sp WHERE sp.performance_id=p.id
+                          AND sp.closed_reason IS NULL) AS organizer_paused
             """;
     private static final String OPERATIONS_ACK = """
             LEFT JOIN performance_sale_publications pub ON pub.performance_id=p.id AND pub.version=p.sale_version
@@ -542,7 +544,8 @@ public class JdbcPerformanceStore implements PerformanceStore {
         return new OperationsPerformance(id(rs, "id"), rs.getString("title"), rs.getString("venue_name"),
                 rs.getString("space_name"), time(rs, "starts_at"), time(rs, "ends_at"), time(rs, "doors_open_at"),
                 rs.getString("timezone"), time(rs, "sale_start_at"), time(rs, "sale_end_at"), rs.getString("status"),
-                rs.getBoolean("sales_suspended"), rs.getBoolean("ticketing_ack"), rs.getBoolean("checkin_ack"));
+                rs.getBoolean("sales_suspended"), rs.getBoolean("ticketing_ack"), rs.getBoolean("checkin_ack"),
+                rs.getBoolean("organizer_paused"));
     }
 
     private Optional<Performance> performanceView(UUID id) {

@@ -251,6 +251,7 @@ export function PerformanceTicketTypeFields({
             name={`${idPrefix}-later`}
             label={t('performances:presetStartsOn')}
             value={laterStart}
+            timeZone={zone}
             min={opensAt}
             max={closesAt}
             onChange={(value) => {
@@ -267,6 +268,7 @@ export function PerformanceTicketTypeFields({
                 name={`${idPrefix}-${field}`}
                 label={t(`performances:${field}`)}
                 value={edited?.[field] ?? toPerformanceLocalDateTime(offer[field], zone)}
+                timeZone={zone}
                 onChange={(value) => onDateChange(field, value)}
                 min={opensAt}
                 max={closesAt}

@@ -1,0 +1,227 @@
+.date-time-picker,
+.multi-date-picker {
+  position: relative;
+  display: grid;
+  gap: 0.35rem;
+  min-inline-size: 0;
+}
+
+.date-time-label {
+  font-weight: 650;
+}
+
+.date-time-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.date-time-date,
+.date-time-time {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.date-time-date input {
+  min-inline-size: 9.5rem;
+  padding-inline-end: 2.75rem;
+}
+
+.date-time-time input {
+  min-inline-size: 6.5rem;
+  max-inline-size: 8rem;
+}
+
+.date-time-open {
+  position: absolute;
+  inset-inline-end: 0.15rem;
+  display: grid;
+  place-items: center;
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
+  border: 0;
+  border-radius: 0.4rem;
+  background: transparent;
+  color: var(--cream);
+  cursor: pointer;
+}
+
+.date-time-open:focus-visible,
+.calendar-day:focus-visible,
+.calendar-nav:focus-visible {
+  outline: 2px solid var(--coral);
+  outline-offset: 2px;
+}
+
+.date-time-zone {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.date-time-times {
+  position: absolute;
+  inset-block-start: 100%;
+  inset-inline-start: 0;
+  z-index: 160;
+  max-block-size: 14rem;
+  inline-size: 8rem;
+  margin: 0.25rem 0 0;
+  padding: 0.25rem;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  background: var(--surface);
+  color: var(--cream);
+  box-shadow: 0 12px 24px rgb(12 23 42 / 0.16);
+}
+
+.date-time-times li {
+  padding: 0.45rem 0.6rem;
+  border-radius: 0.4rem;
+  cursor: pointer;
+}
+
+.date-time-times li:hover,
+.date-time-times li[aria-selected='true'] {
+  background: var(--surface-2);
+}
+
+.date-time-popover {
+  position: absolute;
+  inset-block-start: 100%;
+  inset-inline-start: 0;
+  z-index: 170;
+  margin-top: 0.25rem;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--surface);
+  color: var(--cream);
+  box-shadow: 0 16px 32px rgb(12 23 42 / 0.2);
+}
+
+.calendar {
+  inline-size: 18.5rem;
+  max-inline-size: 100%;
+}
+
+.calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-block-end: 0.5rem;
+}
+
+.calendar-header strong {
+  text-transform: capitalize;
+}
+
+.calendar-nav {
+  display: grid;
+  place-items: center;
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  color: var(--cream);
+  cursor: pointer;
+}
+
+.calendar-grid {
+  inline-size: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.calendar-grid th {
+  padding-block: 0.25rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.calendar-grid td {
+  padding: 0.1rem;
+  text-align: center;
+}
+
+.calendar-outside .calendar-day {
+  color: var(--muted);
+}
+
+.calendar-day {
+  inline-size: 2.4rem;
+  block-size: 2.4rem;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.calendar-day:hover:not([aria-disabled='true']) {
+  background: var(--surface-2);
+}
+
+.calendar-day[aria-current='date'] {
+  border-color: var(--line);
+}
+
+.calendar-day[data-selected] {
+  background: var(--coral);
+  color: #fff;
+  font-weight: 700;
+}
+
+.calendar-day[aria-disabled='true'] {
+  color: var(--muted);
+  opacity: 0.45;
+  text-decoration: line-through;
+  cursor: not-allowed;
+}
+
+.multi-date-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.multi-date-chips li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.2rem 0.2rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.multi-date-chips button {
+  display: grid;
+  place-items: center;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+@media (max-width: 40rem) {
+  .date-time-popover {
+    position: fixed;
+    inset: auto 0 0 0;
+    margin: 0;
+    border-radius: 1rem 1rem 0 0;
+    display: grid;
+    justify-items: center;
+  }
+}
