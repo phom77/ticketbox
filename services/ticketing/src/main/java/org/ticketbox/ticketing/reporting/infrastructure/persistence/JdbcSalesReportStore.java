@@ -21,7 +21,7 @@ import java.util.UUID;
 public class JdbcSalesReportStore implements SalesReportStore {
     static final ZoneId DEFAULT_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
-    private static final String SUMS = """
+    static final String SUMS = """
             COALESCE(SUM(l.quantity) FILTER (WHERE l.kind = 'SALE'), 0) AS sold,
             COALESCE(SUM(l.quantity) FILTER (WHERE l.kind = 'REFUND'), 0) AS refunded,
             COUNT(DISTINCT l.order_id) FILTER (WHERE l.kind = 'SALE') AS orders,
@@ -32,12 +32,12 @@ public class JdbcSalesReportStore implements SalesReportStore {
      * A performance is final once it is completed, or its end (native) or event date plus one day (legacy) has passed.
      * A cancelled performance stays provisional while paid orders still await their refund.
      */
-    private static final String ENDED = """
+    static final String ENDED = """
             (c.status = 'COMPLETED'
              OR (c.status = 'CANCELLED' AND NOT EXISTS (SELECT 1 FROM orders po WHERE po.concert_id = c.id AND po.status = 'PAID'))
              OR (c.status <> 'CANCELLED' AND COALESCE(ps.ends_at, c.event_date + interval '1 day') <= now()))""";
     /** Performances of one event: a legacy concert is its own event. */
-    private static final String EVENT_MATCH = "(c.id = :event OR ps.event_id = :event)";
+    static final String EVENT_MATCH = "(c.id = :event OR ps.event_id = :event)";
 
     private final NamedParameterJdbcTemplate jdbc;
 
@@ -48,7 +48,7 @@ public class JdbcSalesReportStore implements SalesReportStore {
     @Override
     public Optional<ScopeInfo> resolve(Scope scope) {
         if (scope.performanceId() == null && scope.eventId() == null) {
-            return Optional.of(new ScopeInfo(null, DEFAULT_ZONE));
+            return Optional.of(new ScopeInfo(null, null));
         }
         var params = new MapSqlParameterSource("org", scope.organizationId());
         String where;
@@ -68,7 +68,7 @@ public class JdbcSalesReportStore implements SalesReportStore {
                  WHERE c.organization_id = :org AND %s ORDER BY c.event_date, c.id LIMIT 1
                 """.formatted(where), params, (r, n) -> new ScopeInfo(r.getString("title"),
                 scope.performanceId() != null && r.getString("timezone") != null
-                        ? ZoneId.of(r.getString("timezone")) : DEFAULT_ZONE));
+                        ? ZoneId.of(r.getString("timezone")) : null));
         return rows.stream().findFirst();
     }
 

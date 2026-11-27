@@ -42,6 +42,8 @@ import java.util.UUID;
 @Service
 @Transactional(readOnly = true)
 public class SalesReportService {
+    /** Used when Identity does not report a reporting timezone for the organization. */
+    public static final ZoneId DEFAULT_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     static final int MAX_PERIOD_DAYS = 1096;
     static final int MAX_HOUR_DAYS = 7;
     static final int MAX_DAY_DAYS = 366;
@@ -54,7 +56,12 @@ public class SalesReportService {
 
     public Summary summary(UUID organization, UUID eventId, UUID performanceId, LocalDate from, LocalDate to,
             boolean money) {
-        var context = context(organization, eventId, performanceId, from, to);
+        return summary(organization, DEFAULT_ZONE, eventId, performanceId, from, to, money);
+    }
+
+    public Summary summary(UUID organization, ZoneId organizationZone, UUID eventId, UUID performanceId,
+            LocalDate from, LocalDate to, boolean money) {
+        var context = context(organization, organizationZone, eventId, performanceId, from, to);
         Figures figures = store.totals(context.scope, context.start, context.end);
         Long capacity = null;
         BigDecimal sellThrough = null;
@@ -73,7 +80,12 @@ public class SalesReportService {
 
     public Trend trend(UUID organization, UUID eventId, UUID performanceId, LocalDate from, LocalDate to,
             String groupBy, boolean money) {
-        var context = context(organization, eventId, performanceId, from, to);
+        return trend(organization, DEFAULT_ZONE, eventId, performanceId, from, to, groupBy, money);
+    }
+
+    public Trend trend(UUID organization, ZoneId organizationZone, UUID eventId, UUID performanceId,
+            LocalDate from, LocalDate to, String groupBy, boolean money) {
+        var context = context(organization, organizationZone, eventId, performanceId, from, to);
         long days = ChronoUnit.DAYS.between(from, to) + 1;
         String unit = groupBy == null ? defaultGrouping(days) : groupBy.toLowerCase(Locale.ROOT);
         long allowed = switch (unit) {
@@ -108,7 +120,12 @@ public class SalesReportService {
 
     public Breakdown breakdown(UUID organization, UUID eventId, UUID performanceId, LocalDate from, LocalDate to,
             String by, boolean money) {
-        var context = context(organization, eventId, performanceId, from, to);
+        return breakdown(organization, DEFAULT_ZONE, eventId, performanceId, from, to, by, money);
+    }
+
+    public Breakdown breakdown(UUID organization, ZoneId organizationZone, UUID eventId, UUID performanceId,
+            LocalDate from, LocalDate to, String by, boolean money) {
+        var context = context(organization, organizationZone, eventId, performanceId, from, to);
         String kind = by == null ? "" : by.toLowerCase(Locale.ROOT);
         List<SalesReportStore.BreakdownRow> rows;
         switch (kind) {
@@ -140,11 +157,17 @@ public class SalesReportService {
     /** The whole report for exports: money is always included, so callers must check FINANCE first. */
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public Report report(UUID organization, UUID eventId, UUID performanceId, LocalDate from, LocalDate to) {
+        return report(organization, DEFAULT_ZONE, eventId, performanceId, from, to);
+    }
+
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public Report report(UUID organization, ZoneId zone, UUID eventId, UUID performanceId, LocalDate from,
+            LocalDate to) {
         boolean scoped = eventId != null || performanceId != null;
-        return new Report(summary(organization, eventId, performanceId, from, to, true),
-                trend(organization, eventId, performanceId, from, to, null, true),
-                breakdown(organization, eventId, performanceId, from, to, "performance", true),
-                scoped ? breakdown(organization, eventId, performanceId, from, to, "offer", true) : null);
+        return new Report(summary(organization, zone, eventId, performanceId, from, to, true),
+                trend(organization, zone, eventId, performanceId, from, to, null, true),
+                breakdown(organization, zone, eventId, performanceId, from, to, "performance", true),
+                scoped ? breakdown(organization, zone, eventId, performanceId, from, to, "offer", true) : null);
     }
 
     /** Events of the organization for the scope picker, from Ticketing's own data. */
@@ -176,7 +199,7 @@ public class SalesReportService {
     private record Context(SalesReportStore.Scope scope, SalesReportStore.ScopeInfo info, ZoneId zone,
                            OffsetDateTime start, OffsetDateTime end) {}
 
-    private Context context(UUID organization, UUID eventId, UUID performanceId, LocalDate from, LocalDate to) {
+    private Context context(UUID organization, ZoneId organizationZone, UUID eventId, UUID performanceId, LocalDate from, LocalDate to) {
         if (from == null || to == null || from.isAfter(to)) {
             throw new AppException(ErrorCode.INVALID_REQUEST, "error.sales.invalid-period");
         }
@@ -189,7 +212,7 @@ public class SalesReportService {
         }
         var info = store.resolve(scope).orElseThrow(
                 () -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "error.resource-not-found"));
-        ZoneId zone = info.zone();
+        ZoneId zone = info.zone() != null ? info.zone() : organizationZone;
         return new Context(scope, info, zone, from.atStartOfDay(zone).toOffsetDateTime(),
                 to.plusDays(1).atStartOfDay(zone).toOffsetDateTime());
     }

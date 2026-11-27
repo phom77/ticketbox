@@ -114,6 +114,7 @@ export function ReconciliationPage({
       basis: params.get('basis') === 'COLLECTION' ? 'COLLECTION' : 'ATTEMPT',
       organizationId: scope === 'admin' ? (params.get('organizationId') ?? '') : '',
       concertId: params.get('concertId') ?? '',
+      eventId: scope === 'organizer' ? (params.get('eventId') ?? '') : '',
       unattributed: scope === 'admin' && params.get('unattributed') === 'true',
     }),
     [defaults, params, scope],
@@ -409,6 +410,23 @@ export function ReconciliationPage({
         <p className="workspace-records-field-note">
           {translate('operations-reports:reconciliationPeriod')}
         </p>
+        {filter.eventId && (
+          <p className="workspace-records-field-note" role="status">
+            {translate('operations-reports:reconciliationEventFilter')}{' '}
+            <button
+              className="admin-secondary-action"
+              type="button"
+              onClick={() => {
+                const next = new URLSearchParams(params);
+                next.delete('eventId');
+                next.delete('page');
+                setParams(next);
+              }}
+            >
+              {translate('operations-reports:reconciliationClearEvent')}
+            </button>
+          </p>
+        )}
         {scope === 'admin' && (
           <p className="workspace-records-field-note">
             {translate('operations-reports:reconciliationAdminScope')}

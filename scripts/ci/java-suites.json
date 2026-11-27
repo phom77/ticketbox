@@ -17,6 +17,12 @@
       },
       "domain-rules": {
         "org.ticketbox.identity.account.domain.UserRulesTest": []
+      },
+      "organization-profile": {
+        "org.ticketbox.identity.organization.OrganizationProfileIntegrationTest": [],
+        "org.ticketbox.identity.organization.domain.LogoImageTest": [],
+        "org.ticketbox.identity.web.UploadTooLargeHandlerTest": [],
+        "org.ticketbox.identity.organization.infrastructure.CloudinaryOrganizationImageStorageTest": []
       }
     }
   },
@@ -136,6 +142,14 @@
       },
       "vietnamese-pdfs": {
         "org.ticketbox.ticketing.reporting.VietnamesePdfTest": []
+      },
+      "settlement-statements": {
+        "org.ticketbox.ticketing.reporting.SettlementStatementIntegrationTest": [],
+        "org.ticketbox.ticketing.reporting.infrastructure.IdentityOrganizationProfilesTest": [],
+        "org.ticketbox.ticketing.reporting.infrastructure.HttpStatementLogoFetcherTest": [],
+        "org.ticketbox.ticketing.reporting.infrastructure.persistence.SettlementStatementPermissionsTest": [],
+        "org.ticketbox.ticketing.reporting.infrastructure.persistence.SettlementStatementScaleTest": [],
+        "org.ticketbox.ticketing.web.security.OrganizationAccessZoneTest": []
       },
       "ticket-transfer": {
         "org.ticketbox.ticketing.issuance.application.TicketTransferIntegrationTest": [],

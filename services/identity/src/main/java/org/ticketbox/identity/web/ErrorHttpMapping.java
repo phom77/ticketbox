@@ -16,6 +16,7 @@ public final class ErrorHttpMapping {
             case RESOURCE_NOT_FOUND -> HttpStatus.NOT_FOUND;
             case INTERNAL_SERVER_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;
             case EMAIL_ALREADY_EXISTS -> HttpStatus.CONFLICT;
+            case IMAGE_STORAGE_UNAVAILABLE -> HttpStatus.SERVICE_UNAVAILABLE;
         };
     }
 }

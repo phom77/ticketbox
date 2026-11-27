@@ -7,6 +7,8 @@ export type ReconciliationFilters = {
   basis: 'ATTEMPT' | 'COLLECTION';
   organizationId: string;
   concertId: string;
+  /** Organizer scope only: every performance of one event (set by links, e.g. from a statement). */
+  eventId?: string;
   unattributed: boolean;
 };
 
@@ -45,6 +47,7 @@ export type ReconciliationReport = {
 function query(scope: ManagementApiScope, filter: ReconciliationFilters) {
   const params = new URLSearchParams({ from: filter.from, to: filter.to, basis: filter.basis });
   if (filter.concertId) params.set('concertId', filter.concertId);
+  if (scope === 'organizer' && filter.eventId) params.set('eventId', filter.eventId);
   if (scope === 'admin') {
     if (filter.unattributed) params.set('unattributed', 'true');
     else if (filter.organizationId) params.set('organizationId', filter.organizationId);

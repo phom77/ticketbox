@@ -63,7 +63,7 @@ Each statement SHALL state that TicketBox charges no platform fee and that the s
 
 ### Requirement: Issued statements are immutable and revisable
 
-An issued statement SHALL have a unique number. It SHALL keep its figures, organization details and PDF unchanged. When sales, refunds or provider records for its scope change after its cutoff, the statement SHALL be marked out of date. A new revision SHALL supersede it, and earlier revisions SHALL stay available.
+An issued statement SHALL have a unique number and keep its figures, organization details and PDF unchanged. It SHALL be marked out of date when its scope's sales, refunds or provider records change after issue, and "details changed" when the organization's statement details change. Either SHALL allow a new revision, which supersedes it; earlier revisions SHALL stay available.
 
 #### Scenario: Refund after issue
 
@@ -74,7 +74,7 @@ An issued statement SHALL have a unique number. It SHALL keep its figures, organ
 #### Scenario: Profile changes after issue
 
 - **WHEN** the organization changes its legal name or logo after a statement was issued
-- **THEN** the issued statement still shows the details captured at issue, and the next revision uses the new details.
+- **THEN** the issued statement still shows the details captured at issue and is shown as "Details changed since issue" with a Re-issue action, and the next revision uses the new details.
 
 #### Scenario: Concurrent or repeated issue
 

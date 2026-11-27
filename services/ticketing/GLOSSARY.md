@@ -57,3 +57,19 @@ The fewest places of one offer a buyer can hold at once, published by Catalog (1
 **Quoted hold**
 
 A selection of general-admission places or assigned seats temporarily reserved for one customer, with its confirmed price and deadline.
+
+**Settlement statement**
+
+An issued, numbered and immutable record of the sales, refunds and provider-verified amounts of one final performance or event as of one query snapshot. It is not an invoice or a payout.
+
+**Statement revision**
+
+A later statement for the same scope that supersedes the previous one. Earlier revisions stay available.
+
+**Cutoff**
+
+The moment a statement was computed, kept for display. It does not filter data: the statement's figures are one snapshot, and its fingerprint (ledger row count plus verified reconciliation count and sums) detects later changes.
+
+**Out of date**
+
+A current statement whose scope's fingerprint now differs from the one stored at issue, because sales, refunds or verified provider records committed after it. It is computed when read. A statement can also be marked "details changed" when the organization's statement details differ from its snapshot; both allow a re-issue.

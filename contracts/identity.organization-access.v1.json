@@ -12,6 +12,7 @@
       "items": {"enum": ["MEMBERS", "EVENTS", "FINANCE", "ADMISSION"]},
       "minItems": 1,
       "uniqueItems": true
-    }
+    },
+    "reportingTimezone": {"type": "string", "description": "Optional IANA time zone id of the organization. Consumers treat an absent or invalid value as Asia/Ho_Chi_Minh."}
   }
 }

@@ -92,6 +92,10 @@ const OrganizationMembersPage = lazyNamed(
   () => import('../pages/organizer/OrganizationMembersPage'),
   'OrganizationMembersPage',
 );
+const OrganizationSettingsPage = lazyNamed(
+  () => import('../pages/organizer/OrganizationSettingsPage'),
+  'OrganizationSettingsPage',
+);
 const AdminArtistBioPage = lazyNamed(
   () => import('../pages/admin/AdminArtistBioPage'),
   'AdminArtistBioPage',
@@ -357,6 +361,7 @@ export function App() {
                   </RequireOrganizationGrant>
                 }
               />
+              <Route path="settings" element={<OrganizationSettingsPage />} />
             </Route>
             <Route
               path="/staff/*"

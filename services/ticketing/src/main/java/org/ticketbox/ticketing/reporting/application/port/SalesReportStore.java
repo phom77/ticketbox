@@ -14,6 +14,7 @@ public interface SalesReportStore {
     /** Organization scope when both ids are null. A performance id wins over an event id. */
     record Scope(UUID organizationId, UUID eventId, UUID performanceId) {}
 
+    /** {@code zone} is the performance's own timezone, or null when the scope uses the organization's zone. */
     record ScopeInfo(String name, ZoneId zone) {}
 
     record Figures(long ticketsSold, long ticketsRefunded, long orders, long gross, long refunds) {

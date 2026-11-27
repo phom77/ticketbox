@@ -47,7 +47,7 @@ None. Sales reports keep their requirements. The reporting timezone they use is 
   - An additive, optional `reportingTimezone` in `identity.organization-access.v1.json`.
   - Catalog and Check-in ignore the new field.
 - **Ticketing:**
-  - `V23__settlement_statements.sql`, or the next free number at build time.
+  - `V24__settlement_statements.sql`.
   - A statement read model built from `sales_ledger` and `payment_reconciliation`, a statement service and exporter (OpenPDF, Noto Sans), an `OrganizationProfiles` client and endpoints under `/api/organizer/statements`.
   - The reporting timezone from the access response.
 - **Catalog, Check-in, Payment, Notification:** none. The display name keeps reaching Catalog through the existing `/internal/split/v1/organizations/{id}/name`.

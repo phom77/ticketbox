@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.ticketbox.identity.organization.application.OrganizationProfiles;
 import org.ticketbox.identity.organization.application.OrganizationService;
 import org.ticketbox.identity.organization.domain.OrganizationGrant;
 import org.ticketbox.identity.web.security.SessionAccess;
@@ -21,8 +22,12 @@ class OrganizationAccessController {
     private final OrganizationService organizations;
     private final SessionAccess sessions;
 
-    OrganizationAccessController(OrganizationService organizations, SessionAccess sessions) {
+    private final OrganizationProfiles profiles;
+
+    OrganizationAccessController(OrganizationService organizations, OrganizationProfiles profiles,
+            SessionAccess sessions) {
         this.organizations = organizations;
+        this.profiles = profiles;
         this.sessions = sessions;
     }
 
@@ -31,8 +36,9 @@ class OrganizationAccessController {
             @PathVariable UUID id,
             @RequestHeader(name = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
         var actor = sessions.organizationAccount(authorization);
+        var access = organizations.scopedAccess(actor, id);
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
-                .body(new Access(actor.getId(), id, organizations.access(actor, id)));
+                .body(new Access(actor.getId(), id, access.grants(), access.reportingTimezone()));
     }
 
     @GetMapping("/platform-access")
@@ -55,7 +61,27 @@ class OrganizationAccessController {
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
+    @GetMapping("/organizations/{id}/profile")
+    ResponseEntity<ProfileContract> profile(@PathVariable UUID id) {
+        try {
+            var view = profiles.internalView(id);
+            var p = view.profile();
+            return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(new ProfileContract(id,
+                    view.displayName(), p.legalName(), p.taxCode(), p.billingAddress(), p.contactEmail(),
+                    p.contactPhone(), p.website(), p.logoUrl(), p.logoPngUrl(), p.reportingTimezone(), p.version()));
+        } catch (org.ticketbox.identity.application.error.AppException notFound) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
     record DisplayName(String name) {}
 
-    record Access(UUID accountId, UUID organizationId, Set<OrganizationGrant> grants) {}
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    record ProfileContract(UUID organizationId, String displayName, String legalName, String taxCode,
+                           String billingAddress, String contactEmail, String contactPhone, String website,
+                           String logoUrl, String logoPngUrl, String reportingTimezone, long version) {}
+
+    /** The timezone is omitted when the organization has no readable profile; callers fall back to their default. */
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    record Access(UUID accountId, UUID organizationId, Set<OrganizationGrant> grants, String reportingTimezone) {}
 }

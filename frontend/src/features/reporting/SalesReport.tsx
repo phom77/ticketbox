@@ -20,6 +20,7 @@ import {
 import { ConcertPicker, type ConcertPickerItem } from '../../components/admin/ConcertPicker';
 import { useToast } from '../../components/feedback/toast-context';
 import { dateFormatter } from '../../data/formatters';
+import { useOrganization } from '../organizations/OrganizationProvider';
 import { bucketPoints, formatPercent, integer, money } from './salesFormat';
 import {
   periodDays,
@@ -33,11 +34,20 @@ import {
 import { TrendChart } from './TrendChart';
 import './reporting.css';
 
-const startTime = dateFormatter({
-  dateStyle: 'medium',
-  timeStyle: 'short',
-  timeZone: 'Asia/Ho_Chi_Minh',
-});
+const startFormatters = new Map<string, ReturnType<typeof dateFormatter>>();
+/** Start times print in the performance's own zone, or the organization's reporting zone for legacy rows. */
+function startTime(value: string, zone: string) {
+  let formatter = startFormatters.get(zone);
+  if (!formatter) {
+    try {
+      formatter = dateFormatter({ dateStyle: 'medium', timeStyle: 'short', timeZone: zone });
+    } catch {
+      return startTime(value, 'Asia/Ho_Chi_Minh');
+    }
+    startFormatters.set(zone, formatter);
+  }
+  return formatter.format(new Date(value));
+}
 const allowedGroupings = (days: number): SalesGrouping[] =>
   days <= 7 ? ['hour', 'day', 'week'] : days <= 366 ? ['day', 'week'] : ['week'];
 
@@ -262,16 +272,18 @@ export function SalesReport({ finance }: { finance: boolean }) {
                       id: p.id,
                       label: p.title,
                       startsAt: p.startsAt as string | undefined,
+                      zone: p.timezone,
                     }))
                   : performanceOptions.map((row) => ({
                       id: row.performanceId,
                       label: row.label,
                       startsAt: row.startsAt,
+                      zone: loaded?.summary.timezone ?? 'Asia/Ho_Chi_Minh',
                     }))
                 ).map((row) => (
                   <option key={row.id} value={row.id}>
                     {row.startsAt
-                      ? `${row.label} · ${startTime.format(new Date(row.startsAt))}`
+                      ? `${row.label} · ${startTime(row.startsAt, row.zone)}`
                       : row.label}
                   </option>
                 ))}
@@ -382,6 +394,7 @@ function SalesBody({
 }) {
   const { t } = useTranslation();
   const { summary, trend, performances, offers } = loaded;
+  const canChangeZone = !!useOrganization()?.selected?.grants.includes('MEMBERS');
   const empty = summary.ticketsSold === 0 && summary.ticketsRefunded === 0;
   const chosenScope = summary.scope.type !== 'ORGANIZATION';
 
@@ -392,7 +405,10 @@ function SalesBody({
           zone: summary.timezone,
           from: summary.from,
           to: summary.to,
-        })}
+        })}{' '}
+        {canChangeZone && summary.scope.type !== 'PERFORMANCE' && (
+          <Link to="/organizer/settings">{t('operations-reports:salesTimezoneSettings')}</Link>
+        )}
       </p>
       {summary.provisional && (
         <p className="sales-provisional" role="note">
@@ -490,6 +506,7 @@ function SalesBody({
         first={t('operations-reports:salesColPerformance')}
         rows={performances.rows}
         finance={finance}
+        zone={summary.timezone}
         sellThrough
       />
       {chosenScope && offers && (
@@ -498,6 +515,7 @@ function SalesBody({
           first={t('operations-reports:salesColTicketType')}
           rows={offers.rows}
           finance={finance}
+          zone={summary.timezone}
         />
       )}
     </>
@@ -529,12 +547,14 @@ function BreakdownTable({
   first,
   rows,
   finance,
+  zone,
   sellThrough = false,
 }: {
   title: string;
   first: string;
   rows: SalesBreakdownRow[];
   finance: boolean;
+  zone: string;
   sellThrough?: boolean;
 }) {
   const { t } = useTranslation();
@@ -572,7 +592,7 @@ function BreakdownTable({
                         {[
                           row.detail,
                           row.performanceTitle,
-                          row.startsAt && startTime.format(new Date(row.startsAt)),
+                          row.startsAt && startTime(row.startsAt, zone),
                         ]
                           .filter(Boolean)
                           .join(' · ')}

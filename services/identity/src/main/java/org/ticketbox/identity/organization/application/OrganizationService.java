@@ -140,6 +140,17 @@ public class OrganizationService {
         return grants;
     }
 
+    /** Grants plus the organization's reporting timezone (null when it has no saved profile). */
+    public record ScopedAccess(Set<OrganizationGrant> grants, String reportingTimezone) {}
+
+    public ScopedAccess scopedAccess(User actor, UUID organization) {
+        var access = store.memberAccess(organization, actor.getId());
+        if (access.grants().isEmpty()) throw forbidden();
+        if (actor.getRole() != User.Role.STAFF) return new ScopedAccess(access.grants(), access.reportingTimezone());
+        if (!access.grants().contains(OrganizationGrant.ADMISSION)) throw forbidden();
+        return new ScopedAccess(Set.of(OrganizationGrant.ADMISSION), access.reportingTimezone());
+    }
+
     public Set<OrganizationGrant> access(User actor, UUID organization) {
         var grants = access(actor.getId(), organization);
         if (actor.getRole() != User.Role.STAFF) return grants;

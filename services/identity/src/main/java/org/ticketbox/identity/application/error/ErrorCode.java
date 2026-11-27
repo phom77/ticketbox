@@ -12,7 +12,8 @@ public enum ErrorCode {
     RESOURCE_NOT_FOUND("error.resource-not-found"),
     INTERNAL_SERVER_ERROR("error.internal-server-error"),
 
-    EMAIL_ALREADY_EXISTS("error.email-already-exists");
+    EMAIL_ALREADY_EXISTS("error.email-already-exists"),
+    IMAGE_STORAGE_UNAVAILABLE("error.logo.storage-unavailable");
 
     private final String messageKey;
 

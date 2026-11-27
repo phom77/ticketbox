@@ -70,6 +70,12 @@ class JdbcReconciliationStoreTest {
         assertThat(report.totals().verifiedCollections()).isEqualTo(100);
         assertThat(reconciliation.report(filter, 1, 1, null).content()).isEmpty();
         // Another organization sees none of these intents.
+        // A legacy concert is its own event; an unknown event matches nothing.
+        var ofEvent = reconciliation.filter(organization, false, null, concert, day, day.plusDays(1), DateBasis.ATTEMPT);
+        assertThat(reconciliation.report(ofEvent, 0, 1, null).content()).hasSize(1);
+        var otherEvent = reconciliation.filter(organization, false, null, UUID.randomUUID(), day, day.plusDays(1),
+                DateBasis.ATTEMPT);
+        assertThat(reconciliation.report(otherEvent, 0, 10, null).content()).isEmpty();
         var foreign = reconciliation.filter(UUID.randomUUID(), false, null, day, day.plusDays(1), DateBasis.ATTEMPT);
         assertThat(reconciliation.report(foreign, 0, 10, null).content()).isEmpty();
         var previousDay = reconciliation.filter(organization, false, concert, day.minusDays(1), day, DateBasis.COLLECTION);
