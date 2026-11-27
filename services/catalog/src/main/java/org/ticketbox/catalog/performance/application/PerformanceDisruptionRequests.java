@@ -22,9 +22,11 @@ public class PerformanceDisruptionRequests {
     private final SalesControlStore controls;
     private final PerformanceSalesControls sales;
     private final EventContentStore audit;
+    private final PerformanceStore performances;
 
     public PerformanceDisruptionRequests(SalesControlStore controls, PerformanceSalesControls sales,
-                                         EventContentStore audit) {
+                                         EventContentStore audit, PerformanceStore performances) {
+        this.performances = performances;
         this.controls = controls;
         this.sales = sales;
         this.audit = audit;
@@ -61,9 +63,9 @@ public class PerformanceDisruptionRequests {
         return controls.request(request.id()).orElseThrow();
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public List<Request> list(UUID owner, UUID id) {
-        sales.owned(owner, id);
+        sales.read(owner, id);
         return controls.requests(id);
     }
 
@@ -95,6 +97,9 @@ public class PerformanceDisruptionRequests {
         if (!PerformanceRules.text(reason, 1_000)) {
             throw new AppException(ErrorCode.INVALID_REQUEST, "error.performance.decline-reason");
         }
+        var found = controls.request(requestId).orElseThrow(PerformanceDisruptionRequests::missing);
+        // Take the performance lock confirm uses, then re-read, so decline and accept serialize.
+        performances.lockNativePerformance(found.performanceId()).orElseThrow(PerformanceDisruptionRequests::missing);
         var request = controls.request(requestId).orElseThrow(PerformanceDisruptionRequests::missing);
         if ("DECLINED".equals(request.state()) && actor.equals(request.decidedBy())) return item(requestId);
         if (!controls.close(requestId, "DECLINED", actor, reason.strip())) throw invalid();

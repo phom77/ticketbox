@@ -98,7 +98,9 @@ public class PerformanceDisruptions {
         publish(performance, actor, version, postpone ? performance.status() : "CANCELLED", true, null, sale);
         disruptions.insert(action, request, version);
         pause.ifPresent(open -> controls.supersedePause(open.id()));
-        if (request.requestId() != null) controls.accept(request.requestId(), actor, action.id());
+        if (request.requestId() != null && !controls.accept(request.requestId(), actor, action.id())) {
+            throw invalid(); // The request was closed concurrently: roll the whole disruption back.
+        }
         return status(disruptions.find(action.id()).orElseThrow());
     }
 

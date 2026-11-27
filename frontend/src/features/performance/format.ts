@@ -1,7 +1,7 @@
 import type { Performance } from '../../api/performances';
 import { formatLanguage } from '../../i18n';
 
-export function performanceTime(performance: Performance) {
+export function performanceTime(performance: Pick<Performance, 'timezone' | 'startsAt'>) {
   return new Intl.DateTimeFormat(formatLanguage(), {
     dateStyle: 'full',
     timeStyle: 'short',

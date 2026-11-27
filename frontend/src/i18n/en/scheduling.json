@@ -33,6 +33,7 @@
   "createVenue": "Create venue",
   "dateField": "{{label}}, date",
   "dateInvalid": "Enter a valid date as {{format}}.",
+  "dateOutOfRange": "Choose a date inside the allowed range.",
   "dateTimeNeeded": "Enter a valid date and time.",
   "datesAdded_one": "{{count}} date added as a draft.",
   "datesAdded_other": "{{count}} dates added as drafts.",

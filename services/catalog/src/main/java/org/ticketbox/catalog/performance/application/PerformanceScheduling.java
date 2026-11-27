@@ -62,6 +62,9 @@ public class PerformanceScheduling {
         }
         if (source == null) {
             var plan = plan(owner, request);
+            if (plan.saleStart() != null && !plan.saleStart().isAfter(now)) {
+                throw invalid("error.performance.bulk-sale-start-past");
+            }
             for (var start : request.startsAt()) {
                 if (start != null && start.isAfter(now) && !failing.contains(start)
                         && !plan.fits(start)) failing.add(start);
@@ -157,6 +160,7 @@ public class PerformanceScheduling {
             PerformanceSale pricing, PerformanceSale current, Performance source, Performance destination) {
         var delta = Duration.between(source.startsAt(), destination.startsAt());
         var offers = new ArrayList<PerformanceSale.Offer>();
+        Set<UUID> used = new HashSet<>();
         for (var offer : pricing.offers()) {
             var existing = current.offers().stream().filter(value -> value.groupId().equals(offer.groupId())
                     && value.name().equals(offer.name())).findFirst();
@@ -164,7 +168,10 @@ public class PerformanceScheduling {
             OffsetDateTime end = offer.saleEndAt().plus(delta);
             if (destination.saleStartAt() != null && start.isBefore(destination.saleStartAt())) start = destination.saleStartAt();
             if (end.isAfter(destination.saleEndAt())) end = destination.saleEndAt();
-            offers.add(new PerformanceSale.Offer(existing.map(PerformanceSale.Offer::id).orElseGet(UUID::randomUUID),
+            UUID id = existing.map(PerformanceSale.Offer::id).orElseGet(UUID::randomUUID);
+            // Two source offers can share a name and pool; never give both the same existing id.
+            while (!used.add(id)) id = UUID.randomUUID();
+            offers.add(new PerformanceSale.Offer(id,
                     offer.groupId(), offer.name(), offer.price(), offer.currency(), start, end, offer.active(),
                     offer.description(), offer.minPerOrder()));
         }

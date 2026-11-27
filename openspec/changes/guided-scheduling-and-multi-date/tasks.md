@@ -14,7 +14,7 @@
 
 ## 2. Ticketing and Check-in (verification only)
 
-- [ ] 2.1 Ticketing integration test: a snapshot version with `salesSuspended=true` then `false` and no disruption refuses then accepts new holds, and an older replayed version is ignored. Check-in test that the same versions apply without affecting admission. `verify` and the boundary gate for both services. No contract or migration change.
+- [x] 2.1 Ticketing integration test: a snapshot version with `salesSuspended=true` then `false` and no disruption refuses then accepts new holds, and an older replayed version is ignored. Check-in test that the same versions apply (Check-in stores `sales_suspended`, and its admission query treats a suspended performance as closed, so an organizer pause also pauses door admission until resumed). `verify` and the boundary gate for both services. No contract or migration change.
 
 ## 3. Web
 

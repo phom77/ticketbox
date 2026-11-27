@@ -47,7 +47,7 @@ Organizer routes below `/api/organizer/manage/v2` need the events grant of the s
 - `POST /performances/{id}/publication` accepts `releaseMode` (`SCHEDULED`, default, with `publishAt`, or `ON_APPROVAL` without it). Approving an `ON_APPROVAL` review records the approval time and is refused with `error.performance.release-window` once the sale has started.
 - `GET /performances/{id}/sales`, `POST /performances/{id}/sales/pause` (`actionId`, `reason`) and `POST /performances/{id}/sales/resume` (`pauseId`) pause and resume sales through the sale-suspension publication path.
 - `GET|POST /performances/{id}/disruption-requests` and `POST .../{requestId}/withdraw` send and manage cancel or postpone requests (`kind`, `reason`, proposed schedule, `alsoPause`).
-- Admin: `GET /api/admin/v2/performance-disruption-requests?state=`, `GET .../{id}` and `POST .../{id}/decline` (`reason`). Accepting a request is `POST /api/admin/v2/performances/{id}/disruption` with the additive `requestId`, which also lets a disruption take over an open organizer pause.
+- Admin: `GET /api/admin/v2/performance-disruption-requests?state=`, `GET .../{id}` and `POST .../{id}/decline` (`reason`). Accepting a request is `POST /api/admin/v2/performances/{id}/disruption` with the additive `requestId`, which also lets a disruption take over an open organizer pause. `requestId` is optional: when present it must name an open request of that performance, the request is marked accepted in the same transaction, and the confirmation is rolled back if the request was closed concurrently (for example declined).
 
 ## Organizer sales
 

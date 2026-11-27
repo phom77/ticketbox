@@ -32,6 +32,7 @@
   "createVenue": "Tạo địa điểm",
   "dateField": "{{label}}, ngày",
   "dateInvalid": "Nhập ngày hợp lệ theo dạng {{format}}.",
+  "dateOutOfRange": "Hãy chọn ngày trong khoảng cho phép.",
   "dateTimeNeeded": "Hãy nhập ngày và giờ hợp lệ.",
   "datesAdded_other": "Đã thêm {{count}} ngày dưới dạng bản nháp.",
   "daysChosen_other": "Đã chọn {{count}} ngày.",

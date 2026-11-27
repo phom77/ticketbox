@@ -84,6 +84,11 @@
   cursor: pointer;
 }
 
+.date-time-times li[data-active] {
+  outline: 2px solid var(--focus, currentColor);
+  outline-offset: -2px;
+}
+
 .date-time-times li:hover,
 .date-time-times li[aria-selected='true'] {
   background: var(--surface-2);

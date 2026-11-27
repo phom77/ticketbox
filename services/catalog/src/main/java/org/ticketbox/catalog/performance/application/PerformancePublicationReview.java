@@ -64,6 +64,7 @@ public class PerformancePublicationReview {
     public Status submit(UUID owner, UUID actor, UUID id, Versions versions, ReleaseMode mode,
                          OffsetDateTime publishAt) {
         var performance = owned(owner, id);
+        performances.lockVenueOfSpace(performance.venueSpaceId());
         var publication = performances.publication(performance);
         var previous = reviews.current(id).orElse(null);
         if (!"DRAFT".equals(performance.status())) throw stale();
@@ -71,6 +72,9 @@ public class PerformancePublicationReview {
         if (onApproval) {
             if (publishAt != null || performance.saleStartAt() == null) {
                 throw new AppException(ErrorCode.INVALID_REQUEST, "error.concert.publication-time");
+            }
+            if (!performance.saleStartAt().isAfter(OffsetDateTime.now())) {
+                throw new AppException(ErrorCode.INVALID_REQUEST, "error.performance.release-window");
             }
         } else {
             requireSchedule(performance, publishAt);

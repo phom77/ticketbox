@@ -73,9 +73,9 @@ public class PerformanceSalesControls {
         return status(controls.pause(pauseId).orElseThrow());
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public SalesState state(UUID owner, UUID id) {
-        var performance = owned(owner, id);
+        var performance = performances.ownedPerformance(id, owner).orElseThrow(PerformanceSalesControls::missing);
         var publication = performances.publication(performance);
         return new SalesState(performance.status(), performance.salesSuspended(), publication.ticketingAcknowledged(),
                 controls.latestPause(id).map(PerformanceSalesControls::status).orElse(null),
@@ -85,6 +85,10 @@ public class PerformanceSalesControls {
 
     boolean openDisruption(UUID performance) {
         return disruptions.current(performance).filter(entry -> entry.resumeVersion() == null).isPresent();
+    }
+
+    Performance read(UUID owner, UUID id) {
+        return performances.ownedPerformance(id, owner).orElseThrow(PerformanceSalesControls::missing);
     }
 
     Performance owned(UUID owner, UUID id) {

@@ -499,10 +499,25 @@ public class JdbcPerformanceStore implements PerformanceStore {
 
     @Override
     public Optional<Performance> lockNativePerformance(UUID id) {
+        // Lock first, then read the view, so the read includes the preceding writer's commit.
         return first("""
-                SELECT v.* FROM performances p JOIN catalog_performance_view v ON v.id=p.id
-                WHERE p.id=? AND p.legacy_concert_id IS NULL FOR UPDATE OF p
-                """, this::performance, id);
+                SELECT p.id FROM performances p WHERE p.id=? AND p.legacy_concert_id IS NULL FOR UPDATE OF p
+                """, (rs, n) -> id(rs, "id"), id).flatMap(this::performanceView);
+    }
+
+    @Override
+    public void lockVenueOfSpace(UUID space) {
+        jdbc.query("""
+                SELECT v.id FROM venue_spaces s JOIN venues v ON v.id=s.venue_id WHERE s.id=? FOR UPDATE OF v
+                """, (rs, n) -> rs.getObject("id"), space);
+    }
+
+    @Override
+    public Optional<Performance> ownedPerformance(UUID id, UUID organizer) {
+        return first("""
+                SELECT p.id FROM performances p JOIN events e ON e.id=p.event_id
+                WHERE p.id=? AND e.organization_id=? AND p.legacy_concert_id IS NULL
+                """, (rs, n) -> id(rs, "id"), id, organizer).flatMap(this::performanceView);
     }
 
     @Override

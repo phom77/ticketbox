@@ -20,7 +20,11 @@ export function TimePicker({
   const id = useId();
   const [text, setText] = useState(formatTime(value, locale));
   const [invalid, setInvalid] = useState(false);
-  useEffect(() => setText(formatTime(value, locale)), [value, locale]);
+  // Re-read the text only when the value changed from outside; a half-typed time stays as typed.
+  useEffect(() => {
+    if (parseTime(text) !== value) setText(formatTime(value, locale));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, locale]);
   return (
     <label>
       {label}
@@ -37,6 +41,10 @@ export function TimePicker({
           const parsed = parseTime(event.target.value);
           setInvalid(Boolean(event.target.value.trim()) && !parsed);
           onChange(parsed);
+        }}
+        onBlur={() => {
+          const parsed = parseTime(text);
+          if (parsed) setText(formatTime(parsed, locale));
         }}
       />
       <datalist id={`${id}-steps`}>

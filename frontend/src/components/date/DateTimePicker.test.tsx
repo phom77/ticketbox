@@ -71,8 +71,7 @@ describe('DateTimePicker', () => {
     const open = screen.getByRole('button', { name: 'Choose date for Start' });
     await user.click(open);
     const grid = screen.getByRole('grid');
-    const focused = grid.querySelector<HTMLButtonElement>('button[tabindex="0"]')!;
-    focused.focus();
+    expect(grid.querySelector('button[tabindex="0"]')).toHaveFocus();
     await user.keyboard('{ArrowRight}{ArrowDown}');
     expect(grid.querySelector('button[tabindex="0"]')).toHaveAccessibleName(/March 13, 2027/);
     await user.keyboard('{PageDown}');
@@ -87,10 +86,64 @@ describe('DateTimePicker', () => {
     const user = userEvent.setup();
     render(<Harness initial="2027-03-05T19:30" />);
     await user.click(screen.getByRole('button', { name: 'Choose date for Start' }));
-    screen.getByRole('grid').querySelector<HTMLButtonElement>('button[tabindex="0"]')!.focus();
+    expect(screen.getByRole('grid').querySelector('button[tabindex="0"]')).toHaveFocus();
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('grid')).not.toBeInTheDocument();
     expect(screen.getByTestId('value')).toHaveTextContent('2027-03-05T19:30');
+  });
+
+  it('closes on Escape from the month buttons and returns focus to the toggle', async () => {
+    const user = userEvent.setup();
+    render(<Harness initial="2027-03-05T19:30" />);
+    const open = screen.getByRole('button', { name: 'Choose date for Start' });
+    await user.click(open);
+    screen.getByRole('button', { name: 'Next month' }).focus();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('grid')).not.toBeInTheDocument();
+    expect(open).toHaveFocus();
+  });
+
+  it('keeps Tab focus inside the open calendar', async () => {
+    const user = userEvent.setup();
+    render(<Harness initial="2027-03-05T19:30" />);
+    await user.click(screen.getByRole('button', { name: 'Choose date for Start' }));
+    const dialog = screen.getByRole('dialog');
+    for (let step = 0; step < 6; step += 1) {
+      await user.tab();
+      expect(dialog).toContainElement(document.activeElement as HTMLElement);
+    }
+    await user.tab({ shift: true });
+    expect(dialog).toContainElement(document.activeElement as HTMLElement);
+  });
+
+  it('rejects a typed date outside min and max', async () => {
+    const user = userEvent.setup();
+    render(<Harness initial="2027-03-10T10:00" min="2027-03-08T00:00" max="2027-03-12T00:00" />);
+    const field = screen.getByLabelText('Start, date');
+    await user.clear(field);
+    await user.type(field, '03/20/2027');
+    expect(screen.getByText(/inside the allowed range/)).toBeInTheDocument();
+    expect(screen.getByTestId('value')).toHaveTextContent('');
+  });
+
+  it('navigates the time list with arrows and links the active option', async () => {
+    const user = userEvent.setup();
+    render(<Harness initial="2027-03-05T00:00" />);
+    const time = screen.getByLabelText('Start, time');
+    await user.click(time);
+    await user.keyboard('{ArrowDown}{ArrowDown}');
+    const active = time.getAttribute('aria-activedescendant')!;
+    expect(document.getElementById(active)).toHaveAccessibleName('12:15 AM');
+    await user.keyboard('{Enter}');
+    expect(screen.getByTestId('value')).toHaveTextContent('2027-03-05T00:15');
+  });
+
+  it('describes an invalid time on the time field', () => {
+    render(<Harness />);
+    fireEvent.change(screen.getByLabelText('Start, time'), { target: { value: '99:99' } });
+    const time = screen.getByLabelText('Start, time');
+    const describedBy = time.getAttribute('aria-describedby')!;
+    expect(document.getElementById(describedBy)).toHaveTextContent(/valid time/);
   });
 
   it('disables days outside min and max', async () => {

@@ -11,7 +11,10 @@ export function inspectSaleDraft(
     Partial<Pick<ManagedPerformance, 'maxPerAccount'>>,
   now: number,
 ) {
-  const starts = Date.parse(performance.saleStartAt);
+  // A draft without a sale start has no lower bound to check offers against.
+  const starts = performance.saleStartAt
+    ? Date.parse(performance.saleStartAt)
+    : Number.NEGATIVE_INFINITY;
   const ends = Date.parse(performance.saleEndAt);
   const sections = new Map(layout?.sections.map((section) => [section.id, section]));
   const groups = new Set(sale.groups.map((group) => group.id));
@@ -98,6 +101,7 @@ export function inspectSaleDraft(
       ),
   );
   if (!saveIssue && unassigned) publishIssues.push('reviewUnassignedSeats');
+  if (!performance.saleStartAt) publishIssues.push('reviewMissingSaleStart');
   if (ends <= now) publishIssues.push('reviewSaleEnded');
 
   return { saveIssue, publishIssues };

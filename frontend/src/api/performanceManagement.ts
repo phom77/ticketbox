@@ -28,7 +28,9 @@ export type Venue = {
   version: number;
   spaces: { id: string; name: string }[];
 };
-export type ManagedPerformance = Performance & {
+/** A draft may have no sale start yet (for example a copied date whose shifted start is past). */
+export type ManagedPerformance = Omit<Performance, 'saleStartAt'> & {
+  saleStartAt: string | null;
   draftVersion: number;
   venueSpaceId: string;
   venueAddress: string;

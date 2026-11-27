@@ -22,9 +22,10 @@ BEGIN
     SELECT conname INTO constraint_name FROM pg_constraint
     WHERE conrelid = 'performances'::regclass AND contype = 'c'
       AND pg_get_constraintdef(oid) LIKE '%venue_space_id IS NOT NULL%';
-    IF constraint_name IS NOT NULL THEN
-        EXECUTE format('ALTER TABLE performances DROP CONSTRAINT %I', constraint_name);
+    IF constraint_name IS NULL THEN
+        RAISE EXCEPTION 'performances native schedule CHECK constraint not found';
     END IF;
+    EXECUTE format('ALTER TABLE performances DROP CONSTRAINT %I', constraint_name);
 END $$;
 
 ALTER TABLE performances ADD CONSTRAINT performances_native_schedule_check CHECK (legacy_concert_id IS NOT NULL OR (

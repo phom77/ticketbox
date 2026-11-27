@@ -82,7 +82,7 @@ export function LegacyConcertSummary({
           <div>
             <dt>{t('event-content:legacySales')}</dt>
             <dd>
-              {dateTime.format(new Date(performance.saleStartAt))}
+              {performance.saleStartAt ? dateTime.format(new Date(performance.saleStartAt)) : '—'}
               {performance.saleEndAt
                 ? ' – ' + dateTime.format(new Date(performance.saleEndAt))
                 : ''}

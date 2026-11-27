@@ -24,6 +24,8 @@ type CalendarGridProps = {
   /** Called when Escape is pressed inside the grid. */
   onEscape?: () => void;
   label?: string;
+  /** Moves focus to the day with the roving tabindex when the grid mounts. */
+  autoFocus?: boolean;
 };
 
 /** A WAI-ARIA date picker grid: arrows move by day or week, Page Up/Down by month, Home/End within the week. */
@@ -36,12 +38,13 @@ export function CalendarGrid({
   initialDate,
   onEscape,
   label,
+  autoFocus,
 }: CalendarGridProps) {
   const { t } = useTranslation('scheduling');
   const today = toIsoDate(new Date());
   const [focused, setFocused] = useState(() => initialDate || selected[0] || today);
   const grid = useRef<HTMLTableElement>(null);
-  const [moved, setMoved] = useState(false);
+  const [moved, setMoved] = useState(Boolean(autoFocus));
   const titleId = useId();
   const firstDay = weekStart(locale);
   const days = monthGrid(focused, firstDay);

@@ -250,6 +250,36 @@ SELECT version FROM projection_versions WHERE kind='catalog' AND id=?
         assertThat(title(id)).isEqualTo("Renamed show");
     }
 
+    @Test
+    void aNewerSnapshotTogglesSalesSuspendedAndAnOlderReplayIsIgnored() {
+        var receiver = new CheckinProjectionReceiver(jdbc, new ObjectMapper().findAndRegisterModules());
+        UUID id = UUID.randomUUID();
+        UUID organization = UUID.randomUUID();
+        var offer = new PerformanceAdmissionSnapshot.Offer(
+                UUID.randomUUID(), "Standard", java.math.BigDecimal.valueOf(100_000), true);
+        var starts = OffsetDateTime.now().plusDays(10).withNano(0);
+        java.util.function.BiFunction<Long, Boolean, PerformanceAdmissionSnapshot> snapshot =
+                (version, suspended) ->
+                        new PerformanceAdmissionSnapshot(
+                                id, organization, null, version, "Show", "Hall", "Street", starts, null,
+                                starts.minusDays(5), starts.minusHours(1), "ON_SALE", suspended, null, true, 4,
+                                List.of(offer));
+        java.util.function.Supplier<Boolean> suspended = () ->
+                jdbc.queryForObject("SELECT sales_suspended FROM concerts WHERE id=?", Boolean.class, id);
+
+        transaction.executeWithoutResult(status -> receiver.performance(snapshot.apply(1L, false)));
+        assertThat(suspended.get()).isFalse();
+        // An organizer pause arrives as a newer version with salesSuspended set; Check-in applies it.
+        transaction.executeWithoutResult(status -> receiver.performance(snapshot.apply(2L, true)));
+        assertThat(suspended.get()).isTrue();
+        transaction.executeWithoutResult(status -> receiver.performance(snapshot.apply(3L, false)));
+        assertThat(suspended.get()).isFalse();
+        // Replaying the older paused version does not suspend the performance again.
+        assertThat(transaction.<Long>execute(status -> receiver.performance(snapshot.apply(2L, true))))
+                .isEqualTo(3L);
+        assertThat(suspended.get()).isFalse();
+    }
+
     private String ticketStatus(UUID id) {
         return jdbc.queryForObject("SELECT status FROM tickets WHERE id=?", String.class, id);
     }

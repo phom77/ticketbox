@@ -99,6 +99,12 @@ public interface PerformanceStore {
 
     Optional<Performance> lockOwnedPerformance(UUID id, UUID organizer);
 
+    /** Locks the venue row of a space, serializing with venue edits that check whether the venue is in use. */
+    void lockVenueOfSpace(UUID space);
+
+    /** Reads an owned native performance without locking it. */
+    Optional<Performance> ownedPerformance(UUID id, UUID organizer);
+
     /** The event of a native performance owned by the organizer, read without locking. */
     Optional<UUID> ownedEvent(UUID performance, UUID organizer);
 

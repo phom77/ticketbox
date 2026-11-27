@@ -108,7 +108,7 @@ class GuidedSchedulingIntegrationTest {
         scheduling = new PerformanceScheduling(store, audit);
         venues = new VenueLibrary(store);
         sales = new PerformanceSalesControls(store, controls, disruptionStore, audit);
-        requests = new PerformanceDisruptionRequests(controls, sales, audit);
+        requests = new PerformanceDisruptionRequests(controls, sales, audit, store);
         disruptions = new PerformanceDisruptions(store, disruptionStore, null, controls);
         mvc = MockMvcBuilders.standaloneSetup(new OrganizerSchedulingController(scheduling, venues),
                         new OrganizerSalesController(sales, requests), new PerformanceDisruptionRequestController(requests))
@@ -548,6 +548,48 @@ class GuidedSchedulingIntegrationTest {
     }
 
     @Test
+    void declineAndAcceptRaceNeverLeaveADeclinedRequestWithACommittedDisruption() {
+        for (int round = 0; round < 3; round++) {
+            var live = released(20 + round);
+            var request = tx(() -> requests.create(owner, owner, live.id(),
+                    new PerformanceDisruptionRequests.Command("CANCEL", "Race", null, null, null, false)));
+            var accepting = CompletableFuture.supplyAsync(() -> attempt(() -> tx(() ->
+                    disruptions.confirm(live.id(), UUID.randomUUID(), cancel(request.id())))));
+            var declining = CompletableFuture.supplyAsync(() -> attempt(() -> tx(() ->
+                    requests.decline(request.id(), UUID.randomUUID(), "No"))));
+            boolean accepted = accepting.join();
+            boolean declined = declining.join();
+            assertThat(accepted ^ declined).isTrue();
+            String state = jdbc.queryForObject("SELECT state FROM performance_disruption_requests WHERE id=?",
+                    String.class, request.id());
+            int rows = jdbc.queryForObject("SELECT count(*) FROM performance_disruptions WHERE performance_id=?",
+                    Integer.class, live.id());
+            assertThat(state).isEqualTo(accepted ? "ACCEPTED" : "DECLINED");
+            assertThat(rows).isEqualTo(accepted ? 1 : 0);
+        }
+    }
+
+    @Test
+    void aDisruptionIsRolledBackWhenItsRequestWasClosedBeforeItWasAccepted() {
+        var live = released(10);
+        var request = tx(() -> requests.create(owner, owner, live.id(),
+                new PerformanceDisruptionRequests.Command("CANCEL", "Closed", null, null, null, false)));
+        tx(() -> requests.withdraw(owner, owner, live.id(), request.id()));
+        assertThatThrownBy(() -> tx(() -> disruptions.confirm(live.id(), UUID.randomUUID(), cancel(request.id()))))
+                .isInstanceOf(AppException.class);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM performance_disruptions WHERE performance_id=?",
+                Integer.class, live.id())).isZero();
+    }
+
+    @Test
+    void releaseOnApprovalIsRefusedWhenTheSaleStartHasPassed() {
+        var draft = withSale(newPerformance(10));
+        jdbc.update("UPDATE performances SET sale_start_at=now()-interval '1 hour' WHERE id=?", draft.id());
+        assertThatThrownBy(() -> submitForReview(draft, ReleaseMode.ON_APPROVAL, null))
+                .hasMessage("error.performance.release-window");
+    }
+
+    @Test
     void concurrentResumesPublishOneVersion() {
         var live = released(10);
         UUID pause = UUID.randomUUID();
@@ -695,7 +737,7 @@ class GuidedSchedulingIntegrationTest {
         try {
             action.get();
             return true;
-        } catch (AppException | org.springframework.dao.DataAccessException refused) {
+        } catch (AppException refused) {
             return false;
         }
     }

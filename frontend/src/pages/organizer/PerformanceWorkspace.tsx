@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { saleOpeningInstant } from '../../features/performance/saleWindowPresets';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, Map as MapIcon, Ticket } from 'lucide-react';
@@ -208,7 +209,7 @@ export function PerformanceWorkspace({
         entry.id === offer.id
           ? {
               ...entry,
-              saleStartAt: performance.saleStartAt,
+              saleStartAt: saleOpeningInstant(performance),
               saleEndAt: performance.saleEndAt,
             }
           : entry,
@@ -247,7 +248,9 @@ export function PerformanceWorkspace({
     }
 
     const errors: OfferDates = {};
-    const starts = Date.parse(performance.saleStartAt);
+    const starts = performance.saleStartAt
+      ? Date.parse(performance.saleStartAt)
+      : Number.NEGATIVE_INFINITY;
     const ends = Date.parse(performance.saleEndAt);
     const offers = sale.offers.map((offer) => {
       const edited = editedDates[offer.id];
@@ -1064,7 +1067,11 @@ function ReviewPerformance({
                   onChange={onPublishAt}
                   required
                   disabled={disabled}
-                  max={toPerformanceLocalDateTime(performance.saleStartAt, performance.timezone)}
+                  max={
+                    performance.saleStartAt
+                      ? toPerformanceLocalDateTime(performance.saleStartAt, performance.timezone)
+                      : undefined
+                  }
                   error={releaseError}
                   description={t('performances:publishAtHelp')}
                 />
