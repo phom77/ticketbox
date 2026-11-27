@@ -178,6 +178,34 @@ class JdbcPerformanceSalesTest {
                                 now.minusDays(1), now.plusDays(1), true)), null, null, null);
     }
 
+    @Test
+    void organizerPauseAndResumeVersionsApplyInOrderAndAStaleReplayIsIgnored() {
+        var sale = sale(false);
+        assertThat(tx.<Long>execute(status -> catalog.apply(sale))).isEqualTo(1L);
+        assertThat(suspended(sale)).isFalse();
+        var paused = withSuspension(sale, 2, true);
+        assertThat(tx.<Long>execute(status -> catalog.apply(paused))).isEqualTo(2L);
+        assertThat(suspended(sale)).isTrue();
+        var resumed = withSuspension(sale, 3, false);
+        assertThat(tx.<Long>execute(status -> catalog.apply(resumed))).isEqualTo(3L);
+        assertThat(suspended(sale)).isFalse();
+        // Replaying the older pause after the resume changes nothing.
+        assertThat(tx.<Long>execute(status -> catalog.apply(paused))).isEqualTo(3L);
+        assertThat(suspended(sale)).isFalse();
+    }
+
+    private static boolean suspended(PerformanceSale sale) {
+        return jdbc.queryForObject("SELECT sales_suspended FROM concerts WHERE id=?", Boolean.class, sale.id());
+    }
+
+    private static PerformanceSale withSuspension(PerformanceSale sale, long version, boolean suspended) {
+        return new PerformanceSale(sale.id(), sale.eventId(), sale.organizationId(), sale.legacyConcertId(),
+                version, sale.layoutVersion(), sale.layoutChecksum(), sale.title(), sale.venueName(), sale.startsAt(),
+                sale.endsAt(), sale.doorsOpenAt(), sale.timezone(), sale.saleStartAt(), sale.saleEndAt(),
+                sale.status(), suspended, sale.publicVisible(), sale.resumedAdmissionAt(),
+                sale.maxPerAccount(), sale.groups(), sale.offers(), sale.segment(), sale.primaryGenre(), sale.city());
+    }
+
     private static PerformanceSale copy(PerformanceSale sale, long version, String title, List<Group> groups) {
         return new PerformanceSale(sale.id(), sale.eventId(), sale.organizationId(), sale.legacyConcertId(),
                 version, sale.layoutVersion(), sale.layoutChecksum(), title, sale.venueName(), sale.startsAt(),
