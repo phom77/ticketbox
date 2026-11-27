@@ -89,7 +89,7 @@
 
 **Scope and eligibility**
 
-- A statement covers one performance or one event (all its performances), for all time up to the issue cutoff.
+- A statement covers one performance or one event (all its performances), for all time up to the moment the figures are computed.
 - A performance is eligible when it is final, using the existing provisional rule from `JdbcSalesReportStore`.
 - An event is eligible when all its performances in Ticketing, except `DRAFT` ones, are final and at least one exists.
 - Zero-sales statements are allowed.
@@ -104,7 +104,7 @@ settlement_statements(
   id uuid PK, organization_id uuid NOT NULL, scope_type text CHECK IN ('PERFORMANCE','EVENT'),
   scope_id uuid NOT NULL, event_id uuid NOT NULL, number text UNIQUE NOT NULL, revision int NOT NULL,
   supersedes_id uuid NULL REFERENCES settlement_statements(id), status text CHECK IN ('CURRENT','SUPERSEDED'),
-  timezone text NOT NULL, cutoff_at timestamptz NOT NULL, issued_at timestamptz NOT NULL, issued_by uuid NOT NULL,
+  timezone text NOT NULL, cutoff_at timestamptz NOT NULL, fingerprint text NOT NULL, issued_at timestamptz NOT NULL, issued_by uuid NOT NULL,
   organization_snapshot jsonb NOT NULL,            -- display name, legal name, tax code, address, contacts
   scope_snapshot jsonb NOT NULL,                   -- event and performance titles, dates, venue
   gross_sales, refunds, net_sales numeric(12,0) NOT NULL,
@@ -122,12 +122,14 @@ settlement_statement_lines(statement_id FK, kind CHECK IN ('PERFORMANCE','OFFER'
 
 **Figures**
 
-- **Sales and refunds:** from `sales_ledger` rows in scope with `recorded_at <= cutoff_at`. Signs and definitions follow ADR 0005, so a statement equals the all-time Sales report for the same scope at the cutoff.
+- **One snapshot:** every figure comes from one SQL statement (CTEs over the scope's ledger rows and their verified reconciliation records), so totals, lines and the fingerprint share a snapshot and always add up. Rows are not filtered by time: `recorded_at` is the insert time, not the commit time, so a cutoff filter could lose a row that commits after the cutoff. `cutoff_at` is display metadata (when the figures were computed).
+- **Sales and refunds:** from `sales_ledger` rows in scope. Signs and definitions follow ADR 0005, so a statement equals the all-time Sales report for the same scope. Performance lines use the Sales report's inclusion rule (sales, refunds, or a non-draft performance), so they add up to the totals.
 - **Order counts:** distinct `order_id` per kind.
-- **Provider lines:** grouped by `sales_ledger.provider`.
+- **Provider lines:** grouped by `COALESCE(sales_ledger.provider, 'UNKNOWN')`.
+  - Verified amounts are grouped by the ledger provider of the order, not the reconciliation record's provider, so lines and totals agree.
   - Verified collected is `SUM(collected_amount)` of `payment_reconciliation` rows with `verified_at IS NOT NULL` for orders with a `SALE` row in scope.
   - Verified refunded is `SUM(refund_amount)` for those orders.
-  - Both count only rows with `received_at <= cutoff_at`.
+- **Fingerprint:** the scope's ledger row count plus the count, `SUM(collected_amount)` and `SUM(refund_amount)` of those verified reconciliation rows, stored in `settlement_statements.fingerprint`.
 - **Unreconciled orders:** orders in scope whose ledger amount differs from their verified amount, or that have no verified row. The statement shows the count and a link to Reconciliation filtered to the scope. It does not block issue.
 - **Complimentary orders** (0 VND) count as tickets with no revenue, as in the Sales report.
 - **Header:** "Platform fee: 0 VND". A footer states that the statement records sales and refunds processed by TicketBox and is not an invoice, payout or transfer.
@@ -141,21 +143,24 @@ settlement_statement_lines(statement_id FK, kind CHECK IN ('PERFORMANCE','OFFER'
 5. In one transaction:
    - Take an advisory lock on (organization, scope).
    - Compare the current revision with `expectedRevision`. A mismatch returns 409 with the current statement, which also makes a double click idempotent.
-   - Compute figures at `cutoff_at = now()`.
+   - Compute figures and the fingerprint in one statement; `cutoff_at = now()` is recorded for display.
+   - Re-issue is allowed when the figures changed (the fingerprint differs) or the organization's statement details changed since issue (the stored `organization_snapshot` differs from the current profile). The new revision uses the new details.
    - Render the PDF and insert the statement and its lines.
    - Mark the previous revision `SUPERSEDED`.
 6. Numbering: `TBS-<yyyy>-<6-digit global sequence>`, with `-R<n>` for revisions from 2.
 
 **Out of date**
 
-- A current statement is out of date when ledger rows exist for its scope with `recorded_at > cutoff_at`, or reconciliation rows for its orders with `received_at > cutoff_at`.
-- This is computed on read and never stored. The list shows "Out of date: sales or refunds changed after issue" with a Re-issue action.
+- A current statement is out of date when the fingerprint computed now for its scope differs from the stored one. Rows that commit after issue always change it, whatever their insert time. The comparison uses the ledger and the partial `payment_reconciliation(order_id) WHERE verified_at IS NOT NULL` indexes, in one batched query per page.
+- Separately, "details changed" means the organization's display name, legal name, tax code, billing address, contact email or phone, or website differ from the snapshot (the logo is not compared). Reading never requires Identity: when Identity cannot answer, details are reported as unchanged.
+- Both flags are computed on read. The list shows "Out of date: sales or refunds changed after issue" or "Details changed since issue", each with a Re-issue action.
+- A `SUPERSEDED` statement can never become `CURRENT` again (database trigger).
 
 **Endpoints** (`X-Organization-Id`, `no-store`)
 
 | Endpoint | Access | Returns |
 |---|---|---|
-| `GET /api/organizer/statements/eligible?q=&page=&size=` | `FINANCE` | final performances and events with no current statement, or an out-of-date one |
+| `GET /api/organizer/statements/eligible?q=&page=&size=` | `FINANCE` | final performances and events with no current statement, or one that is out of date or whose details changed |
 | `GET /api/organizer/statements?eventId=&page=&size=` | `FINANCE` | issued statements, all revisions, newest first, with `outOfDate` |
 | `GET /api/organizer/statements/{id}` | `FINANCE` | header, totals, lines |
 | `POST /api/organizer/statements` | `FINANCE` | issue or re-issue |
@@ -175,7 +180,7 @@ settlement_statement_lines(statement_id FK, kind CHECK IN ('PERFORMANCE','OFFER'
   - A 409 reloads the card with "Someone else saved changes; review and save again".
 - **Reports › Statements** (`?view=statements`, `FINANCE`):
   - An "Ready for a statement" list (eligible) and an "Issued statements" list (paged, filter by event).
-  - Each row shows the number, revision, scope, issued date, net sales, an out-of-date badge and the unreconciled count with a Reconciliation link.
+  - Each row shows the number, revision, scope, issued date, net sales, an out-of-date or details-changed badge and the unreconciled count with a Reconciliation link filtered to the performance or event.
   - Actions: Issue, Re-issue, Download PDF and Download CSV.
   - Before the first issue, a confirmation shows the statement details that will be printed. A missing legal name or tax code shows a warning and a link to Settings, and issue is still allowed.
 - en/vi catalog entries for all new text. Component tests for the grant-dependent rendering.
