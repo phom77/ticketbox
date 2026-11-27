@@ -21,12 +21,15 @@ import {
 } from '../../api/performanceManagement';
 import { AdminConfirmDialog } from '../../components/admin/AdminConfirmDialog';
 import { useToast } from '../../components/feedback/toast-context';
+import { ClassificationPicker } from '../../components/ClassificationPicker';
+import { describeClassification } from '../../features/discovery/classification';
 import { WorkspaceSelect } from '../../components/WorkspaceSelect';
-import { categoryLabelKey, eventCategories } from '../../features/discovery/categories';
 import {
   ageRatingLabelKey,
   ageRatings,
   artistBioLimit,
+  classificationInput,
+  classificationOf,
   contentInput,
   emptyForm,
   formFromContent,
@@ -77,23 +80,17 @@ function EventContentFields({
   form,
   onChange,
   disabled,
-  showCategory,
   poster,
   eventId,
 }: {
   form: ContentForm;
   onChange: (update: (current: ContentForm) => ContentForm) => void;
   disabled: boolean;
-  showCategory: boolean;
   poster: React.ReactNode;
   eventId?: string;
 }) {
   const { t } = useTranslation();
   const set = (patch: Partial<ContentForm>) => onChange((current) => ({ ...current, ...patch }));
-  const categoryOptions = [
-    { value: '', label: t('performances:categoryNone') },
-    ...eventCategories.map((entry) => ({ value: entry.id, label: t(entry.label) })),
-  ];
   const ratingOptions = [
     { value: '', label: t('event-content:ageNotSet') },
     ...ageRatings.map((rating) => ({ value: rating, label: t(ageRatingLabelKey(rating)) })),
@@ -112,18 +109,13 @@ function EventContentFields({
           onChange={(event) => set({ title: event.target.value })}
         />
       </label>
-      {showCategory && (
-        <label>
-          {t('performances:categoryOptional')}
-          <WorkspaceSelect
-            label={t('performances:categoryOptional')}
-            value={categoryLabelKey(form.category) ? form.category : ''}
-            options={categoryOptions}
-            disabled={disabled}
-            onChange={(category) => set({ category })}
-          />
-        </label>
-      )}
+      <div className="performance-wide" id="event-classification">
+        <ClassificationPicker
+          value={{ segment: form.segment, primaryGenre: form.primaryGenre, genres: form.genres }}
+          disabled={disabled}
+          onChange={(next) => set(next)}
+        />
+      </div>
       <label className="performance-wide">
         {t('performances:descriptionOptional')}
         <textarea
@@ -255,7 +247,7 @@ function DraftContent({
       titleRef.current?.querySelector('input')?.focus();
       return;
     }
-    const body = { ...contentInput(form), category: form.category || null };
+    const body = { ...contentInput(form), ...classificationInput(form) };
     await run(async () => {
       if (event) {
         const updated = await updateManagedEvent(event.id, event.contentVersion, body);
@@ -291,7 +283,6 @@ function DraftContent({
           form={form}
           onChange={setForm}
           disabled={busy}
-          showCategory
           eventId={event?.id}
           poster={
             <EventPosterField
@@ -404,9 +395,7 @@ function ReleasedContent({
   }
 
   function startEditing() {
-    const start = revision
-      ? formFromContent(revision.content, live.category)
-      : formFromContent(live);
+    const start = revision ? formFromContent(revision.content, live) : formFromContent(live);
     setForm(start);
     setBaseline(start);
     setError('');
@@ -537,6 +526,18 @@ function ReleasedContent({
         </p>
       )}
 
+      {!editing && !(live.segment && live.primaryGenre) && (
+        <div className="performance-feedback" role="note">
+          <p>
+            <strong>{t('performances:classifyPrompt')}</strong>
+          </p>
+          <p>{t('performances:classifyPromptHelp')}</p>
+          <button type="button" className="button button-secondary" onClick={startEditing}>
+            {t('performances:classificationMissing')}
+          </button>
+        </div>
+      )}
+
       {!editing && (
         <>
           <div className="event-content-live">
@@ -544,6 +545,11 @@ function ReleasedContent({
             <p>
               <strong>{live.title}</strong>
             </p>
+            {live.segment && (
+              <p className="event-content-excerpt">
+                {describeClassification(classificationOf(live), t)}
+              </p>
+            )}
             {live.description && <p className="event-content-excerpt">{live.description}</p>}
             {live.posterUrl && (
               <div className="event-poster-frame event-poster-card">
@@ -557,6 +563,11 @@ function ReleasedContent({
               <p>
                 <strong>{revision.content.title}</strong>
               </p>
+              {revision.content.classification && (
+                <p className="event-content-excerpt">
+                  {describeClassification(classificationOf(revision.content, live), t)}
+                </p>
+              )}
               {revision.content.description && (
                 <p className="event-content-excerpt">{revision.content.description}</p>
               )}
@@ -580,7 +591,6 @@ function ReleasedContent({
             form={form}
             onChange={setForm}
             disabled={busy}
-            showCategory={false}
             eventId={event.id}
             poster={
               <EventPosterField

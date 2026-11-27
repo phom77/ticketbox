@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { RemoteImage } from './RemoteImage';
 import { currency, dateFormatter } from '../data/formatters';
 import { eventSaleLabels, type ConcertSaleState } from '../features/concert/concertSale';
-import { categoryText } from '../features/discovery/categories';
+import { primaryLabel } from '../features/discovery/classification';
 import { concertTimeZone } from '../features/discovery/filters';
 import './EventCard.css';
 
@@ -15,7 +15,9 @@ export type EventCardItem = {
   title: string;
   venue: string;
   city?: string | null;
-  category?: string | null;
+  segment?: string | null;
+  /** The primary genre; the card falls back to the segment when there is none. */
+  genre?: string | null;
   eventDate: string;
   status: ConcertSaleState;
   image: string | null;
@@ -73,7 +75,7 @@ export function EventCard({
     .join(' · ');
   const hasPrice = typeof event.minPrice === 'number' && event.status !== 'cancelled';
   const dates = event.performanceCount ?? 1;
-  const category = event.category ? categoryText(event.category, t) : '';
+  const category = primaryLabel({ segment: event.segment, primaryGenre: event.genre }, t);
 
   return (
     <article className="concert-card">

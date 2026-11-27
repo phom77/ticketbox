@@ -3,16 +3,18 @@ package org.ticketbox.catalog.performance.domain;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import org.ticketbox.catalog.classification.domain.EventClassification;
 import org.ticketbox.catalog.content.domain.ConcertContent;
 import org.ticketbox.catalog.content.domain.ConcertText;
 import org.ticketbox.catalog.domain.DomainViolation;
 
 /**
  * What buyers read about a native event besides its schedule: the original title and description, translations,
- * artist bio, age rating and refund policy. Values are normalized (blank becomes absent) and validated on creation.
+ * artist bio, age rating, refund policy and classification (null when unclassified). Values are normalized (blank becomes absent) and validated on creation.
  */
 public record EventContent(String title, String description, Map<String, ConcertText> translations,
-                           String artistBio, String ageRating, String refundPolicy) {
+                           String artistBio, String ageRating, String refundPolicy,
+                           EventClassification classification) {
     public static final Set<String> AGE_RATINGS = Set.of("ALL", "13+", "16+", "18+");
     public static final int MAX_TITLE = 500;
     public static final int MAX_DESCRIPTION = 60_000;
@@ -25,6 +27,12 @@ public record EventContent(String title, String description, Map<String, Concert
 
     public static EventContent authored(String title, String description, Map<String, ConcertText> translations,
                                         String artistBio, String ageRating, String refundPolicy) {
+        return authored(title, description, translations, artistBio, ageRating, refundPolicy, null);
+    }
+
+    public static EventContent authored(String title, String description, Map<String, ConcertText> translations,
+                                        String artistBio, String ageRating, String refundPolicy,
+                                        EventClassification classification) {
         if (title == null || title.isBlank() || title.strip().length() > MAX_TITLE) {
             throw invalid("error.performance.invalid-event");
         }
@@ -45,7 +53,7 @@ public record EventContent(String title, String description, Map<String, Concert
         if (rating != null && !AGE_RATINGS.contains(rating)) throw invalid("error.event-content.invalid-age-rating");
         String refund = blankToNull(refundPolicy);
         if (refund != null && refund.length() > MAX_REFUND_POLICY) throw invalid("error.event-content.invalid-refund-policy");
-        return new EventContent(title.strip(), description, cleaned, bio, rating, refund);
+        return new EventContent(title.strip(), description, cleaned, bio, rating, refund, classification);
     }
 
     private static String blankToNull(String value) {

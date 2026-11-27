@@ -10,14 +10,17 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
-/** Complete, immutable Catalog sale revision. Ticketing owns live stock separately. */
+/**
+ * Complete, immutable Catalog sale revision. Ticketing owns live stock separately. `segment`, `primaryGenre` and `city`
+ * are optional classification copies kept for future reporting; absent fields read as null and nothing uses them yet.
+ */
 public record PerformanceSale(
         UUID id, UUID eventId, UUID organizationId, UUID legacyConcertId, long version,
         Long layoutVersion, String layoutChecksum, String title, String venueName,
         OffsetDateTime startsAt, OffsetDateTime endsAt, OffsetDateTime doorsOpenAt, String timezone,
         OffsetDateTime saleStartAt, OffsetDateTime saleEndAt, String status, boolean salesSuspended,
         boolean publicVisible, OffsetDateTime resumedAdmissionAt, int maxPerAccount,
-        List<Group> groups, List<Offer> offers) {
+        List<Group> groups, List<Offer> offers, String segment, String primaryGenre, String city) {
 
     private static final Set<String> STATUSES =
             Set.of("ON_SALE", "SOLD_OUT", "CANCELLED", "COMPLETED");
@@ -48,8 +51,20 @@ public record PerformanceSale(
     }
 
     public record Offer(UUID id, UUID groupId, String name, BigDecimal price, String currency,
-                        OffsetDateTime saleStartAt, OffsetDateTime saleEndAt, boolean active) {
+                        OffsetDateTime saleStartAt, OffsetDateTime saleEndAt, boolean active,
+                        String description, Integer minPerOrder) {
+        /** Snapshots written before ticket type details existed carry neither field. */
+        public Offer(UUID id, UUID groupId, String name, BigDecimal price, String currency,
+                     OffsetDateTime saleStartAt, OffsetDateTime saleEndAt, boolean active) {
+            this(id, groupId, name, price, currency, saleStartAt, saleEndAt, active, null, 1);
+        }
+
         public Offer {
+            minPerOrder = minPerOrder == null ? Integer.valueOf(1) : minPerOrder;
+            if (description != null && (description.isEmpty() || description.length() > 500)
+                    || minPerOrder < 1 || minPerOrder > 100) {
+                throw new IllegalArgumentException("Invalid offer details");
+            }
             Objects.requireNonNull(id);
             Objects.requireNonNull(groupId);
             requireText(name, 100);

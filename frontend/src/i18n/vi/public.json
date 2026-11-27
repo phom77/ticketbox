@@ -196,10 +196,8 @@
   "discovery_dateToBeAnnounced": "Ngày diễn sẽ được công bố",
   "discovery_venueToBeAnnounced": "Địa điểm sẽ được công bố",
   "discovery_city": "Tỉnh/thành",
-  "discovery_category": "Thể loại",
   "discovery_price": "Giá vé",
   "discovery_anyCity": "Mọi tỉnh/thành",
-  "discovery_anyCategory": "Mọi thể loại",
   "discovery_anyPrice": "Mọi mức giá",
   "discovery_under500": "Dưới 500.000 ₫",
   "discovery_totalResults_one": "{{count}} sự kiện",
@@ -233,5 +231,13 @@
   "discovery_resultsFor_one": "{{count}} kết quả cho “{{q}}”",
   "discovery_resultsFor_other": "{{count}} kết quả cho “{{q}}”",
   "discovery_resultsCount_one": "{{count}} kết quả",
-  "discovery_resultsCount_other": "{{count}} kết quả"
+  "discovery_resultsCount_other": "{{count}} kết quả",
+  "discovery_segment": "Thể loại",
+  "discovery_anySegment": "Tất cả thể loại",
+  "discovery_genre": "Dòng",
+  "discovery_anyGenre": "Tất cả dòng",
+  "discovery_segmentGenres": "Dòng {{segment}}",
+  "discovery_moreGenres": "Thêm dòng",
+  "discovery_lessGenres": "Thu gọn",
+  "discovery_allSegmentEvents": "Tất cả {{segment}}"
 }

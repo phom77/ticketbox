@@ -606,6 +606,7 @@ function EventWorkspace({ id }: { id: string }) {
                 setStep('review');
               }}
               onEditSchedule={isDraft ? () => goTo('schedule') : undefined}
+              onEditEvent={() => goTo('event')}
               onEdit={() => setStep('tickets')}
             />
           )}

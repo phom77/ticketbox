@@ -34,7 +34,6 @@ export type ManagedPerformance = Performance & {
   publicVisible: boolean;
 };
 export type ManagedEvent = Omit<EventDetails, 'performances'> & {
-  category?: string | null;
   /** Token of the publication review; moves when the title or description changes. */
   draftVersion: number;
   /** Optimistic lock of the content editors. */
@@ -61,6 +60,10 @@ export type SaleOffer = {
   saleStartAt: string;
   saleEndAt: string;
   active: boolean;
+  /** Buyer-facing perks, up to 500 characters. */
+  description?: string | null;
+  /** Fewest places of this ticket type in one order. Absent means 1. */
+  minPerOrder?: number;
 };
 export type SaleDraft = { version: number; groups: SaleGroup[]; offers: SaleOffer[] };
 export type PerformanceReview = {
@@ -111,7 +114,11 @@ export type EventContentInput = {
   ageRating: AgeRating | null;
   refundPolicy: string;
 };
-export type EventInput = EventContentInput & { category: string | null };
+export type EventInput = EventContentInput & {
+  segment: string;
+  primaryGenre: string;
+  genres: string[];
+};
 type VenueInput = { name: string; address: string; spaceName: string };
 export type PerformanceInput = Pick<
   ManagedPerformance,

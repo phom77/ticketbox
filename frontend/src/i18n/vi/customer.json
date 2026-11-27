@@ -374,6 +374,7 @@
   "ticketSelection_fromPrice": "từ {{price}}",
   "ticketSelection_heldInSection_other": "đã chọn {{count}} vé",
   "ticketSelection_selectedState": "Đã chọn",
+  "ticketSelection_pendingState": "Đã chọn, chưa giữ chỗ",
   "ticketSelection_backToVenue": "Về sơ đồ địa điểm",
   "ticketSelection_noMap": "Buổi diễn này chưa có sơ đồ. Hãy chọn vé trong danh sách.",
   "ticketSelection_mapHint": "Chọn một khu để xem chỗ ngồi. Phóng to bằng nút, Ctrl + cuộn chuột hoặc chụm hai ngón. Mọi thứ trên bản đồ cũng có trong danh sách.",
@@ -669,5 +670,11 @@
   "refund_blocked_REFUND_IN_PROGRESS": "Đơn hàng này đang được xử lý hoàn tiền.",
   "refund_blocked_CANCELLED": "Sự kiện đã bị hủy nên khoản hoàn tiền được xử lý tự động.",
   "refund_blocked_EVENT_PASSED": "Ngày diễn ra mới đã qua nên không thể yêu cầu hoàn tiền.",
-  "refund_blocked_WINDOW_CLOSED": "Có thể yêu cầu hoàn tiền đến 24 giờ trước khi mở cửa. Thời hạn này đã qua."
+  "refund_blocked_WINDOW_CLOSED": "Có thể yêu cầu hoàn tiền đến 24 giờ trước khi mở cửa. Thời hạn này đã qua.",
+  "ticketSelection_problem_minimum": "Loại vé này hiện yêu cầu nhiều vé hơn mỗi đơn. Tình trạng vé đã được làm mới, hãy chỉnh số lượng rồi thử lại.",
+  "ticketSelection_reasonMinimum": "Còn ít hơn {{count}} chỗ nên loại vé này tạm không bán.",
+  "ticketSelection_minPerOrder": "Tối thiểu {{count}} vé mỗi đơn",
+  "ticketSelection_seatMinimumHint": "Hãy chọn ít nhất {{count}} ghế cho {{name}} (đã chọn {{chosen}}).",
+  "ticketSelection_mapUnavailable": "Hiện chưa tải được sơ đồ. Hãy chọn vé từ danh sách.",
+  "ticketSelection_retryMap": "Thử tải lại sơ đồ"
 }

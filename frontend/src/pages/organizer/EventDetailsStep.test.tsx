@@ -14,7 +14,9 @@ const event = {
   id: 'e1',
   title: 'Live show',
   description: 'Old description',
-  category: 'concerts',
+  segment: 'concerts',
+  primaryGenre: 'vpop',
+  genres: ['indie'],
   draftVersion: 4,
   contentVersion: 7,
   performances: [],
@@ -83,6 +85,9 @@ describe('new event', () => {
     renderStep({ onCreated });
     await userEvent.type(screen.getByRole('textbox', { name: 'Title' }), 'Night of jazz');
     await userEvent.type(screen.getByRole('textbox', { name: /Refund policy/ }), 'Full refund');
+    await userEvent.click(screen.getByRole('radio', { name: 'Festivals' }));
+    await userEvent.type(screen.getByRole('combobox', { name: 'Main genre' }), 'music');
+    await userEvent.keyboard('{Enter}');
     const file = new File(['png'], 'poster.png', { type: 'image/png' });
     await userEvent.upload(
       document.querySelector<HTMLInputElement>('input[type="file"][accept^="image"]')!,
@@ -95,6 +100,9 @@ describe('new event', () => {
         title: 'Night of jazz',
         refundPolicy: 'Full refund',
         ageRating: null,
+        segment: 'festivals',
+        primaryGenre: 'music-festival',
+        genres: [],
       }),
     );
     expect(content.uploadEventPoster).toHaveBeenCalledWith('new', file, { expectedVersion: 1 });
@@ -108,6 +116,16 @@ describe('new event', () => {
 });
 
 describe('released event', () => {
+  it('prompts to classify a released event that has no category or main genre', async () => {
+    const unclassified = { ...event, segment: null, primaryGenre: null, genres: [] };
+    vi.mocked(content.getEventContent).mockResolvedValue({ event: unclassified, revision: null });
+    renderStep({ event: unclassified, released: true });
+    expect(await screen.findByText('Classify this event')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Classify the event' }));
+    expect(screen.getAllByRole('radio')).toHaveLength(6);
+    expect(screen.getByRole('combobox', { name: 'Main genre' })).toBeDisabled();
+  });
+
   it('shows the live version and stages edits as a draft revision', async () => {
     vi.mocked(content.getEventContent).mockResolvedValue({ event, revision: null });
     vi.mocked(content.stageContentRevision).mockResolvedValue({
@@ -125,7 +143,12 @@ describe('released event', () => {
       expect(content.stageContentRevision).toHaveBeenCalledWith(
         'e1',
         0,
-        expect.objectContaining({ description: 'New description' }),
+        expect.objectContaining({
+          description: 'New description',
+          segment: 'concerts',
+          primaryGenre: 'vpop',
+          genres: ['indie'],
+        }),
       ),
     );
     expect(await screen.findByText('Drafting changes')).toBeInTheDocument();

@@ -8,7 +8,7 @@ import { BuyerState } from '../../components/feedback/BuyerState';
 import { DetailSkeleton } from '../../components/feedback/Skeleton';
 import { useAuth } from '../../features/auth/AuthContext';
 import { waitingRoomLeadMs } from '../../features/concert/concertSale';
-import { categoryText } from '../../features/discovery/categories';
+import { classificationText, primaryLabel } from '../../features/discovery/classification';
 import { downloadIcs } from '../../features/event/calendar';
 import { ageRatingLabelKey } from '../../features/event/eventContent';
 import {
@@ -218,8 +218,17 @@ function EventDetailView({ id, preview }: { id: string; preview: boolean }) {
           />
         ) : null}
         <div className="ed-hero-body">
-          {source.category ? (
-            <p className="ed-category">{categoryText(source.category, t)}</p>
+          {source.segment || source.primaryGenre ? (
+            <p className="ed-category">
+              {primaryLabel({ segment: source.segment, primaryGenre: source.primaryGenre }, t)}
+            </p>
+          ) : null}
+          {source.genres.length > 0 ? (
+            <ul className="ed-tags" aria-label={t('event-detail:genres')}>
+              {source.genres.map((genre) => (
+                <li key={genre}>{classificationText(genre, 'genre', t)}</li>
+              ))}
+            </ul>
           ) : null}
           <h1>{source.title}</h1>
           {source.organizer ? (

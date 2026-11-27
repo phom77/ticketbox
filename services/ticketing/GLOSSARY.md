@@ -50,6 +50,10 @@ Places available in a group where attendees choose a location on arrival.
 
 The availability of individual seats for a performance. Each allocated seat belongs to one order at a time.
 
+**Minimum per order**
+
+The fewest places of one offer a buyer can hold at once, published by Catalog (1 when absent). Ticketing refuses a smaller positive quantity before any stock change.
+
 **Quoted hold**
 
 A selection of general-admission places or assigned seats temporarily reserved for one customer, with its confirmed price and deadline.

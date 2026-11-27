@@ -30,7 +30,13 @@
     "reports": "services/catalog/target/surefire-reports",
     "requiredGroups": {
       "sale-snapshots": {
-        "org.ticketbox.catalog.sales.CatalogPublisherIntegrationTest": []
+        "org.ticketbox.catalog.sales.CatalogPublisherIntegrationTest": [],
+        "org.ticketbox.catalog.sales.SaleSnapshotContractTest": []
+      },
+      "event-classification": {
+        "org.ticketbox.catalog.classification.domain.EventClassificationTest": [],
+        "org.ticketbox.catalog.performance.ClassificationMigrationTest": [],
+        "org.ticketbox.catalog.performance.PerformanceCatalogIntegrationTest": []
       },
       "ai-publication-replay": {
         "org.ticketbox.catalog.artistbio.application.CatalogPublicationIntegrationTest": [
@@ -55,7 +61,8 @@
       },
       "event-content": {
         "org.ticketbox.catalog.performance.EventContentIntegrationTest": [],
-        "org.ticketbox.catalog.performance.domain.EventContentRevisionTest": []
+        "org.ticketbox.catalog.performance.domain.EventContentRevisionTest": [],
+        "org.ticketbox.catalog.performance.domain.PerformanceRulesOfferTest": []
       },
       "organizer-legacy-guard": {
         "org.ticketbox.catalog.web.security.OrganizerLegacyGuardTest": []
@@ -104,6 +111,9 @@
       },
       "waiting-room": {
         "org.ticketbox.ticketing.queue.application.WaitingRoomServiceIntegrationTest": []
+      },
+      "offer-minimum-quantity": {
+        "org.ticketbox.ticketing.performance.application.PerformanceMinimumQuantityIntegrationTest": []
       },
       "checkout-and-publication-replay": {
         "org.ticketbox.ticketing.order.application.OrderConcurrencyIntegrationTest": [

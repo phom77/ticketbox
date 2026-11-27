@@ -25,5 +25,5 @@
 ## 4. Verification
 
 - [x] 4.1 Ticketing Maven verify and `verify-service-boundaries.py --service ticketing`; web lint, test and build.
-- [ ] 4.2 Compose walk-through: buy tickets for two performances of one event, refund one order, then check that the Overview and Reports › Sales show gross, refunds, net and tickets per performance and per ticket type as FINANCE, and tickets only as EVENTS. Export CSV and PDF. Screenshots at 1440, 834 and 390.
+- [x] 4.2 Compose walk-through: buy tickets for two performances of one event, refund one order, then check that the Overview and Reports › Sales show gross, refunds, net and tickets per performance and per ticket type as FINANCE, and tickets only as EVENTS. Export CSV and PDF. Screenshots at 1440, 834 and 390.
 - [x] 4.3 `openspec validate organizer-sales-reporting --type change --strict`.

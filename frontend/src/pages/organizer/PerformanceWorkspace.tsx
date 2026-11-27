@@ -59,6 +59,7 @@ export function PerformanceWorkspace({
   onDirtyChange,
   onBusyChange,
   onEditSchedule,
+  onEditEvent,
   onReload,
 }: {
   event: ManagedEvent;
@@ -72,6 +73,7 @@ export function PerformanceWorkspace({
   onDirtyChange?: (dirty: boolean) => void;
   onBusyChange?: (busy: boolean) => void;
   onEditSchedule?: () => void;
+  onEditEvent?: () => void;
 }) {
   const { t } = useTranslation('performances');
   const [draft, setDraft] = useState<LayoutDraft | null>(null);
@@ -362,8 +364,10 @@ export function PerformanceWorkspace({
     stage === 'review' && sale && draft
       ? inspectSaleDraft(draft.layout, sale, performance, Date.now())
       : null;
+  // Catalog refuses a release without a segment and a main genre, so say so before the organizer tries.
+  const classified = Boolean(event.segment && event.primaryGenre);
   const ready = Boolean(
-    review && !review.saveIssue && !review.publishIssues.length && !dirty && canPrice,
+    review && !review.saveIssue && !review.publishIssues.length && !dirty && canPrice && classified,
   );
 
   async function publish() {
@@ -648,6 +652,7 @@ export function PerformanceWorkspace({
                         onBusyChange={setLayoutBusy}
                         readOnly={immutable || busy}
                         preferredZone={model === 'reserved' ? 'ASSIGNED' : 'GA'}
+                        onUseAdmission={hasMap ? undefined : () => chooseModel('admission')}
                       />
                     </div>
                   )}
@@ -757,11 +762,12 @@ export function PerformanceWorkspace({
               layout={draft.layout}
               sale={sale}
               model={setup.model}
-              issues={
-                review.saveIssue
-                  ? [review.saveIssue, ...review.publishIssues]
-                  : review.publishIssues
-              }
+              issues={[
+                ...(review.saveIssue ? [review.saveIssue] : []),
+                ...review.publishIssues,
+                ...(classified ? [] : ['classificationMissingIssue']),
+              ]}
+              onEditEvent={classified ? undefined : onEditEvent}
               immutable={immutable}
               disabled={saving}
               ready={ready}
@@ -823,6 +829,7 @@ function ReviewPerformance({
   dirty,
   onEdit,
   onEditSchedule,
+  onEditEvent,
   onPublish,
   publishAt,
   onPublishAt,
@@ -840,6 +847,7 @@ function ReviewPerformance({
   dirty: boolean;
   onEdit: () => void;
   onEditSchedule?: () => void;
+  onEditEvent?: () => void;
   onPublish: () => void;
   publishAt: string;
   onPublishAt: (value: string) => void;
@@ -975,6 +983,11 @@ function ReviewPerformance({
               <li key={issue}>{t(issue)}</li>
             ))}
           </ul>
+          {onEditEvent && (
+            <button type="button" className="button button-secondary" onClick={onEditEvent}>
+              {t('performances:classificationMissing')}
+            </button>
+          )}
         </div>
       )}
       <div className="performance-options">

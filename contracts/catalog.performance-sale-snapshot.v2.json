@@ -28,6 +28,9 @@
     "publicVisible": { "type": "boolean" },
     "resumedAdmissionAt": {"type": ["string", "null"], "format": "date-time"},
     "maxPerAccount": { "type": "integer", "minimum": 1, "maximum": 100 },
+    "segment": { "type": ["string", "null"], "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+    "primaryGenre": { "type": ["string", "null"], "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+    "city": { "type": ["string", "null"], "maxLength": 120 },
     "groups": {
       "type": "array",
       "minItems": 1,
@@ -89,7 +92,9 @@
         "currency": { "const": "VND" },
         "saleStartAt": { "$ref": "#/$defs/time" },
         "saleEndAt": { "$ref": "#/$defs/time" },
-        "active": { "type": "boolean" }
+        "active": { "type": "boolean" },
+        "description": { "type": ["string", "null"], "minLength": 1, "maxLength": 500 },
+        "minPerOrder": { "type": "integer", "minimum": 1, "maximum": 100 }
       }
     }
   }

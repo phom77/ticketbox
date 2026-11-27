@@ -196,10 +196,8 @@
   "discovery_dateToBeAnnounced": "Date to be announced",
   "discovery_venueToBeAnnounced": "Venue to be announced",
   "discovery_city": "City",
-  "discovery_category": "Category",
   "discovery_price": "Price",
   "discovery_anyCity": "Any city",
-  "discovery_anyCategory": "Any category",
   "discovery_anyPrice": "Any price",
   "discovery_under500": "Under 500,000 ₫",
   "discovery_totalResults_one": "{{count}} event",
@@ -233,5 +231,13 @@
   "discovery_resultsFor_one": "{{count}} result for “{{q}}”",
   "discovery_resultsFor_other": "{{count}} results for “{{q}}”",
   "discovery_resultsCount_one": "{{count}} result",
-  "discovery_resultsCount_other": "{{count}} results"
+  "discovery_resultsCount_other": "{{count}} results",
+  "discovery_segment": "Category",
+  "discovery_anySegment": "Any category",
+  "discovery_genre": "Genre",
+  "discovery_anyGenre": "Any genre",
+  "discovery_segmentGenres": "Genres in {{segment}}",
+  "discovery_moreGenres": "More genres",
+  "discovery_lessGenres": "Fewer genres",
+  "discovery_allSegmentEvents": "All {{segment}}"
 }

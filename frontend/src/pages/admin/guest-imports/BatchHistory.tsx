@@ -25,6 +25,7 @@ export function BatchHistory({
     logs,
     loadingLogs,
     logsError,
+    logsNotFound,
     page,
     concertFilter,
     statusFilter,
@@ -86,6 +87,12 @@ export function BatchHistory({
         </button>
       </div>
 
+      {logsNotFound ? (
+        <div className="admin-notice" role="status">
+          <strong>{translate('event-content:guestsNotAvailableTitle')}</strong>{' '}
+          {translate('event-content:guestsNotAvailableBody')}
+        </div>
+      ) : null}
       {logsError ? (
         <div className="admin-notice error" role="alert">
           {logsError}

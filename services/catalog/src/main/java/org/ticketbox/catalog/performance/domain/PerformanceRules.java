@@ -93,7 +93,7 @@ public final class PerformanceRules {
 
     public static void validateSale(
             PerformanceSale sale, OffsetDateTime start, OffsetDateTime end, PerformanceLayout layout,
-            boolean publishing) {
+            boolean publishing, int maxPerAccount) {
         require(sale != null && sale.groups() != null && sale.groups().size() <= 2_000
                         && sale.offers() != null && sale.offers().size() <= 4_000,
                 "error.performance.invalid-sale");
@@ -159,6 +159,18 @@ public final class PerformanceRules {
                             && !offer.saleStartAt().isBefore(start) && !offer.saleEndAt().isAfter(end)
                             && offer.saleStartAt().isBefore(offer.saleEndAt()),
                     "error.performance.invalid-offer-window");
+        }
+        var groupsById = new HashMap<UUID, PerformanceSale.Group>();
+        for (var group : sale.groups()) groupsById.put(group.id(), group);
+        for (var offer : sale.offers()) {
+            require(offer.description() == null || offer.description().length() <= 500,
+                    "error.performance.invalid-offer-description");
+            require(offer.minPerOrder() >= 1 && offer.minPerOrder() <= 100, "error.performance.invalid-offer-min");
+            require(offer.minPerOrder() <= maxPerAccount, "error.performance.offer-min-above-limit");
+            var group = groupsById.get(offer.groupId());
+            // General admission capacity, or the number of sellable seats of a seated pool.
+            require(offer.minPerOrder() <= group.capacity(),
+                    "error.performance.offer-min-above-capacity");
         }
         if (publishing) {
             require(sale.offers().stream().anyMatch(PerformanceSale.Offer::active), "error.performance.missing-offer");

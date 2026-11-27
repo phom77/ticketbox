@@ -78,7 +78,7 @@ public class JdbcWorkspaceOperationsStore implements WorkspaceOperationsStore {
             """.formatted(REVIEW_STATE, REVIEW_SUBMITTED, REVIEW_REASON, CURRENT_REVIEW,
             PERFORMANCE_STATUS.formatted(REVIEW_STATE));
     private static final String EVENT_COLUMNS = """
-            SELECT e.id, e.title, e.description, e.category, e.organization_id, e.legacy_concert_id,
+            SELECT e.id, e.title, e.description, ev.segment_id, ev.primary_genre_id, e.organization_id, e.legacy_concert_id,
                 rollup.performance_count, (rollup.performance_count = 0 OR rollup.statuses && ARRAY['DRAFT', 'IN_REVIEW', 'CHANGES_REQUESTED']) AS preparing,
                 rollup.changes_requested, rollup.next_starts_at,
                 COALESCE(rollup.needs_change, rollup.first_draft) AS action_performance_id, rollup.change_reason,
@@ -225,7 +225,7 @@ public class JdbcWorkspaceOperationsStore implements WorkspaceOperationsStore {
 
     private EventRow eventRow(ResultSet row, int index) throws SQLException {
         return new EventRow(row.getObject("id", UUID.class), row.getString("title"), row.getString("description"),
-                row.getString("category"), row.getObject("organization_id", UUID.class),
+                row.getString("segment_id"), row.getString("primary_genre_id"), row.getObject("organization_id", UUID.class),
                 row.getObject("legacy_concert_id", UUID.class), row.getLong("performance_count"),
                 row.getBoolean("preparing"), row.getBoolean("changes_requested"),
                 row.getObject("next_starts_at", OffsetDateTime.class), row.getObject("action_performance_id", UUID.class),
