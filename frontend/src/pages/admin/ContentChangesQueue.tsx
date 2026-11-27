@@ -15,6 +15,7 @@ import type { Page } from '../../api/concerts';
 import { WorkspaceSelect } from '../../components/WorkspaceSelect';
 import { useToast } from '../../components/feedback/toast-context';
 import { dateFormatter } from '../../data/formatters';
+import { describeClassification } from '../../features/discovery/classification';
 import {
   ageRatingLabelKey,
   contentDifferences,
@@ -51,6 +52,8 @@ function fieldLabelKey(field: ContentDifference['field']) {
       return 'event-content:ageRating';
     case 'refundPolicy':
       return 'event-content:refundPolicy';
+    case 'classification':
+      return 'event-content:diffClassification';
     case 'poster':
       return 'event-content:posterTitle';
   }
@@ -216,7 +219,9 @@ function ContentComparison({
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const differences = contentDifferences(state.event, revision);
+  const differences = contentDifferences(state.event, revision, (value) =>
+    describeClassification(value, t),
+  );
 
   async function decide(action: ContentDecision) {
     setBusy(true);

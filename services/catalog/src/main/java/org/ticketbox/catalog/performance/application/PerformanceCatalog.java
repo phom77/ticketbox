@@ -16,19 +16,23 @@ import org.springframework.transaction.annotation.Transactional;
 import org.ticketbox.catalog.application.error.AppException;
 import org.ticketbox.catalog.application.error.ErrorCode;
 import org.ticketbox.catalog.performance.application.PerformanceViews.*;
-import org.ticketbox.catalog.performance.domain.EventCategory;
+import org.ticketbox.catalog.classification.application.ClassificationQuery;
+import org.ticketbox.catalog.classification.domain.EventClassification;
 import org.ticketbox.catalog.performance.domain.PerformanceLayout;
 import org.ticketbox.catalog.performance.domain.PerformanceRules;
 import org.ticketbox.catalog.performance.domain.PerformanceSale;
+import org.ticketbox.catalog.performance.domain.VenueCity;
 
 @Service
 public class PerformanceCatalog {
     private final PerformanceStore store;
+    private final ClassificationQuery classifications;
     private final Set<String> publishingOrganizations;
 
-    public PerformanceCatalog(PerformanceStore store,
+    public PerformanceCatalog(PerformanceStore store, ClassificationQuery classifications,
                               @Value("${ticketbox.performance-sales.organizations:}") String organizations) {
         this.store = store;
+        this.classifications = classifications;
         publishingOrganizations = Arrays.stream(organizations.split(",")).map(String::trim)
                 .collect(Collectors.toUnmodifiableSet());
     }
@@ -45,6 +49,11 @@ public class PerformanceCatalog {
 
     @Transactional(readOnly = true)
     public Page<DiscoveryCard> discover(DiscoveryQuery query, Pageable page) {
+        var reference = classifications.reference();
+        if ((query.segment() != null && reference.segment(query.segment()).isEmpty())
+                || (query.genre() != null && reference.genre(query.genre()).isEmpty())) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "error.performance.invalid-discovery-query");
+        }
         return store.discover(query, page);
     }
 
@@ -64,20 +73,23 @@ public class PerformanceCatalog {
     }
 
     @Transactional
-    public Event createEvent(UUID owner, String title, String description, String category) {
-        String stored = validateEvent(title, description, category);
+    public Event createEvent(UUID owner, String title, String description, EventClassification classification) {
+        validateEvent(title, description);
         UUID id = UUID.randomUUID();
-        store.createEvent(id, owner, title.trim(), description, stored);
+        store.createEvent(id, owner, title.trim(), description);
+        store.writeClassification(id, classification);
         return event(id, owner);
     }
 
     @Transactional
-    public Event updateDraftEvent(UUID owner, UUID id, Long expected, String title, String description, String category) {
+    public Event updateDraftEvent(UUID owner, UUID id, Long expected, String title, String description,
+                                  EventClassification classification) {
         long current = store.lockNativeEventVersion(id, owner).orElseThrow(PerformanceCatalog::missing);
         require(!store.hasReleasedPerformances(id), "error.performance.event-draft-locked");
         requireDraftVersion(expected, current);
-        String stored = validateEvent(title, description, category);
-        store.updateDraftEvent(id, title.trim(), description, stored);
+        validateEvent(title, description);
+        store.updateDraftEvent(id, title.trim(), description);
+        store.writeClassification(id, classification);
         return event(id, owner);
     }
 
@@ -89,24 +101,21 @@ public class PerformanceCatalog {
 
     @Transactional
     public ConcertCategory setLegacyEventCategory(UUID concert, UUID owner, String category) {
-        String stored = validCategory(category);
-        require(stored != null || category == null || category.isBlank(), "error.performance.invalid-category");
+        EventClassification stored = null;
+        if (category != null && !category.isBlank()) {
+            stored = EventClassification.fromLegacyCategory(category);
+            require(stored != null, "error.performance.invalid-category");
+            // Re-check against the reference data so a retired segment is refused.
+            stored = EventClassification.of(stored.segment(), stored.primaryGenre(), List.of(),
+                    classifications.reference(), store.classification(concert));
+        }
         if (!store.updateLegacyEventCategory(concert, owner, stored)) throw missing();
-        return new ConcertCategory(stored);
+        return new ConcertCategory(stored == null ? null : stored.segment());
     }
 
-    /** Returns the category to store: null for none, otherwise a known id. */
-    private static String validCategory(String category) {
-        if (category == null || category.isBlank()) return null;
-        return EventCategory.parse(category.strip()).map(EventCategory::id).orElse(null);
-    }
-
-    private static String validateEvent(String title, String description, String category) {
-        String stored = validCategory(category);
+    private static void validateEvent(String title, String description) {
         require(PerformanceRules.text(title, 500) && (description == null || description.length() <= 60_000),
                 "error.performance.invalid-event");
-        require(stored != null || category == null || category.isBlank(), "error.performance.invalid-category");
-        return stored;
     }
 
     @Transactional(readOnly = true)
@@ -254,6 +263,8 @@ public class PerformanceCatalog {
         long eventVersion = store.lockNativeEventVersion(performance.eventId(), owner)
                 .orElseThrow(PerformanceCatalog::missing);
         if (expectedEventDraft != null) version(expectedEventDraft, eventVersion);
+        require(EventClassification.releasable(store.classification(performance.eventId())),
+                "error.performance.classification-missing");
         require(performance.saleEndAt().isAfter(OffsetDateTime.now()), "error.performance.sale-window-ended");
         var sale = store.sale(performance.id());
         PerformanceRules.validateSale(sale, performance.saleStartAt(), performance.saleEndAt(),
@@ -410,6 +421,7 @@ public class PerformanceCatalog {
                 event.title(), performance.venueName(), performance.startsAt(), performance.endsAt(),
                 performance.doorsOpenAt(), performance.timezone(), performance.saleStartAt(), performance.saleEndAt(),
                 status, suspended, resumedAdmissionAt, performance.publicVisible(), performance.maxPerAccount(),
-                null, sale.groups(), sale.offers());
+                null, sale.groups(), sale.offers(), event.segment(), event.primaryGenre(),
+                VenueCity.of(performance.venueAddress()));
     }
 }

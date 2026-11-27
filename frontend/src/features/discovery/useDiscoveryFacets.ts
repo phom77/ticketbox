@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { getDiscoveryFacets, type DiscoveryFacets } from '../../api/performances';
 
-const none: DiscoveryFacets = { cities: [], categories: [] };
+const none: DiscoveryFacets = { cities: [], segments: [], genres: [], categories: [] };
 let cached: Promise<DiscoveryFacets> | undefined;
 
-/** City and category values that have upcoming events. Failures leave the lists empty. */
+/** City, segment and genre values that have upcoming events. Failures leave the lists empty. */
 export function useDiscoveryFacets() {
   const [facets, setFacets] = useState(none);
   useEffect(() => {
@@ -17,6 +17,8 @@ export function useDiscoveryFacets() {
       if (active && value !== none) {
         setFacets({
           cities: Array.isArray(value.cities) ? value.cities : [],
+          segments: Array.isArray(value.segments) ? value.segments : [],
+          genres: Array.isArray(value.genres) ? value.genres : [],
           categories: Array.isArray(value.categories) ? value.categories : [],
         });
       }

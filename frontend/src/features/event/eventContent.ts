@@ -14,17 +14,34 @@ export const artistBioLimit = 20_000;
 export type ContentForm = {
   title: string;
   description: string;
-  category: string;
+  segment: string;
+  primaryGenre: string;
+  /** Secondary genres (tags), at most three. */
+  genres: string[];
   translations: ConcertTranslations;
   artistBio: string;
   ageRating: AgeRating | '';
   refundPolicy: string;
 };
 
+export const maxGenreTags = 3;
+
+/** The classification the server sends for an event or, in a revision, inside its content. */
+export type ClassificationValue = {
+  segment?: string | null;
+  primaryGenre?: string | null;
+  genres?: string[] | null;
+  secondaryGenres?: string[] | null;
+};
+
 type ContentSource = {
   title: string;
   description?: string | null;
-  category?: string | null;
+  segment?: string | null;
+  primaryGenre?: string | null;
+  genres?: string[] | null;
+  /** Revision content carries the classification as one object. */
+  classification?: ClassificationValue | null;
   translations?: ConcertTranslations;
   artistBio?: string | null;
   ageRating?: AgeRating | null;
@@ -34,18 +51,33 @@ type ContentSource = {
 export const emptyForm: ContentForm = {
   title: '',
   description: '',
-  category: '',
+  segment: '',
+  primaryGenre: '',
+  genres: [],
   translations: {},
   artistBio: '',
   ageRating: '',
   refundPolicy: '',
 };
 
-export function formFromContent(source: ContentSource, category = source.category): ContentForm {
+/** The classification of a source: a revision's own when it has one, otherwise the live event's. */
+export function classificationOf(source: ContentSource, fallback?: ContentSource) {
+  const value = source.classification ?? (source.segment !== undefined ? source : null);
+  const from = value ?? fallback?.classification ?? fallback ?? null;
+  const tags = from?.genres ?? (from as ClassificationValue | null)?.secondaryGenres ?? [];
+  return {
+    segment: (from?.segment ?? '').trim().toLowerCase(),
+    primaryGenre: (from?.primaryGenre ?? '').trim().toLowerCase(),
+    genres: [...tags],
+  };
+}
+
+/** `live` supplies the classification of a revision that predates classification. */
+export function formFromContent(source: ContentSource, live?: ContentSource): ContentForm {
   return {
     title: source.title,
     description: source.description ?? '',
-    category: (category ?? '').trim().toLowerCase(),
+    ...classificationOf(source, live),
     translations: cleanTranslations(source.translations),
     artistBio: source.artistBio ?? '',
     ageRating: source.ageRating ?? '',
@@ -75,15 +107,29 @@ export function contentInput(form: ContentForm): EventContentInput {
   };
 }
 
+/** The classification fields of the event write; empty strings mean "none chosen". */
+export function classificationInput(form: ContentForm) {
+  return { segment: form.segment, primaryGenre: form.primaryGenre, genres: form.genres };
+}
+
 export function revisionInput(form: ContentForm): RevisionInput {
   const { title, description, translations, artistBio, ageRating, refundPolicy } =
     contentInput(form);
-  return { title, description, translations, artistBio, ageRating, refundPolicy };
+  return {
+    title,
+    description,
+    translations,
+    artistBio,
+    ageRating,
+    refundPolicy,
+    ...classificationInput(form),
+  };
 }
 
 export function sameContent(a: ContentForm, b: ContentForm) {
   return (
-    JSON.stringify(contentInput(a)) + a.category === JSON.stringify(contentInput(b)) + b.category
+    JSON.stringify(contentInput(a)) + JSON.stringify(classificationInput(a)) ===
+    JSON.stringify(contentInput(b)) + JSON.stringify(classificationInput(b))
   );
 }
 
@@ -97,6 +143,7 @@ export type ContentDifference = {
     | 'artistBio'
     | 'ageRating'
     | 'refundPolicy'
+    | 'classification'
     | 'poster';
   current: string;
   proposed: string;
@@ -105,9 +152,15 @@ export type ContentDifference = {
 
 const text = (value: string | null | undefined) => (value ?? '').trim();
 
+/**
+ * `describe` turns a classification into words (segment, genre and tags); without it ids are shown. The classification
+ * line compares ids, so a relabelling never looks like a change.
+ */
 export function contentDifferences(
   live: ContentSource & { posterUrl?: string | null },
   revision: { content: EventContentValue; posterUrl: string | null; posterChanged: boolean },
+  describe: (classification: ReturnType<typeof classificationOf>) => string = (value) =>
+    [value.segment, value.primaryGenre, ...value.genres].filter(Boolean).join(' / '),
 ): ContentDifference[] {
   const translation = (language: 'vi' | 'en') => {
     const side = (source: ConcertTranslations | undefined) =>
@@ -134,12 +187,29 @@ export function contentDifferences(
     line('artistBio', text(live.artistBio), text(content.artistBio)),
     line('ageRating', live.ageRating ?? '', content.ageRating ?? ''),
     line('refundPolicy', text(live.refundPolicy), text(content.refundPolicy)),
+    classificationLine(live, revision.content, describe),
     line(
       'poster',
       live.posterUrl ?? '',
       revision.posterChanged ? (revision.posterUrl ?? '') : (live.posterUrl ?? ''),
     ),
   ];
+}
+
+function classificationLine(
+  live: ContentSource,
+  proposed: EventContentValue,
+  describe: (classification: ReturnType<typeof classificationOf>) => string,
+): ContentDifference {
+  const current = classificationOf(live);
+  // A revision staged before classification existed has none and keeps the live one.
+  const next = proposed.classification ? classificationOf(proposed) : current;
+  return {
+    field: 'classification',
+    current: describe(current),
+    proposed: describe(next),
+    changed: JSON.stringify(current) !== JSON.stringify(next),
+  };
 }
 
 /** A specific problem with a poster file, or null when it can be uploaded. */

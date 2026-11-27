@@ -17,6 +17,7 @@ import { getRoleHome, getRoleHomeLabel } from '../../features/auth/roleRoutes';
 import { buyerInformationLinks } from '../../features/ticket/buyerInformation';
 import {
   combineQuery,
+  matchCity,
   rememberSearchSplit,
   splitQuery,
   type HeaderSearchValues,
@@ -26,7 +27,7 @@ import { useDocumentTheme, useThemePreference } from '../../hooks/useThemePrefer
 import { LanguageSelect } from '../LanguageSelect';
 import { HeaderSearch } from './HeaderSearch';
 import { useDiscoveryFacets } from '../../features/discovery/useDiscoveryFacets';
-import { eventCategories, matchCity } from '../../features/discovery/categories';
+import { headerSegmentIds, segmentLabelKey } from '../../features/discovery/classification';
 import './PublicLayout.css';
 
 export function Logo({
@@ -177,19 +178,20 @@ function ThemeMenuItem() {
 }
 
 function BrowseRow({ current }: { current: URLSearchParams | null }) {
-  const activeCategory = current?.get('category')?.toLowerCase() ?? null;
-  const onlyCategory =
-    current !== null && [...current.keys()].every((key) => ['category', 'page'].includes(key));
+  const activeSegment = current ? readDiscoveryFilters(current).segment : null;
+  const onlySegment =
+    current !== null &&
+    [...current.keys()].every((key) => ['segment', 'category', 'page'].includes(key));
   const links = [
     {
       id: 'all',
       label: translate('shared:browse_allEvents'),
       params: {} as Record<string, string>,
     },
-    ...eventCategories.map((category) => ({
-      id: category.id,
-      label: translate(category.label),
-      params: { category: category.id } as Record<string, string>,
+    ...headerSegmentIds.map((id) => ({
+      id,
+      label: translate(segmentLabelKey(id)),
+      params: { segment: id } as Record<string, string>,
     })),
   ];
   return (
@@ -201,7 +203,7 @@ function BrowseRow({ current }: { current: URLSearchParams | null }) {
             current !== null &&
             (link.id === 'all'
               ? [...current.keys()].filter((key) => key !== 'page').length === 0
-              : onlyCategory && activeCategory === link.id);
+              : onlySegment && activeSegment === link.id);
           return (
             <li key={link.id}>
               <Link

@@ -233,11 +233,31 @@ class ScopedCheckinIntegrationTest {
     }
 
     private void publish(UUID performance, UUID org, UUID offer) throws Exception {
+        publish(performance, org, offer, 1, snapshot -> { });
+    }
+
+    @Test
+    void projectionAppliesSnapshotsWithAndWithoutClassificationFields() throws Exception {
+        UUID performance = UUID.randomUUID();
+        UUID org = UUID.randomUUID();
+        UUID offer = UUID.randomUUID();
+        publish(performance, org, offer, 1, snapshot -> { });
+        publish(performance, org, offer, 2, snapshot -> snapshot.put("segment", "concerts")
+                .put("primaryGenre", "vpop").put("city", "Hanoi"));
+        publish(performance, org, offer, 3, snapshot -> snapshot.putNull("segment").putNull("primaryGenre").putNull("city"));
+        assertThat(jdbc.queryForObject("SELECT performance_snapshot_version FROM concerts WHERE id=?", Long.class,
+                performance)).isEqualTo(3L);
+        assertThat(jdbc.queryForObject("SELECT title FROM concerts WHERE id=?", String.class, performance))
+                .isEqualTo("Test performance");
+    }
+
+    private void publish(UUID performance, UUID org, UUID offer, int version,
+                         java.util.function.Consumer<ObjectNode> extra) throws Exception {
         var snapshot = json.createObjectNode();
         snapshot.put("id", performance.toString());
         snapshot.put("eventId", UUID.randomUUID().toString());
         snapshot.put("organizationId", org.toString());
-        snapshot.put("version", 1);
+        snapshot.put("version", version);
         snapshot.put("layoutVersion", 1);
         snapshot.put("layoutChecksum", "fixture");
         snapshot.putNull("legacyConcertId");
@@ -257,8 +277,9 @@ class ScopedCheckinIntegrationTest {
         snapshot.putArray("offers").addObject()
                 .put("id", offer.toString()).put("name", "Main floor")
                 .put("price", 100_000).put("active", true);
+        extra.accept(snapshot);
         mvc.perform(service(put(PROJECTION + performance), snapshot))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.version").value(1));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.version").value(version));
     }
 
     private ObjectNode ticket(UUID id, UUID performance, UUID offer) {

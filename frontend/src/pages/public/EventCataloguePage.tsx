@@ -10,7 +10,6 @@ import { dateFormatter } from '../../data/formatters';
 import { eventCard } from '../../features/discovery/cards';
 import { DiscoveryFilterPanel } from '../../features/discovery/DiscoveryFilterPanel';
 import {
-  capitalize,
   discoveryOptions,
   discoverySearch,
   readDiscoveryFilters,
@@ -24,7 +23,8 @@ import {
   type DiscoveryCatalog,
 } from '../../features/discovery/useDiscoveryCatalog';
 import { useDiscoveryFacets } from '../../features/discovery/useDiscoveryFacets';
-import { categoryLabelKey } from '../../features/discovery/categories';
+import { classificationText } from '../../features/discovery/classification';
+import { SegmentGenres } from '../../features/discovery/SegmentGenres';
 import './HomePage.css';
 
 const filterDateLabel = dateFormatter({ dateStyle: 'medium', timeZone: 'UTC' });
@@ -35,10 +35,11 @@ const resetFilters = {
   to: '',
   status: '',
   city: '',
-  category: '',
+  segment: '',
+  genre: '',
   price: '',
 } as const;
-const chipKeys = ['date', 'status', 'city', 'category', 'price'] as const;
+const chipKeys = ['date', 'status', 'city', 'segment', 'genre', 'price'] as const;
 
 type BackSnapshot = {
   key: string;
@@ -57,10 +58,8 @@ function setParam(params: URLSearchParams, key: string, value: string) {
   return next;
 }
 
-function categoryName(category: string) {
-  const key = categoryLabelKey(category);
-  return key ? translate(key) : capitalize(category);
-}
+const classificationName = (kind: 'segment' | 'genre', id: string) =>
+  classificationText(id, kind, translate);
 
 export default function EventCataloguePage() {
   const { t } = useTranslation('public');
@@ -148,6 +147,19 @@ export default function EventCataloguePage() {
     }
   }
 
+  // Old `category` links keep working: the URL is rewritten to the segment and genre parameters.
+  const hasLegacyCategory = params.has('category');
+  useEffect(() => {
+    if (!hasLegacyCategory) return;
+    const next = writeDiscoveryFilters(new URLSearchParams(location.search), {
+      segment: filters.segment,
+      genre: filters.genre,
+    });
+    next.delete('category');
+    navigate({ search: next.toString(), hash: location.hash }, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- rewrite once per legacy URL
+  }, [hasLegacyCategory, location.search]);
+
   function applyFilters(next: Partial<DiscoveryFilters>) {
     // A new filter set starts again from the first page.
     navigate(
@@ -184,8 +196,8 @@ export default function EventCataloguePage() {
             ? dateChipLabel
             : key === 'city'
               ? filters.city
-              : key === 'category'
-                ? categoryName(filters.category)
+              : key === 'segment' || key === 'genre'
+                ? classificationName(key, filters[key])
                 : t((discoveryOptions[key] as Record<string, string>)[filters[key]]),
         clear: key === 'date' ? ({ date: '', from: '', to: '' } as const) : { [key]: '' },
       })),
@@ -219,6 +231,15 @@ export default function EventCataloguePage() {
             <p role="status">{t('public:discovery_totalResults', { count: total })}</p>
           ) : null}
         </div>
+
+        {filters.segment ? (
+          <SegmentGenres
+            segment={filters.segment}
+            genre={filters.genre}
+            facets={facets}
+            onChoose={(genre) => applyFilters({ genre })}
+          />
+        ) : null}
 
         <div className="discovery-controls">
           <DiscoveryFilterPanel

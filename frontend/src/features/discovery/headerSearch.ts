@@ -158,3 +158,12 @@ export function buildSuggestions(items: SuggestionItem[], query: string): Search
 
   return { events, venues: [...venues.values()].slice(0, maxSuggestions) };
 }
+
+/** The known city the buyer typed (ignoring case and Vietnamese marks), if any. */
+export function matchCity(value: string, cities: readonly string[]) {
+  // "Hà Nội", "ha noi" and "Hanoi" all name the same city.
+  const compact = (text: string) => normaliseSearch(text).replace(/\s/g, '');
+  const wanted = compact(value);
+  if (!wanted) return null;
+  return cities.find((city) => compact(city) === wanted) ?? null;
+}

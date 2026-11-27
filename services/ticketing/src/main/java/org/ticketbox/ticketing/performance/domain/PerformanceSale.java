@@ -10,14 +10,17 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
-/** Complete, immutable Catalog sale revision. Ticketing owns live stock separately. */
+/**
+ * Complete, immutable Catalog sale revision. Ticketing owns live stock separately. `segment`, `primaryGenre` and `city`
+ * are optional classification copies kept for future reporting; absent fields read as null and nothing uses them yet.
+ */
 public record PerformanceSale(
         UUID id, UUID eventId, UUID organizationId, UUID legacyConcertId, long version,
         Long layoutVersion, String layoutChecksum, String title, String venueName,
         OffsetDateTime startsAt, OffsetDateTime endsAt, OffsetDateTime doorsOpenAt, String timezone,
         OffsetDateTime saleStartAt, OffsetDateTime saleEndAt, String status, boolean salesSuspended,
         boolean publicVisible, OffsetDateTime resumedAdmissionAt, int maxPerAccount,
-        List<Group> groups, List<Offer> offers) {
+        List<Group> groups, List<Offer> offers, String segment, String primaryGenre, String city) {
 
     private static final Set<String> STATUSES =
             Set.of("ON_SALE", "SOLD_OUT", "CANCELLED", "COMPLETED");

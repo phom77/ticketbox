@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.ticketbox.catalog.classification.domain.EventClassification;
 import org.ticketbox.catalog.performance.application.PerformanceViews.Background;
 import org.ticketbox.catalog.performance.application.PerformanceViews.ConcertCategory;
 import org.ticketbox.catalog.performance.application.PerformanceViews.DiscoveryCard;
@@ -42,15 +43,21 @@ public interface PerformanceStore {
 
     boolean hasPublicationReview(UUID performance);
 
-    void createEvent(UUID id, UUID organizer, String title, String description, String category);
+    void createEvent(UUID id, UUID organizer, String title, String description);
 
-    void updateDraftEvent(UUID id, String title, String description, String category);
+    void updateDraftEvent(UUID id, String title, String description);
+
+    /** Replaces the classification of an event; null clears it. Callers bump the content version. */
+    void writeClassification(UUID eventId, EventClassification classification);
+
+    /** The stored classification of an event, or null when there is none. */
+    EventClassification classification(UUID eventId);
 
     /** The category of the event mapped to a legacy concert; `organizer` null means any owner. */
     Optional<ConcertCategory> legacyEventCategory(UUID concert, UUID organizer);
 
     /** Returns false when no such legacy concert is visible to the organizer. */
-    boolean updateLegacyEventCategory(UUID concert, UUID organizer, String category);
+    boolean updateLegacyEventCategory(UUID concert, UUID organizer, EventClassification classification);
 
     List<Venue> venues(UUID organizer);
 

@@ -26,14 +26,36 @@ describe('readDiscoveryFilters', () => {
     expect(readDiscoveryFilters(new URLSearchParams('status=bogus')).status).toBe('');
   });
 
-  it('reads city, category and price filters', () => {
-    const params = new URLSearchParams('city=Hanoi&category=jazz&price=under-500000&price2=x');
+  it('reads city, segment, genre and price filters', () => {
+    const params = new URLSearchParams(
+      'city=Hanoi&segment=concerts&genre=vpop&price=under-500000&price2=x',
+    );
     expect(readDiscoveryFilters(params)).toMatchObject({
       city: 'Hanoi',
-      category: 'jazz',
+      segment: 'concerts',
+      genre: 'vpop',
       price: 'under-500000',
     });
     expect(readDiscoveryFilters(new URLSearchParams('price=free')).price).toBe('');
+  });
+
+  it('maps an old category link onto a segment and genre, and lets explicit parameters win', () => {
+    expect(readDiscoveryFilters(new URLSearchParams('category=arts-theater'))).toMatchObject({
+      segment: 'arts-theater-comedy',
+      genre: '',
+    });
+    expect(readDiscoveryFilters(new URLSearchParams('category=Comedy'))).toMatchObject({
+      segment: 'arts-theater-comedy',
+      genre: 'stand-up',
+    });
+    expect(
+      readDiscoveryFilters(new URLSearchParams('category=comedy&segment=sports')),
+    ).toMatchObject({ segment: 'sports', genre: '' });
+    expect(readDiscoveryFilters(new URLSearchParams('category=jazz')).segment).toBe('');
+    expect(readDiscoveryFilters(new URLSearchParams('segment=bogus&genre=bogus'))).toMatchObject({
+      segment: '',
+      genre: '',
+    });
   });
 
   it('infers a custom range from dates and ignores dates for preset ranges', () => {
@@ -71,7 +93,8 @@ describe('discoverySearch', () => {
         filters({
           q: 'jazz',
           city: 'Hanoi',
-          category: 'jazz',
+          segment: 'concerts',
+          genre: 'jazz',
           price: '500000-1000000',
           status: 'on-sale',
         }),
@@ -80,7 +103,8 @@ describe('discoverySearch', () => {
     expect(Object.fromEntries(search)).toEqual({
       q: 'jazz',
       city: 'Hanoi',
-      category: 'jazz',
+      segment: 'concerts',
+      genre: 'jazz',
       status: 'on-sale',
       minPrice: '500000',
       maxPrice: '1000000',

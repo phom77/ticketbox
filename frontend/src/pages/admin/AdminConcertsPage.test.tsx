@@ -62,7 +62,7 @@ beforeEach(() => {
     } as never),
   );
   vi.mocked(admin.updateConcert).mockResolvedValue({ data: onSale } as never);
-  vi.mocked(admin.getConcertCategory).mockResolvedValue({ category: 'comedy' } as never);
+  vi.mocked(admin.getConcertCategory).mockResolvedValue({ category: 'family' } as never);
   vi.mocked(admin.setConcertCategory).mockResolvedValue({ data: { category: 'sports' } } as never);
   vi.mocked(admin.updateConcertStatus).mockResolvedValue({} as never);
   vi.mocked(admin.deleteConcert).mockResolvedValue({} as never);
@@ -124,7 +124,7 @@ describe('AdminConcertsPage', () => {
     await user.click(await screen.findByRole('button', { name: 'Edit Autumn Jazz Night' }));
     const dialog = screen.getByRole('dialog', { name: 'Autumn Jazz Night' });
     const select = within(dialog).getByRole('combobox', { name: 'Category (optional)' });
-    await waitFor(() => expect(select).toHaveTextContent('Comedy'));
+    await waitFor(() => expect(select).toHaveTextContent('Family'));
     await user.click(select);
     await user.click(screen.getByRole('option', { name: 'Sports' }));
     await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));

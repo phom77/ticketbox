@@ -2,6 +2,7 @@ package org.ticketbox.catalog.performance.application;
 
 import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
@@ -11,12 +12,13 @@ import org.springframework.transaction.annotation.Transactional;
 import org.ticketbox.catalog.application.error.AppException;
 import org.ticketbox.catalog.application.error.ErrorCode;
 import org.ticketbox.catalog.application.port.Upload;
+import org.ticketbox.catalog.classification.application.ClassificationQuery;
+import org.ticketbox.catalog.classification.domain.EventClassification;
 import org.ticketbox.catalog.concert.application.port.PosterStorage;
 import org.ticketbox.catalog.content.domain.ConcertText;
 import org.ticketbox.catalog.performance.application.EventContentStore.Poster;
 import org.ticketbox.catalog.performance.application.PerformanceViews.DiscoveryText;
 import org.ticketbox.catalog.performance.application.PerformanceViews.Event;
-import org.ticketbox.catalog.performance.domain.EventCategory;
 import org.ticketbox.catalog.performance.domain.EventContent;
 import org.ticketbox.catalog.performance.domain.EventContentRevision;
 import org.ticketbox.catalog.performance.domain.EventContentRevision.Action;
@@ -34,21 +36,34 @@ public class EventContentService implements EventArtistBioPort {
     private final PosterStorage posters;
     private final PosterCleanup cleanup;
     private final PerformanceCatalog catalog;
+    private final ClassificationQuery classifications;
 
     public EventContentService(PerformanceStore store, EventContentStore contents, PosterStorage posters,
-                               PerformanceCatalog catalog) {
+                               PerformanceCatalog catalog, ClassificationQuery classifications) {
         this.store = store;
+        this.classifications = classifications;
         this.contents = contents;
         this.posters = posters;
         this.catalog = catalog;
         this.cleanup = new PosterCleanup(posters);
     }
 
-    /** What an organizer sends for the details step. */
-    public record Input(String title, String description, String category, Map<String, ConcertText> translations,
-                        String artistBio, String ageRating, String refundPolicy) {
-        EventContent content() {
-            return EventContent.authored(title, description, translations, artistBio, ageRating, refundPolicy);
+    /**
+     * What an organizer sends for the details step. Classification fields left out (all of `segment`,
+     * `primaryGenre` and `genres` null) keep the current classification; `category` is the deprecated one-release
+     * input, used only when no classification field is present. Blank values clear the classification.
+     */
+    public record Input(String title, String description, String category, String segment, String primaryGenre,
+                        List<String> genres, Map<String, ConcertText> translations, String artistBio,
+                        String ageRating, String refundPolicy) {
+        public Input(String title, String description, String category, Map<String, ConcertText> translations,
+                     String artistBio, String ageRating, String refundPolicy) {
+            this(title, description, category, null, null, null, translations, artistBio, ageRating, refundPolicy);
+        }
+
+        EventContent content(EventClassification classification) {
+            return EventContent.authored(title, description, translations, artistBio, ageRating, refundPolicy,
+                    classification);
         }
     }
 
@@ -63,10 +78,11 @@ public class EventContentService implements EventArtistBioPort {
 
     @Transactional
     public Event create(UUID owner, Input input) {
-        var content = input.content();
-        String category = category(input.category());
+        var classification = classify(input, null);
+        var content = input.content(classification);
         UUID id = UUID.randomUUID();
-        store.createEvent(id, owner, content.title(), content.description(), category);
+        store.createEvent(id, owner, content.title(), content.description());
+        store.writeClassification(id, classification);
         contents.write(id, content);
         return store.event(id, owner).orElseThrow();
     }
@@ -76,9 +92,10 @@ public class EventContentService implements EventArtistBioPort {
         long current = lock(owner, id);
         require(!store.hasReleasedPerformances(id), "error.performance.event-draft-locked");
         requireVersion(expected, current);
-        var content = input.content();
-        contents.writeCategory(id, category(input.category()));
-        contents.write(id, content);
+        var live = contents.live(id).orElseThrow(EventContentService::missing);
+        var classification = classify(input, live.content().classification());
+        store.writeClassification(id, classification);
+        contents.write(id, input.content(classification));
         return store.event(id, owner).orElseThrow();
     }
 
@@ -130,7 +147,7 @@ public class EventContentService implements EventArtistBioPort {
         var existing = contents.revision(id);
         checkRevision(expectedRevision, existing);
         var live = contents.live(id).orElseThrow(EventContentService::missing);
-        var content = input.content();
+        var content = input.content(classify(input, stagedContent(existing, live).classification()));
         var poster = existing.filter(r -> r.state() != State.APPROVED).map(EventContentRevision::poster)
                 .orElse(PosterEdit.unchanged());
         var next = existing.map(r -> r.edited(current, content, poster))
@@ -207,8 +224,14 @@ public class EventContentService implements EventArtistBioPort {
             if (action == Action.APPROVE) {
                 var live = contents.live(id).orElseThrow(EventContentService::missing);
                 contents.apply(id, decided.content(), decided.poster());
-                if (!live.content().title().equals(decided.content().title())) {
-                    // The sale snapshot carries the event title: released performances get a new snapshot version.
+                // A revision without a classification (staged before classification existed) keeps the live one.
+                var classification = decided.content().classification() == null
+                        ? live.content().classification() : decided.content().classification();
+                store.writeClassification(id, classification);
+                if (!live.content().title().equals(decided.content().title())
+                        || EventClassification.snapshotChanged(live.content().classification(), classification)) {
+                    // The sale snapshot carries the event title, segment and primary genre: released performances
+                    // get a new snapshot version.
                     catalog.republishReleased(contents.organization(id).orElseThrow(), reviewer, id);
                 }
                 if (decided.poster().changed() && live.poster().publicId() != null
@@ -239,7 +262,11 @@ public class EventContentService implements EventArtistBioPort {
         var translations = new LinkedHashMap<String, DiscoveryText>();
         content.translations().forEach((language, text) ->
                 translations.put(language, new DiscoveryText(text.title(), text.description())));
-        return new Event(event.id(), content.title(), content.description(), event.category(), event.draftVersion(),
+        var classification = content.classification();
+        return new Event(event.id(), content.title(), content.description(),
+                classification == null ? event.segment() : classification.segment(),
+                classification == null ? event.primaryGenre() : classification.primaryGenre(),
+                classification == null ? event.genres() : classification.secondaryGenres(), event.draftVersion(),
                 event.contentVersion(),
                 event.performances(), revision.poster().changed() ? revision.poster().url() : event.posterUrl(),
                 translations, content.artistBio(), content.ageRating(), content.refundPolicy());
@@ -276,7 +303,7 @@ public class EventContentService implements EventArtistBioPort {
             throw new AppException(ErrorCode.ARTIST_BIO_ALREADY_EXISTS, "error.artist-bio.overwrite-required");
         }
         var updated = EventContent.authored(base.title(), base.description(), base.translations(), artistBio,
-                base.ageRating(), base.refundPolicy());
+                base.ageRating(), base.refundPolicy(), base.classification());
         if (!released) {
             contents.write(eventId, updated);
             return;
@@ -312,10 +339,46 @@ public class EventContentService implements EventArtistBioPort {
         version(expected, existing.map(EventContentRevision::revision).orElse(0L));
     }
 
-    private static String category(String category) {
-        if (category == null || category.isBlank()) return null;
-        return EventCategory.parse(category.strip()).map(EventCategory::id)
-                .orElseThrow(() -> new AppException(ErrorCode.INVALID_REQUEST, "error.performance.invalid-category"));
+    /** The classification an input asks for, validated against the reference data; see {@link Input}. */
+    private EventClassification classify(Input input, EventClassification current) {
+        boolean provided = input.segment() != null || input.primaryGenre() != null || input.genres() != null;
+        if (!provided && input.category() == null) return current;
+        if (!provided) {
+            if (input.category().isBlank()) return null;
+            var legacy = EventClassification.fromLegacyCategory(input.category());
+            if (legacy == null) throw new AppException(ErrorCode.INVALID_REQUEST, "error.performance.invalid-category");
+            return EventClassification.of(legacy.segment(), legacy.primaryGenre(), List.of(),
+                    classifications.reference(), current);
+        }
+        return EventClassification.of(input.segment(), input.primaryGenre(), input.genres(),
+                classifications.reference(), current);
+    }
+
+    // Platform correction
+
+    /**
+     * Writes a classification directly, for native and legacy-linked events. Changing the segment or primary genre of
+     * a native event with released performances re-issues their sale snapshots.
+     */
+    @Transactional
+    public Event correctClassification(UUID actor, UUID id, Long expectedContentVersion, String segment,
+                                       String primaryGenre, List<String> genres) {
+        // Performance rows first, then the event row: the same order as deciding a content revision.
+        contents.performanceIds(id);
+        var locked = contents.lockEvent(id).orElseThrow(EventContentService::missing);
+        require(expectedContentVersion != null, "error.classification.expected-version");
+        version(expectedContentVersion, locked.contentVersion());
+        var current = store.classification(id);
+        var next = EventClassification.of(segment, primaryGenre, genres, classifications.reference(), current);
+        store.writeClassification(id, next);
+        contents.bumpContentVersion(id);
+        contents.audit(actor, locked.organizationId(), "EVENT_CLASSIFICATION_CORRECTED", id,
+                next == null ? "cleared" : next.segment() + "/" + next.primaryGenre());
+        if (locked.nativeEvent() && EventClassification.snapshotChanged(current, next)
+                && store.hasReleasedPerformances(id)) {
+            catalog.republishReleased(locked.organizationId(), actor, id);
+        }
+        return store.previewEvent(id, null).orElseThrow(EventContentService::missing);
     }
 
     private static AppException missing() {

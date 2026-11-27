@@ -62,4 +62,4 @@ The Admin and Organizer workspaces use the available width beside the sidebar. K
 
 The workspace follows the browser color preference on first use and remembers an explicit light or dark choice on the device. Use the scoped palette in `src/app/operations.css` for surfaces, text and borders. Use its semantic tokens for selection, focus and status. Workspace text uses a 16px base with 15px table cells and controls. Verify contrast and visible focus in both themes.
 
-Use `WorkspaceSelect` for finite options in the workspace and `ConcertPicker` for concert search. Keep date and time fields on their native controls.
+Use `WorkspaceSelect` for finite options in the workspace and `ConcertPicker` for concert search. Use `ClassificationPicker` for an event's category (radio group), main genre (searchable combobox over the category's genres) and up to three additional genres (multi-select combobox with removable chips); it follows the ARIA list-autocomplete pattern and works with the keyboard alone. Keep date and time fields on their native controls.

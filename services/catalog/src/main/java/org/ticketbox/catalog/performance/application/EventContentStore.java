@@ -25,8 +25,14 @@ public interface EventContentStore {
     /** Locks a native event of the organization and returns its content version. */
     Optional<Long> lockContentVersion(UUID eventId, UUID organization);
 
-    /** Sets the category; the content write bumps the content version. */
-    void writeCategory(UUID eventId, String category);
+    /** An event row locked for a platform correction; `nativeEvent` is false for an event linked to a legacy concert. */
+    record LockedEvent(long contentVersion, boolean nativeEvent, UUID organizationId) {}
+
+    /** Locks any event row (native or legacy-linked). */
+    Optional<LockedEvent> lockEvent(UUID eventId);
+
+    /** Bumps the content version only; used by platform corrections applied under the event lock. */
+    void bumpContentVersion(UUID eventId);
 
     /**
      * Writes the pre-release content and bumps the content version and the draft version, the token of publication

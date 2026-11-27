@@ -14,6 +14,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
+import org.ticketbox.catalog.classification.domain.EventClassification;
 import org.ticketbox.catalog.content.domain.ConcertContent;
 import org.ticketbox.catalog.performance.application.EventContentStore;
 import org.ticketbox.catalog.performance.domain.EventContent;
@@ -35,10 +36,12 @@ public class JdbcEventContentStore implements EventContentStore {
     public Optional<Live> live(UUID eventId) {
         return jdbc.query("""
                 SELECT title, description, localized_content, artist_bio, age_rating, refund_policy, poster_url,
-                       poster_public_id, content_version FROM events WHERE id=? AND legacy_concert_id IS NULL
+                       poster_public_id, content_version, segment_id, primary_genre_id
+                FROM events WHERE id=? AND legacy_concert_id IS NULL
                 """, (rs, n) -> new Live(new EventContent(rs.getString("title"), rs.getString("description"),
                         translations(rs.getString("localized_content")), rs.getString("artist_bio"),
-                        rs.getString("age_rating"), rs.getString("refund_policy")),
+                        rs.getString("age_rating"), rs.getString("refund_policy"),
+                        classification(eventId, rs.getString("segment_id"), rs.getString("primary_genre_id"))),
                         new Poster(rs.getString("poster_url"), rs.getString("poster_public_id")),
                         rs.getLong("content_version")), eventId).stream().findFirst();
     }
@@ -52,8 +55,17 @@ public class JdbcEventContentStore implements EventContentStore {
     }
 
     @Override
-    public void writeCategory(UUID eventId, String category) {
-        jdbc.update("UPDATE events SET category=? WHERE id=?", category, eventId);
+    public Optional<LockedEvent> lockEvent(UUID eventId) {
+        return jdbc.query("""
+                SELECT e.content_version, e.legacy_concert_id IS NULL AS native, v.organization_id
+                FROM events e JOIN catalog_event_view v ON v.id=e.id WHERE e.id=? FOR NO KEY UPDATE OF e
+                """, (rs, n) -> new LockedEvent(rs.getLong("content_version"), rs.getBoolean("native"),
+                rs.getObject("organization_id", UUID.class)), eventId).stream().findFirst();
+    }
+
+    @Override
+    public void bumpContentVersion(UUID eventId) {
+        jdbc.update("UPDATE events SET content_version=content_version+1 WHERE id=?", eventId);
     }
 
     @Override
@@ -213,6 +225,12 @@ public class JdbcEventContentStore implements EventContentStore {
                 State.valueOf(rs.getString("state")), rs.getObject("submitted_by", UUID.class),
                 rs.getObject("submitted_at", OffsetDateTime.class), rs.getObject("reviewer_id", UUID.class),
                 rs.getObject("decided_at", OffsetDateTime.class), rs.getString("reason"));
+    }
+
+    private EventClassification classification(UUID eventId, String segment, String primaryGenre) {
+        if (segment == null) return null;
+        return new EventClassification(segment, primaryGenre, jdbc.queryForList(
+                "SELECT genre_id FROM event_genres WHERE event_id=? ORDER BY sort, genre_id", String.class, eventId));
     }
 
     private String localized(EventContent content) {
