@@ -2898,6 +2898,7 @@ button.back-link {
   background: #0e0e11;
 }
 .admin-table-wrap {
+  position: relative; /* contains absolutely positioned .sr-only labels so they cannot widen the page */
   overflow-x: auto;
 }
 .admin-table {
