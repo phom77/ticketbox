@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -51,18 +51,24 @@ function GenreCombobox({
   const current = Math.min(active, Math.max(matches.length - 1, 0));
   const optionId = (index: number) => `${id}-option-${index}`;
 
+  // Keep the active option inside the scrolled list while moving with the arrow keys.
+  useEffect(() => {
+    if (!open) return;
+    document.getElementById(`${id}-option-${current}`)?.scrollIntoView?.({ block: 'nearest' });
+  }, [open, current, id]);
+
   function close() {
     setOpen(false);
     setQuery('');
   }
 
   function pick(option: Option) {
+    // Refocus the field first: an onPick that moves focus elsewhere (the tag limit) must win.
+    if (keepQuery) input.current?.focus();
     onPick(option.id);
     setQuery('');
-    if (keepQuery) {
-      setActive(0);
-      input.current?.focus();
-    } else close();
+    if (keepQuery) setActive(0);
+    else close();
   }
 
   function keyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -160,6 +166,7 @@ export function ClassificationPicker({
   const name = useId();
   const hintId = useId();
   const limitId = useId();
+  const limit = useRef<HTMLElement>(null);
   const text = (id: string, kind: 'segment' | 'genre') => classificationText(id, kind, t);
   const segment = segments.find((entry) => entry.id === value.segment);
   // A genre the event already has stays selectable in the list even after it was retired.
@@ -167,6 +174,14 @@ export function ClassificationPicker({
     id: genre.id,
     label: text(genre.id, 'genre'),
   }));
+  if (value.primaryGenre && !primaryOptions.some((option) => option.id === value.primaryGenre)) {
+    primaryOptions.unshift({ id: value.primaryGenre, label: text(value.primaryGenre, 'genre') });
+  }
+  // A retired segment the event already has stays visible as a choice too.
+  const segmentChoices =
+    value.segment && !segments.some((entry) => entry.id === value.segment)
+      ? [{ id: value.segment, genres: [] }, ...segments]
+      : segments;
   const allGenres = segments.flatMap((entry) => segmentGenres(entry));
   const tagOptions: Option[] = allGenres
     .filter((genre) => genre.id !== value.primaryGenre && !value.genres.includes(genre.id))
@@ -192,7 +207,7 @@ export function ClassificationPicker({
       <fieldset className="classification-segment" disabled={disabled}>
         <legend>{t('performances:classificationSegment')}</legend>
         <div className="classification-segment-options">
-          {segments.map((entry) => (
+          {segmentChoices.map((entry) => (
             <label key={entry.id} data-checked={value.segment === entry.id ? 'true' : undefined}>
               <input
                 type="radio"
@@ -258,10 +273,14 @@ export function ClassificationPicker({
           placeholder={t('performances:classificationSearch')}
           emptyText={t('performances:classificationNoMatch')}
           keepQuery
-          onPick={(genre) => onChange({ ...value, genres: [...value.genres, genre] })}
+          onPick={(genre) => {
+            onChange({ ...value, genres: [...value.genres, genre] });
+            // The field disables at the limit: move focus to the message so keyboard users are not dropped.
+            if (value.genres.length + 1 >= maxGenreTags) limit.current?.focus();
+          }}
           describedBy={limitId}
         />
-        <small id={limitId} role="status">
+        <small id={limitId} role="status" ref={limit} tabIndex={-1}>
           {t(
             full ? 'performances:classificationLimitReached' : 'performances:classificationLimit',
             {

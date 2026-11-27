@@ -68,7 +68,7 @@ export default function EventCataloguePage() {
   const navigationType = useNavigationType();
   const params = new URLSearchParams(location.search);
   const filters = readDiscoveryFilters(params);
-  const facets = useDiscoveryFacets();
+  const facets = useDiscoveryFacets(filters.segment);
   const [restored] = useState(() =>
     navigationType === 'POP' ? recentLists.get(location.key) : undefined,
   );

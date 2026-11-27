@@ -147,7 +147,12 @@ public class EventContentService implements EventArtistBioPort {
         var existing = contents.revision(id);
         checkRevision(expectedRevision, existing);
         var live = contents.live(id).orElseThrow(EventContentService::missing);
-        var content = input.content(classify(input, stagedContent(existing, live).classification()));
+        var classification = classify(input, stagedContent(existing, live).classification());
+        // A released event keeps selling, so its primary genre cannot be removed through a revision.
+        require(live.content().classification() == null || live.content().classification().primaryGenre() == null
+                        || (classification != null && classification.primaryGenre() != null),
+                "error.classification.primary-genre-required");
+        var content = input.content(classification);
         var poster = existing.filter(r -> r.state() != State.APPROVED).map(EventContentRevision::poster)
                 .orElse(PosterEdit.unchanged());
         var next = existing.map(r -> r.edited(current, content, poster))
@@ -368,8 +373,17 @@ public class EventContentService implements EventArtistBioPort {
         var locked = contents.lockEvent(id).orElseThrow(EventContentService::missing);
         require(expectedContentVersion != null, "error.classification.expected-version");
         version(expectedContentVersion, locked.contentVersion());
+        // A revision in review is built on the old classification: refuse instead of silently diverging.
+        var pending = contents.revision(id);
+        if (pending.isPresent() && pending.get().state() == State.SUBMITTED) {
+            throw new AppException(ErrorCode.PERFORMANCE_VERSION_CONFLICT,
+                    "error.classification.revision-in-review", pending.get().revision());
+        }
         var current = store.classification(id);
         var next = EventClassification.of(segment, primaryGenre, genres, classifications.reference(), current);
+        require(!(locked.nativeEvent() && store.hasReleasedPerformances(id) && next != null
+                        && next.primaryGenre() == null && current != null && current.primaryGenre() != null),
+                "error.classification.primary-genre-required");
         store.writeClassification(id, next);
         contents.bumpContentVersion(id);
         contents.audit(actor, locked.organizationId(), "EVENT_CLASSIFICATION_CORRECTED", id,

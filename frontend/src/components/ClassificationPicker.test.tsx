@@ -93,6 +93,8 @@ describe('ClassificationPicker', () => {
     expect(state().genres).toEqual(['football', 'jazz', 'rock']);
     expect(tags).toBeDisabled();
     expect(screen.getByText(/3 of 3 additional genres chosen/)).toBeInTheDocument();
+    // Focus moves to the limit message instead of falling back to the page when the field disables.
+    expect(screen.getByText(/3 of 3 additional genres chosen/)).toHaveFocus();
 
     await user.click(screen.getByRole('button', { name: 'Remove Jazz' }));
     expect(state().genres).toEqual(['football', 'rock']);
@@ -107,5 +109,22 @@ describe('ClassificationPicker', () => {
     await user.type(field, 'rock');
     await user.keyboard('{Enter}');
     expect(state()).toEqual({ segment: 'concerts', primaryGenre: 'rock', genres: [] });
+  });
+
+  it('shows a retired genre and segment the event already has', () => {
+    render(<Harness initial={{ segment: 'old-segment', primaryGenre: 'old-style', genres: [] }} />);
+    expect(screen.getAllByRole('radio')).toHaveLength(7);
+    expect(screen.getByRole('radio', { name: 'old segment' })).toBeChecked();
+    expect(screen.getByRole('combobox', { name: 'Main genre' })).toHaveValue('old style');
+  });
+
+  it('keeps the active option in view while moving with the arrow keys', async () => {
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    const user = userEvent.setup();
+    render(<Harness initial={{ ...empty, segment: 'concerts' }} />);
+    await user.click(screen.getByRole('combobox', { name: 'Main genre' }));
+    await user.keyboard('{ArrowDown}');
+    expect(scroll).toHaveBeenCalledWith({ block: 'nearest' });
   });
 });

@@ -96,8 +96,8 @@ public class PublicPerformanceController {
     }
 
     @GetMapping("/events/discovery/facets")
-    public ApiResponse<DiscoveryFacets> discoveryFacets() {
-        return ApiResponse.success(catalog.discoveryFacets());
+    public ApiResponse<DiscoveryFacets> discoveryFacets(@RequestParam(defaultValue = "") String segment) {
+        return ApiResponse.success(catalog.discoveryFacets(segment));
     }
 
     private static Long price(String value) {

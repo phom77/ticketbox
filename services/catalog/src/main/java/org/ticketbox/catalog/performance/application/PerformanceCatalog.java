@@ -43,8 +43,12 @@ public class PerformanceCatalog {
     }
 
     @Transactional(readOnly = true)
-    public PerformanceViews.DiscoveryFacets discoveryFacets() {
-        return store.discoveryFacets();
+    public PerformanceViews.DiscoveryFacets discoveryFacets(String segment) {
+        String scope = segment == null || segment.isBlank() ? null : segment.strip();
+        if (scope != null && classifications.reference().segment(scope).isEmpty()) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "error.performance.invalid-discovery-query");
+        }
+        return store.discoveryFacets(scope);
     }
 
     @Transactional(readOnly = true)
@@ -76,8 +80,9 @@ public class PerformanceCatalog {
     public Event createEvent(UUID owner, String title, String description, EventClassification classification) {
         validateEvent(title, description);
         UUID id = UUID.randomUUID();
+        var checked = validated(classification, null);
         store.createEvent(id, owner, title.trim(), description);
-        store.writeClassification(id, classification);
+        store.writeClassification(id, checked);
         return event(id, owner);
     }
 
@@ -88,8 +93,9 @@ public class PerformanceCatalog {
         require(!store.hasReleasedPerformances(id), "error.performance.event-draft-locked");
         requireDraftVersion(expected, current);
         validateEvent(title, description);
+        var checked = validated(classification, store.classification(id));
         store.updateDraftEvent(id, title.trim(), description);
-        store.writeClassification(id, classification);
+        store.writeClassification(id, checked);
         return event(id, owner);
     }
 
@@ -99,18 +105,34 @@ public class PerformanceCatalog {
         return store.legacyEventCategory(concert, owner).orElseThrow(PerformanceCatalog::missing);
     }
 
+    /**
+     * Sets the segment of the event mapped to a legacy concert. The genre and tags are kept while the segment is
+     * unchanged and reset when it changes; the content version moves so open editors see the change.
+     */
     @Transactional
     public ConcertCategory setLegacyEventCategory(UUID concert, UUID owner, String category) {
+        UUID eventId = store.legacyEventId(concert, owner).orElseThrow(PerformanceCatalog::missing);
+        var current = store.classification(eventId);
         EventClassification stored = null;
         if (category != null && !category.isBlank()) {
-            stored = EventClassification.fromLegacyCategory(category);
-            require(stored != null, "error.performance.invalid-category");
+            var requested = EventClassification.fromLegacyCategory(category);
+            require(requested != null, "error.performance.invalid-category");
+            boolean sameSegment = current != null && requested.segment().equals(current.segment());
+            stored = sameSegment ? current : requested;
             // Re-check against the reference data so a retired segment is refused.
-            stored = EventClassification.of(stored.segment(), stored.primaryGenre(), List.of(),
-                    classifications.reference(), store.classification(concert));
+            stored = EventClassification.of(stored.segment(), stored.primaryGenre(), stored.secondaryGenres(),
+                    classifications.reference(), current);
         }
-        if (!store.updateLegacyEventCategory(concert, owner, stored)) throw missing();
+        store.writeClassification(eventId, stored);
+        store.bumpContentVersion(eventId);
         return new ConcertCategory(stored == null ? null : stored.segment());
+    }
+
+    /** Re-checks a classification built by a caller against the reference data. */
+    private EventClassification validated(EventClassification classification, EventClassification current) {
+        if (classification == null) return null;
+        return EventClassification.of(classification.segment(), classification.primaryGenre(),
+                classification.secondaryGenres(), classifications.reference(), current);
     }
 
     private static void validateEvent(String title, String description) {
@@ -251,6 +273,15 @@ public class PerformanceCatalog {
         return republished;
     }
 
+    /**
+     * A performance may be submitted for release only when its event has a segment and a primary genre. Checked at
+     * submission only: approval and scheduled release accept the versions that were reviewed.
+     */
+    void requireReleasableClassification(UUID eventId) {
+        require(EventClassification.releasable(store.classification(eventId)),
+                "error.performance.classification-missing");
+    }
+
     Layout validatePublication(UUID owner, Performance performance, Long expectedSale, Long expectedLayout,
                                Long expectedEventDraft, Long expectedScheduleDraft) {
         if (!publishingOrganizations.contains("*") && !publishingOrganizations.contains(owner.toString())) {
@@ -263,8 +294,6 @@ public class PerformanceCatalog {
         long eventVersion = store.lockNativeEventVersion(performance.eventId(), owner)
                 .orElseThrow(PerformanceCatalog::missing);
         if (expectedEventDraft != null) version(expectedEventDraft, eventVersion);
-        require(EventClassification.releasable(store.classification(performance.eventId())),
-                "error.performance.classification-missing");
         require(performance.saleEndAt().isAfter(OffsetDateTime.now()), "error.performance.sale-window-ended");
         var sale = store.sale(performance.id());
         PerformanceRules.validateSale(sale, performance.saleStartAt(), performance.saleEndAt(),

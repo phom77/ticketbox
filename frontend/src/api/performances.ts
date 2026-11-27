@@ -159,8 +159,9 @@ export async function getDiscoveryEvents(search: string, page: number, signal: A
   return response;
 }
 
-export function getDiscoveryFacets(signal?: AbortSignal) {
-  return publicGet<DiscoveryFacets>('/api/v2/events/discovery/facets', signal);
+export function getDiscoveryFacets(segment = '', signal?: AbortSignal) {
+  const query = segment ? `?segment=${encodeURIComponent(segment)}` : '';
+  return publicGet<DiscoveryFacets>(`/api/v2/events/discovery/facets${query}`, signal);
 }
 
 export function getClassifications(signal?: AbortSignal) {

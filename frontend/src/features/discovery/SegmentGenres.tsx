@@ -24,9 +24,15 @@ export function SegmentGenres({
   const [open, setOpen] = useState(false);
   const entry = classificationSegments.find((value) => value.id === segment);
   const counts = new Map(facets.genres.map((value) => [value.id, value.count]));
-  const available = entry ? segmentGenres(entry).filter((value) => counts.has(value.id)) : [];
-  const popular = available.filter((value) => value.popular);
-  const more = available.filter((value) => !value.popular);
+  // The facets are scoped to this segment, so genres of other segments that appear are tags on its events.
+  const own = entry ? segmentGenres(entry).filter((value) => counts.has(value.id)) : [];
+  const tags = classificationSegments
+    .filter((value) => value.id !== segment)
+    .flatMap((value) => segmentGenres(value))
+    .filter((value) => counts.has(value.id));
+  const available = [...own, ...tags];
+  const popular = own.filter((value) => value.popular);
+  const more = [...own.filter((value) => !value.popular), ...tags];
   const name = classificationText(segment, 'segment', t);
   const chip = (id: string) => (
     <li key={id}>

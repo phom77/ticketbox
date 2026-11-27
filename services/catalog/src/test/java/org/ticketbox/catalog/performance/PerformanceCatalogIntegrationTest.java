@@ -289,9 +289,38 @@ class PerformanceCatalogIntegrationTest {
     }
 
     @Test
+    void settingTheLegacyCategoryKeepsGenresWhileTheSegmentIsUnchangedAndBumpsTheContentVersion() {
+        UUID legacy = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO concerts (id,title,venue_name,venue_address,event_date,status,created_by,organization_id)
+                VALUES (?,'Legacy keeps genre','Hall','Main Street',now() + interval '40 days','DRAFT',?,?)
+                """, legacy, owner, owner);
+        catalog.setLegacyEventCategory(legacy, null, "concerts");
+        UUID mapped = jdbc.queryForObject("SELECT id FROM events WHERE legacy_concert_id=?", UUID.class, legacy);
+        jdbc.update("UPDATE events SET primary_genre_id='vpop' WHERE id=?", mapped);
+        jdbc.update("INSERT INTO event_genres(event_id, genre_id, sort) VALUES (?, 'indie', 0)", mapped);
+        long version = jdbc.queryForObject("SELECT content_version FROM events WHERE id=?", Long.class, mapped);
+
+        catalog.setLegacyEventCategory(legacy, null, "concerts");
+        assertThat(jdbc.queryForObject("SELECT primary_genre_id FROM events WHERE id=?", String.class, mapped)).isEqualTo("vpop");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM event_genres WHERE event_id=?", Integer.class, mapped)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT content_version FROM events WHERE id=?", Long.class, mapped)).isEqualTo(version + 1);
+
+        catalog.setLegacyEventCategory(legacy, null, "sports");
+        assertThat(jdbc.queryForObject("SELECT segment_id FROM events WHERE id=?", String.class, mapped)).isEqualTo("sports");
+        assertThat(jdbc.queryForObject("SELECT primary_genre_id FROM events WHERE id=?", String.class, mapped)).isNull();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM event_genres WHERE event_id=?", Integer.class, mapped)).isZero();
+        assertThat(jdbc.queryForObject("SELECT content_version FROM events WHERE id=?", Long.class, mapped)).isEqualTo(version + 2);
+    }
+
+    @Test
     void discoveryFiltersBySegmentAndGenreAcrossPrimaryAndTagUseAndCountsEachEventOnce() throws Exception {
         var starts = OffsetDateTime.now(ZoneOffset.UTC).plusDays(80).withNano(0);
         var before = discoveryPage(MockMvcRequestBuilders.get("/api/v2/events/discovery/facets"));
+        var beforeConcerts = discoveryPage(MockMvcRequestBuilders.get("/api/v2/events/discovery/facets")
+                .param("segment", "concerts")).path("genres");
+        var beforeFestivals = discoveryPage(MockMvcRequestBuilders.get("/api/v2/events/discovery/facets")
+                .param("segment", "festivals")).path("genres");
         var rock = tx(() -> catalog.createEvent(owner, "Genre rock night", "Tour",
                 new EventClassification("concerts", "rock", List.of("indie", "edm")))).id();
         var festival = tx(() -> catalog.createEvent(owner, "Genre summer fest", "Tour",
@@ -332,10 +361,23 @@ class PerformanceCatalogIntegrationTest {
         assertThat(count(facets.path("segments"), "id", "concerts") - count(before.path("segments"), "id", "concerts"))
                 .isEqualTo(1);
         assertThat(facets.path("categories").toString()).contains("sports");
+
+        // With a segment, genre counts cover that segment's events only, primary or tag, tags from any segment included.
+        var concerts = discoveryPage(MockMvcRequestBuilders.get(path + "/facets").param("segment", "concerts")).path("genres");
+        assertThat(count(concerts, "id", "rock") - count(beforeConcerts, "id", "rock")).isEqualTo(1);
+        assertThat(count(concerts, "id", "indie") - count(beforeConcerts, "id", "indie")).isEqualTo(1);
+        assertThat(count(concerts, "id", "football") - count(beforeConcerts, "id", "football")).isZero();
+        var festivals = discoveryPage(MockMvcRequestBuilders.get(path + "/facets").param("segment", "festivals")).path("genres");
+        assertThat(count(festivals, "id", "music-festival") - count(beforeFestivals, "id", "music-festival")).isEqualTo(1);
+        assertThat(count(festivals, "id", "rock") - count(beforeFestivals, "id", "rock")).isEqualTo(1);
+        assertThat(festivals.toString()).contains("\"id\":\"rock\",\"segmentId\":\"concerts\"");
+        assertThat(count(festivals, "id", "football") - count(beforeFestivals, "id", "football")).isZero();
+        publicCatalog.perform(MockMvcRequestBuilders.get(path + "/facets").param("segment", "opera"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
-    void publishingNeedsASegmentAndAPrimaryGenre() throws Exception {
+    void submittingForReleaseNeedsASegmentAndAPrimaryGenre() throws Exception {
         var bare = tx(() -> catalog.createEvent(owner, "Unclassified", "Tour", null)).id();
         var segmentOnly = tx(() -> catalog.createEvent(owner, "Segment only", "Tour",
                 new EventClassification("sports", null, List.of()))).id();
@@ -345,7 +387,10 @@ class PerformanceCatalogIntegrationTest {
                     starts.plusHours(2), null, "Asia/Ho_Chi_Minh", starts.minusDays(3), starts.minusHours(1), 4, true)));
             tx(() -> catalog.saveSale(owner, owner, performance.id(), 0,
                     maplessSale(performance.saleStartAt(), performance.saleEndAt())));
-            assertThatThrownBy(() -> tx(() -> catalog.publish(owner, owner, performance.id(), 1L, 0L, null, null)))
+            var versions = new org.ticketbox.catalog.performance.application.PerformanceReviewStore.Versions(
+                    1, 0, catalog.event(id, owner).draftVersion(), performance.draftVersion());
+            assertThatThrownBy(() -> tx(() -> reviews.submit(owner, owner, performance.id(), versions,
+                    OffsetDateTime.now(ZoneOffset.UTC).plusHours(1))))
                     .isInstanceOf(AppException.class).hasMessage("error.performance.classification-missing");
         }
         tx(() -> catalog.updateDraftEvent(owner, segmentOnly, 0L, "Segment only", "Tour",

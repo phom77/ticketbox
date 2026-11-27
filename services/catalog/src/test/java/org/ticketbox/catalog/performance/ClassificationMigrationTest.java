@@ -66,6 +66,35 @@ class ClassificationMigrationTest {
     }
 
     @Test
+    void theSharedIdListMatchesTheReferenceRows() throws Exception {
+        var source = new DriverManagerDataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
+        Flyway.configure().dataSource(source).load().migrate();
+        var jdbc = new JdbcTemplate(source);
+        var directory = java.nio.file.Path.of("").toAbsolutePath();
+        while (directory != null && !java.nio.file.Files.exists(directory.resolve("contracts/classification-ids.json"))) {
+            directory = directory.getParent();
+        }
+        assertThat(directory).as("repository root with contracts/").isNotNull();
+        var contract = new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree(directory.resolve("contracts/classification-ids.json").toFile());
+        var fromContract = new java.util.ArrayList<String>();
+        for (var segment : contract.path("segments")) {
+            fromContract.add(segment.path("id").asText());
+            for (var genre : segment.path("genres")) {
+                fromContract.add(segment.path("id").asText() + "/" + genre.path("id").asText() + "/"
+                        + genre.path("popular").asBoolean());
+            }
+        }
+        var fromDatabase = new java.util.ArrayList<String>();
+        for (var segment : jdbc.queryForList("SELECT id FROM classification_segments ORDER BY sort", String.class)) {
+            fromDatabase.add(segment);
+            fromDatabase.addAll(jdbc.query("SELECT id, popular FROM classification_genres WHERE segment_id=? ORDER BY sort",
+                    (rs, n) -> segment + "/" + rs.getString("id") + "/" + rs.getBoolean("popular"), segment));
+        }
+        assertThat(fromContract).isEqualTo(fromDatabase);
+    }
+
+    @Test
     void theCompositeKeyKeepsThePrimaryGenreInsideTheSegment() {
         var source = new DriverManagerDataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
         Flyway.configure().dataSource(source).load().migrate();

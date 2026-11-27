@@ -44,6 +44,8 @@ import org.ticketbox.catalog.performance.application.EventContentService;
 import org.ticketbox.catalog.performance.application.EventContentService.Input;
 import org.ticketbox.catalog.performance.application.EventDrafts;
 import org.ticketbox.catalog.performance.application.PerformanceCatalog;
+import org.ticketbox.catalog.performance.application.PerformancePublicationReview;
+import org.ticketbox.catalog.performance.application.PerformanceViews;
 import org.ticketbox.catalog.performance.application.WorkspaceOperations;
 import org.ticketbox.catalog.performance.application.WorkspaceOperationsStore.EventFilters;
 import org.ticketbox.catalog.performance.application.WorkspaceOperationsStore.EventStatus;
@@ -78,6 +80,7 @@ class EventContentIntegrationTest {
     private EventContentService content;
     private EventDrafts drafts;
     private PerformanceCatalog catalog;
+    private PerformancePublicationReview reviews;
     private ClassificationQuery classifications;
     private MockMvc organizer;
     private MockMvc admin;
@@ -101,6 +104,8 @@ class EventContentIntegrationTest {
         classifications = new ClassificationQuery(new JdbcClassificationStore(jdbc));
         catalog = new PerformanceCatalog(store, classifications, "*");
         content = new EventContentService(store, contents, posters, catalog, classifications);
+        reviews = new PerformancePublicationReview(store,
+                new org.ticketbox.catalog.performance.infrastructure.JdbcPerformanceReviewStore(jdbc, json), catalog);
         drafts = new EventDrafts(store, contents, posters, eventId -> () -> {});
         var converters = new MappingJackson2HttpMessageConverter(json);
         organizer = MockMvcBuilders.standaloneSetup(new OrganizerEventContentController(content, drafts, null))
@@ -312,19 +317,96 @@ class EventContentIntegrationTest {
     }
 
     @Test
-    void unclassifiedEventsCannotBePublishedButClassifiedOnesCan() {
+    void unclassifiedEventsCannotBeSubmittedButClassifiedOnesCan() {
         var bare = tx(() -> content.create(owner, new Input("Bare show", null, null, null, null, null, Map.of(), null, null,
                 null)));
-        assertThatThrownBy(() -> published(bare.id(), 20)).hasMessage("error.performance.classification-missing");
+        assertThatThrownBy(() -> submitted(bare.id(), 20)).hasMessage("error.performance.classification-missing");
         var segmentOnly = tx(() -> content.updateDraft(owner, bare.id(), bare.contentVersion(), new Input("Bare show", null,
                 null, "sports", null, null, Map.of(), null, null, null)));
-        assertThatThrownBy(() -> published(segmentOnly.id(), 21)).hasMessage("error.performance.classification-missing");
+        assertThatThrownBy(() -> submitted(segmentOnly.id(), 21)).hasMessage("error.performance.classification-missing");
         tx(() -> content.updateDraft(owner, bare.id(), segmentOnly.contentVersion(), new Input("Bare show", null, null,
                 "sports", "football", null, Map.of(), null, null, null)));
-        published(bare.id(), 22);
+        submitted(bare.id(), 22);
     }
 
-    private UUID published(UUID event, int days) {
+    @Test
+    void aScheduledReleaseAcceptsTheReviewedVersionEvenWhenTheGenreWasLaterRemoved() {
+        var event = tx(() -> content.create(owner, input("Scheduled show", "x")));
+        var performance = submitted(event.id(), 20);
+        var review = reviews.current(performance).id();
+        // A segment without a genre cannot be submitted, but approval and release take the reviewed version as it is.
+        jdbc.update("UPDATE events SET primary_genre_id=NULL WHERE id=?", event.id());
+        tx(() -> reviews.decide(performance, review, UUID.randomUUID(), PerformancePublicationReview.Action.APPROVE, null));
+        jdbc.update("UPDATE performance_publication_reviews SET publish_at=clock_timestamp()-interval '1 second' WHERE id=?",
+                review);
+        tx(() -> { reviews.release(performance); return null; });
+        assertThat(jdbc.queryForObject("SELECT status FROM performances WHERE id=?", String.class, performance))
+                .isEqualTo("ON_SALE");
+    }
+
+    @Test
+    void adminCorrectionIsRefusedWhileARevisionIsInReviewAndAReleasedEventKeepsItsPrimaryGenre() throws Exception {
+        var event = tx(() -> content.create(owner, input("Review lock show", "x")));
+        released(event.id(), 12);
+        // A revision cannot drop the primary genre of a released event.
+        assertThatThrownBy(() -> tx(() -> content.stage(owner, event.id(), 0L, new Input("Review lock show", "x", null,
+                "concerts", null, null, Map.of(), null, null, null)))).hasMessage("error.classification.primary-genre-required");
+        tx(() -> content.stage(owner, event.id(), 0L, new Input("Review lock show", "edited", null, null, null, null,
+                Map.of(), null, null, null)));
+        tx(() -> content.submit(owner, actor, event.id(), 1L));
+        var path = "/api/admin/events/" + event.id() + "/classification";
+        var body = json.createObjectNode().put("segment", "sports").put("primaryGenre", "football")
+                .put("expectedContentVersion", cv(event.id()));
+        correct.perform(put(path).contentType("application/json").content(body.toString()).principal(() -> actor.toString()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("error.classification.revision-in-review"));
+        assertThat(jdbc.queryForObject("SELECT segment_id FROM events WHERE id=?", String.class, event.id()))
+                .isEqualTo("concerts");
+        tx(() -> content.withdraw(owner, event.id()));
+        var noGenre = json.createObjectNode().put("segment", "sports").put("expectedContentVersion", cv(event.id()));
+        correct.perform(put(path).contentType("application/json").content(noGenre.toString()).principal(() -> actor.toString()))
+                .andExpect(status().isBadRequest());
+        body.put("expectedContentVersion", cv(event.id()));
+        correct.perform(put(path).contentType("application/json").content(body.toString()).principal(() -> actor.toString()))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void theAdminClassificationEndpointRefusesCallersWithoutPlatformAccess() throws Exception {
+        var rest = org.springframework.web.client.RestClient.builder();
+        var server = org.springframework.test.web.client.MockRestServiceServer.bindTo(rest).build();
+        server.expect(org.springframework.test.web.client.match.MockRestRequestMatchers
+                        .requestTo("http://identity/internal/split/v1/platform-access"))
+                .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators
+                        .withStatus(org.springframework.http.HttpStatus.FORBIDDEN));
+        var guarded = MockMvcBuilders.standaloneSetup(
+                        new org.ticketbox.catalog.performance.web.AdminEventClassificationController(content))
+                .addMappedInterceptors(new String[] {"/api/admin/**"}, new OrganizationAccess(rest.build(), "http://identity"))
+                .setControllerAdvice(new GlobalExceptionHandler()).build();
+        var event = tx(() -> content.create(owner, input("Guarded show", "x")));
+        var body = json.createObjectNode().put("segment", "sports").put("primaryGenre", "football")
+                .put("expectedContentVersion", cv(event.id()));
+        guarded.perform(put("/api/admin/events/" + event.id() + "/classification").contentType("application/json")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer buyer").content(body.toString())
+                        .principal(() -> owner.toString()))
+                .andExpect(status().isForbidden());
+        server.verify();
+        assertThat(jdbc.queryForObject("SELECT segment_id FROM events WHERE id=?", String.class, event.id()))
+                .isEqualTo("concerts");
+    }
+
+    @Test
+    void draftEventsCreatedThroughTheCatalogAreCheckedAgainstTheReferenceData() {
+        assertThatThrownBy(() -> tx(() -> catalog.createEvent(owner, "Mismatch", null,
+                new EventClassification("sports", "vpop", List.of())))).isInstanceOf(DomainViolation.class)
+                .hasMessage("error.classification.genre-outside-segment");
+        var event = tx(() -> catalog.createEvent(owner, "Checked", null, new EventClassification("sports", "football", List.of())));
+        assertThatThrownBy(() -> tx(() -> catalog.updateDraftEvent(owner, event.id(), event.draftVersion(), "Checked", null,
+                new EventClassification("opera", null, List.of())))).isInstanceOf(DomainViolation.class)
+                .hasMessage("error.classification.unknown-segment");
+    }
+
+    private PerformanceViews.Performance readyDraft(UUID event, int days) {
         var starts = OffsetDateTime.now(ZoneOffset.UTC).plusDays(days).withNano(0);
         var draft = tx(() -> catalog.createPerformance(owner, event, new PerformanceCatalog.Schedule(space, starts,
                 starts.plusHours(2), starts.minusHours(1), "Asia/Ho_Chi_Minh", starts.minusDays(2),
@@ -335,7 +417,21 @@ class EventContentIntegrationTest {
                 "Standard", java.math.BigDecimal.valueOf(100_000), "VND", starts.minusDays(2), starts.minusHours(2), true);
         tx(() -> catalog.saveSale(owner, actor, draft.id(), 0,
                 new org.ticketbox.catalog.performance.domain.PerformanceSale(List.of(group), List.of(offer))));
+        return draft;
+    }
+
+    private UUID published(UUID event, int days) {
+        var draft = readyDraft(event, days);
         tx(() -> catalog.publish(owner, actor, draft.id(), 1L, null, null, null));
+        return draft.id();
+    }
+
+    /** Submits a performance of the event for release review, as an organizer does. */
+    private UUID submitted(UUID event, int days) {
+        var draft = readyDraft(event, days);
+        var versions = new org.ticketbox.catalog.performance.application.PerformanceReviewStore.Versions(
+                1, 0, catalog.event(event, owner).draftVersion(), draft.draftVersion());
+        tx(() -> reviews.submit(owner, actor, draft.id(), versions, OffsetDateTime.now(ZoneOffset.UTC).plusHours(1)));
         return draft.id();
     }
 

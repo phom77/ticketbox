@@ -30,6 +30,27 @@ describe('SegmentGenres', () => {
     expect(onChoose).toHaveBeenLastCalledWith('jazz');
   });
 
+  it('lists genres of other segments that tag its events under More genres', async () => {
+    const user = userEvent.setup();
+    render(
+      <SegmentGenres
+        segment="sports"
+        genre=""
+        facets={{
+          ...facets,
+          genres: [
+            { id: 'football', segmentId: 'sports', count: 2 },
+            { id: 'vpop', segmentId: 'concerts', count: 1 },
+          ],
+        }}
+        onChoose={() => undefined}
+      />,
+    );
+    expect(screen.getByRole('button', { name: /Football/ })).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'More genres' }));
+    expect(screen.getByRole('button', { name: /V-Pop/ })).toBeVisible();
+  });
+
   it('marks the chosen genre and clears it again', async () => {
     const onChoose = vi.fn();
     const user = userEvent.setup();

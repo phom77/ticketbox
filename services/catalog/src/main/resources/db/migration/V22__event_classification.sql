@@ -83,6 +83,7 @@ ALTER TABLE events
     ADD CONSTRAINT events_genre_needs_segment CHECK (primary_genre_id IS NULL OR segment_id IS NOT NULL);
 
 CREATE INDEX events_segment_idx ON events(segment_id) WHERE segment_id IS NOT NULL;
+CREATE INDEX events_primary_genre_idx ON events(primary_genre_id) WHERE primary_genre_id IS NOT NULL;
 
 CREATE TABLE event_genres (
     event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,

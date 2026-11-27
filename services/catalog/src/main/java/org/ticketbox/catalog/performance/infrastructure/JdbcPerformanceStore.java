@@ -76,6 +76,9 @@ public class JdbcPerformanceStore implements PerformanceStore {
                 WHERE p.discoverable
                   AND (CAST(:startsFrom AS timestamptz) IS NULL OR p.starts_at >= :startsFrom)
                   AND (CAST(:startsBefore AS timestamptz) IS NULL OR p.starts_at < :startsBefore)
+                  AND (CAST(:segment AS text) IS NULL OR ev.segment_id = :segment)
+                  AND (CAST(:genre AS text) IS NULL OR ev.primary_genre_id = :genre OR EXISTS (
+                      SELECT 1 FROM event_genres tag WHERE tag.event_id = e.id AND tag.genre_id = :genre))
                   AND (CAST(:saleStatus AS text) IS NULL OR :saleStatus = CASE
                       WHEN p.status='CANCELLED' THEN 'CANCELLED'
                       WHEN p.legacy_concert_id IS NULL AND p.sales_suspended THEN 'CLOSED'
@@ -94,9 +97,6 @@ public class JdbcPerformanceStore implements PerformanceStore {
             ), matching AS (
                 SELECT * FROM base
                 WHERE (CAST(:city AS text) IS NULL OR lower(city) = lower(:city))
-                  AND (CAST(:segment AS text) IS NULL OR segment_id = :segment)
-                  AND (CAST(:genre AS text) IS NULL OR primary_genre_id = :genre OR EXISTS (
-                      SELECT 1 FROM event_genres tag WHERE tag.event_id = catalog_event_id AND tag.genre_id = :genre))
                   AND (CAST(:minPrice AS numeric) IS NULL OR min_price >= :minPrice)
                   AND (CAST(:maxPrice AS numeric) IS NULL OR min_price <= :maxPrice)
             ), representatives AS (
@@ -128,10 +128,14 @@ public class JdbcPerformanceStore implements PerformanceStore {
             GROUP BY s.id, s.sort ORDER BY s.sort
             """;
     // A genre counts an event once, whether it is the primary genre or a tag.
+    // With a segment, only events of that segment count, so cross-segment tags on them are offered too.
     private static final String FACET_GENRES = """
             WITH upcoming AS (
                 SELECT DISTINCT e.id AS event_id FROM catalog_event_view e
-                JOIN catalog_performance_view p ON p.event_id=e.id WHERE p.discoverable AND p.starts_at >= now()
+                JOIN catalog_performance_view p ON p.event_id=e.id
+                JOIN events ev ON ev.id=e.id
+                WHERE p.discoverable AND p.starts_at >= now()
+                  AND (CAST(:segment AS text) IS NULL OR ev.segment_id = :segment)
             ), uses AS (
                 SELECT u.event_id, ev.primary_genre_id AS genre_id FROM upcoming u JOIN events ev ON ev.id=u.event_id
                 WHERE ev.primary_genre_id IS NOT NULL
@@ -220,14 +224,14 @@ public class JdbcPerformanceStore implements PerformanceStore {
     }
 
     @Override
-    public DiscoveryFacets discoveryFacets() {
+    public DiscoveryFacets discoveryFacets(String segment) {
         var cities = new java.util.TreeSet<String>();
         jdbc.query(FACET_CITIES, rows -> {
             if (rows.getString("city") != null) cities.add(rows.getString("city"));
         });
         var segments = jdbc.query(FACET_SEGMENTS, (rs, n) -> new SegmentCount(rs.getString("id"), rs.getInt("events")));
-        var genres = jdbc.query(FACET_GENRES, (rs, n) -> new GenreCount(rs.getString("id"),
-                rs.getString("segment_id"), rs.getInt("events")));
+        var genres = named.query(FACET_GENRES, new MapSqlParameterSource().addValue("segment", segment),
+                (rs, n) -> new GenreCount(rs.getString("id"), rs.getString("segment_id"), rs.getInt("events")));
         return new DiscoveryFacets(List.copyOf(cities), segments, genres, segments.stream().map(SegmentCount::id).toList());
     }
 
@@ -349,13 +353,16 @@ public class JdbcPerformanceStore implements PerformanceStore {
     }
 
     @Override
-    public boolean updateLegacyEventCategory(UUID concert, UUID organizer, EventClassification classification) {
-        var event = jdbc.queryForList("""
+    public Optional<UUID> legacyEventId(UUID concert, UUID organizer) {
+        return jdbc.queryForList("""
                 SELECT e.id FROM events e JOIN concerts c ON c.id=e.legacy_concert_id
                 WHERE e.legacy_concert_id=? AND (?::uuid IS NULL OR c.organization_id=?)
                 """, UUID.class, concert, organizer, organizer).stream().findFirst();
-        event.ifPresent(id -> writeClassification(id, classification));
-        return event.isPresent();
+    }
+
+    @Override
+    public void bumpContentVersion(UUID eventId) {
+        jdbc.update("UPDATE events SET content_version=content_version+1 WHERE id=?", eventId);
     }
 
     @Override

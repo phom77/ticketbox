@@ -28,7 +28,7 @@ public interface PerformanceStore {
 
     Page<DiscoveryCard> discover(DiscoveryQuery query, Pageable page);
 
-    PerformanceViews.DiscoveryFacets discoveryFacets();
+    PerformanceViews.DiscoveryFacets discoveryFacets(String segment);
 
     Optional<Event> event(UUID id, UUID organizer);
 
@@ -57,7 +57,10 @@ public interface PerformanceStore {
     Optional<ConcertCategory> legacyEventCategory(UUID concert, UUID organizer);
 
     /** Returns false when no such legacy concert is visible to the organizer. */
-    boolean updateLegacyEventCategory(UUID concert, UUID organizer, EventClassification classification);
+    /** The event mapped to a legacy concert; `organizer` null is the platform. */
+    Optional<UUID> legacyEventId(UUID concert, UUID organizer);
+
+    void bumpContentVersion(UUID eventId);
 
     List<Venue> venues(UUID organizer);
 

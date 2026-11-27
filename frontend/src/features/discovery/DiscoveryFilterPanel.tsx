@@ -80,10 +80,8 @@ export function DiscoveryFilterPanel({
               genre: value && segmentOfGenre(filters.genre) !== value ? '' : filters.genre,
             });
           } else if (name === 'genre') {
-            onApply({
-              genre: value,
-              segment: value ? (segmentOfGenre(value) ?? '') : filters.segment,
-            });
+            // The chosen segment stays: a genre can also be a tag on an event of another segment.
+            onApply({ genre: value });
           } else onApply({ [name]: value });
         }}
       >
@@ -97,10 +95,11 @@ export function DiscoveryFilterPanel({
     </label>
   );
   const text = (id: string, kind: 'segment' | 'genre') => classificationText(id, kind, t);
-  // Genres that have upcoming events; the whole list while the counts are not known.
+  // Genres that have upcoming events (within the chosen segment, primary or tag, so cross-segment tags are offered).
+  // While the counts are not known, the whole list, or the chosen segment's own genres.
   const withEvents = new Set(facets.genres.map((genre) => genre.id));
   const genreOptions = (
-    filters.segment
+    filters.segment && withEvents.size === 0
       ? classificationSegments.filter((segment) => segment.id === filters.segment)
       : classificationSegments
   )

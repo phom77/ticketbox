@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-// The migration is the source of the ids; Vite reads it as text.
-import migration from '../../../../services/catalog/src/main/resources/db/migration/V22__event_classification.sql?raw';
+// contracts/classification-ids.json is the shared list of ids; Catalog tests it against its reference rows.
+import contract from '../../../../contracts/classification-ids.json';
 import {
   aliasForCategory,
   classificationSegments,
@@ -14,23 +14,13 @@ import {
 } from './classification';
 
 describe('classification ids', () => {
-  it('match the segments and genres Catalog seeds in V22', () => {
-    const segments = [...migration.matchAll(/^\s+\('([a-z0-9-]+)', (\d+)\)[,;]$/gm)].map(
-      (m) => m[1],
-    );
-    const genres = [
-      ...migration.matchAll(/^\s+\('([a-z0-9-]+)', '([a-z0-9-]+)', (\d+), (TRUE|FALSE)\)[,;]$/gm),
-    ].map((m) => ({ id: m[1], segment: m[2], popular: m[4] === 'TRUE' }));
-    expect(classificationSegments.map((segment) => segment.id)).toEqual(segments);
+  it('match the shared id list Catalog verifies against its reference data', () => {
     expect(
-      classificationSegments.flatMap((segment) =>
-        segment.genres.map((genre) => ({
-          id: genre.id,
-          segment: segment.id,
-          popular: genre.popular,
-        })),
-      ),
-    ).toEqual(genres);
+      classificationSegments.map((segment) => ({
+        id: segment.id,
+        genres: segment.genres.map((genre) => ({ id: genre.id, popular: genre.popular })),
+      })),
+    ).toEqual(contract.segments);
   });
 
   it('keeps genre ids unique and lists every segment but Other in the header', () => {

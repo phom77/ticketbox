@@ -4,8 +4,8 @@ import viteConfig from './vite.config';
 export default mergeConfig(
   viteConfig,
   defineConfig({
-    // The classification test reads the Catalog migration that seeds the ids.
-    server: { fs: { allow: ['..', '../services/catalog/src/main/resources/db/migration'] } },
+    // The classification test imports the shared id list from the repository's contracts directory.
+    server: { fs: { allow: ['.', '../contracts'] } },
     test: {
       environment: 'jsdom',
       include: ['src/**/*.test.{ts,tsx}', 'scripts/**/*.test.mjs'],

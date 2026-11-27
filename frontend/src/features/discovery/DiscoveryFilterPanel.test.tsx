@@ -14,12 +14,12 @@ const facets = {
   categories: ['concerts'],
 };
 
-function renderPanel(query = '') {
+function renderPanel(query = '', scoped = facets) {
   const onApply = vi.fn();
   render(
     <DiscoveryFilterPanel
       filters={readDiscoveryFilters(new URLSearchParams(query))}
-      facets={facets}
+      facets={scoped}
       count={12}
       onApply={onApply}
     />,
@@ -39,7 +39,7 @@ describe('DiscoveryFilterPanel', () => {
     await user.selectOptions(screen.getByRole('combobox', { name: /Category/ }), 'sports');
     expect(onApply).toHaveBeenLastCalledWith({ segment: 'sports', genre: '' });
     await user.selectOptions(screen.getByRole('combobox', { name: /Genre/ }), 'jazz');
-    expect(onApply).toHaveBeenLastCalledWith({ genre: 'jazz', segment: 'concerts' });
+    expect(onApply).toHaveBeenLastCalledWith({ genre: 'jazz' });
     await user.selectOptions(screen.getByRole('combobox', { name: /Price/ }), '500000-1000000');
     expect(onApply).toHaveBeenLastCalledWith({ price: '500000-1000000' });
   });
@@ -56,11 +56,38 @@ describe('DiscoveryFilterPanel', () => {
   });
 
   it('narrows the genres to the chosen segment and drops a genre outside a new segment', async () => {
-    const { onApply, user } = renderPanel('segment=concerts&genre=jazz');
+    // The server scopes the genre counts to the chosen segment, so Football is not among them.
+    const { onApply, user } = renderPanel('segment=concerts&genre=jazz', {
+      ...facets,
+      genres: [{ id: 'jazz', segmentId: 'concerts', count: 2 }],
+    });
     expect(screen.getByRole('option', { name: 'Jazz' })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: 'Football' })).not.toBeInTheDocument();
     await user.selectOptions(screen.getByRole('combobox', { name: /Category/ }), 'sports');
     expect(onApply).toHaveBeenLastCalledWith({ segment: 'sports', genre: '' });
+  });
+
+  it('keeps the chosen segment when a genre is picked and offers cross-segment tags of that segment', async () => {
+    const onApply = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <DiscoveryFilterPanel
+        filters={readDiscoveryFilters(new URLSearchParams('segment=festivals'))}
+        facets={{
+          ...facets,
+          genres: [
+            { id: 'music-festival', segmentId: 'festivals', count: 2 },
+            { id: 'rock', segmentId: 'concerts', count: 1 },
+          ],
+        }}
+        count={3}
+        onApply={onApply}
+      />,
+    );
+    expect(screen.getByRole('option', { name: 'Rock' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Jazz' })).not.toBeInTheDocument();
+    await user.selectOptions(screen.getByRole('combobox', { name: /Genre/ }), 'rock');
+    expect(onApply).toHaveBeenLastCalledWith({ genre: 'rock' });
   });
 
   it('keeps a city from the URL selectable and opens as a sheet with a result count', async () => {
