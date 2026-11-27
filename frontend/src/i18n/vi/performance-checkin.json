@@ -26,5 +26,6 @@
   "failed": "Không thể làm mới số liệu soát vé.",
   "accessLost": "Bạn không còn quyền xem số liệu soát vé của suất diễn này. Hãy nhờ thành viên tổ chức có quyền Sự kiện.",
   "recentCaption": "10 lượt vào mới nhất",
-  "guestsNote": "Khách mời được tính riêng, không nằm trong tiến độ vé."
+  "guestsNote": "Khách mời được tính riêng, không nằm trong tiến độ vé.",
+  "timesIn": "Giờ hiển thị theo múi giờ địa điểm ({{timezone}})."
 }

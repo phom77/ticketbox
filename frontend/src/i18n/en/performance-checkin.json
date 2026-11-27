@@ -26,5 +26,6 @@
   "failed": "Check-in figures could not be refreshed.",
   "accessLost": "You no longer have access to check-in figures for this performance. Ask an organization member with the Events permission.",
   "recentCaption": "The 10 newest admissions",
-  "guestsNote": "Guests are counted separately from ticket progress."
+  "guestsNote": "Guests are counted separately from ticket progress.",
+  "timesIn": "Times are shown in the venue time zone ({{timezone}})."
 }

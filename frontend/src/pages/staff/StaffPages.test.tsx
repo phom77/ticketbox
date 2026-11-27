@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiClientError } from '../../api/client';
@@ -10,7 +10,9 @@ const api = vi.hoisted(() => ({
   getStaffGuests: vi.fn(),
   checkInStaffGuest: vi.fn(),
   scanStaffTicket: vi.fn(),
+  getStaffPerformanceOverview: vi.fn(),
 }));
+const camera = vi.hoisted(() => ({ emit: undefined as unknown as (code: string) => void }));
 const organization = vi.hoisted(() => ({
   value: {
     loading: false,
@@ -28,6 +30,17 @@ vi.mock('../../api/admin', async (original) => ({
 }));
 vi.mock('../../features/organizations/OrganizationProvider', () => ({
   useOrganization: () => organization.value,
+}));
+
+vi.mock('./cameraSupport', async (original) => ({
+  ...(await original<typeof import('./cameraSupport')>()),
+  canReadQrFromCamera: () => true,
+}));
+vi.mock('./LiveCameraReader', () => ({
+  LiveCameraReader: ({ onCode }: { onCode: (code: string) => void }) => {
+    camera.emit = onCode;
+    return null;
+  },
 }));
 
 import { StaffCheckInPage } from './StaffCheckInPage';
@@ -80,6 +93,16 @@ beforeEach(() => {
   };
   api.getStaffPerformances.mockResolvedValue(page([performance('p1', 'Night one')]));
   api.getStaffCheckinHistory.mockResolvedValue(page([]));
+  api.getStaffPerformanceOverview.mockResolvedValue({
+    concert: performance('p1', 'Night one'),
+    totalTickets: 12,
+    validTickets: 6,
+    usedTickets: 4,
+    cancelledTickets: 2,
+    transferredTickets: 0,
+    totalCheckins: 4,
+    datasetUpdatedAt: soon,
+  });
 });
 
 describe('staff access states', () => {
@@ -185,6 +208,62 @@ describe('online admission', () => {
   });
 });
 
+describe('unconfirmed scans', () => {
+  it('warns to check History and hints the earlier attempt went through when a retry is already used', async () => {
+    api.scanStaffTicket.mockRejectedValueOnce(new ApiClientError('timeout', 503));
+    api.scanStaffTicket.mockResolvedValueOnce(scanned('FAILED', 'Ticket already used'));
+    renderAt('/staff/check-in?performance=p1');
+    const input = await screen.findByLabelText('Ticket code');
+    fireEvent.change(input, { target: { value: 'abc' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Check in' }));
+    expect(
+      await screen.findByText(/may not have been recorded — check History before retrying/),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Check in' }));
+    expect(await screen.findByText('Ticket already used')).toBeVisible();
+    expect(
+      screen.getByText(/earlier attempt that was not confirmed probably went through/),
+    ).toBeVisible();
+  });
+
+  it('gives no hint for a different code that is rejected', async () => {
+    api.scanStaffTicket.mockRejectedValueOnce(new ApiClientError('timeout', 503));
+    api.scanStaffTicket.mockResolvedValueOnce(scanned('FAILED', 'Ticket already used'));
+    renderAt('/staff/check-in?performance=p1');
+    const input = await screen.findByLabelText('Ticket code');
+    fireEvent.change(input, { target: { value: 'abc' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Check in' }));
+    await screen.findByText('Not recorded');
+    fireEvent.change(input, { target: { value: 'other' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Check in' }));
+    expect(await screen.findByText('Ticket already used')).toBeVisible();
+    expect(screen.queryByText(/probably went through/)).toBeNull();
+  });
+});
+
+describe('camera repeats and figures', () => {
+  it('keeps the admission visible and ignores the same code until a different one is read', async () => {
+    api.scanStaffTicket.mockResolvedValue(scanned('SUCCESS'));
+    renderAt('/staff/check-in?performance=p1');
+    await screen.findByLabelText('Ticket code');
+    await act(async () => camera.emit('abc'));
+    expect(await screen.findByText('Allowed in')).toBeVisible();
+    await act(async () => camera.emit('abc'));
+    await act(async () => camera.emit('abc'));
+    expect(api.scanStaffTicket).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('Allowed in')).toBeVisible();
+    await act(async () => camera.emit('xyz'));
+    await waitFor(() => expect(api.scanStaffTicket).toHaveBeenCalledTimes(2));
+  });
+
+  it('shows admitted against valid and used tickets and the ticket list age', async () => {
+    renderAt('/staff/check-in?performance=p1');
+    expect(await screen.findByText('Admitted: 4 of 10')).toBeVisible();
+    expect(screen.getByText(/Ticket list updated/)).toBeVisible();
+    expect(api.getStaffPerformanceOverview).toHaveBeenCalledWith('p1', expect.anything());
+  });
+});
+
 describe('guests and history', () => {
   const guest = (id: string, name: string, checkedInAt: string | null = null): StaffGuest => ({
     found: true,
@@ -213,6 +292,27 @@ describe('guests and history', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Check in' }));
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Check in' })).toBeNull());
     expect(api.checkInStaffGuest).toHaveBeenCalledWith('p1', '1', 'WEB');
+  });
+
+  it('shows the server message for a removed guest and keeps access', async () => {
+    api.getStaffGuests.mockResolvedValue(page([guest('1', 'Alice')]));
+    api.checkInStaffGuest.mockRejectedValue(
+      new ApiClientError('Guest is no longer on the list', 404),
+    );
+    renderAt('/staff/guests?performance=p1');
+    await screen.findByText('Alice');
+    fireEvent.click(screen.getByRole('button', { name: 'Check in' }));
+    expect(await screen.findByText('Guest is no longer on the list')).toBeVisible();
+    expect(screen.queryByText('You no longer have access to this performance')).toBeNull();
+  });
+
+  it('stops with the access message when a guest check-in is forbidden', async () => {
+    api.getStaffGuests.mockResolvedValue(page([guest('1', 'Alice')]));
+    api.checkInStaffGuest.mockRejectedValue(new ApiClientError('forbidden', 403));
+    renderAt('/staff/guests?performance=p1');
+    await screen.findByText('Alice');
+    fireEvent.click(screen.getByRole('button', { name: 'Check in' }));
+    expect(await screen.findByText('You no longer have access to this performance')).toBeVisible();
   });
 
   it('lists history without QR values and retries a failure', async () => {

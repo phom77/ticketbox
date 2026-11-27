@@ -16,7 +16,6 @@ public record OrganizerAdmissionResponse(
         OffsetDateTime syncAt,
         boolean offline,
         String gate,
-        String notes,
         String ticketStatus,
         String referenceCode,
         String ticketTypeName) {}

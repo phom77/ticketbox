@@ -41,7 +41,7 @@
   "cameraStart": "Bật camera",
   "cameraStop": "Tắt camera",
   "cameraStarting": "Đang bật camera…",
-  "cameraScanning": "Đưa camera tới mã QR trên vé. Cùng một mã sẽ bị bỏ qua trong 3 giây sau mỗi kết quả.",
+  "cameraScanning": "Đưa camera tới mã QR trên vé. Cùng một mã sẽ bị bỏ qua trong 3 giây sau khi bị từ chối và 30 giây sau khi cho vào.",
   "cameraUnsupported": "Trình duyệt này không đọc được QR bằng camera. Hãy nhập mã hoặc dùng ảnh.",
   "cameraDenied": "Quyền camera bị từ chối. Hãy cho phép trong trình duyệt, hoặc nhập mã hay dùng ảnh.",
   "cameraNone": "Không tìm thấy camera. Hãy nhập mã hoặc dùng ảnh.",
@@ -57,7 +57,7 @@
   "allowedDetail": "Hệ thống soát vé đã xác nhận lượt vào cổng này.",
   "notAccepted": "Không chấp nhận",
   "notRecorded": "Chưa ghi nhận",
-  "notRecordedBody": "Không kết nối được hệ thống soát vé nên chưa ghi nhận gì. Mã của bạn được giữ lại. Hãy thử lại hoặc dùng ứng dụng scanner.",
+  "notRecordedBody": "Hệ thống soát vé chưa xác nhận lượt quét này nên có thể chưa được ghi nhận — hãy kiểm tra Lịch sử trước khi thử lại. Mã của bạn được giữ lại.",
   "ticketReference": "Vé {{reference}}",
   "ticketType": "Loại vé: {{type}}",
   "outcomeGate": "Cổng {{gate}}",
@@ -91,5 +91,11 @@
   "next": "Sau",
   "page": "Trang {{page}}",
   "historyCaption": "Các lượt vào cổng của suất diễn đã chọn",
-  "organizationSwitch": "Tổ chức"
+  "organizationSwitch": "Tổ chức",
+  "earlierAttemptHint": "Mã này đã được dùng. Lần quét trước chưa được xác nhận nhiều khả năng đã thành công. Hãy kiểm tra Lịch sử để chắc chắn.",
+  "cameraInUse": "Camera đang được ứng dụng hoặc thẻ khác sử dụng. Hãy đóng ở đó rồi bật lại.",
+  "figuresAdmitted": "Đã cho vào: {{checked}} / {{total}}",
+  "figuresDataset": "Danh sách vé cập nhật lúc {{time}}",
+  "figuresNoDataset": "Chưa nhận được danh sách vé",
+  "figuresFailed": "Không thể tải số liệu soát vé."
 }

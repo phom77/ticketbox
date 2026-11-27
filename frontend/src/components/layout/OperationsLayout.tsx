@@ -377,13 +377,19 @@ export function OperationsLayout({ mode }: { mode: WorkspaceMode }) {
     if (isPlainLinkClick(event)) closeDrawer();
   }
 
+  const staffPerformance = new URLSearchParams(location.search).get('performance');
+
   function navigationLink(item: NavigationItem, collapsed: boolean) {
     const Icon = item.icon;
     const label = item.label;
     return (
       <NavLink
         key={item.to}
-        to={item.to}
+        to={
+          mode === 'staff' && item.to !== '/staff' && staffPerformance
+            ? { pathname: item.to, search: `?performance=${encodeURIComponent(staffPerformance)}` }
+            : item.to
+        }
         end={item.end}
         onClick={closeDrawerOnNavigation}
         {...railLabel(label, collapsed)}

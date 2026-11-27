@@ -3,7 +3,7 @@ import { Camera } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { canReadQrFromCamera, detectorConstructor } from './cameraSupport';
 
-type CameraState = 'off' | 'starting' | 'on' | 'denied' | 'none' | 'paused';
+type CameraState = 'off' | 'starting' | 'on' | 'denied' | 'none' | 'busy' | 'paused';
 
 /** Live reader. Starts only on request, stops when hidden, unmounted or a dialog opens. */
 export function LiveCameraReader({ onCode }: { onCode: (code: string) => void }) {
@@ -11,6 +11,7 @@ export function LiveCameraReader({ onCode }: { onCode: (code: string) => void })
   const [state, setState] = useState<CameraState>('off');
   const video = useRef<HTMLVideoElement>(null);
   const stream = useRef<MediaStream | null>(null);
+  const mounted = useRef(true);
   const handler = useRef(onCode);
   useEffect(() => {
     handler.current = onCode;
@@ -22,12 +23,13 @@ export function LiveCameraReader({ onCode }: { onCode: (code: string) => void })
     setState(next);
   }, []);
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
       stream.current?.getTracks().forEach((track) => track.stop());
-    },
-    [],
-  );
+    };
+  }, []);
 
   useEffect(() => {
     function onVisibility() {
@@ -75,14 +77,28 @@ export function LiveCameraReader({ onCode }: { onCode: (code: string) => void })
   async function start() {
     setState('starting');
     try {
-      stream.current = await navigator.mediaDevices.getUserMedia({
+      const opened = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment' },
         audio: false,
       });
+      // The page may have gone away or been hidden while the permission prompt was open.
+      if (!mounted.current || document.visibilityState === 'hidden') {
+        opened.getTracks().forEach((track) => track.stop());
+        if (mounted.current) setState('paused');
+        return;
+      }
+      stream.current = opened;
       setState('on');
     } catch (failure) {
+      if (!mounted.current) return;
       const name = failure instanceof DOMException ? failure.name : '';
-      setState(name === 'NotFoundError' || name === 'OverconstrainedError' ? 'none' : 'denied');
+      setState(
+        name === 'NotFoundError' || name === 'OverconstrainedError'
+          ? 'none'
+          : name === 'NotReadableError'
+            ? 'busy'
+            : 'denied',
+      );
     }
   }
 
@@ -92,6 +108,7 @@ export function LiveCameraReader({ onCode }: { onCode: (code: string) => void })
     on: t('staff:cameraScanning'),
     denied: t('staff:cameraDenied'),
     none: t('staff:cameraNone'),
+    busy: t('staff:cameraInUse'),
     paused: t('staff:cameraPaused'),
   };
   const active = state === 'on' || state === 'starting';
@@ -99,7 +116,9 @@ export function LiveCameraReader({ onCode }: { onCode: (code: string) => void })
     <div className="staff-camera">
       {state === 'on' ? <video ref={video} muted playsInline aria-hidden="true" /> : null}
       {message[state] ? (
-        <p role={state === 'denied' || state === 'none' ? 'alert' : 'status'}>{message[state]}</p>
+        <p role={state === 'denied' || state === 'none' || state === 'busy' ? 'alert' : 'status'}>
+          {message[state]}
+        </p>
       ) : null}
       <button
         type="button"

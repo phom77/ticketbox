@@ -7,7 +7,7 @@ import {
   type StaffGuest,
   type StaffPerformance,
 } from '../../api/admin';
-import { isRequestCanceled } from '../../api/client';
+import { ApiClientError, isRequestCanceled } from '../../api/client';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { StaffAccessGate } from './StaffAccessGate';
 import { staffDateTime, useStaffGate } from './staffPageUtils';
@@ -46,7 +46,7 @@ function GuestDesk({
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [query, setQuery] = useState('');
   const [busyId, setBusyId] = useState('');
-  const [failedId, setFailedId] = useState('');
+  const [failed, setFailed] = useState<{ id: string; message: string } | null>(null);
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
@@ -70,14 +70,21 @@ function GuestDesk({
   async function checkIn(guest: StaffGuest) {
     if (!guest.guestId || busyId) return;
     setBusyId(guest.guestId);
-    setFailedId('');
+    setFailed(null);
     try {
       const { data } = await checkInStaffGuest(performance.id, guest.guestId, gate.trim() || 'WEB');
       setGuests((current) =>
         current.map((entry) => (entry.guestId === data.guestId ? data : entry)),
       );
     } catch (failure) {
-      if (!reportDenied(failure)) setFailedId(guest.guestId);
+      if (!reportDenied(failure))
+        setFailed({
+          id: guest.guestId,
+          message:
+            failure instanceof ApiClientError && failure.status < 500 && failure.message
+              ? failure.message
+              : t('staff:guestCheckInFailed'),
+        });
     } finally {
       setBusyId('');
     }
@@ -151,9 +158,7 @@ function GuestDesk({
                 {busyId === guest.guestId ? t('staff:guestChecking') : t('staff:guestCheckIn')}
               </button>
             )}
-            {failedId === guest.guestId ? (
-              <p role="alert">{t('staff:guestCheckInFailed')}</p>
-            ) : null}
+            {failed?.id === guest.guestId ? <p role="alert">{failed.message}</p> : null}
           </li>
         ))}
       </ul>

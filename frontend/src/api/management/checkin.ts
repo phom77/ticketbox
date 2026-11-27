@@ -37,7 +37,6 @@ export type PerformanceAdmission = {
   syncAt: string | null;
   offline: boolean;
   gate: string | null;
-  notes: string | null;
   ticketStatus: string | null;
   referenceCode?: string | null;
   ticketTypeName?: string | null;

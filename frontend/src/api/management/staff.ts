@@ -6,7 +6,8 @@ import type { ConcertStatus, Page } from '../concerts';
 // the shapes here must follow Check-in's responses. The web app is online only: it never calls
 // `checkin-dataset` or `sync`.
 const base = '/api/v2/staff/performances';
-const scanTimeoutMs = 15_000;
+// Shorter than the gateway's 15 s limit so the page reports "not recorded" itself.
+const scanTimeoutMs = 12_000;
 
 export type StaffPerformance = {
   id: string;

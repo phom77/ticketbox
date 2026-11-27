@@ -29,12 +29,9 @@ export function splitEarlier(performances: StaffPerformance[], now = Date.now())
   };
 }
 
-/** The assignment was revoked or the Admission permission was lost. */
+/** The assignment was revoked or the Admission permission was lost. Other 4xx answers are about the request. */
 export function isAccessDenied(error: unknown) {
-  return (
-    error instanceof ApiClientError &&
-    (error.status === 401 || error.status === 403 || error.status === 404)
-  );
+  return error instanceof ApiClientError && (error.status === 401 || error.status === 403);
 }
 
 export function getOrCreateStaffDeviceId() {

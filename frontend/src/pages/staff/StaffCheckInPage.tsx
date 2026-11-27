@@ -1,9 +1,16 @@
-import { type ChangeEvent, type FormEvent, useRef, useState } from 'react';
+import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from 'react';
 import { CheckCircle2, CloudOff, ImagePlus, ScanLine, XCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { getStaffCheckinHistory, scanStaffTicket, type StaffPerformance } from '../../api/admin';
-import { ApiClientError } from '../../api/client';
+import {
+  getStaffCheckinHistory,
+  getStaffPerformanceOverview,
+  scanStaffTicket,
+  type StaffPerformance,
+  type StaffPerformanceOverview,
+} from '../../api/admin';
+import { ApiClientError, isRequestCanceled } from '../../api/client';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
+import { formatLanguage } from '../../i18n';
 import { canReadQrFromCamera, decodeQrFromImage } from './cameraSupport';
 import { LiveCameraReader } from './LiveCameraReader';
 import { StaffAccessGate } from './StaffAccessGate';
@@ -11,7 +18,9 @@ import { getOrCreateStaffDeviceId, staffDateTime, useStaffGate } from './staffPa
 import './staff.css';
 
 const imageTypes = ['image/png', 'image/jpeg', 'image/webp'];
+/** The same code is ignored this long after a rejection, and longer after an admission. */
 const repeatIgnoreMs = 3000;
+const repeatIgnoreAfterAdmissionMs = 30_000;
 
 type Outcome =
   | {
@@ -21,7 +30,7 @@ type Outcome =
       ticketType?: string | null;
       gate: string;
     }
-  | { kind: 'rejected'; message: string }
+  | { kind: 'rejected'; message: string; earlierAttemptHint?: boolean }
   | { kind: 'notRecorded' };
 
 export function StaffCheckInPage() {
@@ -61,8 +70,16 @@ function CheckInDesk({
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [imageError, setImageError] = useState('');
+  const [scanSeq, setScanSeq] = useState(0);
+  const [admissions, setAdmissions] = useState(0);
   const inFlight = useRef(false);
-  const lastRead = useRef<{ code: string; at: number } | null>(null);
+  const lastRead = useRef<{ code: string; at: number; admitted: boolean } | null>(null);
+  const unconfirmedCode = useRef<string | null>(null);
+
+  function show(next: Outcome) {
+    setScanSeq((value) => value + 1);
+    setOutcome(next);
+  }
 
   async function submit(raw: string) {
     const value = raw.trim();
@@ -70,6 +87,8 @@ function CheckInDesk({
     inFlight.current = true;
     setBusy(true);
     const usedGate = gate.trim() || 'WEB';
+    let admitted = false;
+    const retryOfUnconfirmed = unconfirmedCode.current === value;
     try {
       const { data } = await scanStaffTicket(performance.id, {
         qrCode: value,
@@ -77,22 +96,33 @@ function CheckInDesk({
         gate: usedGate,
       });
       if (data.status === 'SUCCESS') {
+        admitted = true;
+        unconfirmedCode.current = null;
         setCode('');
+        setAdmissions((count) => count + 1);
         const allowed: Outcome = { kind: 'allowed', at: data.checkAt, gate: usedGate };
-        setOutcome(allowed);
+        show(allowed);
         void showTicket(data.ticketId, allowed);
       } else {
-        setOutcome({ kind: 'rejected', message: data.message });
+        unconfirmedCode.current = null;
+        // A rejection that names a ticket (not an unknown code) after an unconfirmed attempt of the
+        // same code most likely means that attempt was recorded.
+        show({
+          kind: 'rejected',
+          message: data.message,
+          earlierAttemptHint: retryOfUnconfirmed && !!data.ticketId,
+        });
       }
     } catch (failure) {
       if (reportDenied(failure)) return;
       if (failure instanceof ApiClientError && failure.status >= 400 && failure.status < 500) {
-        setOutcome({ kind: 'rejected', message: failure.message });
+        show({ kind: 'rejected', message: failure.message });
       } else {
-        setOutcome({ kind: 'notRecorded' });
+        unconfirmedCode.current = value;
+        show({ kind: 'notRecorded' });
       }
     } finally {
-      lastRead.current = { code: value, at: Date.now() };
+      lastRead.current = { code: value, at: Date.now(), admitted };
       inFlight.current = false;
       setBusy(false);
     }
@@ -121,7 +151,8 @@ function CheckInDesk({
   function onCamera(value: string) {
     if (inFlight.current) return;
     const last = lastRead.current;
-    if (last && last.code === value && Date.now() - last.at < repeatIgnoreMs) return;
+    const window = last?.admitted ? repeatIgnoreAfterAdmissionMs : repeatIgnoreMs;
+    if (last && last.code === value && Date.now() - last.at < window) return;
     setCode(value);
     void submit(value);
   }
@@ -151,6 +182,11 @@ function CheckInDesk({
 
   return (
     <>
+      <PerformanceFigures
+        performanceId={performance.id}
+        refreshKey={admissions}
+        reportDenied={reportDenied}
+      />
       <section className="staff-desk-grid">
         <form className="staff-panel" onSubmit={onSubmit}>
           <div className="guest-section-heading">
@@ -214,7 +250,7 @@ function CheckInDesk({
         </div>
       </section>
       <section aria-live="polite" className="staff-outcome-region">
-        {outcome ? <OutcomeView outcome={outcome} /> : null}
+        {outcome ? <OutcomeView key={scanSeq} outcome={outcome} /> : null}
       </section>
     </>
   );
@@ -246,6 +282,7 @@ function OutcomeView({ outcome }: { outcome: Outcome }) {
         <div>
           <h2>{t('staff:notAccepted')}</h2>
           <p>{outcome.message}</p>
+          {outcome.earlierAttemptHint ? <p>{t('staff:earlierAttemptHint')}</p> : null}
         </div>
       </div>
     );
@@ -257,5 +294,56 @@ function OutcomeView({ outcome }: { outcome: Outcome }) {
         <p>{t('staff:notRecordedBody')}</p>
       </div>
     </div>
+  );
+}
+
+/** Admitted against valid and used tickets, and how fresh the ticket list is, for the open performance. */
+function PerformanceFigures({
+  performanceId,
+  refreshKey,
+  reportDenied,
+}: {
+  performanceId: string;
+  refreshKey: number;
+  reportDenied: (failure: unknown) => boolean;
+}) {
+  const { t } = useTranslation();
+  const [overview, setOverview] = useState<StaffPerformanceOverview | null>(null);
+  const [failed, setFailed] = useState(false);
+  const denied = useRef(reportDenied);
+  useEffect(() => {
+    denied.current = reportDenied;
+  });
+
+  useEffect(() => {
+    const controller = new AbortController();
+    getStaffPerformanceOverview(performanceId, controller.signal)
+      .then((value) => {
+        setOverview(value);
+        setFailed(false);
+      })
+      .catch((failure) => {
+        if (isRequestCanceled(failure) || controller.signal.aborted) return;
+        if (!denied.current(failure)) setFailed(true);
+      });
+    return () => controller.abort();
+  }, [performanceId, refreshKey]);
+
+  if (failed && !overview) return <p role="status">{t('staff:figuresFailed')}</p>;
+  if (!overview) return null;
+  const number = new Intl.NumberFormat(formatLanguage());
+  return (
+    <p className="staff-figures">
+      <strong>
+        {t('staff:figuresAdmitted', {
+          checked: number.format(overview.totalCheckins),
+          total: number.format(overview.validTickets + overview.usedTickets),
+        })}
+      </strong>
+      {' · '}
+      {overview.datasetUpdatedAt
+        ? t('staff:figuresDataset', { time: staffDateTime(overview.datasetUpdatedAt) })
+        : t('staff:figuresNoDataset')}
+    </p>
   );
 }

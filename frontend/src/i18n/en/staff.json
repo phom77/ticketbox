@@ -41,7 +41,7 @@
   "cameraStart": "Start camera",
   "cameraStop": "Stop camera",
   "cameraStarting": "Starting camera…",
-  "cameraScanning": "Point the camera at the ticket QR. The same code is ignored for 3 seconds after a result.",
+  "cameraScanning": "Point the camera at the QR code on the ticket. The same code is ignored for 3 seconds after a rejection and 30 seconds after an admission.",
   "cameraUnsupported": "This browser cannot read QR codes with the camera. Use manual entry or an image.",
   "cameraDenied": "Camera permission was denied. Allow it in the browser, or use manual entry or an image.",
   "cameraNone": "No camera was found. Use manual entry or an image.",
@@ -57,7 +57,7 @@
   "allowedDetail": "Check-in confirmed this admission.",
   "notAccepted": "Not accepted",
   "notRecorded": "Not recorded",
-  "notRecordedBody": "Check-in could not be reached, so nothing was recorded. Your code is kept. Try again or use the scanner app.",
+  "notRecordedBody": "Check-in did not confirm this scan, so it may not have been recorded — check History before retrying. Your code is kept.",
   "ticketReference": "Ticket {{reference}}",
   "ticketType": "Type: {{type}}",
   "outcomeGate": "Gate {{gate}}",
@@ -91,5 +91,11 @@
   "next": "Next",
   "page": "Page {{page}}",
   "historyCaption": "Admissions for the selected performance",
-  "organizationSwitch": "Organization"
+  "organizationSwitch": "Organization",
+  "earlierAttemptHint": "This code is already used. The earlier attempt that was not confirmed probably went through. Check History to confirm.",
+  "cameraInUse": "The camera is in use by another app or tab. Close it there and start it again.",
+  "figuresAdmitted": "Admitted: {{checked}} of {{total}}",
+  "figuresDataset": "Ticket list updated {{time}}",
+  "figuresNoDataset": "The ticket list has not been received yet",
+  "figuresFailed": "Admission figures could not be loaded."
 }

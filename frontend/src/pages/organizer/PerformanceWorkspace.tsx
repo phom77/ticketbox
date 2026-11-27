@@ -781,7 +781,9 @@ export function PerformanceWorkspace({
               publication={publication}
             />
           )}
-          {publication?.checkinAcknowledged && <PerformanceCheckinPanel id={id} />}
+          {publication?.checkinAcknowledged && (
+            <PerformanceCheckinPanel id={id} timezone={performance.timezone} />
+          )}
           {publication?.checkinAcknowledged && <PerformanceStaffPanel id={id} />}
           {publication && immutable && (
             <section className="performance-panel" aria-label={t('performances:publication')}>

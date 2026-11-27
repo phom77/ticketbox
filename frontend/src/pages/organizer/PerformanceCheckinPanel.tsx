@@ -16,17 +16,30 @@ import './checkinPanel.css';
 export const checkinRefreshMs = 15_000;
 
 /** Live admission figures for a released performance. Needs the Events permission. */
-export function PerformanceCheckinPanel({ id }: { id: string }) {
+export function PerformanceCheckinPanel({ id, timezone }: { id: string; timezone: string }) {
   const organization = useOrganization()?.selected;
   if (!organization?.grants.includes('EVENTS')) return null;
   return (
-    <CheckinFigures key={`${organization.id}:${id}`} id={id} organizationId={organization.id} />
+    <CheckinFigures
+      key={`${organization.id}:${id}`}
+      id={id}
+      organizationId={organization.id}
+      timezone={timezone}
+    />
   );
 }
 
 type Figures = { summary: CheckinSummary; admissions: PerformanceAdmission[]; at: Date };
 
-function CheckinFigures({ id, organizationId }: { id: string; organizationId: string }) {
+function CheckinFigures({
+  id,
+  organizationId,
+  timezone,
+}: {
+  id: string;
+  organizationId: string;
+  timezone: string;
+}) {
   const { t } = useTranslation();
   const headingId = useId();
   const [figures, setFigures] = useState<Figures | null>(null);
@@ -96,7 +109,9 @@ function CheckinFigures({ id, organizationId }: { id: string; organizationId: st
 
   const number = new Intl.NumberFormat(formatLanguage());
   const time = (value: string | Date) =>
-    new Intl.DateTimeFormat(formatLanguage(), { timeStyle: 'medium' }).format(new Date(value));
+    new Intl.DateTimeFormat(formatLanguage(), { timeStyle: 'medium', timeZone: timezone }).format(
+      new Date(value),
+    );
 
   return (
     <section className="performance-panel" aria-labelledby={headingId}>
@@ -121,6 +136,7 @@ function CheckinFigures({ id, organizationId }: { id: string; organizationId: st
             staff.get(staffId)?.fullName ?? t('performance-checkin:staffUnknown')
           }
           format={{ number: (value) => number.format(value), time }}
+          timezone={timezone}
           onRefresh={() => void refresh()}
           disabled={denied}
         />
@@ -134,6 +150,7 @@ function FigureDetails({
   stale,
   staffName,
   format,
+  timezone,
   onRefresh,
   disabled,
 }: {
@@ -141,6 +158,7 @@ function FigureDetails({
   stale: boolean;
   staffName: (staffId: string) => string;
   format: { number: (value: number) => string; time: (value: string | Date) => string };
+  timezone: string;
   onRefresh: () => void;
   disabled: boolean;
 }) {
@@ -228,11 +246,14 @@ function FigureDetails({
       ) : (
         <p>{t('performance-checkin:noRecent')}</p>
       )}
-      <p role="status">
+      {/* Not a live region: a routine refresh every 15 seconds must not be announced. A failed
+          refresh or lost access is announced by the alert above. */}
+      <p>
         {stale
           ? t('performance-checkin:stale', { time: format.time(at) })
           : t('performance-checkin:updated', { time: format.time(at) })}
       </p>
+      <small>{t('performance-checkin:timesIn', { timezone })}</small>
       <button
         type="button"
         className="button button-secondary"

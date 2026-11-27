@@ -20,7 +20,7 @@
 - [x] 4.1 Rewrite `api/management/staff.ts` onto `/api/v2/staff/performances` (list, overview, tickets, history, guests, guest check-in, scan) with the selected organization; remove the legacy `/api/staff/*` calls. Unit tests for paths and headers.
 - [x] 4.2 Route `/staff`, `/staff/check-in`, `/staff/guests`, `/staff/history` in `App.tsx` under `ProtectedRoute(STAFF)`, `OrganizationProvider` and `OperationsLayout mode="staff"`; replace the placeholder. Performance in `?performance=`, gate per performance in `sessionStorage`.
 - [x] 4.3 Rework the four staff pages: assigned-performance list with access states (no organization, no assignment, revoked, unavailable); check-in with manual entry, live camera (`getUserMedia` + `BarcodeDetector`), image fallback, single in-flight request and outcome states incl. "Not recorded"; guests with search and check-in; history without QR values. Replace `ConcertPicker` with a performance picker.
-- [x] 4.4 Move all staff page text to `src/i18n/{en,vi}` and format dates in the venue timezone. Component tests: each access state, `SUCCESS`, `FAILED`, 403 mid-session, network failure, repeated submit sends one request, guest already checked in.
+- [x] 4.4 Move all staff page text to `src/i18n/{en,vi}` and show staff times in the browser time zone with its abbreviation (the unchanged staff API carries no venue time zone; recorded in design.md). Component tests: each access state, `SUCCESS`, `FAILED`, 403 mid-session, network failure, repeated submit sends one request, guest already checked in.
 
 ## 5. Web organizer live view
 
@@ -29,6 +29,6 @@
 
 ## 6. Verification
 
-- [ ] 6.1 `npm --prefix frontend run lint`, `test` and `build`; `npm --prefix mobile-scanner run typecheck` to confirm the scanner still compiles against the unchanged API.
+- [x] 6.1 `npm --prefix frontend run lint`, `test` and `build`; `npm --prefix mobile-scanner run typecheck` to confirm the scanner still compiles against the unchanged API.
 - [ ] 6.2 Compose walkthrough on an isolated project: invite a staff account with Admission, assign it to a released native performance, buy two tickets, admit one on the web (manual and image), retry the same ticket (rejected), check in a guest, revoke the assignment and see access removed; as an organizer with `EVENTS` watch the live view update and as `FINANCE`-only see no panel. Screenshots at 1440, 834 and 390 px.
 - [x] 6.3 `openspec validate native-performance-check-in --type change --strict`.

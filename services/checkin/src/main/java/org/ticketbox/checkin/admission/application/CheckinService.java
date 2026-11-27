@@ -111,7 +111,6 @@ public class CheckinService {
                                         entry.syncAt(),
                                         entry.offline(),
                                         entry.gate(),
-                                        entry.notes(),
                                         entry.ticketStatus(),
                                         entry.referenceCode(),
                                         entry.ticketTypeName()));
