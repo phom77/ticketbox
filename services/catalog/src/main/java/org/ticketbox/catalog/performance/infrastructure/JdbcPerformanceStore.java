@@ -445,11 +445,12 @@ public class JdbcPerformanceStore implements PerformanceStore {
                 row.getString("section_label"), PerformanceLayout.Kind.valueOf(row.getString("kind")),
                 row.getInt("capacity"), seatsByGroup.getOrDefault(id(row, "id"), List.of())), id);
         var offers = jdbc.query("""
-                SELECT id,group_id,name,price,currency,sale_start_at,sale_end_at,active
+                SELECT id,group_id,name,price,currency,sale_start_at,sale_end_at,active,description,min_per_order
                 FROM performance_sale_offers WHERE performance_id=? ORDER BY sort_index
                 """, (row, index) -> new PerformanceSale.Offer(id(row, "id"), id(row, "group_id"),
                 row.getString("name"), row.getBigDecimal("price"), row.getString("currency"),
-                time(row, "sale_start_at"), time(row, "sale_end_at"), row.getBoolean("active")), id);
+                time(row, "sale_start_at"), time(row, "sale_end_at"), row.getBoolean("active"),
+                row.getString("description"), row.getInt("min_per_order")), id);
         return new PerformanceSale(groups, offers);
     }
 
@@ -481,12 +482,14 @@ public class JdbcPerformanceStore implements PerformanceStore {
         for (int position = 0; position < sale.offers().size(); position++) {
             var offer = sale.offers().get(position);
             offers.add(new Object[] {id, offer.id(), offer.groupId(), offer.name(), offer.price(), offer.currency(),
-                    offer.saleStartAt(), offer.saleEndAt(), offer.active(), position});
+                    offer.saleStartAt(), offer.saleEndAt(), offer.active(), position, offer.description(),
+                    offer.minPerOrder()});
         }
         jdbc.batchUpdate("""
                 INSERT INTO performance_sale_offers(
-                    performance_id,id,group_id,name,price,currency,sale_start_at,sale_end_at,active,sort_index)
-                VALUES (?,?,?,?,?,?,?,?,?,?)
+                    performance_id,id,group_id,name,price,currency,sale_start_at,sale_end_at,active,sort_index,
+                    description,min_per_order)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
                 """, offers);
     }
 

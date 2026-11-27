@@ -168,7 +168,8 @@ public class PerformanceCatalog {
                 "error.performance.sale-locked");
         var layout = store.draftLayout(id).map(Layout::layout).orElse(null);
         boolean alreadyPublished = !"DRAFT".equals(performance.status());
-        PerformanceRules.validateSale(sale, performance.saleStartAt(), performance.saleEndAt(), layout, false);
+        PerformanceRules.validateSale(sale, performance.saleStartAt(), performance.saleEndAt(), layout, false,
+                performance.maxPerAccount());
         long version = performance.saleVersion() + 1;
         if (alreadyPublished) {
             require(!store.hasPublicationReview(id), "error.performance.sale-locked");
@@ -257,7 +258,7 @@ public class PerformanceCatalog {
         require(performance.saleEndAt().isAfter(OffsetDateTime.now()), "error.performance.sale-window-ended");
         var sale = store.sale(performance.id());
         PerformanceRules.validateSale(sale, performance.saleStartAt(), performance.saleEndAt(),
-                draft == null ? null : draft.layout(), true);
+                draft == null ? null : draft.layout(), true, performance.maxPerAccount());
         return draft;
     }
 

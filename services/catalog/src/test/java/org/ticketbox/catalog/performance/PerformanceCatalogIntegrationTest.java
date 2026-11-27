@@ -637,10 +637,25 @@ class PerformanceCatalogIntegrationTest {
         assertThatThrownBy(() -> catalog.layoutOverview(another.id())).isInstanceOf(AppException.class);
 
         var revisedOffer = new PerformanceSale.Offer(offer.id(), offer.groupId(), offer.name(),
-                BigDecimal.valueOf(200_000), offer.currency(), offer.saleStartAt(), offer.saleEndAt(), true);
+                BigDecimal.valueOf(200_000), offer.currency(), offer.saleStartAt(), offer.saleEndAt(), true, "Includes a poster", 2);
         var revised = tx(() -> catalog.saveSale(owner, owner, night.id(), 2,
                 new PerformanceSale(List.of(group), List.of(revisedOffer))));
         assertThat(revised.version()).isEqualTo(3);
+        assertThat(jdbc.queryForObject("""
+                SELECT payload->'offers'->0->>'minPerOrder' FROM performance_sale_publications
+                WHERE performance_id=? AND version=3
+                """, String.class, night.id())).isEqualTo("2");
+        assertThat(jdbc.queryForObject("""
+                SELECT payload->'offers'->0->>'description' FROM performance_sale_publications
+                WHERE performance_id=? AND version=3
+                """, String.class, night.id())).isEqualTo("Includes a poster");
+        var tooHigh = new PerformanceSale.Offer(offer.id(), offer.groupId(), offer.name(), offer.price(),
+                offer.currency(), offer.saleStartAt(), offer.saleEndAt(), true, null, 101);
+        assertThatThrownBy(() -> tx(() -> catalog.saveSale(owner, owner, night.id(), 3,
+                new PerformanceSale(List.of(group), List.of(tooHigh)))))
+                .isInstanceOf(RuntimeException.class);
+        assertThat(jdbc.queryForObject("SELECT min_per_order FROM performance_sale_offers WHERE performance_id=?",
+                Integer.class, night.id())).isEqualTo(2);
         assertThat(jdbc.queryForObject("""
                 SELECT count(DISTINCT payload->>'layoutChecksum') FROM performance_sale_publications WHERE performance_id=?
                 """, Integer.class, night.id())).isEqualTo(1);
@@ -697,7 +712,7 @@ class PerformanceCatalogIntegrationTest {
 
     private static PerformanceSale.Offer standard(UUID pool, OffsetDateTime start, OffsetDateTime end) {
         return new PerformanceSale.Offer(UUID.randomUUID(), pool, "Standard", BigDecimal.valueOf(100_000),
-                "VND", start, end, true);
+                "VND", start, end, true, null, null);
     }
 
     private static PerformanceLayout assignedLayout() {
