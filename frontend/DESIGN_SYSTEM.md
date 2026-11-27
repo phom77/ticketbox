@@ -4,16 +4,16 @@ The implemented appearance is defined in `src/app/app.css`. Reuse existing page/
 
 ## Current tokens
 
-| Token | Value |
-| --- | --- |
-| Canvas (`--ink`) | `#f6f7f9` |
-| Surface | `#ffffff` |
-| Secondary surface | `#f0f3f7` |
-| Border | `#d9dee8` |
-| Muted text | `#667085` |
-| Primary action (`--coral`) | `#1457d9` |
+| Token                          | Value     |
+| ------------------------------ | --------- |
+| Canvas (`--ink`)               | `#f6f7f9` |
+| Surface                        | `#ffffff` |
+| Secondary surface              | `#f0f3f7` |
+| Border                         | `#d9dee8` |
+| Muted text                     | `#667085` |
+| Primary action (`--coral`)     | `#1457d9` |
 | Supporting accent (`--violet`) | `#003b95` |
-| Text (`--cream`) | `#182133` |
+| Text (`--cream`)               | `#182133` |
 
 The token names are historical. The stylesheet loads Manrope, DM Sans and Playfair Display Italic. The general web styles use an Inter/system stack, and component styles may set a different face.
 
