@@ -210,4 +210,71 @@ class PerformanceMinimumQuantityIntegrationTest {
         assertRefused(() -> holds.replace(buyer, token, "back", 1L, two.version(), java.util.stream.Stream.concat(
                 List.of(new Pick(f.gaOffer(), null, 1)).stream(), seated.stream()).toList()));
     }
+
+    private void raiseSeatMinimum(Fixture f, int minimum) {
+        var seat = f.sale().offers().getLast();
+        var stricter = new Offer(seat.id(), seat.groupId(), seat.name(), seat.price(), "VND", seat.saleStartAt(),
+                seat.saleEndAt(), true, "Perks", minimum);
+        catalog.apply(new PerformanceSale(f.sale().id(), f.sale().eventId(), f.sale().organizationId(), null, 2, 1L,
+                "a".repeat(64), f.sale().title(), f.sale().venueName(), f.sale().startsAt(), f.sale().endsAt(), null,
+                f.sale().timezone(), f.sale().saleStartAt(), f.sale().saleEndAt(), "ON_SALE", false, true, null, 6,
+                f.sale().groups(), List.of(f.sale().offers().getFirst(), stricter)));
+    }
+
+    private void assertMinimumRefused(Runnable action, int minimum) {
+        assertThatThrownBy(action::run).isInstanceOfSatisfying(AppException.class, error -> {
+            assertThat(error.getMessage()).isEqualTo("error.performance.offer-min-quantity");
+            assertThat(error.messageArguments()).contains(minimum);
+        });
+    }
+
+    @Test
+    void seatSwapBelowARaisedMinimumIsRefusedButResendingTheSameSeatsIsKept() {
+        var f = fixture(1);
+        var buyer = new Scope(f.sale().id(), UUID.randomUUID());
+        String token = admit(buyer);
+        var both = List.of(new Pick(f.seatOffer(), f.seats().get(0), null),
+                new Pick(f.seatOffer(), f.seats().get(1), null));
+        var hold = holds.replace(buyer, token, "two", 1L, 0, both);
+        raiseSeatMinimum(f, 3);
+
+        var before = state(f.sale().id());
+        var swapped = List.of(new Pick(f.seatOffer(), f.seats().get(0), null),
+                new Pick(f.seatOffer(), f.seats().get(2), null));
+        assertMinimumRefused(() -> holds.replace(buyer, token, "swap", 1L, hold.version(), swapped), 3);
+        assertThat(state(f.sale().id())).isEqualTo(before);
+        assertThat(holds.replace(buyer, token, "same", 1L, hold.version(), both).items()).hasSize(2);
+    }
+
+    @Test
+    void theExemptionDoesNotApplyOnceTheHoldHasExpired() {
+        var f = fixture(1);
+        var buyer = new Scope(f.sale().id(), UUID.randomUUID());
+        String token = admit(buyer);
+        var both = List.of(new Pick(f.seatOffer(), f.seats().get(0), null),
+                new Pick(f.seatOffer(), f.seats().get(1), null));
+        var hold = holds.replace(buyer, token, "two", 1L, 0, both);
+        raiseSeatMinimum(f, 3);
+        jdbc.update("UPDATE performance_holds SET expires_at = now() - interval '1 minute' WHERE performance_id=?",
+                f.sale().id());
+        assertMinimumRefused(() -> holds.replace(buyer, token, "again", 1L, hold.version(), both), 3);
+    }
+
+    @Test
+    void inactiveTicketTypeReportsUnavailableBeforeTheMinimum() {
+        var f = fixture(1);
+        var buyer = new Scope(f.sale().id(), UUID.randomUUID());
+        String token = admit(buyer);
+        var seat = f.sale().offers().getLast();
+        var inactive = new Offer(seat.id(), seat.groupId(), seat.name(), seat.price(), "VND", seat.saleStartAt(),
+                seat.saleEndAt(), false, "Perks", 2);
+        catalog.apply(new PerformanceSale(f.sale().id(), f.sale().eventId(), f.sale().organizationId(), null, 2, 1L,
+                "a".repeat(64), f.sale().title(), f.sale().venueName(), f.sale().startsAt(), f.sale().endsAt(), null,
+                f.sale().timezone(), f.sale().saleStartAt(), f.sale().saleEndAt(), "ON_SALE", false, true, null, 6,
+                f.sale().groups(), List.of(f.sale().offers().getFirst(), inactive)));
+        assertThatThrownBy(() -> holds.replace(buyer, token, "one", 1L, 0,
+                List.of(new Pick(f.seatOffer(), f.seats().get(0), null))))
+                .isInstanceOfSatisfying(AppException.class, error ->
+                        assertThat(error.getMessage()).isEqualTo("error.performance.offer-unavailable"));
+    }
 }

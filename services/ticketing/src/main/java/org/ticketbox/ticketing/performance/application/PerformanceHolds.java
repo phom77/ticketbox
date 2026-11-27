@@ -9,9 +9,11 @@ import java.security.NoSuchAlgorithmException;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Function;
@@ -83,8 +85,11 @@ public class PerformanceHolds {
             throw new AppException(TICKET_LIMIT_EXCEEDED);
         }
         boolean retainsPrior = sameSession && isActive(existing, now);
-        requireMinimumQuantities(scope.performanceId(), picks, retainsPrior ? previous : List.of());
-        var lines = pricedLines(scope.performanceId(), picks, retainsPrior ? previous : List.of(), now);
+        var offers = picks.isEmpty() ? Map.<UUID, Offer>of()
+                : stock.offers(scope.performanceId()).stream().collect(Collectors.toMap(Offer::id, Function.identity()));
+        var retained = retainsPrior ? previous : List.<Line>of();
+        requireMinimumQuantities(offers, picks, retained, now);
+        var lines = pricedLines(scope.performanceId(), offers, picks, retained, now);
         var expiry = lines.isEmpty() ? null : earlier(expiresWithSession, sale.saleEndAt());
         if (expiry != null && retainsPrior && existing.expiresAt() != null) {
             expiry = earlier(expiry, existing.expiresAt());
@@ -170,26 +175,46 @@ public class PerformanceHolds {
 
     /**
      * Refuses a positive quantity below the ticket type's minimum per order. Read-only: it runs before any
-     * stock change. Lines a buyer already holds keep their quantity if the organizer raised the minimum later.
+     * stock change. A ticket type is exempt only when the request keeps exactly the lines the buyer already holds
+     * (same seats, same quantity), so an organizer who raised the minimum later does not strand an existing hold,
+     * but a seat swap or any other change must meet the new minimum.
      */
-    private void requireMinimumQuantities(UUID performanceId, List<Pick> picks, List<Line> previous) {
+    private void requireMinimumQuantities(Map<UUID, Offer> offers, List<Pick> picks, List<Line> previous,
+            OffsetDateTime now) {
         if (picks.isEmpty()) return;
-        var wanted = picks.stream().collect(Collectors.groupingBy(Pick::offerId,
-                Collectors.summingInt(Pick::quantity)));
-        var held = previous.stream().collect(Collectors.groupingBy(Line::offerId,
-                Collectors.summingInt(Line::quantity)));
-        for (Offer offer : stock.offers(performanceId)) {
-            int quantity = wanted.getOrDefault(offer.id(), 0);
-            if (quantity > 0 && quantity < offer.minPerOrder() && quantity != held.getOrDefault(offer.id(), 0)) {
+        var wanted = picks.stream().collect(Collectors.groupingBy(Pick::offerId));
+        for (Offer offer : offers.values()) {
+            var requested = wanted.getOrDefault(offer.id(), List.of());
+            int quantity = requested.stream().mapToInt(Pick::quantity).sum();
+            if (quantity <= 0 || quantity >= offer.minPerOrder()) continue;
+            if (!offer.activeAt(now)) throw new AppException(PERFORMANCE_CONFLICT, "error.performance.offer-unavailable");
+            if (!sameLines(offer.id(), requested, previous)) {
                 throw new AppException(INVALID_REQUEST, "error.performance.offer-min-quantity",
                         offer.name(), offer.minPerOrder());
             }
         }
     }
 
-    private List<Line> pricedLines(UUID performanceId, List<Pick> picks, List<Line> previous, OffsetDateTime now) {
+    private static boolean sameLines(UUID offerId, List<Pick> requested, List<Line> previous) {
+        var asked = new HashMap<UUID, Integer>();
+        var askedGeneral = 0;
+        for (Pick pick : requested) {
+            if (pick.seatId() == null) askedGeneral += pick.quantity();
+            else asked.merge(pick.seatId(), pick.quantity(), Integer::sum);
+        }
+        var held = new HashMap<UUID, Integer>();
+        var heldGeneral = 0;
+        for (Line line : previous) {
+            if (!line.offerId().equals(offerId)) continue;
+            if (line.seatId() == null) heldGeneral += line.quantity();
+            else held.merge(line.seatId(), line.quantity(), Integer::sum);
+        }
+        return askedGeneral == heldGeneral && asked.equals(held);
+    }
+
+    private List<Line> pricedLines(UUID performanceId, Map<UUID, Offer> offers, List<Pick> picks,
+            List<Line> previous, OffsetDateTime now) {
         if (picks.isEmpty()) return List.of();
-        var offers = stock.offers(performanceId).stream().collect(Collectors.toMap(Offer::id, Function.identity()));
         var result = new ArrayList<Line>();
         for (Pick pick : picks) {
             int remaining = pick.quantity();
