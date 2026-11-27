@@ -168,7 +168,8 @@ public final class PerformanceRules {
             require(offer.minPerOrder() >= 1 && offer.minPerOrder() <= 100, "error.performance.invalid-offer-min");
             require(offer.minPerOrder() <= maxPerAccount, "error.performance.offer-min-above-limit");
             var group = groupsById.get(offer.groupId());
-            require(group.kind() != Kind.GA || offer.minPerOrder() <= group.capacity(),
+            // General admission capacity, or the number of sellable seats of a seated pool.
+            require(offer.minPerOrder() <= group.capacity(),
                     "error.performance.offer-min-above-capacity");
         }
         if (publishing) {
