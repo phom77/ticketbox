@@ -1,19 +1,40 @@
-import type { StaffConcert } from '../../api/admin';
+import { useState } from 'react';
+import { ApiClientError } from '../../api/client';
+import type { StaffPerformance } from '../../api/admin';
+import { formatLanguage } from '../../i18n';
 
-export const staffDateTime = new Intl.DateTimeFormat('vi-VN', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
-});
-
-export function staffConcertLabel(concert: StaffConcert) {
-  return `${concert.title} - ${staffDateTime.format(new Date(concert.eventDate))}`;
+/** Staff see times in their browser zone: the frozen staff API does not carry the venue timezone. */
+export function staffDateTime(value: string) {
+  return new Intl.DateTimeFormat(formatLanguage(), {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZoneName: 'short',
+  }).format(new Date(value));
 }
 
-export function selectInitialConcert(concerts: StaffConcert[], preferredId: string | null) {
-  if (preferredId && concerts.some((concert) => concert.id === preferredId)) {
-    return preferredId;
-  }
-  return concerts[0]?.id ?? '';
+export function sortPerformances(performances: StaffPerformance[]) {
+  return [...performances].sort((a, b) => Date.parse(a.eventDate) - Date.parse(b.eventDate));
+}
+
+const dayMs = 24 * 60 * 60 * 1000;
+
+export function splitEarlier(performances: StaffPerformance[], now = Date.now()) {
+  const sorted = sortPerformances(performances);
+  return {
+    current: sorted.filter((entry) => Date.parse(entry.eventDate) >= now - dayMs),
+    earlier: sorted.filter((entry) => Date.parse(entry.eventDate) < now - dayMs),
+  };
+}
+
+/** The assignment was revoked or the Admission permission was lost. */
+export function isAccessDenied(error: unknown) {
+  return (
+    error instanceof ApiClientError &&
+    (error.status === 401 || error.status === 403 || error.status === 404)
+  );
 }
 
 export function getOrCreateStaffDeviceId() {
@@ -32,4 +53,25 @@ function readCookie(name: string) {
     .map((part) => part.trim())
     .find((part) => part.startsWith(prefix));
   return cookie ? decodeURIComponent(cookie.slice(prefix.length)) : null;
+}
+
+/** The gate is remembered per performance for this browser session. */
+export function useStaffGate(performanceId: string) {
+  const key = `ticketbox.staff.gate.${performanceId}`;
+  const [gate, setGateState] = useState(() => {
+    try {
+      return window.sessionStorage.getItem(key) ?? 'WEB';
+    } catch {
+      return 'WEB';
+    }
+  });
+  function setGate(next: string) {
+    setGateState(next);
+    try {
+      window.sessionStorage.setItem(key, next);
+    } catch {
+      // The gate stays for this page view.
+    }
+  }
+  return [gate, setGate] as const;
 }

@@ -20,6 +20,7 @@ import { ApiClientError } from '../../api/client';
 import { eventPath } from '../../api/performances';
 import { performanceTime } from '../../features/performance/format';
 import { currency, numberFormatter } from '../../data/formatters';
+import { PerformanceCheckinPanel } from './PerformanceCheckinPanel';
 import { PerformanceStaffPanel } from './PerformanceStaffPanel';
 import { PerformanceLayoutEditor } from './PerformanceLayoutEditor';
 import { PerformanceSeatAssignments } from './PerformanceSeatAssignments';
@@ -780,6 +781,7 @@ export function PerformanceWorkspace({
               publication={publication}
             />
           )}
+          {publication?.checkinAcknowledged && <PerformanceCheckinPanel id={id} />}
           {publication?.checkinAcknowledged && <PerformanceStaffPanel id={id} />}
           {publication && immutable && (
             <section className="performance-panel" aria-label={t('performances:publication')}>

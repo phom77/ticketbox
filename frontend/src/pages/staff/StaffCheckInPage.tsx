@@ -1,313 +1,261 @@
-import { type ChangeEvent, useEffect, useMemo, useState } from 'react';
-import {
-  Camera,
-  CheckCircle2,
-  ImagePlus,
-  RefreshCw,
-  ScanLine,
-  Smartphone,
-  XCircle,
-} from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
-import {
-  getStaffConcerts,
-  scanStaffTicket,
-  type StaffConcert,
-  type StaffScanTicketResponse,
-} from '../../api/admin';
-import { isRequestCanceled } from '../../api/client';
+import { type ChangeEvent, type FormEvent, useRef, useState } from 'react';
+import { CheckCircle2, CloudOff, ImagePlus, ScanLine, XCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { getStaffCheckinHistory, scanStaffTicket, type StaffPerformance } from '../../api/admin';
+import { ApiClientError } from '../../api/client';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
-import { ConcertPicker } from '../../components/admin/ConcertPicker';
-import { useToast } from '../../components/feedback/toast-context';
-import { getOrCreateStaffDeviceId, selectInitialConcert, staffDateTime } from './staffPageUtils';
-
-type BarcodeDetectorResult = { rawValue?: string };
-type BarcodeDetectorInstance = {
-  detect(source: ImageBitmapSource): Promise<BarcodeDetectorResult[]>;
-};
-type BarcodeDetectorConstructor = new (options?: { formats?: string[] }) => BarcodeDetectorInstance;
-type WindowWithBarcodeDetector = Window & { BarcodeDetector?: BarcodeDetectorConstructor };
+import { canReadQrFromCamera, decodeQrFromImage } from './cameraSupport';
+import { LiveCameraReader } from './LiveCameraReader';
+import { StaffAccessGate } from './StaffAccessGate';
+import { getOrCreateStaffDeviceId, staffDateTime, useStaffGate } from './staffPageUtils';
+import './staff.css';
 
 const imageTypes = ['image/png', 'image/jpeg', 'image/webp'];
+const repeatIgnoreMs = 3000;
+
+type Outcome =
+  | {
+      kind: 'allowed';
+      at: string;
+      reference?: string | null;
+      ticketType?: string | null;
+      gate: string;
+    }
+  | { kind: 'rejected'; message: string }
+  | { kind: 'notRecorded' };
 
 export function StaffCheckInPage() {
-  const toast = useToast();
-  const [searchParams] = useSearchParams();
-  const [concerts, setConcerts] = useState<StaffConcert[]>([]);
-  const [selectedConcertId, setSelectedConcertId] = useState('');
-  const [loadingConcerts, setLoadingConcerts] = useState(true);
-  const [error, setError] = useState('');
-  const [gate, setGate] = useState('WEB');
-  const [deviceId] = useState(getOrCreateStaffDeviceId);
-  const [previewUrl, setPreviewUrl] = useState('');
-  const [fileName, setFileName] = useState('');
-  const [decodedQr, setDecodedQr] = useState('');
-  const [decodeError, setDecodeError] = useState('');
-  const [decoding, setDecoding] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [scanResult, setScanResult] = useState<StaffScanTicketResponse | null>(null);
-
-  const selectedConcert = useMemo(
-    () => concerts.find((concert) => concert.id === selectedConcertId) ?? null,
-    [concerts, selectedConcertId],
-  );
-
-  useEffect(() => {
-    const controller = new AbortController();
-    async function loadConcerts() {
-      setLoadingConcerts(true);
-      setError('');
-      try {
-        const data = await getStaffConcerts('ON_SALE', controller.signal);
-        setConcerts(data.content);
-        setSelectedConcertId(
-          (current) => current || selectInitialConcert(data.content, searchParams.get('concert')),
-        );
-      } catch (requestError) {
-        if (!isRequestCanceled(requestError)) {
-          setError(
-            requestError instanceof Error
-              ? requestError.message
-              : 'Không thể tải danh sách concert.',
-          );
+  const { t } = useTranslation();
+  return (
+    <>
+      <AdminPageHeader
+        title={t('staff:checkInTitle')}
+        description={t('staff:checkInDescription')}
+      />
+      <StaffAccessGate select>
+        {({ performance, reportDenied }) =>
+          performance ? (
+            <CheckInDesk
+              key={performance.id}
+              performance={performance}
+              reportDenied={reportDenied}
+            />
+          ) : null
         }
-      } finally {
-        if (!controller.signal.aborted) setLoadingConcerts(false);
-      }
-    }
-    void loadConcerts();
-    return () => controller.abort();
-  }, [searchParams]);
+      </StaffAccessGate>
+    </>
+  );
+}
 
-  useEffect(() => {
-    return () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-    };
-  }, [previewUrl]);
+function CheckInDesk({
+  performance,
+  reportDenied,
+}: {
+  performance: StaffPerformance;
+  reportDenied: (failure: unknown) => boolean;
+}) {
+  const { t } = useTranslation();
+  const [gate, setGate] = useStaffGate(performance.id);
+  const [deviceId] = useState(getOrCreateStaffDeviceId);
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [outcome, setOutcome] = useState<Outcome | null>(null);
+  const [imageError, setImageError] = useState('');
+  const inFlight = useRef(false);
+  const lastRead = useRef<{ code: string; at: number } | null>(null);
 
-  async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    setScanResult(null);
-    setDecodedQr('');
-    setDecodeError('');
-    setFileName('');
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setPreviewUrl('');
-
-    if (!file) return;
-    setFileName(file.name);
-
-    if (!imageTypes.includes(file.type)) {
-      setDecodeError('Hãy tải ảnh QR định dạng PNG, JPG hoặc WEBP.');
-      return;
-    }
-
-    const nextPreviewUrl = URL.createObjectURL(file);
-    setPreviewUrl(nextPreviewUrl);
-    setDecoding(true);
+  async function submit(raw: string) {
+    const value = raw.trim();
+    if (!value || inFlight.current) return;
+    inFlight.current = true;
+    setBusy(true);
+    const usedGate = gate.trim() || 'WEB';
     try {
-      const qrValue = await decodeQrFromImage(file);
-      setDecodedQr(qrValue);
-    } catch (decodeFailure) {
-      setDecodeError(
-        decodeFailure instanceof Error ? decodeFailure.message : 'Không đọc được QR trong ảnh.',
-      );
+      const { data } = await scanStaffTicket(performance.id, {
+        qrCode: value,
+        deviceId,
+        gate: usedGate,
+      });
+      if (data.status === 'SUCCESS') {
+        setCode('');
+        const allowed: Outcome = { kind: 'allowed', at: data.checkAt, gate: usedGate };
+        setOutcome(allowed);
+        void showTicket(data.ticketId, allowed);
+      } else {
+        setOutcome({ kind: 'rejected', message: data.message });
+      }
+    } catch (failure) {
+      if (reportDenied(failure)) return;
+      if (failure instanceof ApiClientError && failure.status >= 400 && failure.status < 500) {
+        setOutcome({ kind: 'rejected', message: failure.message });
+      } else {
+        setOutcome({ kind: 'notRecorded' });
+      }
     } finally {
-      setDecoding(false);
+      lastRead.current = { code: value, at: Date.now() };
+      inFlight.current = false;
+      setBusy(false);
     }
   }
 
-  async function submitScan() {
-    if (!selectedConcertId || !decodedQr) return;
-    setSubmitting(true);
-    setError('');
-    setScanResult(null);
+  /** The scan response has no ticket details, so read them from the admission just recorded. */
+  async function showTicket(
+    ticketId: string | null,
+    allowed: Extract<Outcome, { kind: 'allowed' }>,
+  ) {
+    if (!ticketId) return;
     try {
-      const result = await scanStaffTicket({
-        qrCode: decodedQr,
-        concertId: selectedConcertId,
-        deviceId,
-        gate: gate.trim() || 'WEB',
-      });
-      setScanResult(result.data);
-      const message = result.data.message;
-      if (result.data.status === 'SUCCESS') {
-        toast.success(message);
-      } else {
-        toast.error(message);
-      }
-    } catch (requestError) {
-      const message =
-        requestError instanceof Error ? requestError.message : 'Không thể check-in vé.';
-      setError(message);
-      toast.error(message);
-    } finally {
-      setSubmitting(false);
+      const page = await getStaffCheckinHistory(performance.id, 0, 10);
+      const entry = page.content.find((row) => row.ticketId === ticketId);
+      if (entry)
+        setOutcome((current) =>
+          current === allowed
+            ? { ...allowed, reference: entry.referenceCode, ticketType: entry.ticketTypeName }
+            : current,
+        );
+    } catch {
+      // The confirmation already stands without ticket details.
+    }
+  }
+
+  function onCamera(value: string) {
+    if (inFlight.current) return;
+    const last = lastRead.current;
+    if (last && last.code === value && Date.now() - last.at < repeatIgnoreMs) return;
+    setCode(value);
+    void submit(value);
+  }
+
+  function onSubmit(event: FormEvent) {
+    event.preventDefault();
+    void submit(code);
+  }
+
+  async function onImage(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    setImageError('');
+    if (!file) return;
+    if (!imageTypes.includes(file.type)) {
+      setImageError(t('staff:imageType'));
+      return;
+    }
+    try {
+      const value = await decodeQrFromImage(file);
+      setCode(value);
+      await submit(value);
+    } catch (failure) {
+      setImageError(failure === 'unsupported' ? t('staff:imageUnsupported') : t('staff:imageNone'));
     }
   }
 
   return (
     <>
-      <AdminPageHeader
-        title="Check-in bằng ảnh QR"
-        description="Tải ảnh QR từ vé điện tử, web sẽ đọc mã và gọi API check-in online. Dùng scanner mobile khi cần camera trực tiếp và đồng bộ offline."
-        actions={
-          <a
-            className="admin-secondary-action"
-            href="http://localhost:8081"
-            target="_blank"
-            rel="noreferrer"
-          >
-            <Smartphone aria-hidden="true" size={17} />
-            Mobile Scanner
-          </a>
-        }
-      />
-
-      {error ? (
-        <div className="admin-notice error" role="alert">
-          {error}
-        </div>
-      ) : null}
-
       <section className="staff-desk-grid">
-        <div className="staff-panel">
+        <form className="staff-panel" onSubmit={onSubmit}>
           <div className="guest-section-heading">
             <div>
-              <span>Quét online</span>
-              <h2>Thông tin ca trực</h2>
+              <h2>{t('staff:codeTitle')}</h2>
             </div>
             <ScanLine aria-hidden="true" size={22} />
           </div>
-
-          <ConcertPicker
-            concerts={concerts}
-            value={selectedConcertId}
-            label="Concert của ca trực"
-            placeholder={loadingConcerts ? 'Đang tải concert...' : 'Không có concert đang bán'}
-            disabled={loadingConcerts || !concerts.length}
-            onChange={(id) => {
-              setSelectedConcertId(id);
-              setScanResult(null);
-            }}
-          />
-
           <label className="admin-field">
-            Cổng
+            {t('staff:gate')}
             <input
               value={gate}
+              maxLength={100}
               onChange={(event) => setGate(event.target.value)}
-              placeholder="VD: A, B, WEB"
+              placeholder={t('staff:gatePlaceholder')}
             />
           </label>
-
-          <div className="staff-selected-concert">
-            {selectedConcert ? (
-              <>
-                <strong>{selectedConcert.title}</strong>
-                <span>
-                  {selectedConcert.venueName}, {selectedConcert.venueAddress}
-                </span>
-                <span>{staffDateTime.format(new Date(selectedConcert.eventDate))}</span>
-              </>
-            ) : (
-              <span>Chọn concert để bắt đầu check-in.</span>
-            )}
-          </div>
-        </div>
+          <label className="admin-field">
+            {t('staff:codeLabel')}
+            <input
+              value={code}
+              maxLength={500}
+              autoComplete="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              onChange={(event) => setCode(event.target.value)}
+              aria-describedby="staff-code-help"
+            />
+          </label>
+          <small id="staff-code-help">{t('staff:codeHelp')}</small>
+          <button className="admin-primary-action" type="submit" disabled={busy || !code.trim()}>
+            <ScanLine aria-hidden="true" size={16} />
+            {busy ? t('staff:submitting') : t('staff:submit')}
+          </button>
+        </form>
 
         <div className="staff-panel">
           <div className="guest-section-heading">
             <div>
-              <span>Tải QR</span>
-              <h2>Tải ảnh vé</h2>
+              <h2>{t('staff:cameraTitle')}</h2>
             </div>
-            <ImagePlus aria-hidden="true" size={22} />
           </div>
-
-          <label className={`staff-qr-picker ${previewUrl ? 'has-file' : ''}`}>
+          {canReadQrFromCamera() ? (
+            <LiveCameraReader onCode={onCamera} />
+          ) : (
+            <p>{t('staff:cameraUnsupported')}</p>
+          )}
+          <h3>
+            <ImagePlus aria-hidden="true" size={18} /> {t('staff:imageTitle')}
+          </h3>
+          <label className="staff-qr-picker">
             <input
-              accept="image/png,image/jpeg,image/webp"
+              accept={imageTypes.join(',')}
               type="file"
-              onChange={(event) => void handleFileChange(event)}
+              onChange={(event) => void onImage(event)}
             />
-            {previewUrl ? <img alt="" src={previewUrl} /> : <Camera aria-hidden="true" size={34} />}
-            <span>{fileName || 'Chọn ảnh có mã QR'}</span>
-            <small>Chrome/Edge có hỗ trợ đọc QR trực tiếp từ ảnh tải lên.</small>
+            <span>{t('staff:imageChoose')}</span>
+            <small>{t('staff:imageHelp')}</small>
           </label>
-
-          {decoding ? <div className="admin-notice">Đang đọc mã QR từ ảnh...</div> : null}
-          {decodeError ? (
-            <div className="admin-notice error" role="alert">
-              {decodeError}
-            </div>
-          ) : null}
-          {decodedQr ? (
-            <div className="staff-decoded-qr">
-              <CheckCircle2 aria-hidden="true" size={18} />
-              <div>
-                <strong>Đã đọc được QR</strong>
-              </div>
-            </div>
-          ) : null}
-
-          <button
-            className="admin-primary-action"
-            disabled={!selectedConcertId || !decodedQr || submitting}
-            type="button"
-            onClick={() => void submitScan()}
-          >
-            {submitting ? (
-              <RefreshCw aria-hidden="true" size={16} />
-            ) : (
-              <ScanLine aria-hidden="true" size={16} />
-            )}
-            {submitting ? 'Đang check-in' : 'Xác nhận check-in'}
-          </button>
+          {imageError ? <p role="alert">{imageError}</p> : null}
         </div>
       </section>
-
-      {scanResult ? (
-        <section
-          className={`staff-scan-result ${scanResult.status === 'SUCCESS' ? 'success' : 'failed'}`}
-          aria-live="polite"
-        >
-          {scanResult.status === 'SUCCESS' ? (
-            <CheckCircle2 aria-hidden="true" size={30} />
-          ) : (
-            <XCircle aria-hidden="true" size={30} />
-          )}
-          <div>
-            <span>
-              {scanResult.status === 'SUCCESS' ? 'Check-in thành công' : 'Máy chủ từ chối'}
-            </span>
-            <h2>{scanResult.message}</h2>
-            <p>{staffDateTime.format(new Date(scanResult.checkAt))}</p>
-          </div>
-        </section>
-      ) : null}
+      <section aria-live="polite" className="staff-outcome-region">
+        {outcome ? <OutcomeView outcome={outcome} /> : null}
+      </section>
     </>
   );
 }
 
-async function decodeQrFromImage(file: File) {
-  const BarcodeDetector = (window as WindowWithBarcodeDetector).BarcodeDetector;
-  if (!BarcodeDetector) {
-    throw new Error(
-      'Trình duyệt này chưa hỗ trợ đọc QR từ ảnh. Hãy dùng Chrome/Edge hoặc Mobile Scanner.',
+function OutcomeView({ outcome }: { outcome: Outcome }) {
+  const { t } = useTranslation();
+  if (outcome.kind === 'allowed')
+    return (
+      <div className="staff-scan-result success">
+        <CheckCircle2 aria-hidden="true" size={30} />
+        <div>
+          <h2>{t('staff:allowed')}</h2>
+          <p>{t('staff:allowedDetail')}</p>
+          {outcome.reference ? (
+            <p>{t('staff:ticketReference', { reference: outcome.reference })}</p>
+          ) : null}
+          {outcome.ticketType ? <p>{t('staff:ticketType', { type: outcome.ticketType })}</p> : null}
+          <p>
+            {t('staff:outcomeGate', { gate: outcome.gate })} · {staffDateTime(outcome.at)}
+          </p>
+        </div>
+      </div>
     );
-  }
-
-  const image = await createImageBitmap(file);
-  try {
-    const detector = new BarcodeDetector({ formats: ['qr_code'] });
-    const results = await detector.detect(image);
-    const rawValue = results.find((result) => result.rawValue)?.rawValue?.trim();
-    if (!rawValue) {
-      throw new Error('Không tìm thấy mã QR trong ảnh này.');
-    }
-    return rawValue;
-  } finally {
-    image.close();
-  }
+  if (outcome.kind === 'rejected')
+    return (
+      <div className="staff-scan-result failed">
+        <XCircle aria-hidden="true" size={30} />
+        <div>
+          <h2>{t('staff:notAccepted')}</h2>
+          <p>{outcome.message}</p>
+        </div>
+      </div>
+    );
+  return (
+    <div className="staff-scan-result warning">
+      <CloudOff aria-hidden="true" size={30} />
+      <div>
+        <h2>{t('staff:notRecorded')}</h2>
+        <p>{t('staff:notRecordedBody')}</p>
+      </div>
+    </div>
+  );
 }

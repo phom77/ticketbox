@@ -70,7 +70,10 @@ api.interceptors.request.use(
   (config) => {
     const token = getAuthToken();
     if (token) config.headers.Authorization = `Bearer ${token}`;
-    if (requestOrganization && config.url?.startsWith('/api/organizer/')) {
+    if (
+      requestOrganization &&
+      (config.url?.startsWith('/api/organizer/') || config.url?.startsWith('/api/v2/staff/'))
+    ) {
       config.headers['X-Organization-Id'] = requestOrganization;
     }
     return setRequestLanguage(config);
