@@ -1,8 +1,16 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { Download, FilePlus2, RefreshCw } from 'lucide-react';
 import { ApiClientError } from '../../api/client';
+import { getSalesEvents, type SalesEventOption } from '../../api/sales';
 import { getOrganizationProfile, type OrganizationProfile } from '../../api/organizationProfile';
 import {
   downloadStatement,
@@ -13,6 +21,7 @@ import {
   type Statement,
   type StatementPage,
 } from '../../api/statements';
+import { ConcertPicker, type ConcertPickerItem } from '../../components/admin/ConcertPicker';
 import { ModalPortal } from '../../components/feedback/ModalPortal';
 import { useToast } from '../../components/feedback/toast-context';
 import { dateFormatter } from '../../data/formatters';
@@ -24,10 +33,57 @@ const dateTime = dateFormatter({ dateStyle: 'medium', timeStyle: 'short' });
 
 type Target = { scope: EligibleScope } | { statement: Statement };
 
+const day = 86400000;
+
+/** Reconciliation filtered to the statement's performance or event, over a period that covers its sales. */
 function reconciliationLink(statement: Statement) {
   const params = new URLSearchParams({ view: 'reconciliation' });
-  if (statement.scopeType === 'PERFORMANCE') params.set('concertId', statement.scopeId);
+  params.set(statement.scopeType === 'PERFORMANCE' ? 'concertId' : 'eventId', statement.scopeId);
+  const issuedAt = new Date(statement.issuedAt).getTime();
+  params.set('from', new Date(issuedAt - 365 * day).toISOString().slice(0, 10));
+  params.set('to', new Date(issuedAt + day).toISOString().slice(0, 10));
   return `/organizer/reports?${params}`;
+}
+
+type ProfileState =
+  | { status: 'loading' }
+  | { status: 'failed' }
+  | { status: 'ready'; profile: OrganizationProfile };
+
+function Pager({
+  page,
+  hasMore,
+  label,
+  onPage,
+}: {
+  page: number;
+  hasMore: boolean;
+  label: string;
+  onPage: (page: number) => void;
+}) {
+  const { t } = useTranslation();
+  if (page <= 0 && !hasMore) return null;
+  return (
+    <nav className="reconciliation-pagination" aria-label={label}>
+      <button
+        className="admin-secondary-action"
+        type="button"
+        disabled={page <= 0}
+        onClick={() => onPage(page - 1)}
+      >
+        {t('statements:previousPage')}
+      </button>
+      <span>{t('statements:pageNumber', { page: page + 1 })}</span>
+      <button
+        className="admin-secondary-action"
+        type="button"
+        disabled={!hasMore}
+        onClick={() => onPage(page + 1)}
+      >
+        {t('statements:nextPage')}
+      </button>
+    </nav>
+  );
 }
 
 /** Reports > Statements: scopes that are ready for a statement, and the statements already issued. */
@@ -38,47 +94,91 @@ export function StatementsView() {
   const organizationId = organization?.selected?.id;
   const [eligible, setEligible] = useState<StatementPage<EligibleScope>>();
   const [issued, setIssued] = useState<StatementPage<Statement>>();
-  const [page, setPage] = useState(0);
+  const [readyPage, setReadyPage] = useState(0);
+  const [issuedPage, setIssuedPage] = useState(0);
+  const [searchText, setSearchText] = useState('');
+  const [search, setSearch] = useState('');
+  const [eventId, setEventId] = useState('');
+  const [eventSearch, setEventSearch] = useState('');
+  const [events, setEvents] = useState<SalesEventOption[]>([]);
+  const [chosenEvent, setChosenEvent] = useState<ConcertPickerItem>();
   const [error, setError] = useState(false);
   const [target, setTarget] = useState<Target>();
-  const [profile, setProfile] = useState<OrganizationProfile>();
+  const [profile, setProfile] = useState<ProfileState>({ status: 'loading' });
   const [busy, setBusy] = useState(false);
   const [downloading, setDownloading] = useState('');
+  const [attempt, setAttempt] = useState(0);
 
-  const load = useCallback(
-    async (signal?: AbortSignal) => {
-      try {
-        const [ready, done] = await Promise.all([
-          getEligibleStatements(undefined, 0, signal),
-          getStatements(undefined, page, signal),
-        ]);
-        if (signal?.aborted) return;
-        setEligible(ready);
-        setIssued(done);
-        setError(false);
-      } catch (failure) {
-        if (!signal?.aborted) setError(true);
-        void failure;
-      }
-    },
-    [page],
-  );
+  // Search text applies after a short pause and returns to the first page.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setSearch((current) => {
+        if (current !== searchText.trim()) setReadyPage(0);
+        return searchText.trim();
+      });
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [searchText]);
 
   useEffect(() => {
     const controller = new AbortController();
-    void load(controller.signal);
+    getEligibleStatements(search || undefined, readyPage, controller.signal)
+      .then((ready) => {
+        setEligible(ready);
+        setError(false);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setError(true);
+      });
     return () => controller.abort();
-  }, [load, organizationId]);
+  }, [search, readyPage, organizationId, attempt]);
 
-  async function confirm(next: Target) {
-    setTarget(next);
-    setProfile(undefined);
-    if (!organizationId) return;
+  useEffect(() => {
+    const controller = new AbortController();
+    getStatements(eventId || undefined, issuedPage, controller.signal)
+      .then((done) => {
+        setIssued(done);
+        setError(false);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setError(true);
+      });
+    return () => controller.abort();
+  }, [eventId, issuedPage, organizationId, attempt]);
+
+  // Event choices for the issued list follow the search text.
+  useEffect(() => {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      getSalesEvents(eventSearch.trim() || undefined, 20, controller.signal)
+        .then((result) => setEvents(result.content))
+        .catch(() => undefined);
+    }, 250);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [eventSearch, organizationId]);
+
+  const reload = useCallback(() => setAttempt((value) => value + 1), []);
+
+  const loadProfile = useCallback(async () => {
+    setProfile({ status: 'loading' });
+    if (!organizationId) {
+      setProfile({ status: 'failed' });
+      return;
+    }
     try {
-      setProfile(await getOrganizationProfile(organizationId));
+      setProfile({ status: 'ready', profile: await getOrganizationProfile(organizationId) });
     } catch (failure) {
       void failure;
+      setProfile({ status: 'failed' });
     }
+  }, [organizationId]);
+
+  function confirm(next: Target) {
+    setTarget(next);
+    void loadProfile();
   }
 
   async function issue() {
@@ -95,7 +195,7 @@ export function StatementsView() {
       toast.success(t('statements:issued', { number: result.data.statement.number }));
       if (result.data.logoOmitted) toast.error(t('statements:logoOmitted'));
       setTarget(undefined);
-      await load();
+      reload();
     } catch (failure) {
       const status = failure instanceof ApiClientError ? failure.status : 0;
       toast.error(
@@ -107,7 +207,7 @@ export function StatementsView() {
       );
       if (status === 409) {
         setTarget(undefined);
-        await load();
+        reload();
       }
     } finally {
       setBusy(false);
@@ -139,7 +239,7 @@ export function StatementsView() {
     return (
       <section className="workspace-records-panel statements-message">
         <p role="alert">{t('statements:loadError')}</p>
-        <button className="admin-secondary-action" type="button" onClick={() => void load()}>
+        <button className="admin-secondary-action" type="button" onClick={reload}>
           <RefreshCw size={16} aria-hidden /> {t('statements:retry')}
         </button>
       </section>
@@ -153,7 +253,12 @@ export function StatementsView() {
     );
   }
 
-  const missing = profile && (!profile.legalName || !profile.taxCode);
+  const missing =
+    profile.status === 'ready' && (!profile.profile.legalName || !profile.profile.taxCode);
+  const eventItems: ConcertPickerItem[] = events.map((event) => ({
+    id: event.eventId,
+    title: event.title,
+  }));
 
   return (
     <div className="statements-view">
@@ -163,6 +268,15 @@ export function StatementsView() {
             <h2 id="statements-ready">{t('statements:readyTitle')}</h2>
             <p>{t('statements:readyHelp')}</p>
           </div>
+          <label className="workspace-records-field">
+            <span>{t('statements:search')}</span>
+            <input
+              type="search"
+              value={searchText}
+              onChange={(event) => setSearchText(event.target.value)}
+              placeholder={t('statements:searchPlaceholder')}
+            />
+          </label>
         </header>
         {eligible.content.length ? (
           <div
@@ -200,9 +314,16 @@ export function StatementsView() {
                       {row.statementNumber ? (
                         <>
                           {row.statementNumber}
-                          <small className="statements-badge" data-tone="warning">
-                            {t('statements:outOfDate')}
-                          </small>
+                          {row.outOfDate && (
+                            <small className="statements-badge" data-tone="warning">
+                              {t('statements:outOfDate')}
+                            </small>
+                          )}
+                          {row.detailsChanged && (
+                            <small className="statements-badge" data-tone="warning">
+                              {t('statements:detailsChanged')}
+                            </small>
+                          )}
                         </>
                       ) : (
                         t('statements:none')
@@ -212,7 +333,7 @@ export function StatementsView() {
                       <button
                         className="admin-primary-action"
                         type="button"
-                        onClick={() => void confirm({ scope: row })}
+                        onClick={() => confirm({ scope: row })}
                         aria-label={t(
                           row.statementNumber ? 'statements:reissueNamed' : 'statements:issueNamed',
                           {
@@ -230,14 +351,42 @@ export function StatementsView() {
             </table>
           </div>
         ) : (
-          <p className="workspace-records-empty">{t('statements:readyEmpty')}</p>
+          <p className="workspace-records-empty">
+            {t(search ? 'statements:readyNoMatch' : 'statements:readyEmpty')}
+          </p>
         )}
+        <Pager
+          page={readyPage}
+          hasMore={eligible.hasMore}
+          label={t('statements:readyPagination')}
+          onPage={setReadyPage}
+        />
       </section>
 
       <section className="workspace-records-panel" aria-labelledby="statements-issued">
         <header className="workspace-records-toolbar">
           <h2 id="statements-issued">{t('statements:issuedTitle')}</h2>
           <p role="status">{t('statements:notPayout')}</p>
+          <ConcertPicker
+            concerts={eventItems}
+            value={eventId}
+            selection={chosenEvent}
+            onChange={(id) => {
+              setEventId(id);
+              setChosenEvent(
+                events.find((event) => event.eventId === id)
+                  ? { id, title: events.find((event) => event.eventId === id)!.title }
+                  : undefined,
+              );
+              setIssuedPage(0);
+            }}
+            label={t('statements:eventFilter')}
+            placeholder={t('statements:allEvents')}
+            allowAll
+            allLabel={t('statements:allEvents')}
+            onSearch={setEventSearch}
+            searchLabel={t('statements:searchEvents')}
+          />
         </header>
         {issued.content.length ? (
           <div
@@ -274,10 +423,19 @@ export function StatementsView() {
                         <small className="statements-badge">
                           {t('statements:supersededBy', { number: statement.supersededByNumber })}
                         </small>
-                      ) : statement.outOfDate ? (
-                        <small className="statements-badge" data-tone="warning">
-                          {t('statements:outOfDateLong')}
-                        </small>
+                      ) : statement.outOfDate || statement.detailsChanged ? (
+                        <>
+                          {statement.outOfDate && (
+                            <small className="statements-badge" data-tone="warning">
+                              {t('statements:outOfDateLong')}
+                            </small>
+                          )}
+                          {statement.detailsChanged && (
+                            <small className="statements-badge" data-tone="warning">
+                              {t('statements:detailsChangedLong')}
+                            </small>
+                          )}
+                        </>
                       ) : (
                         <small className="statements-badge" data-tone="ok">
                           {t('statements:upToDate')}
@@ -297,15 +455,16 @@ export function StatementsView() {
                     </td>
                     <td>
                       <div className="statements-actions">
-                        {statement.status === 'CURRENT' && statement.outOfDate && (
-                          <button
-                            className="admin-primary-action"
-                            type="button"
-                            onClick={() => void confirm({ statement })}
-                          >
-                            <FilePlus2 size={16} aria-hidden /> {t('statements:reissue')}
-                          </button>
-                        )}
+                        {statement.status === 'CURRENT' &&
+                          (statement.outOfDate || statement.detailsChanged) && (
+                            <button
+                              className="admin-primary-action"
+                              type="button"
+                              onClick={() => confirm({ statement })}
+                            >
+                              <FilePlus2 size={16} aria-hidden /> {t('statements:reissue')}
+                            </button>
+                          )}
                         {(['pdf', 'csv'] as const).map((format) => (
                           <button
                             key={format}
@@ -331,27 +490,12 @@ export function StatementsView() {
         ) : (
           <p className="workspace-records-empty">{t('statements:issuedEmpty')}</p>
         )}
-        {(page > 0 || issued.hasMore) && (
-          <nav className="reconciliation-pagination" aria-label={t('statements:pagination')}>
-            <button
-              className="admin-secondary-action"
-              type="button"
-              disabled={page <= 0}
-              onClick={() => setPage(page - 1)}
-            >
-              {t('statements:previousPage')}
-            </button>
-            <span>{t('statements:pageNumber', { page: page + 1 })}</span>
-            <button
-              className="admin-secondary-action"
-              type="button"
-              disabled={!issued.hasMore}
-              onClick={() => setPage(page + 1)}
-            >
-              {t('statements:nextPage')}
-            </button>
-          </nav>
-        )}
+        <Pager
+          page={issuedPage}
+          hasMore={issued.hasMore}
+          label={t('statements:pagination')}
+          onPage={setIssuedPage}
+        />
       </section>
 
       {target && (
@@ -361,6 +505,7 @@ export function StatementsView() {
           busy={busy}
           reissue={'statement' in target || !!target.scope.statementNumber}
           onConfirm={() => void issue()}
+          onRetry={() => void loadProfile()}
           onClose={() => setTarget(undefined)}
         />
       )}
@@ -368,40 +513,72 @@ export function StatementsView() {
   );
 }
 
+const focusable =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 function IssueDialog({
   profile,
   missing,
   busy,
   reissue,
   onConfirm,
+  onRetry,
   onClose,
 }: {
-  profile?: OrganizationProfile;
+  profile: ProfileState;
   missing: boolean;
   busy: boolean;
   reissue: boolean;
   onConfirm: () => void;
+  onRetry: () => void;
   onClose: () => void;
 }) {
   const { t } = useTranslation();
   const titleId = useId();
+  const dialog = useRef<HTMLElement>(null);
   const cancel = useRef<HTMLButtonElement>(null);
   useEffect(() => {
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     cancel.current?.focus();
+    return () => {
+      if (opener?.isConnected) opener.focus();
+    };
+  }, []);
+  useEffect(() => {
     function onKey(event: KeyboardEvent) {
       if (event.key === 'Escape' && !busy) onClose();
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [busy, onClose]);
+
+  /** Keeps Tab and Shift+Tab inside the dialog while it is open. */
+  function trap(event: ReactKeyboardEvent) {
+    if (event.key !== 'Tab' || !dialog.current) return;
+    const items = Array.from(dialog.current.querySelectorAll<HTMLElement>(focusable));
+    if (!items.length) return;
+    const first = items[0];
+    const last = items[items.length - 1];
+    const active = document.activeElement;
+    if (event.shiftKey && (active === first || !dialog.current.contains(active))) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && (active === last || !dialog.current.contains(active))) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
   return (
     <ModalPortal>
       <div className="admin-dialog-backdrop" role="presentation">
         <section
+          ref={dialog}
           className="admin-confirm-dialog statements-dialog"
           role="dialog"
           aria-modal="true"
           aria-labelledby={titleId}
+          onKeyDown={trap}
         >
           <div className="admin-confirm-content">
             <h2 id={titleId}>
@@ -409,16 +586,23 @@ function IssueDialog({
             </h2>
             <p>{t('statements:confirmDescription')}</p>
             <h3>{t('statements:previewTitle')}</h3>
-            {!profile ? (
-              <p role="status">{t('statements:previewLoading')}</p>
-            ) : (
+            {profile.status === 'loading' && <p role="status">{t('statements:previewLoading')}</p>}
+            {profile.status === 'failed' && (
+              <div role="alert" className="statements-warning">
+                <p>{t('statements:previewFailed')}</p>
+                <button className="admin-secondary-action" type="button" onClick={onRetry}>
+                  <RefreshCw size={16} aria-hidden /> {t('statements:retry')}
+                </button>
+              </div>
+            )}
+            {profile.status === 'ready' && (
               <dl className="statements-preview">
                 <dt>{t('statements:legalName')}</dt>
-                <dd>{profile.legalName ?? t('statements:notProvided')}</dd>
+                <dd>{profile.profile.legalName ?? t('statements:notProvided')}</dd>
                 <dt>{t('statements:taxCode')}</dt>
-                <dd>{profile.taxCode ?? t('statements:notProvided')}</dd>
+                <dd>{profile.profile.taxCode ?? t('statements:notProvided')}</dd>
                 <dt>{t('statements:billingAddress')}</dt>
-                <dd>{profile.billingAddress ?? t('statements:notProvided')}</dd>
+                <dd>{profile.profile.billingAddress ?? t('statements:notProvided')}</dd>
               </dl>
             )}
             {missing && (
@@ -442,7 +626,7 @@ function IssueDialog({
               className="admin-primary-action"
               type="button"
               onClick={onConfirm}
-              disabled={busy}
+              disabled={busy || profile.status !== 'ready'}
             >
               {t(reissue ? 'statements:confirmReissue' : 'statements:confirmIssue')}
             </button>

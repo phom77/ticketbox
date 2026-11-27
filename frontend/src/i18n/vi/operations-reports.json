@@ -149,5 +149,7 @@
   "salesError_period": "Không thể hiển thị khoảng thời gian này. Hãy chọn khoảng ngắn hơn hoặc nhóm rộng hơn.",
   "salesError_notFound": "Sự kiện hoặc suất diễn này không thuộc tổ chức của bạn.",
   "statements": "Bảng kê",
-  "salesTimezoneSettings": "Đổi múi giờ báo cáo trong Cài đặt"
+  "salesTimezoneSettings": "Đổi múi giờ báo cáo trong Cài đặt",
+  "reconciliationEventFilter": "Chỉ hiển thị các đơn hàng của một sự kiện.",
+  "reconciliationClearEvent": "Hiển thị mọi sự kiện"
 }

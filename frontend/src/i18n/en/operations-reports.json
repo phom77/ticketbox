@@ -150,5 +150,7 @@
   "salesError_period": "This period can’t be shown. Choose a shorter period or a wider grouping.",
   "salesError_notFound": "This event or performance isn’t available in your organization.",
   "statements": "Statements",
-  "salesTimezoneSettings": "Change the reporting timezone in Settings"
+  "salesTimezoneSettings": "Change the reporting timezone in Settings",
+  "reconciliationEventFilter": "Showing only the orders of one event.",
+  "reconciliationClearEvent": "Show all events"
 }

@@ -21,7 +21,13 @@ import './OrganizationSettingsPage.css';
 
 type Errors = Record<string, string>;
 type Section = 'profile' | 'details' | 'reporting' | 'logo';
-const supportEmail = import.meta.env.VITE_SUPPORT_EMAIL as string | undefined;
+type CardName = 'profile' | 'details' | 'reporting';
+const cardOf = (section: Section): CardName => (section === 'logo' ? 'profile' : section);
+const configuredEmail = import.meta.env.VITE_SUPPORT_EMAIL?.trim();
+const supportEmail =
+  configuredEmail && /^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+$/.test(configuredEmail)
+    ? configuredEmail
+    : undefined;
 
 function imageSide(file: File): Promise<{ width: number; height: number } | undefined> {
   return new Promise((resolve) => {
@@ -46,8 +52,13 @@ export function OrganizationSettingsPage() {
   const id = organization?.selected?.id;
   const [profile, setProfile] = useState<OrganizationProfile>();
   const [failed, setFailed] = useState(false);
-  const [reloads, setReloads] = useState(0);
-  const [notice, setNotice] = useState('');
+  // Only the card that was saved is re-keyed, so unsaved edits in the other cards survive a conflict.
+  const [reloads, setReloads] = useState<Record<CardName, number>>({
+    profile: 0,
+    details: 0,
+    reporting: 0,
+  });
+  const [notice, setNotice] = useState<{ card: CardName; text: string }>();
   const [saving, setSaving] = useState<Section>();
   const [errors, setErrors] = useState<Errors>({});
   const [errorSection, setErrorSection] = useState<Section>();
@@ -79,7 +90,7 @@ export function OrganizationSettingsPage() {
     done = t('organization-settings:saved'),
   ) {
     setSaving(section);
-    setNotice('');
+    setNotice(undefined);
     setErrors({});
     try {
       const result = await call();
@@ -88,11 +99,15 @@ export function OrganizationSettingsPage() {
     } catch (failure) {
       const status = failure instanceof ApiClientError ? failure.status : 0;
       if (status === 409 || status === 403) {
+        const card = cardOf(section);
         await load();
-        setReloads((value) => value + 1);
-        setNotice(
-          t(status === 409 ? 'organization-settings:conflict' : 'organization-settings:lostGrant'),
-        );
+        setReloads((value) => ({ ...value, [card]: value[card] + 1 }));
+        setNotice({
+          card,
+          text: t(
+            status === 409 ? 'organization-settings:conflict' : 'organization-settings:lostGrant',
+          ),
+        });
       } else if (status === 400 && failure instanceof ApiClientError && failure.details) {
         setErrors(failure.details as Errors);
         setErrorSection(section);
@@ -145,13 +160,13 @@ export function OrganizationSettingsPage() {
           <p>{t('organization-settings:intro')}</p>
         </div>
       </header>
-      {notice && (
+      {notice?.card === 'profile' && (
         <p className="admin-notice" role="status">
-          {notice}
+          {notice.text}
         </p>
       )}
       <ProfileCard
-        key={`profile-${reloads}`}
+        key={`profile-${reloads.profile}`}
         profile={profile}
         busy={saving !== undefined}
         errors={fieldErrors('profile')}
@@ -185,8 +200,13 @@ export function OrganizationSettingsPage() {
           />
         }
       />
+      {notice?.card === 'details' && (
+        <p className="admin-notice" role="status">
+          {notice.text}
+        </p>
+      )}
       <DetailsCard
-        key={`details-${reloads}`}
+        key={`details-${reloads.details}`}
         profile={profile}
         busy={saving !== undefined}
         errors={fieldErrors('details')}
@@ -194,8 +214,13 @@ export function OrganizationSettingsPage() {
           save('details', () => updateStatementDetails(id, values, profile.version))
         }
       />
+      {notice?.card === 'reporting' && (
+        <p className="admin-notice" role="status">
+          {notice.text}
+        </p>
+      )}
       <ReportingCard
-        key={`reporting-${reloads}`}
+        key={`reporting-${reloads.reporting}`}
         profile={profile}
         busy={saving !== undefined}
         errors={fieldErrors('reporting')}

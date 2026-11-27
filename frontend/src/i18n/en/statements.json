@@ -55,5 +55,15 @@
   "cancel": "Cancel",
   "issued": "Statement {{number}} issued",
   "issueFailed": "The statement could not be issued. Try again.",
-  "logoOmitted": "The logo could not be loaded, so the statement was issued without it."
+  "logoOmitted": "The logo could not be loaded, so the statement was issued without it.",
+  "search": "Search",
+  "searchPlaceholder": "Search by name",
+  "readyNoMatch": "No performance or event matches this search.",
+  "readyPagination": "Ready for a statement pages",
+  "detailsChanged": "Details changed",
+  "detailsChangedLong": "Details changed since issue",
+  "eventFilter": "Event",
+  "allEvents": "All events",
+  "searchEvents": "Search events",
+  "previewFailed": "The organization details could not be loaded, so the statement cannot be issued yet."
 }

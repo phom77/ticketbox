@@ -53,5 +53,15 @@
   "cancel": "Hủy",
   "issued": "Đã lập bảng kê {{number}}",
   "issueFailed": "Không thể lập bảng kê. Vui lòng thử lại.",
-  "logoOmitted": "Không tải được logo nên bảng kê được lập mà không có logo."
+  "logoOmitted": "Không tải được logo nên bảng kê được lập mà không có logo.",
+  "search": "Tìm kiếm",
+  "searchPlaceholder": "Tìm theo tên",
+  "readyNoMatch": "Không có buổi diễn hay sự kiện nào khớp với tìm kiếm này.",
+  "readyPagination": "Các trang mục sẵn sàng lập bảng kê",
+  "detailsChanged": "Thông tin đã đổi",
+  "detailsChangedLong": "Thông tin tổ chức đã thay đổi kể từ khi phát hành",
+  "eventFilter": "Sự kiện",
+  "allEvents": "Tất cả sự kiện",
+  "searchEvents": "Tìm sự kiện",
+  "previewFailed": "Không tải được thông tin tổ chức nên chưa thể phát hành bảng kê."
 }

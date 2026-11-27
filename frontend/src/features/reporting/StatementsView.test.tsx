@@ -11,6 +11,9 @@ const statements = vi.hoisted(() => ({
   downloadStatement: vi.fn(),
 }));
 vi.mock('../../api/statements', () => statements);
+vi.mock('../../api/sales', () => ({
+  getSalesEvents: vi.fn().mockResolvedValue({ content: [], page: 0, size: 20, hasMore: false }),
+}));
 const profiles = vi.hoisted(() => ({ getOrganizationProfile: vi.fn() }));
 vi.mock('../../api/organizationProfile', () => profiles);
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
@@ -30,6 +33,7 @@ const ready = (changes: Partial<EligibleScope> = {}): EligibleScope => ({
   ticketsSold: 4,
   netSales: 400000,
   outOfDate: false,
+  detailsChanged: false,
   ...changes,
 });
 
@@ -60,6 +64,7 @@ const issued = (changes: Partial<Statement> = {}): Statement => ({
   },
   lines: [],
   outOfDate: false,
+  detailsChanged: false,
   ...changes,
 });
 
@@ -122,9 +127,8 @@ describe('StatementsView', () => {
     open();
     expect(await screen.findAllByText(/Out of date/)).not.toHaveLength(0);
     expect(screen.getByText(/1 order not yet reconciled/)).toBeVisible();
-    expect(screen.getByRole('link', { name: 'Open reconciliation' })).toHaveAttribute(
-      'href',
-      '/organizer/reports?view=reconciliation&concertId=p1',
+    expect(screen.getByRole('link', { name: 'Open reconciliation' }).getAttribute('href')).toMatch(
+      /^\/organizer\/reports\?view=reconciliation&concertId=p1&from=\d{4}-\d{2}-\d{2}&to=\d{4}-\d{2}-\d{2}$/,
     );
     fireEvent.click(
       screen.getByRole('button', { name: 'Re-issue the statement for Opening night' }),
@@ -147,5 +151,73 @@ describe('StatementsView', () => {
     expect(screen.getByRole('button', { name: 'Download PDF of TBS-2026-000001' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Download CSV of TBS-2026-000001' })).toBeEnabled();
     expect(screen.queryByRole('button', { name: 'Re-issue' })).toBeNull();
+  });
+
+  it('filters the reconciliation link of an event statement by the event', async () => {
+    statements.getEligibleStatements.mockResolvedValue(page([]));
+    statements.getStatements.mockResolvedValue(
+      page([issued({ scopeType: 'EVENT', scopeId: 'e1' })]),
+    );
+    open();
+    const link = await screen.findByRole('link', { name: 'Open reconciliation' });
+    expect(link.getAttribute('href')).toContain('view=reconciliation&eventId=e1&from=');
+  });
+
+  it('offers a re-issue when only the organization details changed', async () => {
+    statements.getEligibleStatements.mockResolvedValue(page([]));
+    statements.getStatements.mockResolvedValue(page([issued({ detailsChanged: true })]));
+    statements.issueStatement.mockResolvedValue({
+      data: { statement: issued({ revision: 2 }), logoOmitted: false },
+    });
+    open();
+    expect(await screen.findByText('Details changed since issue')).toBeVisible();
+    expect(screen.queryByText(/Out of date/)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Re-issue' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Issue new revision' }));
+    await waitFor(() =>
+      expect(statements.issueStatement).toHaveBeenCalledWith('PERFORMANCE', 'p1', 1),
+    );
+  });
+
+  it('does not allow confirming while the organization details are loading or failed', async () => {
+    profiles.getOrganizationProfile.mockRejectedValueOnce(new Error('offline'));
+    open();
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Issue a statement for Opening night' }),
+    );
+    expect(await screen.findByRole('alert')).toHaveTextContent('could not be loaded');
+    expect(screen.getByRole('button', { name: 'Issue statement' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Issue statement' })).toBeEnabled(),
+    );
+    expect(statements.issueStatement).not.toHaveBeenCalled();
+  });
+
+  it('pages through the scopes that are ready and returns focus to the opener', async () => {
+    statements.getEligibleStatements.mockImplementation((_q: string | undefined, index: number) =>
+      Promise.resolve({
+        content: [ready({ scopeId: 'p' + index, title: 'Show ' + index })],
+        page: index,
+        size: 20,
+        hasMore: index === 0,
+      }),
+    );
+    open();
+    expect(await screen.findByText('Show 0')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    expect(await screen.findByText('Show 1')).toBeVisible();
+    expect(statements.getEligibleStatements).toHaveBeenLastCalledWith(
+      undefined,
+      1,
+      expect.anything(),
+    );
+    const opener = screen.getByRole('button', { name: 'Issue a statement for Show 1' });
+    opener.focus();
+    fireEvent.click(opener);
+    const cancel = await screen.findByRole('button', { name: 'Cancel' });
+    await waitFor(() => expect(cancel).toHaveFocus());
+    fireEvent.keyDown(cancel, { key: 'Escape' });
+    await waitFor(() => expect(opener).toHaveFocus());
   });
 });

@@ -118,4 +118,18 @@ describe('OrganizationSettingsPage', () => {
       expect(screen.getByLabelText('Contact email')).toHaveValue('new@example.test'),
     );
   });
+
+  it('keeps unsaved edits in the other cards when one card conflicts', async () => {
+    api.updateOrganizationProfile.mockRejectedValue(new ApiClientError('conflict', 409));
+    open();
+    fireEvent.change(await screen.findByLabelText('Legal name'), { target: { value: 'Typing…' } });
+    api.getOrganizationProfile.mockResolvedValue(
+      profile({ version: 5, contactEmail: 'new@example.test' }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Save profile' }));
+    await waitFor(() =>
+      expect(screen.getByLabelText('Contact email')).toHaveValue('new@example.test'),
+    );
+    expect(screen.getByLabelText('Legal name')).toHaveValue('Typing…');
+  });
 });

@@ -18,6 +18,8 @@ export type EligibleScope = {
   statementNumber?: string;
   statementRevision?: number;
   outOfDate: boolean;
+  /** The organization's statement details differ from the ones printed on the current statement. */
+  detailsChanged: boolean;
 };
 
 export type StatementLine = {
@@ -71,6 +73,7 @@ export type Statement = {
   };
   lines: StatementLine[];
   outOfDate: boolean;
+  detailsChanged: boolean;
 };
 
 export type StatementPage<T> = { content: T[]; page: number; size: number; hasMore: boolean };
