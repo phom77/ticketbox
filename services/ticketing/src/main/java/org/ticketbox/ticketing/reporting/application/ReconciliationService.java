@@ -62,10 +62,16 @@ public class ReconciliationService {
 
     public Filter filter(UUID organization, boolean unattributed, UUID concert,
             LocalDate from, LocalDate to, DateBasis basis) {
+        return filter(organization, unattributed, concert, null, from, to, basis);
+    }
+
+    /** {@code event} limits the rows to the orders of every performance of that event. */
+    public Filter filter(UUID organization, boolean unattributed, UUID concert, UUID event,
+            LocalDate from, LocalDate to, DateBasis basis) {
         if (from == null || to == null || !from.isBefore(to) || (unattributed && organization != null)) {
             throw new AppException(ErrorCode.INVALID_REQUEST, "error.reconciliation.invalid-period");
         }
-        return new Filter(organization, unattributed, concert,
+        return new Filter(organization, unattributed, concert, event,
                 from.atStartOfDay(REPORTING_ZONE).toOffsetDateTime(),
                 to.atStartOfDay(REPORTING_ZONE).toOffsetDateTime(), basis == DateBasis.COLLECTION);
     }

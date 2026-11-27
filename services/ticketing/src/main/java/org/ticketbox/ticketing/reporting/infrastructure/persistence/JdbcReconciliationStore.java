@@ -117,7 +117,9 @@ class JdbcReconciliationStore implements ReconciliationStore {
     private static final String ORDER = " ORDER BY sort_at DESC, intent_id, order_id";
 
     private String filtered(Filter filter) {
-        String concert = filter.concertId() == null ? "" : " AND o.concert_id = :concert";
+        String concert = (filter.concertId() == null ? "" : " AND o.concert_id = :concert")
+                + (filter.eventId() == null ? "" : " AND o.concert_id IN (SELECT ec.id FROM concerts ec"
+                + " LEFT JOIN performance_sales eps ON eps.id = ec.id WHERE ec.id = :event OR eps.event_id = :event)");
         String from = " >= :from AND ";
         if (filter.unattributed()) {
             String date = filter.byCollection() ? "p.verified_at" : "coalesce(i.effective_at, p.attempted_at)";
@@ -139,7 +141,7 @@ class JdbcReconciliationStore implements ReconciliationStore {
 
     private MapSqlParameterSource params(Filter filter) {
         return new MapSqlParameterSource("from", filter.from()).addValue("to", filter.to())
-                .addValue("organization", filter.organizationId()).addValue("concert", filter.concertId());
+                .addValue("organization", filter.organizationId()).addValue("concert", filter.concertId()).addValue("event", filter.eventId());
     }
 
     private static Long amount(ResultSet row, String column) throws SQLException {

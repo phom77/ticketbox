@@ -11,7 +11,7 @@ public interface ReconciliationStore {
                     Long collectedAmount, OffsetDateTime attemptedAt, OffsetDateTime verifiedAt,
                     Long refundAmount, String refundReference, OffsetDateTime changedAt) {}
 
-    record Filter(UUID organizationId, boolean unattributed, UUID concertId,
+    record Filter(UUID organizationId, boolean unattributed, UUID concertId, UUID eventId,
                   OffsetDateTime from, OffsetDateTime to, boolean byCollection) {}
 
     record Row(UUID intentId, UUID orderId, UUID organizationId, UUID concertId, String concertTitle,

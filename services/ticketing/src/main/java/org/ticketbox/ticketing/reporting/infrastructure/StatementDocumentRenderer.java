@@ -103,6 +103,14 @@ class StatementDocumentRenderer implements StatementRenderer {
         }
     }
 
+    private static final java.time.format.DateTimeFormatter STAMP =
+            java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss XXX", java.util.Locale.ROOT);
+
+    /** Times print in the statement's own timezone, with the offset, never as UTC instants. */
+    static String local(java.time.OffsetDateTime at, String timezone) {
+        return STAMP.format(at.atZoneSameInstant(java.time.ZoneId.of(timezone)));
+    }
+
     private static List<Table> tables(SettlementStatement s) {
         var org = s.organization();
         var scope = s.scope();
@@ -126,8 +134,8 @@ class StatementDocumentRenderer implements StatementRenderer {
         header.add(List.of("Venue", Objects.toString(scope.venueName(), "")));
         header.add(List.of("Performances", Integer.toString(scope.performanceCount())));
         header.add(List.of("Timezone", s.timezone()));
-        header.add(List.of("Cutoff", s.cutoffAt().toString()));
-        header.add(List.of("Issued", s.issuedAt().toString()));
+        header.add(List.of("Cutoff", local(s.cutoffAt(), s.timezone())));
+        header.add(List.of("Issued", local(s.issuedAt(), s.timezone())));
         tables.add(new Table("Statement", List.of(), header));
         tables.add(new Table("Totals", List.of("Item", "Value"), List.of(
                 List.of("Gross sales (VND)", Long.toString(t.grossSales())),

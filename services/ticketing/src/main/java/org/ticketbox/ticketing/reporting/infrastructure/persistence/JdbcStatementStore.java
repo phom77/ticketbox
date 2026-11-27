@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowCallbackHandler;
+import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -20,11 +21,16 @@ import java.sql.SQLException;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Repository
@@ -44,7 +50,11 @@ class JdbcStatementStore implements StatementStore {
             """;
 
     private static final String HEADER = """
-            SELECT s.*, (SELECT p.number FROM settlement_statements p WHERE p.id = s.supersedes_id) AS supersedes_number,
+            SELECT s.id, s.organization_id, s.scope_type, s.scope_id, s.event_id, s.number, s.revision, s.supersedes_id,
+                   s.status, s.timezone, s.cutoff_at, s.issued_at, s.issued_by, s.organization_snapshot,
+                   s.scope_snapshot, s.gross_sales, s.refunds, s.net_sales, s.sale_orders, s.refund_orders,
+                   s.tickets_sold, s.tickets_refunded, s.verified_collected, s.verified_refunded,
+                   s.unreconciled_orders, (SELECT p.number FROM settlement_statements p WHERE p.id = s.supersedes_id) AS supersedes_number,
                    (SELECT n.number FROM settlement_statements n WHERE n.supersedes_id = s.id) AS superseded_by_number
               FROM settlement_statements s
             """;
@@ -112,108 +122,192 @@ class JdbcStatementStore implements StatementStore {
         return out;
     }
 
+    private static String column(String scopeType) {
+        return SettlementStatement.PERFORMANCE.equals(scopeType) ? "l.performance_id" : "l.event_id";
+    }
+
     private static String ledger(String scopeType) {
-        return "l.organization_id = :org AND " + (SettlementStatement.PERFORMANCE.equals(scopeType)
-                ? "l.performance_id = :scope" : "l.event_id = :scope");
+        return "l.organization_id = :org AND " + column(scopeType) + " = :scope";
+    }
+
+    private static String fingerprint(long ledgerRows, long reconciliationRows, long collected, long refunded) {
+        return ledgerRows + ":" + reconciliationRows + ":" + collected + ":" + refunded;
+    }
+
+    /**
+     * Every statement figure comes from this one statement, so they share one snapshot and add up. The ledger rows
+     * of the scope are read once ("sl"), the verified reconciliation records of their sale orders once ("rc"). The
+     * fingerprint row describes exactly the rows the figures were built from.
+     */
+    private static String figuresSql(String scopeType) {
+        boolean event = SettlementStatement.EVENT.equals(scopeType);
+        String head = """
+                WITH sl AS MATERIALIZED (SELECT l.* FROM sales_ledger l WHERE %s),
+                     sale_orders AS (SELECT s.order_id, COALESCE(max(s.provider), 'UNKNOWN') AS provider,
+                                            SUM(s.amount) AS amount
+                                       FROM sl s WHERE s.kind = 'SALE' GROUP BY s.order_id),
+                     rc AS MATERIALIZED (SELECT r.order_id, r.collected_amount, r.refund_amount
+                                           FROM payment_reconciliation r
+                                          WHERE r.verified_at IS NOT NULL
+                                            AND r.order_id IN (SELECT order_id FROM sale_orders)),
+                     verified_by_order AS (SELECT order_id, SUM(collected_amount) AS collected FROM rc GROUP BY order_id),
+                     verified AS (SELECT so.provider, SUM(rc.collected_amount) AS collected,
+                                         SUM(rc.refund_amount) AS refunded
+                                    FROM rc JOIN sale_orders so ON so.order_id = rc.order_id GROUP BY so.provider),
+                     sold AS (SELECT COALESCE(l.provider, 'UNKNOWN') AS provider, %s FROM sl l GROUP BY 1)
+                """.formatted(ledger(scopeType), SUMS);
+        String cols = "section, key, label, section_label, provider, sold, refunded, orders, gross, refunds,"
+                + " refund_orders, collected, refunded_amount, aux1, aux2, ord";
+        StringBuilder sql = new StringBuilder(head).append("SELECT * FROM (");
+        sql.append("SELECT 'TOTAL' AS section, NULL::uuid AS key, NULL::text AS label, NULL::text AS section_label,"
+                + " NULL::text AS provider, ").append(SUMS).append("""
+                , 0::numeric AS collected, 0::numeric AS refunded_amount,
+                  (SELECT count(*) FROM sale_orders o LEFT JOIN verified_by_order b ON b.order_id = o.order_id
+                    WHERE o.amount > 0 AND o.amount IS DISTINCT FROM b.collected) AS aux1,
+                  0::bigint AS aux2, NULL::timestamptz AS ord
+                  FROM sl l
+                """);
+        sql.append(" UNION ALL SELECT 'OFFER', l.offer_id, l.offer_name, l.section_label, NULL, ").append(SUMS)
+                .append(", 0, 0, 0, 0, NULL FROM sl l GROUP BY l.offer_id, l.offer_name, l.section_label");
+        if (event) {
+            // The Sales report's inclusion rule: sales, refunds, or a performance that is not a draft.
+            sql.append(" UNION ALL SELECT 'PERFORMANCE', c.id, c.title, NULL, NULL, ").append(SUMS)
+                    .append("""
+                            , 0, 0, 0, 0, c.event_date
+                              FROM concerts c LEFT JOIN performance_sales ps ON ps.id = c.id
+                              LEFT JOIN sl l ON l.performance_id = c.id
+                             WHERE c.organization_id = :org AND (c.id = :scope OR ps.event_id = :scope)
+                             GROUP BY c.id, c.title, c.event_date, c.status
+                            HAVING c.status <> 'DRAFT' OR count(l.order_id) > 0
+                            """);
+        }
+        sql.append("""
+                 UNION ALL SELECT 'PROVIDER', NULL, COALESCE(p.provider, v.provider), NULL,
+                        COALESCE(p.provider, v.provider), COALESCE(p.sold, 0), COALESCE(p.refunded, 0),
+                        COALESCE(p.orders, 0), COALESCE(p.gross, 0), COALESCE(p.refunds, 0),
+                        COALESCE(p.refund_orders, 0), COALESCE(v.collected, 0), COALESCE(v.refunded, 0), 0, 0, NULL
+                   FROM sold p FULL JOIN verified v ON v.provider = p.provider
+                 UNION ALL SELECT 'FINGERPRINT', NULL, NULL, NULL, NULL, 0, 0, 0, 0, 0, 0,
+                        COALESCE((SELECT SUM(collected_amount) FROM rc), 0),
+                        COALESCE((SELECT SUM(refund_amount) FROM rc), 0),
+                        (SELECT count(*) FROM sl), (SELECT count(*) FROM rc), NULL
+                ) f (""").append(cols).append(") ORDER BY section, ord, label, section_label, key");
+        return sql.toString();
     }
 
     @Override
-    public Figures figures(UUID organization, ScopeState scope, OffsetDateTime cutoff) {
-        var params = new MapSqlParameterSource("org", organization).addValue("scope", scope.scopeId())
-                .addValue("cutoff", cutoff);
-        String where = ledger(scope.type()) + " AND l.recorded_at <= :cutoff";
+    public Figures figures(UUID organization, ScopeState scope) {
+        var params = new MapSqlParameterSource("org", organization).addValue("scope", scope.scopeId());
         List<Line> lines = new ArrayList<>();
-        if (SettlementStatement.EVENT.equals(scope.type())) {
-            int[] sort = {0};
-            lines.addAll(jdbc.query("SELECT c.id AS key, c.title AS label, " + SUMS + """
-                      FROM concerts c LEFT JOIN performance_sales ps ON ps.id = c.id
-                      LEFT JOIN sales_ledger l ON l.performance_id = c.id AND l.organization_id = :org
-                           AND l.recorded_at <= :cutoff
-                     WHERE c.organization_id = :org AND c.status <> 'DRAFT' AND (c.id = :scope OR ps.event_id = :scope)
-                     GROUP BY c.id, c.title, c.event_date ORDER BY c.event_date, c.id
-                    """, params, (r, n) -> line("PERFORMANCE", sort[0]++, r.getString("label"),
-                    r.getObject("key", UUID.class), null, r)));
-        }
-        int[] sort = {0};
-        lines.addAll(jdbc.query("SELECT l.offer_id AS key, l.offer_name AS label, l.section_label, " + SUMS
-                + " FROM sales_ledger l WHERE " + where
-                + " GROUP BY l.offer_id, l.offer_name, l.section_label ORDER BY l.offer_name, l.section_label, l.offer_id",
-                params, (r, n) -> {
+        long[] total = new long[6];
+        long[] print = new long[4];
+        int[] unreconciled = new int[1];
+        int[] sort = new int[3];
+        jdbc.query(figuresSql(scope.type()), params, (RowCallbackHandler) r -> {
+            switch (r.getString("section")) {
+                case "TOTAL" -> {
+                    total[0] = r.getLong("gross");
+                    total[1] = r.getLong("refunds");
+                    total[2] = r.getLong("orders");
+                    total[3] = r.getLong("refund_orders");
+                    total[4] = r.getLong("sold");
+                    total[5] = r.getLong("refunded");
+                    unreconciled[0] = r.getInt("aux1");
+                }
+                case "PERFORMANCE" -> lines.add(line("PERFORMANCE", sort[0]++, r.getString("label"),
+                        r.getObject("key", UUID.class), null, r, 0, 0));
+                case "OFFER" -> {
+                    String label = r.getString("label");
                     String section = r.getString("section_label");
-                    String label = section == null || section.isBlank() || section.equals(r.getString("label"))
-                            ? r.getString("label") : r.getString("label") + " - " + section;
-                    return line("OFFER", sort[0]++, label, r.getObject("key", UUID.class), null, r);
-                }));
-        Map<String, long[]> verified = new LinkedHashMap<>();
-        jdbc.query("""
-                SELECT r.provider, COALESCE(SUM(r.collected_amount), 0) AS collected,
-                       COALESCE(SUM(r.refund_amount), 0) AS refunded
-                  FROM payment_reconciliation r
-                 WHERE r.verified_at IS NOT NULL AND r.received_at <= :cutoff
-                   AND r.order_id IN (SELECT l.order_id FROM sales_ledger l WHERE""" + " " + where + """
-
-                           AND l.kind = 'SALE')
-                 GROUP BY r.provider
-                """, params, (RowCallbackHandler) r ->
-                verified.put(r.getString("provider"), new long[] {r.getLong("collected"), r.getLong("refunded")}));
-        Map<String, Line> providers = new LinkedHashMap<>();
-        jdbc.query("SELECT COALESCE(l.provider, 'UNKNOWN') AS provider, " + SUMS + " FROM sales_ledger l WHERE " + where
-                + " GROUP BY 1 ORDER BY 1", params, (RowCallbackHandler) r ->
-                providers.put(r.getString("provider"), line("PROVIDER", 0, r.getString("provider"), null,
-                        r.getString("provider"), r)));
-        verified.keySet().forEach(provider -> providers.computeIfAbsent(provider, p -> new Line("PROVIDER", 0, p, null,
-                p, 0, 0, 0, 0, 0, 0, 0, 0, 0)));
-        int order = 0;
-        long collected = 0;
-        long refunded = 0;
-        for (var entry : providers.entrySet()) {
-            long[] v = verified.getOrDefault(entry.getKey(), new long[2]);
-            var l = entry.getValue();
-            collected += v[0];
-            refunded += v[1];
-            lines.add(new Line("PROVIDER", order++, l.label(), null, l.provider(), l.ticketsSold(),
-                    l.ticketsRefunded(), l.grossSales(), l.refunds(), l.netSales(), v[0], v[1], l.saleOrders(),
-                    l.refundOrders()));
-        }
-        var totals = jdbc.queryForObject("SELECT " + SUMS + " FROM sales_ledger l WHERE " + where, params,
-                (r, n) -> new long[] {r.getLong("gross"), r.getLong("refunds"), r.getLong("orders"),
-                        r.getLong("refund_orders"), r.getLong("sold"), r.getLong("refunded")});
-        int unreconciled = jdbc.queryForObject("""
-                SELECT count(*) FROM (SELECT l.order_id, SUM(l.amount) AS amount FROM sales_ledger l WHERE""" + " " + where + """
-
-                        AND l.kind = 'SALE' GROUP BY l.order_id) o
-                 WHERE o.amount > 0 AND o.amount IS DISTINCT FROM (SELECT SUM(r.collected_amount)
-                         FROM payment_reconciliation r WHERE r.order_id = o.order_id AND r.verified_at IS NOT NULL
-                          AND r.received_at <= :cutoff)
-                """, params, Integer.class);
-        return new Figures(new Totals(totals[0], totals[1], totals[0] - totals[1], (int) totals[2], (int) totals[3],
-                (int) totals[4], (int) totals[5], collected, refunded, unreconciled), lines);
+                    String text = section == null || section.isBlank() || section.equals(label) ? label
+                            : label + " - " + section;
+                    lines.add(line("OFFER", sort[1]++, text, r.getObject("key", UUID.class), null, r, 0, 0));
+                }
+                case "PROVIDER" -> lines.add(line("PROVIDER", sort[2]++, r.getString("label"), null,
+                        r.getString("provider"), r, r.getLong("collected"), r.getLong("refunded_amount")));
+                default -> {
+                    print[0] = r.getLong("aux1");
+                    print[1] = r.getLong("aux2");
+                    print[2] = r.getLong("collected");
+                    print[3] = r.getLong("refunded_amount");
+                }
+            }
+        });
+        long collected = lines.stream().filter(l -> l.kind().equals("PROVIDER")).mapToLong(Line::verifiedCollected).sum();
+        long refunded = lines.stream().filter(l -> l.kind().equals("PROVIDER")).mapToLong(Line::verifiedRefunded).sum();
+        var totals = new Totals(total[0], total[1], total[0] - total[1], (int) total[2], (int) total[3],
+                (int) total[4], (int) total[5], collected, refunded, unreconciled[0]);
+        return new Figures(totals, lines, fingerprint(print[0], print[1], print[2], print[3]));
     }
 
-    private static Line line(String kind, int sort, String label, UUID key, String provider, ResultSet r)
-            throws SQLException {
+    private static Line line(String kind, int sort, String label, UUID key, String provider, ResultSet r,
+                             long verifiedCollected, long verifiedRefunded) throws SQLException {
         long gross = r.getLong("gross");
         long refunds = r.getLong("refunds");
         return new Line(kind, sort, label, key, provider, r.getInt("sold"), r.getInt("refunded"), gross, refunds,
-                gross - refunds, 0, 0, r.getInt("orders"), r.getInt("refund_orders"));
+                gross - refunds, verifiedCollected, verifiedRefunded, r.getInt("orders"), r.getInt("refund_orders"));
+    }
+
+    /** Per-scope aggregates through one lateral query per scope type, so list pages need no per-row queries. */
+    private <T> Map<UUID, T> perScope(String type, UUID organization, Collection<UUID> ids, String select,
+                                      String from, RowMapper<T> mapper) {
+        Map<UUID, T> out = new HashMap<>();
+        if (ids.isEmpty()) return out;
+        String sql = "SELECT s.id, " + select + " FROM unnest(?::uuid[]) AS s(id) " + from.replace("COL", column(type));
+        plain.query(sql, ps -> {
+            ps.setArray(1, ps.getConnection().createArrayOf("uuid", ids.toArray()));
+            long placeholders = from.chars().filter(c -> c == '?').count();
+            for (int i = 0; i < placeholders; i++) ps.setObject(2 + i, organization);
+        }, (RowCallbackHandler) r -> out.put(r.getObject("id", UUID.class), mapper.mapRow(r, 0)));
+        return out;
+    }
+
+    private Map<UUID, String> fingerprints(String type, UUID organization, Collection<UUID> ids) {
+        return perScope(type, organization, ids, "led.n AS ledger_rows, rec.n AS rec_rows, rec.coll, rec.ref", """
+                CROSS JOIN LATERAL (SELECT count(*) AS n FROM sales_ledger l
+                                     WHERE l.organization_id = ? AND COL = s.id) led
+                CROSS JOIN LATERAL (SELECT count(*) AS n, COALESCE(SUM(r.collected_amount), 0) AS coll,
+                                           COALESCE(SUM(r.refund_amount), 0) AS ref
+                                      FROM payment_reconciliation r
+                                     WHERE r.verified_at IS NOT NULL
+                                       AND r.order_id IN (SELECT l.order_id FROM sales_ledger l
+                                                           WHERE l.organization_id = ? AND COL = s.id
+                                                             AND l.kind = 'SALE')) rec
+                """, (r, n) -> fingerprint(r.getLong("ledger_rows"), r.getLong("rec_rows"), r.getLong("coll"),
+                r.getLong("ref")));
     }
 
     @Override
-    public long[] netToDate(UUID organization, ScopeState scope) {
-        var params = new MapSqlParameterSource("org", organization).addValue("scope", scope.scopeId());
-        return jdbc.queryForObject("SELECT " + SUMS + " FROM sales_ledger l WHERE " + ledger(scope.type()), params,
-                (r, n) -> new long[] {r.getLong("gross") - r.getLong("refunds"), r.getLong("sold") - r.getLong("refunded")});
+    public Map<String, long[]> netToDate(UUID organization, Collection<ScopeState> scopes) {
+        Map<String, long[]> out = new HashMap<>();
+        for (String type : List.of(SettlementStatement.PERFORMANCE, SettlementStatement.EVENT)) {
+            var ids = scopes.stream().filter(s -> s.type().equals(type)).map(ScopeState::scopeId).distinct().toList();
+            perScope(type, organization, ids, "agg.*", "CROSS JOIN LATERAL (SELECT " + SUMS
+                    + " FROM sales_ledger l WHERE l.organization_id = ? AND COL = s.id) agg", (r, n) -> new long[] {
+                    r.getLong("gross") - r.getLong("refunds"), r.getLong("sold") - r.getLong("refunded")})
+                    .forEach((id, net) -> out.put(type + ":" + id, net));
+        }
+        return out;
     }
 
     @Override
-    public boolean outOfDate(SettlementStatement statement) {
-        var params = new MapSqlParameterSource("org", statement.organizationId()).addValue("scope", statement.scopeId())
-                .addValue("cutoff", statement.cutoffAt());
-        String where = ledger(statement.scopeType());
-        return Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS (SELECT 1 FROM sales_ledger l WHERE " + where
-                + " AND l.recorded_at > :cutoff) OR EXISTS (SELECT 1 FROM payment_reconciliation r WHERE r.received_at > :cutoff"
-                + " AND r.order_id IN (SELECT l.order_id FROM sales_ledger l WHERE " + where + " AND l.kind = 'SALE'))",
-                params, Boolean.class));
+    public Set<UUID> outOfDate(Collection<SettlementStatement> statements) {
+        Set<UUID> stale = new HashSet<>();
+        if (statements.isEmpty()) return stale;
+        Map<UUID, String> stored = new HashMap<>();
+        plain.query("SELECT id, fingerprint FROM settlement_statements WHERE id = ANY(?)", ps -> ps.setArray(1,
+                ps.getConnection().createArrayOf("uuid", statements.stream().map(SettlementStatement::id).toArray())),
+                (RowCallbackHandler) r -> stored.put(r.getObject("id", UUID.class), r.getString("fingerprint")));
+        for (String type : List.of(SettlementStatement.PERFORMANCE, SettlementStatement.EVENT)) {
+            var ofType = statements.stream().filter(s -> s.scopeType().equals(type)).toList();
+            if (ofType.isEmpty()) continue;
+            UUID org = ofType.get(0).organizationId();
+            var now = fingerprints(type, org, ofType.stream().map(SettlementStatement::scopeId).distinct().toList());
+            ofType.forEach(s -> {
+                if (!Objects.equals(stored.get(s.id()), now.get(s.scopeId()))) stale.add(s.id());
+            });
+        }
+        return stale;
     }
 
     @Override
@@ -269,7 +363,7 @@ class JdbcStatementStore implements StatementStore {
     }
 
     @Override
-    public void insert(SettlementStatement s, byte[] pdf, String pdfSha256) {
+    public void insert(SettlementStatement s, byte[] pdf, String pdfSha256, String fingerprint) {
         var t = s.totals();
         try {
             plain.update("""
@@ -277,14 +371,14 @@ class JdbcStatementStore implements StatementStore {
                         revision, supersedes_id, status, timezone, cutoff_at, issued_at, issued_by,
                         organization_snapshot, scope_snapshot, gross_sales, refunds, net_sales, sale_orders,
                         refund_orders, tickets_sold, tickets_refunded, verified_collected, verified_refunded,
-                        unreconciled_orders, pdf, pdf_sha256)
+                        unreconciled_orders, pdf, pdf_sha256, fingerprint)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'CURRENT', ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                        ?, ?, ?)
+                        ?, ?, ?, ?)
                     """, s.id(), s.organizationId(), s.scopeType(), s.scopeId(), s.eventId(), s.number(), s.revision(),
                     s.supersedesId(), s.timezone(), s.cutoffAt(), s.issuedAt(), s.issuedBy(),
                     json.writeValueAsString(s.organization()), json.writeValueAsString(s.scope()), t.grossSales(),
                     t.refunds(), t.netSales(), t.saleOrders(), t.refundOrders(), t.ticketsSold(), t.ticketsRefunded(),
-                    t.verifiedCollected(), t.verifiedRefunded(), t.unreconciledOrders(), pdf, pdfSha256);
+                    t.verifiedCollected(), t.verifiedRefunded(), t.unreconciledOrders(), pdf, pdfSha256, fingerprint);
         } catch (JsonProcessingException e) {
             throw new IllegalStateException(e);
         }
@@ -333,7 +427,7 @@ class JdbcStatementStore implements StatementStore {
                             r.getInt("sale_orders"), r.getInt("refund_orders"), r.getInt("tickets_sold"),
                             r.getInt("tickets_refunded"), r.getLong("verified_collected"),
                             r.getLong("verified_refunded"), r.getInt("unreconciled_orders")),
-                    List.of(), false);
+                    List.of(), false, false);
         } catch (JsonProcessingException e) {
             throw new SQLException(e);
         }

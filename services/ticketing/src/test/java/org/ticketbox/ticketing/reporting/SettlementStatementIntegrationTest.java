@@ -157,6 +157,91 @@ class SettlementStatementIntegrationTest {
         assertThat(provider.get(0).verifiedCollected()).isEqualTo(200000);
         assertThat(detail.organization().legalName()).isEqualTo(legalName);
         assertThat(detail.outOfDate()).isFalse();
+        for (String kind : List.of("PERFORMANCE", "OFFER", "PROVIDER")) {
+            var lines = detail.lines().stream().filter(l -> l.kind().equals(kind)).toList();
+            assertThat(lines.stream().mapToLong(l -> l.grossSales()).sum()).as(kind + " gross").isEqualTo(s.totals().grossSales());
+            assertThat(lines.stream().mapToLong(l -> l.refunds()).sum()).as(kind + " refunds").isEqualTo(s.totals().refunds());
+            assertThat(lines.stream().mapToLong(l -> l.ticketsSold()).sum()).as(kind + " tickets").isEqualTo(s.totals().ticketsSold());
+        }
+    }
+
+    @Test
+    void verifiedAmountsAreGroupedByTheLedgerProviderOfTheOrderNotTheReconciliationProvider() {
+        var org = UUID.randomUUID();
+        var fixture = order(org, null, "PAID");
+        record(fixture, PAID, null);
+        reconcile(fixture, "MOMO", 200000);
+        finish(fixture);
+        var detail = statements.detail(org, statements.issue(org, actor, "PERFORMANCE", fixture.concert, 0).statement().id());
+        var providers = detail.lines().stream().filter(l -> l.kind().equals("PROVIDER")).toList();
+        assertThat(providers).hasSize(1);
+        assertThat(providers.get(0).provider()).isEqualTo("MOCK");
+        assertThat(providers.get(0).verifiedCollected()).isEqualTo(200000);
+        assertThat(detail.totals().verifiedCollected()).isEqualTo(200000);
+        assertThat(detail.totals().unreconciledOrders()).isZero();
+    }
+
+    @Test
+    void aLedgerRowInsertedBeforeIssueButCommittedAfterMakesTheStatementOutOfDate() throws Exception {
+        var org = UUID.randomUUID();
+        var fixture = order(org, null, "PAID");
+        record(fixture, PAID, null);
+        finish(fixture);
+        var inserted = new java.util.concurrent.CountDownLatch(1);
+        var release = new java.util.concurrent.CountDownLatch(1);
+        var pool = Executors.newSingleThreadExecutor();
+        try {
+            var writer = pool.submit(() -> new TransactionTemplate(transactions).executeWithoutResult(status -> {
+                ledger.recordRefund(fixture.order, "MOCK", REFUNDED);
+                inserted.countDown();
+                try {
+                    release.await(60, java.util.concurrent.TimeUnit.SECONDS);
+                } catch (InterruptedException interrupted) {
+                    throw new IllegalStateException(interrupted);
+                }
+            }));
+            assertThat(inserted.await(60, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            var first = statements.issue(org, actor, "PERFORMANCE", fixture.concert, 0).statement();
+            assertThat(first.totals().refunds()).isZero();
+            release.countDown();
+            writer.get(60, java.util.concurrent.TimeUnit.SECONDS);
+            assertThat(statements.detail(org, first.id()).outOfDate()).isTrue();
+            var second = statements.issue(org, actor, "PERFORMANCE", fixture.concert, 1).statement();
+            assertThat(second.totals().refunds()).isEqualTo(200000);
+            assertThat(statements.detail(org, second.id()).outOfDate()).isFalse();
+        } finally {
+            release.countDown();
+            pool.shutdownNow();
+        }
+    }
+
+    @Test
+    void changedOrganizationDetailsAllowAReissueWithTheNewDetailsAndNoFigureChange() {
+        var org = UUID.randomUUID();
+        var fixture = order(org, null, "PAID");
+        record(fixture, PAID, null);
+        finish(fixture);
+        var first = statements.issue(org, actor, "PERFORMANCE", fixture.concert, 0).statement();
+        assertThat(statements.detail(org, first.id()).detailsChanged()).isFalse();
+        assertThatThrownBy(() -> statements.issue(org, actor, "PERFORMANCE", fixture.concert, 1))
+                .isInstanceOf(StatementConflict.class);
+        assertThat(statements.eligible(org, null, 0, 20).content()).noneMatch(row -> row.scopeId().equals(fixture.concert));
+
+        legalName = "Tên pháp lý khác";
+        var changed = statements.detail(org, first.id());
+        assertThat(changed.detailsChanged()).isTrue();
+        assertThat(changed.outOfDate()).isFalse();
+        assertThat(statements.list(org, null, 0, 20).content().get(0).detailsChanged()).isTrue();
+        assertThat(statements.eligible(org, null, 0, 20).content()).anySatisfy(row -> {
+            assertThat(row.scopeId()).isEqualTo(fixture.concert);
+            assertThat(row.detailsChanged()).isTrue();
+            assertThat(row.outOfDate()).isFalse();
+        });
+        var second = statements.issue(org, actor, "PERFORMANCE", fixture.concert, 1).statement();
+        assertThat(second.revision()).isEqualTo(2);
+        assertThat(second.organization().legalName()).isEqualTo("Tên pháp lý khác");
+        assertThat(statements.detail(org, first.id()).organization().legalName()).isEqualTo("Công ty TNHH Ánh Dương");
+        assertThat(statements.detail(org, second.id()).detailsChanged()).isFalse();
     }
 
     @Test
@@ -322,13 +407,13 @@ class SettlementStatementIntegrationTest {
             text = new PDFTextStripper().getText(document);
         }
         assertThat(text).contains(s.number(), "Platform fee: 0 VND", "Công ty TNHH Ánh Dương", "Net sales (VND)",
-                "not an invoice,");
+                "not an invoice,", "+07:00");
         var csv = statements.download(org, s.id(), "csv");
         assertThat(csv.filename()).isEqualTo(s.number() + ".csv");
         String csvText = new String(csv.content(), StandardCharsets.UTF_8);
         assertThat(csvText.charAt(0)).isEqualTo((char) 0xFEFF);
         assertThat(csvText).contains(s.number(), "Platform fee", "0 VND", "Công ty TNHH Ánh Dương",
-                "\"Gross sales (VND)\",\"200000\"", "\"Refunds (VND)\",\"200000\"", "\"Net sales (VND)\",\"0\"");
+                "+07:00", "\"Gross sales (VND)\",\"200000\"", "\"Refunds (VND)\",\"200000\"", "\"Net sales (VND)\",\"0\"");
         assertThatThrownBy(() -> statements.download(org, s.id(), "xlsx"))
                 .isInstanceOfSatisfying(AppException.class, e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCode.INVALID_REQUEST));
     }

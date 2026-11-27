@@ -14,7 +14,6 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.ticketbox.ticketing.reporting.domain.SettlementStatement;
 
-import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /** ADR 0007 risk: figures for one event with 100,000 ledger rows. Records the time; fails only above a generous guard. */
@@ -62,7 +61,7 @@ class SettlementStatementScaleTest {
         var scope = store.scope(org, SettlementStatement.EVENT, event).orElseThrow();
         assertThat(scope.allFinal()).isTrue();
         long start = System.nanoTime();
-        var figures = store.figures(org, scope, OffsetDateTime.now());
+        var figures = store.figures(org, scope);
         long millis = (System.nanoTime() - start) / 1_000_000;
         System.out.printf("settlement statement scale: figures for 100,000 ledger rows of one event took %d ms%n", millis);
         assertThat(figures.totals().saleOrders() + figures.totals().refundOrders()).isEqualTo(100000);

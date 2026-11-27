@@ -56,7 +56,7 @@ A selection of general-admission places or assigned seats temporarily reserved f
 
 **Settlement statement**
 
-An issued, numbered and immutable record of the sales, refunds and provider-verified amounts of one final performance or event at a cutoff time. It is not an invoice or a payout.
+An issued, numbered and immutable record of the sales, refunds and provider-verified amounts of one final performance or event as of one query snapshot. It is not an invoice or a payout.
 
 **Statement revision**
 
@@ -64,8 +64,8 @@ A later statement for the same scope that supersedes the previous one. Earlier r
 
 **Cutoff**
 
-The moment a statement was computed. Ledger and reconciliation rows recorded after it do not change the statement.
+The moment a statement was computed, kept for display. It does not filter data: the statement's figures are one snapshot, and its fingerprint (ledger row count plus verified reconciliation count and sums) detects later changes.
 
 **Out of date**
 
-A current statement for which sales, refunds or provider records arrived after its cutoff. It is computed when read and never stored.
+A current statement whose scope's fingerprint now differs from the one stored at issue, because sales, refunds or verified provider records committed after it. It is computed when read. A statement can also be marked "details changed" when the organization's statement details differ from its snapshot; both allow a re-issue.

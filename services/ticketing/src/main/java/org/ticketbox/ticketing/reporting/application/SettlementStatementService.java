@@ -6,6 +6,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.ticketbox.ticketing.application.error.AppException;
 import org.ticketbox.ticketing.application.error.ErrorCode;
 import org.ticketbox.ticketing.reporting.application.port.OrganizationProfiles;
+import org.ticketbox.ticketing.reporting.application.port.OrganizationProfiles.Profile;
 import org.ticketbox.ticketing.reporting.application.port.StatementLogoFetcher;
 import org.ticketbox.ticketing.reporting.application.port.StatementRenderer;
 import org.ticketbox.ticketing.reporting.application.port.StatementStore;
@@ -21,22 +22,25 @@ import java.time.DateTimeException;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
 
 /**
  * Issues and reads settlement statements (ADR 0007). A statement is immutable once issued: a later revision supersedes
- * it. Reading never needs Identity; issuing does, to capture the organization's statement details.
+ * it. A current statement can be re-issued when its figures changed or the organization's statement details changed.
+ * Reading never requires Identity (without it, details are reported as unchanged); issuing does.
  */
 @Service
 public class SettlementStatementService {
     public record Eligible(String scopeType, UUID scopeId, UUID eventId, String title, String eventTitle,
                            OffsetDateTime startsAt, OffsetDateTime endsAt, int performanceCount, long ticketsSold,
                            long netSales, UUID statementId, String statementNumber, Integer statementRevision,
-                           boolean outOfDate) {}
+                           boolean outOfDate, boolean detailsChanged) {}
 
     public record Page<T>(List<T> content, int page, int size, boolean hasMore) {}
 
@@ -75,25 +79,32 @@ public class SettlementStatementService {
     public Page<Eligible> eligible(UUID organization, String search, int page, int size) {
         int limit = Math.clamp(size, 1, 50);
         int index = Math.max(page, 0);
-        var current = new java.util.HashMap<String, SettlementStatement>();
-        store.currentStatements(organization)
-                .forEach(s -> current.put(s.scopeType() + ":" + s.scopeId(), s));
-        List<ScopeState> ready = store.candidates(organization, search).stream().filter(ScopeState::allFinal)
-                .filter(scope -> {
-                    var statement = current.get(scope.type() + ":" + scope.scopeId());
-                    return statement == null || store.outOfDate(statement);
-                })
-                .sorted(Comparator.comparing(ScopeState::endsAt, Comparator.nullsLast(Comparator.reverseOrder())))
-                .toList();
+        var currentStatements = store.currentStatements(organization);
+        var current = new HashMap<String, SettlementStatement>();
+        currentStatements.forEach(s -> current.put(s.scopeType() + ":" + s.scopeId(), s));
+        List<ScopeState> finals = store.candidates(organization, search).stream().filter(ScopeState::allFinal).toList();
+        var withStatement = finals.stream().map(scope -> current.get(scope.type() + ":" + scope.scopeId()))
+                .filter(Objects::nonNull).toList();
+        var stale = store.outOfDate(withStatement);
+        var profile = withStatement.isEmpty() ? null : readableProfile(organization);
+        Map<UUID, Boolean> changed = new HashMap<>();
+        withStatement.forEach(s -> changed.put(s.id(), detailsChanged(s, profile)));
+        List<ScopeState> ready = finals.stream().filter(scope -> {
+            var statement = current.get(scope.type() + ":" + scope.scopeId());
+            return statement == null || stale.contains(statement.id()) || changed.get(statement.id());
+        }).sorted(Comparator.comparing(ScopeState::endsAt, Comparator.nullsLast(Comparator.reverseOrder()))).toList();
         int from = Math.min(index * limit, ready.size());
         int to = Math.min(from + limit, ready.size());
-        var content = ready.subList(from, to).stream().map(scope -> {
-            long[] net = store.netToDate(organization, scope);
+        var pageScopes = ready.subList(from, to);
+        var net = store.netToDate(organization, pageScopes);
+        var content = pageScopes.stream().map(scope -> {
+            long[] totals = net.getOrDefault(scope.type() + ":" + scope.scopeId(), new long[2]);
             var statement = current.get(scope.type() + ":" + scope.scopeId());
             return new Eligible(scope.type(), scope.scopeId(), scope.eventId(), scope.title(), scope.eventTitle(),
-                    scope.startsAt(), scope.endsAt(), scope.performances(), net[1], net[0],
+                    scope.startsAt(), scope.endsAt(), scope.performances(), totals[1], totals[0],
                     statement == null ? null : statement.id(), statement == null ? null : statement.number(),
-                    statement == null ? null : statement.revision(), statement != null);
+                    statement == null ? null : statement.revision(), statement != null && stale.contains(statement.id()),
+                    statement != null && changed.get(statement.id()));
         }).toList();
         return new Page<>(content, index, limit, to < ready.size());
     }
@@ -103,16 +114,49 @@ public class SettlementStatementService {
         int limit = Math.clamp(size, 1, 50);
         int index = Math.max(page, 0);
         var rows = store.list(organization, eventId, index * limit, limit + 1);
-        var content = rows.stream().limit(limit).map(s -> s.withOutOfDate(
-                SettlementStatement.CURRENT.equals(s.status()) && store.outOfDate(s))).toList();
-        return new Page<>(content, index, limit, rows.size() > limit);
+        return new Page<>(flagged(organization, rows.stream().limit(limit).toList()), index, limit, rows.size() > limit);
     }
 
     @Transactional(readOnly = true)
     public SettlementStatement detail(UUID organization, UUID id) {
         var statement = store.find(organization, id).orElseThrow(StatementNotFound::new);
-        return statement.withOutOfDate(SettlementStatement.CURRENT.equals(statement.status())
-                && store.outOfDate(statement));
+        return flagged(organization, List.of(statement)).get(0);
+    }
+
+    /** Adds the computed out-of-date and details-changed flags to current statements, in batch. */
+    private List<SettlementStatement> flagged(UUID organization, List<SettlementStatement> statements) {
+        var current = statements.stream().filter(s -> SettlementStatement.CURRENT.equals(s.status())).toList();
+        if (current.isEmpty()) return statements;
+        var stale = store.outOfDate(current);
+        var profile = readableProfile(organization);
+        return statements.stream().map(s -> SettlementStatement.CURRENT.equals(s.status())
+                ? s.withFlags(stale.contains(s.id()), detailsChanged(s, profile)) : s).toList();
+    }
+
+    /** Reads never depend on Identity: when it cannot answer, details are reported as unchanged. */
+    private Profile readableProfile(UUID organization) {
+        try {
+            return profiles.fetch(organization);
+        } catch (AppException unavailable) {
+            return null;
+        }
+    }
+
+    /** True when the organization's statement details differ from the ones captured in the statement. */
+    static boolean detailsChanged(SettlementStatement statement, Profile profile) {
+        if (profile == null) return false;
+        var was = statement.organization();
+        return !Objects.equals(clean(was.displayName()), clean(profile.displayName()))
+                || !Objects.equals(clean(was.legalName()), clean(profile.legalName()))
+                || !Objects.equals(clean(was.taxCode()), clean(profile.taxCode()))
+                || !Objects.equals(clean(was.billingAddress()), clean(profile.billingAddress()))
+                || !Objects.equals(clean(was.contactEmail()), clean(profile.contactEmail()))
+                || !Objects.equals(clean(was.contactPhone()), clean(profile.contactPhone()))
+                || !Objects.equals(clean(was.website()), clean(profile.website()));
+    }
+
+    private static String clean(String value) {
+        return value == null || value.isBlank() ? null : value.strip();
     }
 
     @Transactional(readOnly = true)
@@ -136,7 +180,7 @@ public class SettlementStatementService {
             throw new AppException(ErrorCode.INVALID_REQUEST, "error.invalid-request");
         }
         requireFinal(store.scope(organization, type, scopeId).orElseThrow(StatementNotFound::new));
-        var profile = profiles.fetch(organization);
+        Profile profile = profiles.fetch(organization);
         byte[] logo = profile.logoPngUrl() == null ? null : logos.fetch(profile.logoPngUrl()).orElse(null);
         boolean logoOmitted = profile.logoUrl() != null && logo == null;
         byte[] logoBytes = logo;
@@ -146,12 +190,14 @@ public class SettlementStatementService {
             requireFinal(scope);
             var current = store.current(organization, type, scopeId);
             int revision = current.map(SettlementStatement::revision).orElse(0);
-            if (revision != expectedRevision
-                    || current.isPresent() && !store.outOfDate(current.get())) {
-                throw new StatementConflict(current.map(c -> c.withOutOfDate(store.outOfDate(c))).orElse(null));
+            boolean figuresChanged = current.isPresent() && store.outOfDate(List.of(current.get())).contains(
+                    current.get().id());
+            boolean detailsChanged = current.isPresent() && detailsChanged(current.get(), profile);
+            if (revision != expectedRevision || current.isPresent() && !figuresChanged && !detailsChanged) {
+                throw new StatementConflict(current.map(c -> c.withFlags(figuresChanged, detailsChanged)).orElse(null));
             }
             OffsetDateTime cutoff = store.now();
-            var figures = store.figures(organization, scope, cutoff);
+            var figures = store.figures(organization, scope);
             ZoneId zone = scope.ownZone() != null ? scope.ownZone() : zoneOf(profile.reportingTimezone());
             String number = number(current.orElse(null), revision + 1, cutoff, zone);
             var statement = new SettlementStatement(UUID.randomUUID(), organization, type, scopeId, scope.eventId(),
@@ -163,10 +209,10 @@ public class SettlementStatementService {
                             profile.website(), logoBytes != null),
                     new ScopeDetails(scope.title(), scope.eventTitle(), scope.venueName(), scope.startsAt(),
                             scope.endsAt(), scope.performances()),
-                    figures.totals(), figures.lines(), false);
+                    figures.totals(), figures.lines(), false, false);
             byte[] pdf = renderer.pdf(statement, logoBytes);
             current.ifPresent(previous -> store.supersede(previous.id()));
-            store.insert(statement, pdf, sha256(pdf));
+            store.insert(statement, pdf, sha256(pdf), figures.fingerprint());
             return statement;
         }));
         return new IssueResult(issued, logoOmitted);
