@@ -13,11 +13,15 @@ import org.ticketbox.catalog.performance.application.SalesControlStore.Pause;
 
 /**
  * Organizer pause and resume of sales. A pause publishes the next sale version with `sales_suspended` set, through
- * the same publication path postponement uses, so Ticketing applies it like any newer snapshot. Platform
+ * the same publication path postponement uses, so Ticketing applies it like any newer snapshot. Pausing is
+ * only possible before doors open; a pause still open then is resumed automatically. Platform
  * disruptions take precedence: confirming one closes an open pause.
  */
 @Service
 public class PerformanceSalesControls {
+    /** The actor recorded for automatic resumes. */
+    static final UUID SYSTEM = new UUID(0L, 0L);
+
     private final PerformanceStore performances;
     private final SalesControlStore controls;
     private final PerformanceDisruptionStore disruptions;
@@ -50,6 +54,8 @@ public class PerformanceSalesControls {
         if (!List.of("ON_SALE", "SOLD_OUT").contains(performance.status()) || performance.salesSuspended()
                 || !performance.endsAt().isAfter(OffsetDateTime.now()) || openDisruption(id)
                 || !performances.publication(performance).ticketingAcknowledged()) throw invalid();
+        // Check-in reads a suspended sale as a closed performance, so a pause may not reach the doors.
+        if (!OffsetDateTime.now().isBefore(doorsOpen(performance))) throw closed();
         long version = performance.saleVersion() + 1;
         publish(performance, owner, actor, version, true);
         controls.insertPause(actionId, id, reason.strip(), actor, version);
@@ -73,6 +79,29 @@ public class PerformanceSalesControls {
         return status(controls.pause(pauseId).orElseThrow());
     }
 
+    /**
+     * Closes an organizer pause that is still open when the doors open, so Check-in admission is never blocked by it.
+     * Idempotent: a pause that was resumed, superseded by a disruption, or is not due is left alone.
+     */
+    @Transactional
+    public boolean resumeAtDoors(SalesControlStore.DuePause due) {
+        var performance = performances.lockOwnedPerformance(due.performanceId(), due.organizationId()).orElse(null);
+        var pause = controls.pause(due.id()).orElse(null);
+        if (performance == null || pause == null || pause.closedReason() != null || !performance.salesSuspended()
+                || OffsetDateTime.now().isBefore(doorsOpen(performance)) || openDisruption(performance.id())) {
+            return false;
+        }
+        long version = performance.saleVersion() + 1;
+        publish(performance, due.organizationId(), SYSTEM, version, false);
+        controls.resumePause(pause.id(), version, SYSTEM);
+        audit.audit(SYSTEM, due.organizationId(), "SALES_RESUMED_AT_DOORS", performance.id(), "version " + version);
+        return true;
+    }
+
+    public List<SalesControlStore.DuePause> dueAtDoors() {
+        return controls.dueAtDoors(OffsetDateTime.now());
+    }
+
     @Transactional(readOnly = true)
     public SalesState state(UUID owner, UUID id) {
         var performance = performances.ownedPerformance(id, owner).orElseThrow(PerformanceSalesControls::missing);
@@ -81,6 +110,10 @@ public class PerformanceSalesControls {
                 controls.latestPause(id).map(PerformanceSalesControls::status).orElse(null),
                 controls.requests(id).stream().findFirst().orElse(null),
                 disruptions.current(id).map(PerformanceDisruptions::status).orElse(null));
+    }
+
+    static OffsetDateTime doorsOpen(Performance performance) {
+        return performance.doorsOpenAt() != null ? performance.doorsOpenAt() : performance.startsAt();
     }
 
     boolean openDisruption(UUID performance) {
@@ -112,6 +145,10 @@ public class PerformanceSalesControls {
         else state = pause.ticketingAcknowledged() ? "PAUSED" : "PAUSING";
         return new PauseStatus(pause.id(), state, pause.reason(), pause.createdAt(), pause.closedAt(),
                 pause.ticketingAcknowledged());
+    }
+
+    private static AppException closed() {
+        return new AppException(ErrorCode.INVALID_STATUS_TRANSITION, "error.performance.sales-control-closed");
     }
 
     private static AppException invalid() {

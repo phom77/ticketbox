@@ -21,6 +21,12 @@ public interface SalesControlStore {
     record QueueItem(Request request, String title, String venueName, OffsetDateTime startsAt, String timezone,
                      OffsetDateTime endsAt, String performanceStatus) {}
 
+    /** An open pause whose performance has reached its doors-open time. */
+    record DuePause(UUID id, UUID performanceId, UUID organizationId) {}
+
+    /** Open pauses whose performance opens its doors (doors_open_at, else starts_at) at or before `now`. */
+    List<DuePause> dueAtDoors(OffsetDateTime now);
+
     Optional<Pause> pause(UUID id);
 
     Optional<Pause> openPause(UUID performance);

@@ -489,6 +489,35 @@ class GuidedSchedulingIntegrationTest {
     }
 
     @Test
+    void pauseIsRefusedFromDoorsOpenAndAnOpenPauseIsResumedAutomatically() {
+        var live = released(10);
+        UUID pause = UUID.randomUUID();
+        tx(() -> sales.pause(owner, owner, live.id(), pause, "Technical check"));
+        acknowledgeEverything();
+        // Not due before doors open.
+        assertThat(tx(() -> sales.dueAtDoors())).isEmpty();
+        // Doors open: the pause is due and resumes through the publication path, once.
+        jdbc.update("UPDATE performances SET doors_open_at=now()-interval '1 minute' WHERE id=?", live.id());
+        var due = tx(() -> sales.dueAtDoors());
+        assertThat(due).hasSize(1);
+        assertThat(tx(() -> sales.resumeAtDoors(due.get(0)))).isTrue();
+        assertThat(tx(() -> sales.resumeAtDoors(due.get(0)))).isFalse();
+        assertThat(jdbc.queryForObject("SELECT sales_suspended FROM performances WHERE id=?", Boolean.class, live.id())).isFalse();
+        assertThat(version(live)).isEqualTo(4L);
+        assertThat(jdbc.queryForObject("SELECT (payload->>'salesSuspended')::boolean FROM performance_sale_publications WHERE performance_id=? AND version=4",
+                Boolean.class, live.id())).isFalse();
+        assertThat(jdbc.queryForObject("SELECT closed_reason FROM performance_sales_pauses WHERE id=?", String.class, pause))
+                .isEqualTo("RESUMED");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM organizer_audit_log WHERE action='SALES_RESUMED_AT_DOORS' AND subject_id=?",
+                Integer.class, live.id())).isEqualTo(1);
+        assertThat(tx(() -> sales.dueAtDoors())).isEmpty();
+        // A new pause is refused with the doors message.
+        acknowledgeEverything();
+        assertThatThrownBy(() -> tx(() -> sales.pause(owner, owner, live.id(), UUID.randomUUID(), "Too late")))
+                .hasMessage("error.performance.sales-control-closed");
+    }
+
+    @Test
     void anEndedPerformanceCannotBePaused() {
         var live = released(10);
         jdbc.update("""

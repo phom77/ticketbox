@@ -61,6 +61,8 @@ export function PerformanceSalesPanel({ performance }: { performance: ManagedPer
     state?.pause && !['RESUMED', 'SUPERSEDED'].includes(state.pause.state) ? state.pause : null;
   const disruptionOpen = state?.disruption && state.disruption.state !== 'RESUMED';
   const request = state?.request;
+  // Check-in reads a paused sale as a closed performance, so pausing ends when doors open.
+  const doorsOpen = Date.parse(performance.doorsOpenAt ?? performance.startsAt) <= Date.now();
 
   async function act(action: () => Promise<unknown>, done: string) {
     setBusy(true);
@@ -107,7 +109,8 @@ export function PerformanceSalesPanel({ performance }: { performance: ManagedPer
           <button
             type="button"
             className="button button-secondary"
-            disabled={busy || !state.ticketingAcknowledged}
+            disabled={busy || !state.ticketingAcknowledged || doorsOpen}
+            aria-describedby={doorsOpen ? 'sales-doors-closed' : undefined}
             onClick={() => setDialog('pause')}
           >
             <Pause size={17} aria-hidden="true" />
@@ -136,6 +139,11 @@ export function PerformanceSalesPanel({ performance }: { performance: ManagedPer
           </button>
         )}
       </div>
+      {live && !state.salesSuspended && !disruptionOpen && doorsOpen && (
+        <p id="sales-doors-closed" className="performance-field-help">
+          {t('scheduling:pauseClosedAtDoors')}
+        </p>
+      )}
       {organizerPause && (
         <p className="performance-field-help">
           {t('scheduling:pauseReason', { reason: organizerPause.reason })}
@@ -217,7 +225,7 @@ export function PerformanceSalesPanel({ performance }: { performance: ManagedPer
         <RequestDialog
           performance={performance}
           busy={busy}
-          canPause={!state.salesSuspended}
+          canPause={!state.salesSuspended && !doorsOpen}
           onClose={() => setDialog(null)}
           onSend={(input) =>
             act(() => requestDisruption(performance.id, input), t('scheduling:requestSent'))

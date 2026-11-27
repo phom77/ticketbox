@@ -71,6 +71,7 @@
   "nextMonth": "Next month",
   "openRequest": "Review and confirm",
   "operationsTabs": "Performance operations",
+  "pauseClosedAtDoors": "Sales controls close when doors open. Contact TicketBox for help with this performance.",
   "pauseConfirm": "Pause sales",
   "pauseHelp": "Buyers cannot start new purchases while sales are paused. Platform operators see your reason. Existing holds and orders follow the standard rules.",
   "pauseReason": "Pause reason: {{reason}}",

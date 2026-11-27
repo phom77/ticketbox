@@ -244,6 +244,19 @@ describe('PerformanceSalesPanel', () => {
     expect(await screen.findByText('Pausing…')).toBeInTheDocument();
   });
 
+  it('disables pausing with an explanation once doors have opened', async () => {
+    scheduling.getSalesState.mockResolvedValue(live);
+    render(
+      wrap(
+        <PerformanceSalesPanel
+          performance={{ ...performance, startsAt: '2020-01-01T12:00:00.000Z', doorsOpenAt: null }}
+        />,
+      ),
+    );
+    expect(await screen.findByRole('button', { name: 'Pause sales' })).toBeDisabled();
+    expect(screen.getByText(/Sales controls close when doors open/)).toBeInTheDocument();
+  });
+
   it('offers resume for an organizer pause and withdraw for an open request', async () => {
     const user = userEvent.setup();
     scheduling.getSalesState.mockResolvedValue({

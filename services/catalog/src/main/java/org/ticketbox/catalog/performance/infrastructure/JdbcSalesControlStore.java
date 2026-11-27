@@ -31,6 +31,16 @@ public class JdbcSalesControlStore implements SalesControlStore {
     }
 
     @Override
+    public List<DuePause> dueAtDoors(OffsetDateTime now) {
+        return jdbc.query("""
+                SELECT s.id, s.performance_id, e.organization_id FROM performance_sales_pauses s
+                JOIN performances p ON p.id=s.performance_id JOIN events e ON e.id=p.event_id
+                WHERE s.closed_reason IS NULL AND coalesce(p.doors_open_at,p.starts_at)<=? ORDER BY s.created_at
+                """, (rs, n) -> new DuePause(rs.getObject("id", UUID.class), rs.getObject("performance_id", UUID.class),
+                rs.getObject("organization_id", UUID.class)), now);
+    }
+
+    @Override
     public Optional<Pause> pause(UUID id) {
         return jdbc.query(PAUSES + " WHERE s.id=?", this::pauseRow, id).stream().findFirst();
     }

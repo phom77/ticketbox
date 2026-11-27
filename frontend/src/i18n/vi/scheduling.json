@@ -67,6 +67,7 @@
   "nextMonth": "Tháng sau",
   "openRequest": "Xem và xác nhận",
   "operationsTabs": "Vận hành suất diễn",
+  "pauseClosedAtDoors": "Việc tạm dừng bán vé đóng lại khi cửa mở. Hãy liên hệ TicketBox để được hỗ trợ với suất diễn này.",
   "pauseConfirm": "Tạm dừng bán",
   "pauseHelp": "Người mua không thể bắt đầu giao dịch mới khi tạm dừng. Vận hành TicketBox thấy lý do của bạn. Vé đang giữ và đơn hàng theo quy tắc chuẩn.",
   "pauseReason": "Lý do tạm dừng: {{reason}}",
