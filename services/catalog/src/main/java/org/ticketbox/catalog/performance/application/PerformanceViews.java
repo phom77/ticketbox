@@ -65,14 +65,16 @@ public final class PerformanceViews {
             OffsetDateTime startsAt, OffsetDateTime endsAt, OffsetDateTime doorsOpenAt, String timezone,
             OffsetDateTime saleStartAt, OffsetDateTime saleEndAt, String status, boolean salesSuspended, OffsetDateTime resumedAdmissionAt,
             boolean publicVisible, int maxPerAccount, long saleVersion, Long layoutVersion, UUID legacyConcertId,
-            long draftVersion) {}
+            long draftVersion, String venueCity) {}
 
     public record OperationsPerformance(
             UUID id, String title, String venueName, String spaceName, OffsetDateTime startsAt, OffsetDateTime endsAt,
             OffsetDateTime doorsOpenAt, String timezone, OffsetDateTime saleStartAt, OffsetDateTime saleEndAt,
             String status, boolean salesSuspended, boolean ticketingAcknowledged, boolean checkinAcknowledged) {}
 
-    public record Venue(UUID id, String name, String address, List<Space> spaces) {}
+    /** `city` falls back to the address rule when empty; `version` guards concurrent venue edits. */
+    public record Venue(UUID id, String name, String address, String city, String timezone, Integer capacityHint,
+                        long version, List<Space> spaces) {}
 
     public record Space(UUID id, String name) {}
 

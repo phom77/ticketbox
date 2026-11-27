@@ -87,7 +87,8 @@ public class OrganizerPerformanceController {
     @PostMapping("/venues")
     public ApiResponse<Venue> createVenue(
             @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID owner, @RequestBody VenueRequest request) {
-        return ApiResponse.success(catalog.createVenue(owner, request.name(), request.address(), request.spaceName()));
+        return ApiResponse.success(catalog.createVenue(owner, request.name(), request.address(), request.spaceName(),
+                request.city(), request.timezone(), request.capacityHint()));
     }
 
     @PostMapping("/events/{id}/performances")
@@ -129,7 +130,9 @@ public class OrganizerPerformanceController {
             @Valid @RequestBody PublishRequest request) {
         return ApiResponse.success(reviews.submit(owner, actor(actor), id,
                 new Versions(request.expectedSaleVersion(), request.expectedLayoutVersion(),
-                        request.expectedEventDraftVersion(), request.expectedScheduleDraftVersion()), request.publishAt()));
+                        request.expectedEventDraftVersion(), request.expectedScheduleDraftVersion()),
+                request.releaseMode() == null ? PerformancePublicationReview.ReleaseMode.SCHEDULED : request.releaseMode(),
+                request.publishAt()));
     }
 
     @GetMapping("/performances/{id}/layout")
@@ -202,7 +205,8 @@ public class OrganizerPerformanceController {
                     translations, artistBio, ageRating, refundPolicy);
         }
     }
-    record VenueRequest(String name, String address, String spaceName) {}
+    record VenueRequest(String name, String address, String spaceName, String city, String timezone,
+                        Integer capacityHint) {}
     record ScheduleRequest(UUID venueSpaceId, OffsetDateTime startsAt, OffsetDateTime endsAt,
                            OffsetDateTime doorsOpenAt, String timezone, OffsetDateTime saleStartAt,
                            OffsetDateTime saleEndAt, int maxPerAccount, boolean publicVisible, Long expectedDraftVersion) {
@@ -215,7 +219,7 @@ public class OrganizerPerformanceController {
     record PublishRequest(
             @NotNull @PositiveOrZero Long expectedSaleVersion, @NotNull @PositiveOrZero Long expectedLayoutVersion,
             @NotNull @PositiveOrZero Long expectedEventDraftVersion, @NotNull @PositiveOrZero Long expectedScheduleDraftVersion,
-            @NotNull OffsetDateTime publishAt) {}
+            PerformancePublicationReview.ReleaseMode releaseMode, OffsetDateTime publishAt) {}
     record LayoutRequest(long expectedVersion, PerformanceLayout layout) {}
     record TemplateRequest(UUID venueSpaceId, String name, PerformanceLayout layout) {}
     record CopyRequest(UUID templateId, long revision, long expectedVersion) {}

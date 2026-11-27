@@ -21,6 +21,8 @@ public final class ErrorHttpMapping {
             case INVALID_STATUS_TRANSITION -> HttpStatus.BAD_REQUEST;
             case CONCERT_NOT_DELETABLE -> HttpStatus.CONFLICT;
             case PERFORMANCE_VERSION_CONFLICT -> HttpStatus.CONFLICT;
+            case CONFLICT -> HttpStatus.CONFLICT;
+            case UNPROCESSABLE -> HttpStatus.UNPROCESSABLE_ENTITY;
             case INVALID_DATE -> HttpStatus.BAD_REQUEST;
             case RATE_LIMIT_EXCEEDED -> HttpStatus.TOO_MANY_REQUESTS;
             case REDIS_UNAVAILABLE -> HttpStatus.SERVICE_UNAVAILABLE;

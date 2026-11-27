@@ -156,7 +156,7 @@ public final class PerformanceRules {
                             && offer.price().compareTo(java.math.BigDecimal.valueOf(999_999_999_999L)) <= 0,
                     "error.performance.invalid-offer");
             require(offer.saleStartAt() != null && offer.saleEndAt() != null
-                            && !offer.saleStartAt().isBefore(start) && !offer.saleEndAt().isAfter(end)
+                            && (start == null || !offer.saleStartAt().isBefore(start)) && !offer.saleEndAt().isAfter(end)
                             && offer.saleStartAt().isBefore(offer.saleEndAt()),
                     "error.performance.invalid-offer-window");
         }

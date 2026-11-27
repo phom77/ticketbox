@@ -20,6 +20,9 @@ import org.ticketbox.catalog.performance.application.PerformanceViews.Publicatio
 public class PerformancePublicationReview {
     public enum Action { APPROVE, REQUEST_CHANGES, REJECT, HOLD }
 
+    /** SCHEDULED releases at a chosen time; ON_APPROVAL releases as soon as a reviewer approves. */
+    public enum ReleaseMode { SCHEDULED, ON_APPROVAL }
+
     public record Status(String status, long saleVersion, boolean ticketingAcknowledged,
                          boolean checkinAcknowledged, Review review) {}
 
@@ -54,15 +57,29 @@ public class PerformancePublicationReview {
 
     @Transactional
     public Status submit(UUID owner, UUID actor, UUID id, Versions versions, OffsetDateTime publishAt) {
+        return submit(owner, actor, id, versions, ReleaseMode.SCHEDULED, publishAt);
+    }
+
+    @Transactional
+    public Status submit(UUID owner, UUID actor, UUID id, Versions versions, ReleaseMode mode,
+                         OffsetDateTime publishAt) {
         var performance = owned(owner, id);
         var publication = performances.publication(performance);
         var previous = reviews.current(id).orElse(null);
         if (!"DRAFT".equals(performance.status())) throw stale();
-        requireSchedule(performance, publishAt);
+        boolean onApproval = mode == ReleaseMode.ON_APPROVAL;
+        if (onApproval) {
+            if (publishAt != null || performance.saleStartAt() == null) {
+                throw new AppException(ErrorCode.INVALID_REQUEST, "error.concert.publication-time");
+            }
+        } else {
+            requireSchedule(performance, publishAt);
+        }
         validate(owner, performance, versions);
         catalog.requireReleasableClassification(performance.eventId());
         if (previous != null && (previous.state() == State.SUBMITTED || previous.state() == State.SCHEDULED)) {
-            if (previous.versions().equals(versions) && previous.publishAt().isEqual(publishAt)) {
+            if (previous.versions().equals(versions) && previous.releaseOnApproval() == onApproval
+                    && (onApproval || previous.publishAt().isEqual(publishAt))) {
                 return status(publication, previous);
             }
             reviews.transition(previous.id(), State.SUPERSEDED);
@@ -72,7 +89,8 @@ public class PerformancePublicationReview {
                 new Offer(offer.name(), offer.price(), offer.active(), offer.saleStartAt(), offer.saleEndAt())).toList();
         var snapshot = new Summary(event.title(), event.description(), performance.venueName(), performance.spaceName(),
                 performance.startsAt(), performance.saleStartAt(), performance.saleEndAt(), performance.publicVisible(), offers);
-        var review = new Review(UUID.randomUUID(), id, actor, publishAt, versions, snapshot, State.SUBMITTED, null, null);
+        var review = new Review(UUID.randomUUID(), id, actor, publishAt, versions, snapshot, State.SUBMITTED, null, null,
+                onApproval);
         reviews.submit(review);
         return status(publication, review);
     }
@@ -92,13 +110,19 @@ public class PerformancePublicationReview {
                 || (state == State.SCHEDULED && review.state() == State.RELEASED))) return review;
         if (!"DRAFT".equals(performance.status()) || (action == Action.HOLD
                 ? review.state() != State.SCHEDULED : review.state() != State.SUBMITTED)) throw stale();
+        OffsetDateTime releaseAt = null;
         if (action == Action.APPROVE) {
-            requireSchedule(performance, review.publishAt());
+            if (review.releaseOnApproval()) {
+                releaseAt = OffsetDateTime.now();
+                requireReleaseWindow(performance, releaseAt);
+            } else {
+                requireSchedule(performance, review.publishAt());
+            }
             validate(owner, performance, review.versions());
         } else if (reason == null || reason.isBlank() || reason.length() > 1000) {
             throw new AppException(ErrorCode.INVALID_REQUEST, "error.concert.review-reason");
         }
-        reviews.decide(revision, state, actor, reason == null ? null : reason.strip());
+        reviews.decide(revision, state, actor, reason == null ? null : reason.strip(), releaseAt);
         return reviews.current(id).orElseThrow(PerformancePublicationReview::missing);
     }
 
@@ -143,8 +167,16 @@ public class PerformancePublicationReview {
                 publication.checkinAcknowledged(), review);
     }
 
+    /** Release on approval is refused once the sale start has passed or the sale window is over. */
+    private static void requireReleaseWindow(Performance performance, OffsetDateTime approvedAt) {
+        if (performance.saleStartAt() == null || approvedAt.isAfter(performance.saleStartAt())
+                || !performance.saleEndAt().isAfter(approvedAt)) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "error.performance.release-window");
+        }
+    }
+
     private static void requireSchedule(Performance performance, OffsetDateTime publishAt) {
-        if (publishAt == null || !publishAt.isAfter(OffsetDateTime.now()) || publishAt.isAfter(performance.saleStartAt())) {
+        if (publishAt == null || performance.saleStartAt() == null || !publishAt.isAfter(OffsetDateTime.now()) || publishAt.isAfter(performance.saleStartAt())) {
             throw new AppException(ErrorCode.INVALID_REQUEST, "error.concert.publication-time");
         }
     }

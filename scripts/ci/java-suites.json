@@ -38,6 +38,10 @@
         "org.ticketbox.catalog.performance.ClassificationMigrationTest": [],
         "org.ticketbox.catalog.performance.PerformanceCatalogIntegrationTest": []
       },
+      "guided-scheduling": {
+        "org.ticketbox.catalog.performance.GuidedSchedulingIntegrationTest": [],
+        "org.ticketbox.catalog.performance.GuidedSchedulingMigrationTest": []
+      },
       "ai-publication-replay": {
         "org.ticketbox.catalog.artistbio.application.CatalogPublicationIntegrationTest": [
           "pendingPublicationFromBaselineIsReplayedAndCompleted",
