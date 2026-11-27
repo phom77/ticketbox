@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 // contracts/classification-ids.json is the shared list of ids; Catalog tests it against its reference rows.
-import contract from '../../../../contracts/classification-ids.json';
+// Loaded with import.meta.glob so the web image, built from frontend/ only, still type-checks without the file.
+const contracts = import.meta.glob<{
+  segments: { id: string; genres: { id: string; popular: boolean }[] }[];
+}>('../../../../contracts/classification-ids.json', { eager: true, import: 'default' });
+const contract = Object.values(contracts)[0];
 import {
   aliasForCategory,
   classificationSegments,
@@ -15,12 +19,13 @@ import {
 
 describe('classification ids', () => {
   it('match the shared id list Catalog verifies against its reference data', () => {
+    expect(contract).toBeDefined();
     expect(
       classificationSegments.map((segment) => ({
         id: segment.id,
         genres: segment.genres.map((genre) => ({ id: genre.id, popular: genre.popular })),
       })),
-    ).toEqual(contract.segments);
+    ).toEqual(contract?.segments);
   });
 
   it('keeps genre ids unique and lists every segment but Other in the header', () => {
