@@ -31,6 +31,13 @@ public interface JpaCheckinLogRepository
     @Query("select max(c.checkedAt) from CheckinLog c where c.concertId = :concertId")
     OffsetDateTime findLatestCheckedAtByConcertId(@Param("concertId") UUID concertId);
 
+    @Query(
+            "select new org.ticketbox.checkin.admission.application.port.GateAdmissions("
+                    + "c.gate, count(c), max(c.checkedAt)) from CheckinLog c"
+                    + " where c.concertId = :concertId group by c.gate order by c.gate")
+    java.util.List<org.ticketbox.checkin.admission.application.port.GateAdmissions> countByGate(
+            @Param("concertId") UUID concertId);
+
     @Modifying
     @Query(
             value =

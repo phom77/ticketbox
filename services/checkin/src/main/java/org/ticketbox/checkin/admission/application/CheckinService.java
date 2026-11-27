@@ -10,6 +10,7 @@ import org.ticketbox.checkin.admission.application.dto.CheckinDatasetResponse;
 import org.ticketbox.checkin.admission.application.dto.CheckinDatasetResponse.TicketDatasetEntry;
 import org.ticketbox.checkin.admission.application.dto.CheckinHistoryResponse;
 import org.ticketbox.checkin.admission.application.dto.CheckinSummaryResponse;
+import org.ticketbox.checkin.admission.application.dto.OrganizerAdmissionResponse;
 import org.ticketbox.checkin.admission.application.dto.ScanTicketRequest;
 import org.ticketbox.checkin.admission.application.dto.ScanTicketResponse;
 import org.ticketbox.checkin.admission.application.dto.StaffConcertOverviewResponse;
@@ -27,6 +28,7 @@ import org.ticketbox.checkin.admission.domain.CheckinLog;
 import org.ticketbox.checkin.application.error.AppException;
 import org.ticketbox.checkin.application.error.ErrorCode;
 import org.ticketbox.checkin.application.port.catalog.CheckinConcertView;
+import org.ticketbox.checkin.guestlist.application.port.GuestListRepository;
 
 import java.time.OffsetDateTime;
 import java.util.Arrays;
@@ -45,6 +47,7 @@ public class CheckinService {
     private final QrJwtService qrJwtService;
     private final CheckinSyncHelper checkinSyncHelper;
     private final ConcertAccess concerts;
+    private final GuestListRepository guestLists;
 
     @Transactional(readOnly = true)
     public Page<StaffConcertResponse> getStaffConcerts(String status, Pageable pageable) {
@@ -86,7 +89,32 @@ public class CheckinService {
                 Math.max(0, checkedIn - offline),
                 offline,
                 checkinLogRepository.findLatestCheckedAtByConcertId(concertId),
-                stats.datasetUpdatedAt());
+                stats.datasetUpdatedAt(),
+                checkinLogRepository.countByGate(concertId),
+                guestLists.countByConcertIdAndIsActiveTrue(concertId),
+                guestLists.countByConcertIdAndIsActiveTrueAndCheckedInAtIsNotNull(concertId));
+    }
+
+    /** Recent admissions for an organizer: the history without the QR credential or device id. */
+    @Transactional(readOnly = true)
+    public Page<OrganizerAdmissionResponse> getOrganizerAdmissions(UUID concertId, Pageable pageable) {
+        getConcert(concertId);
+        return getCheckinHistory(concertId, pageable)
+                .map(
+                        entry ->
+                                new OrganizerAdmissionResponse(
+                                        entry.id(),
+                                        entry.ticketId(),
+                                        entry.concertId(),
+                                        entry.staffId(),
+                                        entry.checkedAt(),
+                                        entry.syncAt(),
+                                        entry.offline(),
+                                        entry.gate(),
+                                        entry.notes(),
+                                        entry.ticketStatus(),
+                                        entry.referenceCode(),
+                                        entry.ticketTypeName()));
     }
 
     @Transactional(readOnly = true)
