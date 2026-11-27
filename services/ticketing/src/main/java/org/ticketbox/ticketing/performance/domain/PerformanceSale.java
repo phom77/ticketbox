@@ -48,8 +48,20 @@ public record PerformanceSale(
     }
 
     public record Offer(UUID id, UUID groupId, String name, BigDecimal price, String currency,
-                        OffsetDateTime saleStartAt, OffsetDateTime saleEndAt, boolean active) {
+                        OffsetDateTime saleStartAt, OffsetDateTime saleEndAt, boolean active,
+                        String description, Integer minPerOrder) {
+        /** Snapshots written before ticket type details existed carry neither field. */
+        public Offer(UUID id, UUID groupId, String name, BigDecimal price, String currency,
+                     OffsetDateTime saleStartAt, OffsetDateTime saleEndAt, boolean active) {
+            this(id, groupId, name, price, currency, saleStartAt, saleEndAt, active, null, 1);
+        }
+
         public Offer {
+            minPerOrder = minPerOrder == null ? Integer.valueOf(1) : minPerOrder;
+            if (description != null && (description.isEmpty() || description.length() > 500)
+                    || minPerOrder < 1 || minPerOrder > 100) {
+                throw new IllegalArgumentException("Invalid offer details");
+            }
             Objects.requireNonNull(id);
             Objects.requireNonNull(groupId);
             requireText(name, 100);

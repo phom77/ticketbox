@@ -86,6 +86,38 @@ class JdbcPerformanceSalesTest {
         }
     }
 
+    @Test
+    void offerDetailsAreStoredForNewerVersionsAndAbsentMeansMinimumOne() throws Exception {
+        var sale = sale(false);
+        tx.execute(status -> catalog.apply(sale));
+        var offerId = sale.offers().getFirst().id();
+        assertThat(jdbc.queryForObject("SELECT min_per_order FROM performance_offers WHERE id=?", Integer.class, offerId))
+                .isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT description FROM performance_offers WHERE id=?", String.class, offerId))
+                .isNull();
+
+        var detailed = new Offer(offerId, sale.groups().getFirst().id(), "Early", BigDecimal.valueOf(150_000), "VND",
+                sale.offers().getFirst().saleStartAt(), sale.offers().getFirst().saleEndAt(), true,
+                "Includes a poster", 2);
+        var next = new PerformanceSale(sale.id(), sale.eventId(), sale.organizationId(), null, 2, null, null,
+                sale.title(), sale.venueName(), sale.startsAt(), sale.endsAt(), null, sale.timezone(),
+                sale.saleStartAt(), sale.saleEndAt(), sale.status(), false, true, null, sale.maxPerAccount(),
+                sale.groups(), List.of(detailed, sale.offers().getLast()));
+        assertThat(tx.<Long>execute(status -> catalog.apply(next))).isEqualTo(2L);
+        assertThat(jdbc.queryForObject("SELECT min_per_order FROM performance_offers WHERE id=?", Integer.class, offerId))
+                .isEqualTo(2);
+        // A replayed older version is ignored and does not erase the details.
+        assertThat(tx.<Long>execute(status -> catalog.apply(sale))).isEqualTo(2L);
+        assertThat(jdbc.queryForObject("SELECT description FROM performance_offers WHERE id=?", String.class, offerId))
+                .isEqualTo("Includes a poster");
+        // Payloads written before the fields existed decode with a minimum of 1.
+        var mapper = new ObjectMapper().findAndRegisterModules();
+        var tree = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.valueToTree(sale.offers().getFirst());
+        tree.remove("description");
+        tree.remove("minPerOrder");
+        assertThat(mapper.treeToValue(tree, Offer.class).minPerOrder()).isEqualTo(1);
+    }
+
     static PerformanceSale sale(boolean assigned) {
         var now = OffsetDateTime.now(ZoneOffset.UTC).withNano(0);
         UUID group = UUID.randomUUID();

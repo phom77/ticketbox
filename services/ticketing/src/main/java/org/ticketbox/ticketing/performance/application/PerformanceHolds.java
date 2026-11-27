@@ -83,6 +83,7 @@ public class PerformanceHolds {
             throw new AppException(TICKET_LIMIT_EXCEEDED);
         }
         boolean retainsPrior = sameSession && isActive(existing, now);
+        requireMinimumQuantities(scope.performanceId(), picks, retainsPrior ? previous : List.of());
         var lines = pricedLines(scope.performanceId(), picks, retainsPrior ? previous : List.of(), now);
         var expiry = lines.isEmpty() ? null : earlier(expiresWithSession, sale.saleEndAt());
         if (expiry != null && retainsPrior && existing.expiresAt() != null) {
@@ -165,6 +166,25 @@ public class PerformanceHolds {
         Long ttl = sessions.remainingSeconds(scope.performanceId(), scope.userId());
         if (ttl == null || ttl <= 0) throw new AppException(UNAUTHORIZED, "error.shopping-session.expired");
         return OffsetDateTime.now().plusSeconds(ttl);
+    }
+
+    /**
+     * Refuses a positive quantity below the ticket type's minimum per order. Read-only: it runs before any
+     * stock change. Lines a buyer already holds keep their quantity if the organizer raised the minimum later.
+     */
+    private void requireMinimumQuantities(UUID performanceId, List<Pick> picks, List<Line> previous) {
+        if (picks.isEmpty()) return;
+        var wanted = picks.stream().collect(Collectors.groupingBy(Pick::offerId,
+                Collectors.summingInt(Pick::quantity)));
+        var held = previous.stream().collect(Collectors.groupingBy(Line::offerId,
+                Collectors.summingInt(Line::quantity)));
+        for (Offer offer : stock.offers(performanceId)) {
+            int quantity = wanted.getOrDefault(offer.id(), 0);
+            if (quantity > 0 && quantity < offer.minPerOrder() && quantity != held.getOrDefault(offer.id(), 0)) {
+                throw new AppException(INVALID_REQUEST, "error.performance.offer-min-quantity",
+                        offer.name(), offer.minPerOrder());
+            }
+        }
     }
 
     private List<Line> pricedLines(UUID performanceId, List<Pick> picks, List<Line> previous, OffsetDateTime now) {

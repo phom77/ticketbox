@@ -32,7 +32,8 @@ public class PerformanceAvailability {
                 .map(group -> new GroupView(group.id(), group.sectionId(), group.sectionLabel(), group.kind(),
                         group.available(), offers.getOrDefault(group.id(), List.of()).stream()
                                 .map(offer -> new OfferView(offer.id(), offer.name(), offer.price(),
-                                        sale.onSale() && !sale.suspended() && offer.activeAt(now)))
+                                        sale.onSale() && !sale.suspended() && offer.activeAt(now),
+                                        offer.description(), offer.minPerOrder()))
                                 .toList())).toList());
     }
 
@@ -53,7 +54,8 @@ public class PerformanceAvailability {
     public record Overview(Long layoutVersion, long saleVersion, List<GroupView> groups) {}
     public record GroupView(UUID id, UUID sectionId, String sectionLabel, Kind kind, int available,
                             List<OfferView> offers) {}
-    public record OfferView(UUID id, String name, BigDecimal price, boolean active) {}
+    public record OfferView(UUID id, String name, BigDecimal price, boolean active,
+                            String description, int minPerOrder) {}
     public record Section(Long layoutVersion, long saleVersion, UUID sectionId, List<SeatView> seats) {}
     public record SeatView(UUID id, boolean available, UUID groupId) {}
 }

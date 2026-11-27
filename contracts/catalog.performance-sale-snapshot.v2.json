@@ -89,7 +89,9 @@
         "currency": { "const": "VND" },
         "saleStartAt": { "$ref": "#/$defs/time" },
         "saleEndAt": { "$ref": "#/$defs/time" },
-        "active": { "type": "boolean" }
+        "active": { "type": "boolean" },
+        "description": { "type": ["string", "null"], "minLength": 1, "maxLength": 500 },
+        "minPerOrder": { "type": "integer", "minimum": 1, "maximum": 100 }
       }
     }
   }
