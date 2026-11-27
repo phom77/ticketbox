@@ -3,6 +3,10 @@
   gap: 1rem;
   min-width: 0;
 }
+/* Grid items (for example the guest import history table) must shrink so wide content scrolls inside its own wrapper. */
+.performance-admin > * {
+  min-width: 0;
+}
 .performance-admin h1,
 .performance-admin h2,
 .performance-admin p {
