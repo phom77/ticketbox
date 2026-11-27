@@ -8,6 +8,9 @@ public interface PosterStorage {
 
     StoredPoster upload(UUID concertId, Upload file);
 
+    /** Uploads an event poster named `event-<eventId>-<uuid>`. */
+    StoredPoster uploadEventPoster(UUID eventId, Upload file);
+
     void deleteBestEffort(String publicId);
 
     record StoredPoster(String secureUrl, String publicId) {}

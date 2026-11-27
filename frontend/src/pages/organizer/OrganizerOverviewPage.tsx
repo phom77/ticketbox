@@ -56,7 +56,13 @@ function OrganizerConcertActivity({ name, finance }: { name: string; finance: bo
                 >
                   {item.title}
                 </Link>
-                <p>{t('operations-dashboard:resumeDraft')}</p>
+                <p>
+                  {t(
+                    item.legacyConcertId
+                      ? 'operations-dashboard:legacyDraftReadOnly'
+                      : 'operations-dashboard:resumeDraft',
+                  )}
+                </p>
               </li>
             )}
           />

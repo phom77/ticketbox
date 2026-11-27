@@ -25,6 +25,7 @@ spring:
       host: ${REDIS_HOST:redis}
       timeout: 2s
 ticketbox:
+  organizer-legacy-read-only: ${TICKETBOX_ORGANIZER_LEGACY_READ_ONLY:true}
   performance-sales:
     organizations: ${TICKETBOX_PERFORMANCE_SALES_ORGANIZATIONS:}
   security:

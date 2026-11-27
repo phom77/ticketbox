@@ -1,5 +1,5 @@
 import { api, publicGet } from './client';
-import type { ConcertStatus, ConcertSummary, Page } from './concerts';
+import type { ConcertStatus, ConcertSummary, ConcertTranslations, Page } from './concerts';
 import type { Order } from './orders';
 
 export type Performance = {
@@ -22,12 +22,19 @@ export type Performance = {
   legacyConcertId: string | null;
 };
 
+export type AgeRating = 'ALL' | '13+' | '16+' | '18+';
+
 export type EventDetails = {
   id: string;
   title: string;
   description: string | null;
   category?: string | null;
   performances: Performance[];
+  posterUrl?: string | null;
+  translations?: ConcertTranslations;
+  artistBio?: string | null;
+  ageRating?: AgeRating | null;
+  refundPolicy?: string | null;
 };
 
 type DiscoveryEvent = ConcertSummary & {

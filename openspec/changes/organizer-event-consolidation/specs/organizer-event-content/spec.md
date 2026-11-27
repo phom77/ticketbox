@@ -50,10 +50,20 @@ After any performance of an event is released, changes to its content SHALL be s
 - **WHEN** a decision targets a revision that was edited after submission, or repeats a completed decision
 - **THEN** the stale decision is refused without change, and the repeated decision returns the recorded outcome.
 
+#### Scenario: Another revision after an approval
+
+- **WHEN** a revision was approved and the organizer edits the event again
+- **THEN** the edit continues from the approved revision's number and is accepted, and the same holds for staging a poster.
+
+#### Scenario: Approved title reaches ticketing and admission
+
+- **WHEN** a reviewer approves a revision that changes the title of an event with released performances
+- **THEN** each released performance gets a new publication version carrying the new title, Ticketing and Check-in show it, and existing orders keep the title they were placed with.
+
 #### Scenario: Content revision and performance release overlap
 
 - **WHEN** a content revision is in review while another performance of the event is scheduled for release
-- **THEN** the performance releases with the approved live content, and the revision proceeds independently.
+- **THEN** the performance still releases (approving or editing content never supersedes its review), using the live content at release, and the revision proceeds independently.
 
 ### Requirement: Private buyer preview
 

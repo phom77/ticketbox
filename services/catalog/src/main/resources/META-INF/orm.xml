@@ -109,7 +109,10 @@
         <table name="artist_pdf_jobs" />
         <attributes>
             <basic name="concertId">
-                <column name="concert_id" nullable="false" />
+                <column name="concert_id" />
+            </basic>
+            <basic name="eventId">
+                <column name="event_id" />
             </basic>
             <basic name="fileUrl">
                 <column name="file_url" nullable="false" length="500" />

@@ -28,6 +28,7 @@ class ArtistBioJobServiceListTest {
     @Mock private ArtistPdfJobRepository jobRepository;
     @Mock private ArtistPdfFileStorage fileStorage;
     @Mock private ConcertArtistBioPort concertPort;
+    @Mock private org.ticketbox.catalog.performance.application.EventArtistBioPort eventPort;
     @Mock private ApplicationEventPublisher eventPublisher;
 
     private ArtistBioJobService service;
@@ -36,7 +37,7 @@ class ArtistBioJobServiceListTest {
     void setUp() {
         service =
                 new ArtistBioJobService(
-                        jobRepository, fileStorage, concertPort, eventPublisher, messages());
+                        jobRepository, fileStorage, concertPort, eventPort, eventPublisher, messages());
     }
 
     private org.ticketbox.catalog.artistbio.application.port.ArtistBioMessages messages() {

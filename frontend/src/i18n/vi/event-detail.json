@@ -80,5 +80,8 @@
   "relatedLoading": "Đang tải thêm sự kiện",
   "relatedEmpty": "Hiện chưa có sự kiện sắp diễn ra nào khác.",
   "calendarDescription": "Vé và chi tiết: {{url}}",
-  "previewPanel": "Chức năng mua vé đang tắt khi xem trước."
+  "previewPanel": "Chức năng mua vé đang tắt khi xem trước.",
+  "infoAge": "Độ tuổi",
+  "refundTitle": "Chính sách hoàn vé",
+  "previewRevisionBanner": "Bản xem trước của nhà tổ chức cho các thay đổi đang chờ. Người mua vẫn thấy phiên bản đang hiển thị cho đến khi TicketBox duyệt; chức năng mua vé đang tắt."
 }

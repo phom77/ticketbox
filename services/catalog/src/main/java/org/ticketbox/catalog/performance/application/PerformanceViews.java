@@ -10,8 +10,20 @@ import org.ticketbox.catalog.performance.domain.PerformanceSale;
 public final class PerformanceViews {
     private PerformanceViews() {}
 
+    /**
+     * An event with the content buyers see. `translations` holds the per-language title and description; the
+     * poster, bio and translations of a legacy-linked event come from its concert.
+     */
     public record Event(
-            UUID id, String title, String description, String category, long draftVersion, List<Performance> performances) {}
+            UUID id, String title, String description, String category, long draftVersion, long contentVersion,
+            List<Performance> performances,
+            String posterUrl, Map<String, DiscoveryText> translations, String artistBio, String ageRating,
+            String refundPolicy) {
+        public Event withPerformances(List<Performance> value) {
+            return new Event(id, title, description, category, draftVersion, contentVersion, value, posterUrl, translations,
+                    artistBio, ageRating, refundPolicy);
+        }
+    }
 
     public record DiscoveryCard(UUID id, UUID eventId, String title, String venueName, OffsetDateTime eventDate,
                                 OffsetDateTime saleStartAt, OffsetDateTime saleEndAt, String status, String posterUrl,

@@ -195,10 +195,11 @@ def fixture_organizer(email):
     return account_id, request("POST", "/api/auth/login", body={"email": email, "password": password})["accessToken"]
 
 
-def schedule_publication(concert, manager, scope, admin, delay=6):
+def schedule_publication(concert, admin, delay=6):
     publish_at = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(seconds=delay)).isoformat()
-    path = f"/api/organizer/manage/concerts/{concert}/publication"
-    submitted = request("POST", path, manager, {"publishAt": publish_at}, headers=scope)
+    # Legacy concerts are read-only for organizers (OrganizerLegacyGuard), so Admin submits the request.
+    path = f"/api/admin/concerts/{concert}/publication"
+    submitted = request("POST", path, admin, {"publishAt": publish_at})
     revision = submitted["review"]["id"]
     decision = {"revision": revision, "decision": "APPROVE"}
     admin_path = f"/api/admin/concerts/{concert}/publication/decision"
@@ -224,21 +225,21 @@ def approve_performance_fixture(path, performance, event, sale, layout_version, 
                              for ack in ("ticketingAcknowledged", "checkinAcknowledged")), seconds=180)
 
 
-def set_fixture_sale_start(concert, manager, scope, event, seconds=15):
+def set_fixture_sale_start(concert, admin, event, seconds=15):
     event["saleStartAt"] = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(seconds=seconds)).isoformat()
-    request("PUT", f"/api/organizer/manage/concerts/{concert}", manager, event, headers=scope)
+    request("PUT", f"/api/admin/concerts/{concert}", admin, event)
 
 
 def verify_local_load(run_id, admin, manager, scope, event):
-    management = "/api/organizer/manage/concerts"
-    concert = request("POST", management, manager, {**event, "title": f"Local capacity {run_id}"},
-                      expected=(201,), headers=scope)["id"]
+    management = "/api/admin/concerts"
+    concert = request("POST", f"{management}?organizationId={scope['X-Organization-Id']}", admin,
+                      {**event, "title": f"Local capacity {run_id}"}, expected=(201,))["id"]
     shoppers, capacity = 8, 3
-    tiers = [request("POST", f"{management}/{concert}/ticket-types", manager, {
+    tiers = [request("POST", f"{management}/{concert}/ticket-types", admin, {
         "name": name, "price": 100000, "totalQuantity": stock, "maxPerAccount": 1, "zoneColor": "#123456",
-    }, expected=(201,), headers=scope)["id"] for name, stock in (("Race", capacity), ("Expiry", 2))]
-    set_fixture_sale_start(concert, manager, scope, {**event, "title": f"Local capacity {run_id}"})
-    schedule_publication(concert, manager, scope, admin)
+    }, expected=(201,))["id"] for name, stock in (("Race", capacity), ("Expiry", 2))]
+    set_fixture_sale_start(concert, admin, {**event, "title": f"Local capacity {run_id}"})
+    schedule_publication(concert, admin)
     until(lambda: request("GET", f"/api/concerts/{concert}")["id"] == concert)
     until(lambda: dt.datetime.fromisoformat(request("GET", f"/api/concerts/{concert}")["saleStartAt"]) <= dt.datetime.now(dt.timezone.utc))
 
@@ -390,12 +391,14 @@ def verify_event_disruption(run_id, admin, manager, scope, concert):
     public = f"/api/concerts/{concert}"
     admin_concert = f"/api/admin/concerts/{concert}"
     path = admin_concert + "/disruption"
-    tier = request("POST", management + "/ticket-types", manager, {
+    request("POST", management + "/ticket-types", manager, {"name": "GA", "price": 100000, "totalQuantity": 12,
+            "maxPerAccount": 4, "zoneColor": "#123456"}, expected=(403,), headers=scope)
+    tier = request("POST", admin_concert + "/ticket-types", admin, {
         "name": "GA", "price": 100000, "totalQuantity": 12, "maxPerAccount": 4, "zoneColor": "#123456",
-    }, expected=(201,), headers=scope)["id"]
+    }, expected=(201,))["id"]
     draft = request("GET", management, manager, headers=scope)
-    set_fixture_sale_start(concert, manager, scope, draft)
-    schedule_publication(concert, manager, scope, admin)
+    set_fixture_sale_start(concert, admin, draft)
+    schedule_publication(concert, admin)
     until(lambda: request("GET", public)["id"] == concert)
     until(lambda: dt.datetime.fromisoformat(request("GET", public)["saleStartAt"]) <= dt.datetime.now(dt.timezone.utc))
 
@@ -436,9 +439,10 @@ def verify_event_disruption(run_id, admin, manager, scope, concert):
     existing = request("GET", management, manager, headers=scope)
     metadata = {key: existing.get(key) for key in ("title", "venueName", "venueAddress", "eventDate",
                 "doorsOpenAt", "saleStartAt", "saleEndAt")}
-    request("PUT", management, manager, {**metadata, "description": "Updated metadata"}, headers=scope)
+    request("PUT", management, manager, {**metadata, "description": "Updated metadata"}, headers=scope,
+            expected=(403,))
+    request("PUT", admin_concert, admin, {**metadata, "description": "Updated metadata"})
     rescheduled = {**metadata, "eventDate": (now + dt.timedelta(days=8)).isoformat()}
-    request("PUT", management, manager, rescheduled, headers=scope, expected=(400,))
     request("PUT", admin_concert, admin, rescheduled, expected=(400,))
     postpone = {"actionId": str(uuid.uuid4()), "kind": "POSTPONE", "reason": "Isolated postponement fixture",
                 "eventDate": (now + dt.timedelta(days=8)).isoformat(), "saleStartAt": (now - dt.timedelta(minutes=1)).isoformat(),
@@ -524,7 +528,9 @@ def main(*, source_outage=True):
         "saleEndAt": (now + dt.timedelta(days=1)).isoformat(),
     }
     concerts = "/api/organizer/manage/concerts"
-    concert_id = request("POST", concerts, organizer, event, expected=(201,), headers=first_scope)["id"]
+    request("POST", concerts, organizer, event, expected=(403,), headers=first_scope)
+    concert_id = request("POST", f"/api/admin/concerts?organizationId={first_org}", admin, event,
+                         expected=(201,))["id"]
     second_concert = request("POST", f"/api/admin/concerts?organizationId={second_org}", admin, {
         **event, "title": f"Second concert {run_id}",
     }, expected=(201,))["id"]
@@ -544,15 +550,16 @@ def main(*, source_outage=True):
 
     assert request("GET", concerts + "?query=Second&size=1", organizer, headers=first_scope)["totalElements"] == 0
     assert request("GET", concerts + "?query=Second&size=1", organizer, headers=second_scope)["totalElements"] == 1
-    newer = request("POST", concerts, organizer, {**event, "title": f"Newer draft {run_id}"},
-                    expected=(201,), headers=first_scope)["id"]
+    newer = request("POST", f"/api/admin/concerts?organizationId={first_org}", admin,
+                    {**event, "title": f"Newer draft {run_id}"}, expected=(201,))["id"]
     assert request("GET", concerts + "?size=1", organizer, headers=first_scope)["content"][0]["id"] == newer
     matched = request("GET", concerts + "?query=First&size=1", organizer, headers=first_scope)
     assert matched["totalElements"] == 1 and matched["content"][0]["id"] == concert_id
     preview = f"{concerts}/{concert_id}/preview"
     translation = {"title": "Đêm nhạc", "description": "Thông tin sự kiện"}
     localized = {**event, "translations": {"vi": translation}}
-    request("PUT", f"{concerts}/{concert_id}", organizer, localized, headers=first_scope)
+    request("PUT", f"{concerts}/{concert_id}", organizer, localized, headers=first_scope, expected=(403,))
+    request("PUT", f"/api/admin/concerts/{concert_id}", admin, localized)
     assert request("GET", preview, organizer, headers=first_scope)["translations"]["vi"] == translation
     req = urllib.request.Request(BASE + preview, headers={**first_scope, "Authorization": "Bearer " + organizer})
     with urllib.request.urlopen(req, timeout=20) as response:
@@ -564,16 +571,17 @@ def main(*, source_outage=True):
     publication = f"{concerts}/{concert_id}/publication"
     readiness = request("GET", publication, organizer, headers=first_scope)
     assert readiness["status"] == "DRAFT" and readiness["issues"], readiness
-    request("POST", publication, organizer, {}, headers=first_scope, expected=(400,))
-    ticket_type = request("POST", f"{concerts}/{concert_id}/ticket-types", organizer, {
+    request("POST", publication, organizer, {}, headers=first_scope, expected=(403,))
+    request("POST", f"/api/admin/concerts/{concert_id}/publication", admin, {}, expected=(400,))
+    ticket_type = request("POST", f"/api/admin/concerts/{concert_id}/ticket-types", admin, {
         "name": "GA", "price": 100000, "totalQuantity": 20, "maxPerAccount": 4, "zoneColor": "#123456",
-    }, expected=(201,), headers=first_scope)
+    }, expected=(201,))
     type_id = ticket_type["id"]
-    request("PATCH", f"{concerts}/{concert_id}/status", organizer, {"status": "ON_SALE"},
-            headers=first_scope, expected=(400, 409))
-    set_fixture_sale_start(concert_id, organizer, first_scope, localized, seconds=25)
+    request("PATCH", f"/api/admin/concerts/{concert_id}/status", admin, {"status": "ON_SALE"},
+            expected=(400, 409))
+    set_fixture_sale_start(concert_id, admin, localized, seconds=25)
     event["saleStartAt"] = localized["saleStartAt"]
-    publish_at = schedule_publication(concert_id, organizer, first_scope, admin, delay=12)
+    publish_at = schedule_publication(concert_id, admin, delay=12)
     request("GET", public, expected=(404,))
     if source_outage:
         compose("stop", "ticketing", "checkin")
@@ -597,10 +605,9 @@ def main(*, source_outage=True):
     assert request("GET", public)["organizationName"] == f"First {run_id}"
     assert request("GET", public)["translations"]["vi"] == translation
     revised = {"title": "Đêm nhạc cập nhật", "description": "Mô tả cập nhật"}
-    request("PUT", f"{concerts}/{concert_id}", organizer,
-            {**event, "translations": {"vi": revised}}, headers=first_scope)
+    request("PUT", f"/api/admin/concerts/{concert_id}", admin, {**event, "translations": {"vi": revised}})
     assert request("GET", public).get("translations", {}).get("vi") == translation
-    schedule_publication(concert_id, organizer, first_scope, admin)
+    schedule_publication(concert_id, admin)
     assert until(lambda: request("GET", public).get("translations", {}).get("vi") == revised)
     until(lambda: dt.datetime.fromisoformat(event["saleStartAt"]) <= dt.datetime.now(dt.timezone.utc))
     assert until(lambda: any(item["id"] == concert_id and item.get("translations", {}).get("vi") == revised
@@ -647,7 +654,9 @@ def main(*, source_outage=True):
     request("GET", f"{orders}/{order_id}", organizer, expected=(404,), headers=second_scope)
     assert request("GET", orders, organizer, headers=second_scope) == []
     request("PATCH", f"{concerts}/{concert_id}/status", organizer, {"status": "CANCELLED"},
-            headers=first_scope, expected=(400, 409))
+            headers=first_scope, expected=(403,))
+    request("PATCH", f"/api/admin/concerts/{concert_id}/status", admin, {"status": "CANCELLED"},
+            expected=(400, 409))
     assert request("GET", public)["status"] == "ON_SALE"
     job=upload(f"/api/admin/concerts/{concert_id}/artist-bio-jobs",admin,"press-kit.pdf",press_kit(),"application/pdf")
     completed=until(lambda:(lambda value:value if value["status"]=="DONE" else None)(
@@ -657,11 +666,11 @@ def main(*, source_outage=True):
     request("POST",f"/api/admin/artist-bio-jobs/{job['jobId']}/apply",admin,
             {"artistBio":completed["resultBio"]})
     assert request("GET", public).get("artistBio") == current_bio
-    schedule_publication(concert_id, organizer, first_scope, admin)
+    schedule_publication(concert_id, admin)
     until(lambda: request("GET", public).get("artistBio") == completed["resultBio"])
     check("Catalog owns PDF extraction, AI processing and publication of the approved revision")
 
-    request("PATCH", f"{concerts}/{concert_id}/status", organizer, {"status": "COMPLETED"}, headers=first_scope)
+    request("PATCH", f"/api/admin/concerts/{concert_id}/status", admin, {"status": "COMPLETED"})
     request("GET", f"/api/organizer/concerts/{concert_id}/revenue-summary", organizer, headers=first_scope)
     request("GET", f"/api/organizer/concerts/{concert_id}/revenue-summary", organizer,
             expected=(404,), headers=second_scope)

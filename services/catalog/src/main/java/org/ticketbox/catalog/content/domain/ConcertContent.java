@@ -1,4 +1,4 @@
-package org.ticketbox.catalog.concert.domain;
+package org.ticketbox.catalog.content.domain;
 
 import org.ticketbox.catalog.domain.DomainViolation;
 
@@ -14,7 +14,7 @@ public record ConcertContent(ConcertText original, Map<String, ConcertText> tran
         translations = Map.copyOf(translations);
     }
 
-    ConcertContent update(ConcertText originalEdit, Map<String, ConcertText> translationEdits) {
+    public ConcertContent update(ConcertText originalEdit, Map<String, ConcertText> translationEdits) {
         var updated = new HashMap<>(translations);
         if (translationEdits != null) {
             translationEdits.forEach((language, edit) -> {
@@ -22,17 +22,17 @@ public record ConcertContent(ConcertText original, Map<String, ConcertText> tran
                     throw new DomainViolation("VALIDATION_FAILED", "validation.concert.translation-language");
                 }
                 ConcertText text = edit == null ? null : ConcertText.authored(edit.title(), edit.description());
-                if (text == null || text.isEmpty()) updated.remove(language);
+                if (text == null || text.hasNoText()) updated.remove(language);
                 else updated.put(language, text);
             });
         }
         ConcertText source = originalEdit == null
                 ? original
                 : ConcertText.authored(originalEdit.title(), originalEdit.description());
-        return new ConcertContent(source == null || source.isEmpty() ? null : source, updated);
+        return new ConcertContent(source == null || source.hasNoText() ? null : source, updated);
     }
 
-    String compatibilityText(Function<ConcertText, String> field) {
+    public String compatibilityText(Function<ConcertText, String> field) {
         String value = original == null ? null : field.apply(original);
         if (value != null) return value;
         for (String language : LANGUAGES) {

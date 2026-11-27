@@ -14,6 +14,7 @@ import org.ticketbox.catalog.artistbio.application.port.TextLimits;
 import org.ticketbox.catalog.artistbio.domain.ArtistPdfJob;
 import org.ticketbox.catalog.concert.application.port.ConcertArtistBioPort;
 import org.ticketbox.catalog.concert.application.port.ConcertArtistBioView;
+import org.ticketbox.catalog.performance.application.EventArtistBioPort;
 
 import java.nio.file.Path;
 import java.util.UUID;
@@ -30,6 +31,7 @@ public class ArtistBioJobProcessor {
     private final ArtistBioTextCleaner textCleaner;
     private final ArtistBioGenerators generatorResolver;
     private final ConcertArtistBioPort concertPort;
+    private final EventArtistBioPort eventPort;
     private final TextLimits properties;
     private final TransactionTemplate transactionTemplate;
     private final ArtistBioMessages messages;
@@ -41,6 +43,7 @@ public class ArtistBioJobProcessor {
             ArtistBioTextCleaner textCleaner,
             ArtistBioGenerators generatorResolver,
             ConcertArtistBioPort concertPort,
+            EventArtistBioPort eventPort,
             TextLimits properties,
             TransactionTemplate transactionTemplate,
             ArtistBioMessages messages) {
@@ -50,6 +53,7 @@ public class ArtistBioJobProcessor {
         this.textCleaner = textCleaner;
         this.generatorResolver = generatorResolver;
         this.concertPort = concertPort;
+        this.eventPort = eventPort;
         this.properties = properties;
         this.transactionTemplate = transactionTemplate;
         this.messages = messages;
@@ -71,12 +75,15 @@ public class ArtistBioJobProcessor {
                         ErrorCode.INVALID_REQUEST, "PDF contains no usable text after cleaning");
             }
 
-            ConcertArtistBioView concert = concertPort.requireConcert(job.concertId());
+            String subjectTitle =
+                    job.eventId() != null
+                            ? eventPort.requireEvent(job.eventId()).title()
+                            : concertPort.requireConcert(job.concertId()).title();
             ArtistBioGenerator generator = generatorResolver.resolve();
             ArtistBioGenerationResult generated =
                     generator.generate(
                             new ArtistBioGenerationRequest(
-                                    concert.title(), cleaned, "Vietnamese", DESIRED_BIO_WORDS));
+                                    subjectTitle, cleaned, "Vietnamese", DESIRED_BIO_WORDS));
             String sanitized = textCleaner.sanitizeGeneratedBio(generated.bio());
             if (sanitized.isBlank()) {
                 throw new AppException(
@@ -105,7 +112,7 @@ public class ArtistBioJobProcessor {
                     job.startProcessing();
                     jobRepository.save(job);
                     return new ProcessingJob(
-                            job.getConcertId(), job.getFileUrl(), job.getStartedAt());
+                            job.getConcertId(), job.getEventId(), job.getFileUrl(), job.getStartedAt());
                 });
     }
 
@@ -169,5 +176,5 @@ public class ArtistBioJobProcessor {
     }
 
     private record ProcessingJob(
-            UUID concertId, String fileUrl, java.time.OffsetDateTime startedAt) {}
+            UUID concertId, UUID eventId, String fileUrl, java.time.OffsetDateTime startedAt) {}
 }

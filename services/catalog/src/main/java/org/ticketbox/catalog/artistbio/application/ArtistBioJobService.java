@@ -19,6 +19,8 @@ import org.ticketbox.catalog.artistbio.application.port.ArtistPdfJobRepository;
 import org.ticketbox.catalog.artistbio.application.port.StoredArtistPdf;
 import org.ticketbox.catalog.artistbio.domain.ArtistPdfJob;
 import org.ticketbox.catalog.concert.application.port.ConcertArtistBioPort;
+import org.ticketbox.catalog.performance.application.EventArtistBioPort;
+import org.ticketbox.catalog.performance.application.EventBioCleanup;
 
 import java.nio.file.Path;
 import java.time.Duration;
@@ -27,7 +29,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
-public class ArtistBioJobService {
+public class ArtistBioJobService implements EventBioCleanup {
 
     private static final List<ArtistPdfJob.Status> DEDUPLICATED_STATUSES =
             List.of(
@@ -38,8 +40,12 @@ public class ArtistBioJobService {
     private final ArtistPdfJobRepository jobRepository;
     private final ArtistDocuments fileStorage;
     private final ConcertArtistBioPort concertPort;
+    private final EventArtistBioPort eventPort;
     private final ApplicationEventPublisher eventPublisher;
     private final ArtistBioMessages messages;
+
+    @Value("${ticketbox.organizer-legacy-read-only:true}")
+    private boolean organizerLegacyReadOnly = true;
 
     @Value("${ticketbox.ai.recovery.pending-after:PT30S}")
     private Duration pendingRecoveryAfter = Duration.ofSeconds(30);
@@ -51,13 +57,28 @@ public class ArtistBioJobService {
             ArtistPdfJobRepository jobRepository,
             ArtistDocuments fileStorage,
             ConcertArtistBioPort concertPort,
+            EventArtistBioPort eventPort,
             ApplicationEventPublisher eventPublisher,
             ArtistBioMessages messages) {
         this.jobRepository = jobRepository;
         this.fileStorage = fileStorage;
         this.concertPort = concertPort;
+        this.eventPort = eventPort;
         this.eventPublisher = eventPublisher;
         this.messages = messages;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Runnable documentsRemoval(UUID eventId) {
+        List<String> paths = jobRepository.findByEventId(eventId).stream().map(ArtistPdfJob::getFileUrl).toList();
+        return () -> paths.forEach(path -> {
+            try {
+                fileStorage.deleteQuietly(fileStorage.requireStoredPath(path));
+            } catch (AppException ignored) {
+                // A path outside the storage root is never touched.
+            }
+        });
     }
 
     @Transactional(readOnly = true)
@@ -75,7 +96,18 @@ public class ArtistBioJobService {
         }
         return jobRepository
                 .search(concertId, accessible, status, pageable)
-                .map(ArtistBioJobResponse::from);
+                .map(job -> {
+                    var response = ArtistBioJobResponse.from(job);
+                    return job.getEventId() == null ? response : response.withEventTitle(eventTitle(job.getEventId()));
+                });
+    }
+
+    private String eventTitle(UUID eventId) {
+        try {
+            return eventPort.requireEvent(eventId).title();
+        } catch (AppException missing) {
+            return null;
+        }
     }
 
     @Transactional
@@ -110,24 +142,68 @@ public class ArtistBioJobService {
         }
     }
 
+    @Transactional
+    public ArtistPdfJob submitForEvent(
+            UUID eventId, Upload file, UUID actorId, UUID organizationId, boolean admin) {
+        eventPort.requireAccessibleEvent(eventId, organizationId, admin);
+
+        StoredArtistPdf stored = fileStorage.storeForEvent(eventId, file);
+        try {
+            ArtistPdfJob duplicate =
+                    jobRepository
+                            .findFirstByEventIdAndFileChecksumAndStatusInOrderByCreatedAtDesc(
+                                    eventId, stored.checksum(), DEDUPLICATED_STATUSES)
+                            .orElse(null);
+            if (duplicate != null) {
+                fileStorage.deleteQuietly(stored.path());
+                return duplicate;
+            }
+            ArtistPdfJob saved =
+                    jobRepository.save(
+                            ArtistPdfJob.forEvent(
+                                    eventId,
+                                    stored.path().toString(),
+                                    stored.originalFileName(),
+                                    actorId,
+                                    stored.checksum()));
+            eventPublisher.publishEvent(new ArtistBioJobSubmittedEvent(saved.getId()));
+            return saved;
+        } catch (RuntimeException ex) {
+            fileStorage.deleteQuietly(stored.path());
+            throw ex;
+        }
+    }
+
+    /** Access check for a job of either kind; legacy jobs are read-only for organizers when `write`. */
+    private void requireAccessible(ArtistPdfJob job, UUID requesterId, boolean admin, boolean write) {
+        if (job.getEventId() != null) {
+            eventPort.requireAccessibleEvent(job.getEventId(), requesterId, admin);
+            return;
+        }
+        if (write && !admin && organizerLegacyReadOnly) {
+            throw new AppException(ErrorCode.UNAUTHORIZED, "error.concert.organizer-legacy-read-only");
+        }
+        concertPort.requireAccessibleConcert(job.getConcertId(), requesterId, admin);
+    }
+
     @Transactional(readOnly = true)
     public ArtistBioJobResponse get(UUID jobId, UUID requesterId, boolean admin) {
         ArtistPdfJob job = requireJob(jobId);
-        concertPort.requireAccessibleConcert(job.getConcertId(), requesterId, admin);
+        requireAccessible(job, requesterId, admin, false);
         return ArtistBioJobResponse.from(job);
     }
 
     @Transactional
     public void delete(UUID jobId, UUID requesterId, boolean admin) {
         ArtistPdfJob job = requireJob(jobId);
-        concertPort.requireAccessibleConcert(job.getConcertId(), requesterId, admin);
+        requireAccessible(job, requesterId, admin, true);
         jobRepository.delete(job);
     }
 
     @Transactional
     public ArtistPdfJob retry(UUID jobId, UUID requesterId, boolean admin) {
         ArtistPdfJob job = requireJob(jobId);
-        concertPort.requireAccessibleConcert(job.getConcertId(), requesterId, admin);
+        requireAccessible(job, requesterId, admin, true);
         if (job.getStatus() != ArtistPdfJob.Status.FAILED) {
             throw new AppException(
                     ErrorCode.ARTIST_BIO_JOB_NOT_READY, "error.artist-bio.retry-requires-failure");
@@ -146,15 +222,20 @@ public class ArtistBioJobService {
     public ArtistBioJobResponse apply(
             UUID jobId, UUID actorId, UUID organizationId, boolean admin, boolean overwrite) {
         ArtistPdfJob job = requireJob(jobId);
-        concertPort.requireAccessibleConcert(job.getConcertId(), organizationId, admin);
+        requireAccessible(job, organizationId, admin, true);
         if (job.getStatus() != ArtistPdfJob.Status.DONE
                 || job.getResultBio() == null
                 || job.getResultBio().isBlank()) {
             throw new AppException(
                     ErrorCode.ARTIST_BIO_JOB_NOT_READY, "error.artist-bio.must-complete");
         }
-        concertPort.applyArtistBio(
-                job.getConcertId(), job.getResultBio(), organizationId, admin, overwrite);
+        if (job.getEventId() != null) {
+            eventPort.applyArtistBio(
+                    job.getEventId(), job.getResultBio(), organizationId, admin, overwrite);
+        } else {
+            concertPort.applyArtistBio(
+                    job.getConcertId(), job.getResultBio(), organizationId, admin, overwrite);
+        }
         job.markApplied(actorId);
         return ArtistBioJobResponse.from(jobRepository.save(job));
     }

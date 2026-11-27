@@ -1,6 +1,13 @@
 import { api, apiGet } from './client';
-import type { Page } from './concerts';
-import type { EventDetails, Layout, MapSection, Performance, SectionKind } from './performances';
+import type { ConcertTranslations, Page } from './concerts';
+import type {
+  AgeRating,
+  EventDetails,
+  Layout,
+  MapSection,
+  Performance,
+  SectionKind,
+} from './performances';
 import type { PublicationReview, ReviewDecision } from './publication';
 
 const root = '/api/organizer/manage/v2';
@@ -28,7 +35,10 @@ export type ManagedPerformance = Performance & {
 };
 export type ManagedEvent = Omit<EventDetails, 'performances'> & {
   category?: string | null;
+  /** Token of the publication review; moves when the title or description changes. */
   draftVersion: number;
+  /** Optimistic lock of the content editors. */
+  contentVersion: number;
   performances: ManagedPerformance[];
 };
 export type DraftLayout = Omit<Layout, 'version' | 'sections'> & { sections: MapSection[] };
@@ -93,7 +103,15 @@ export const decidePerformanceReview = (
   action: ReviewDecision | 'HOLD',
   reason: string,
 ) => api.post<unknown, PerformanceReview>(reviewPath + '/' + key(id), { revision, action, reason });
-export type EventInput = { title: string; description: string; category: string | null };
+export type EventContentInput = {
+  title: string;
+  description: string;
+  translations: ConcertTranslations;
+  artistBio: string;
+  ageRating: AgeRating | null;
+  refundPolicy: string;
+};
+export type EventInput = EventContentInput & { category: string | null };
 type VenueInput = { name: string; address: string; spaceName: string };
 export type PerformanceInput = Pick<
   ManagedPerformance,
@@ -114,8 +132,12 @@ export const getManagedEvent = (id: string, signal?: AbortSignal) =>
   apiGet<ManagedEvent>(eventPath(id), signal);
 export const createManagedEvent = (body: EventInput) =>
   api.post<unknown, ManagedEvent>(events, body);
-export const updateManagedEvent = (id: string, expectedDraftVersion: number, body: EventInput) =>
-  api.put<unknown, ManagedEvent>(eventPath(id), { ...body, expectedDraftVersion });
+export const updateManagedEvent = (id: string, expectedContentVersion: number, body: EventInput) =>
+  api.put<unknown, ManagedEvent>(eventPath(id), { ...body, expectedContentVersion });
+export const deleteDraftPerformance = (id: string, expectedDraftVersion: number) =>
+  api.delete<unknown, void>(performance(id) + '?expectedDraftVersion=' + expectedDraftVersion);
+export const deleteDraftEvent = (id: string, expectedDraftVersion: number) =>
+  api.delete<unknown, void>(eventPath(id) + '?expectedDraftVersion=' + expectedDraftVersion);
 export const listVenues = (signal?: AbortSignal) => apiGet<Venue[]>(venues, signal);
 export const createVenue = (body: VenueInput) => api.post<unknown, Venue>(venues, body);
 export const createPerformance = (eventId: string, body: PerformanceInput) =>

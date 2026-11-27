@@ -75,6 +75,7 @@ class PerformanceCatalogIntegrationTest {
     private static TransactionTemplate transaction;
     private static ObjectMapper json;
     private static PerformanceCatalog catalog;
+    private static org.ticketbox.catalog.performance.application.EventContentService content;
     private static PerformancePublicationReview reviews;
     private static MockMvc organizer;
     private static MockMvc publicCatalog;
@@ -92,8 +93,11 @@ class PerformanceCatalogIntegrationTest {
         json = new ObjectMapper().findAndRegisterModules().disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         var store = new JdbcPerformanceStore(jdbc, json);
         catalog = new PerformanceCatalog(store, "*");
+        content = new org.ticketbox.catalog.performance.application.EventContentService(
+                store, new org.ticketbox.catalog.performance.infrastructure.JdbcEventContentStore(jdbc, json),
+                new org.ticketbox.catalog.performance.EventContentIntegrationTest.FakePosters(), catalog);
         reviews = new PerformancePublicationReview(store, new JdbcPerformanceReviewStore(jdbc, json), catalog);
-        organizer = MockMvcBuilders.standaloneSetup(new OrganizerPerformanceController(catalog, reviews), new PerformanceOperationsController(catalog),
+        organizer = MockMvcBuilders.standaloneSetup(new OrganizerPerformanceController(catalog, reviews, content), new PerformanceOperationsController(catalog),
                 new org.ticketbox.catalog.performance.web.LegacyConcertCategoryController(catalog))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setMessageConverters(new MappingJackson2HttpMessageConverter(json))
@@ -330,7 +334,7 @@ class PerformanceCatalogIntegrationTest {
     void revisesEventDraftInPlaceAndRejectsStaleEditors() {
         var draft = newPerformance(3);
         var update = json.createObjectNode().put("title", "Third night").put("category", "concerts")
-                .put("expectedDraftVersion", 0);
+                .put("expectedContentVersion", 0);
         var path = ORGANIZER + "/events/" + event;
         organizerRequest(MockMvcRequestBuilders.put(path), UUID.randomUUID(), update, 404);
         var revised = organizerRequest(MockMvcRequestBuilders.put(path), owner, update, 200);
@@ -402,7 +406,7 @@ class PerformanceCatalogIntegrationTest {
         var draft = newPerformance(3);
         tx(() -> catalog.saveSale(owner, owner, draft.id(), 0, maplessSale(draft.saleStartAt(), draft.saleEndAt())));
         var eventPath = ORGANIZER + "/events/" + event;
-        var eventUpdate = json.createObjectNode().put("title", "Ready to publish").put("expectedDraftVersion", 0);
+        var eventUpdate = json.createObjectNode().put("title", "Ready to publish").put("expectedContentVersion", 0);
         organizerRequest(MockMvcRequestBuilders.put(eventPath), owner, eventUpdate, 200);
         var schedulePath = ORGANIZER + "/performances/" + draft.id() + "/schedule";
         var schedule = json.<ObjectNode>valueToTree(new PerformanceCatalog.Schedule(space, draft.startsAt(),
@@ -428,8 +432,98 @@ class PerformanceCatalogIntegrationTest {
         tx(() -> { reviews.release(draft.id()); return null; });
         assertThat(tx(() -> catalog.publication(owner, draft.id())).status()).isEqualTo("ON_SALE");
         assertThat(tx(() -> catalog.publication(owner, draft.id())).ticketingAcknowledged()).isFalse();
-        organizerRequest(MockMvcRequestBuilders.put(eventPath), owner, eventUpdate.put("expectedDraftVersion", 1), 400);
+        organizerRequest(MockMvcRequestBuilders.put(eventPath), owner, eventUpdate.put("expectedContentVersion", 1), 400);
         organizerRequest(MockMvcRequestBuilders.put(schedulePath), owner, schedule.put("expectedDraftVersion", 1), 400);
+    }
+
+    private UUID approvedReview(org.ticketbox.catalog.performance.application.PerformanceViews.Performance draft) {
+        tx(() -> catalog.saveSale(owner, owner, draft.id(), 0, maplessSale(draft.saleStartAt(), draft.saleEndAt())));
+        var current = catalog.event(event, owner);
+        var versions = new org.ticketbox.catalog.performance.application.PerformanceReviewStore.Versions(
+                1, 0, current.draftVersion(), draft.draftVersion());
+        var submitted = tx(() -> reviews.submit(owner, owner, draft.id(), versions,
+                OffsetDateTime.now(ZoneOffset.UTC).plusHours(1)));
+        UUID revision = submitted.review().id();
+        tx(() -> reviews.decide(draft.id(), revision, UUID.randomUUID(), Action.APPROVE, null));
+        jdbc.update("UPDATE performance_publication_reviews SET publish_at=clock_timestamp()-interval '1 second' WHERE id=?",
+                revision);
+        return revision;
+    }
+
+    private String reviewState(UUID performance) {
+        return tx(() -> reviews.status(owner, performance)).review().state().name();
+    }
+
+    @Test
+    void approvingAContentRevisionKeepsAScheduledReleaseAndResyncsTheTitleOfReleasedShows() {
+        var first = newPerformance(3);
+        var second = newPerformance(4);
+        tx(() -> catalog.saveSale(owner, owner, first.id(), 0, maplessSale(first.saleStartAt(), first.saleEndAt())));
+        tx(() -> catalog.publish(owner, owner, first.id(), 1L, 0L, null, null));
+        approvedReview(second);
+        long draftVersion = catalog.event(event, owner).draftVersion();
+
+        var input = new org.ticketbox.catalog.performance.application.EventContentService.Input(
+                "Renamed show", "New text", null, java.util.Map.of(), null, null, null);
+        tx(() -> content.stage(owner, event, 0L, input));
+        tx(() -> content.submit(owner, owner, event, 1L));
+        tx(() -> content.decide(UUID.randomUUID(), event,
+                org.ticketbox.catalog.performance.domain.EventContentRevision.Action.APPROVE, null, 1));
+
+        assertThat(catalog.event(event, owner).title()).isEqualTo("Renamed show");
+        assertThat(catalog.event(event, owner).draftVersion()).isEqualTo(draftVersion);
+        assertThat(reviewState(second.id())).isEqualTo("SCHEDULED");
+        tx(() -> { reviews.release(second.id()); return null; });
+        assertThat(tx(() -> catalog.publication(owner, second.id())).status()).isEqualTo("ON_SALE");
+        assertThat(reviewState(second.id())).isEqualTo("RELEASED");
+
+        // The released show got a new snapshot version carrying the approved title.
+        var versions = jdbc.queryForList("SELECT version FROM performance_sale_publications WHERE performance_id=? ORDER BY version",
+                Long.class, first.id());
+        assertThat(versions).containsExactly(2L, 3L);
+        assertThat(jdbc.queryForObject("SELECT payload->>'title' FROM performance_sale_publications WHERE performance_id=? AND version=3",
+                String.class, first.id())).isEqualTo("Renamed show");
+        assertThat(tx(() -> catalog.publication(owner, first.id())).saleVersion()).isEqualTo(3);
+    }
+
+    @Test
+    void everyPreReleaseContentWriteSupersedesAPendingReview() {
+        var plain = newPerformance(3);
+        approvedReview(plain);
+        var event0 = catalog.event(event, owner);
+        var bio = new org.ticketbox.catalog.performance.application.EventContentService.Input(
+                event0.title(), event0.description(), "concerts", java.util.Map.of(), "A bio", "ALL", null);
+        var after = tx(() -> content.updateDraft(owner, event, event0.contentVersion(), bio));
+        assertThat(after.draftVersion()).isEqualTo(event0.draftVersion() + 1);
+        tx(() -> { reviews.release(plain.id()); return null; });
+        assertThat(reviewState(plain.id())).isEqualTo("SUPERSEDED");
+    }
+
+    @Test
+    void aPreReleasePosterChangeSupersedesAPendingReview() {
+        var show = newPerformance(3);
+        approvedReview(show);
+        var event0 = catalog.event(event, owner);
+        var upload = new org.ticketbox.catalog.support.TestUpload("file", "poster.png", "image/png", new byte[] {1});
+        var after = tx(() -> content.replacePoster(owner, event, event0.contentVersion(), null, upload)).event();
+        assertThat(after.draftVersion()).isEqualTo(event0.draftVersion() + 1);
+        tx(() -> { reviews.release(show.id()); return null; });
+        assertThat(reviewState(show.id())).isEqualTo("SUPERSEDED");
+    }
+
+    @Test
+    void aPreReleaseTitleChangeSupersedesAPendingReview() {
+        var show = newPerformance(3);
+        UUID review = approvedReview(show);
+        var event0 = catalog.event(event, owner);
+        var renamed = new org.ticketbox.catalog.performance.application.EventContentService.Input(
+                "Another title", event0.description(), "concerts", java.util.Map.of(), null, null, null);
+        var after = tx(() -> content.updateDraft(owner, event, event0.contentVersion(), renamed));
+        assertThat(after.draftVersion()).isEqualTo(event0.draftVersion() + 1);
+        tx(() -> { reviews.release(show.id()); return null; });
+        assertThat(reviewState(show.id())).isEqualTo("SUPERSEDED");
+        assertThat(tx(() -> catalog.publication(owner, show.id())).status()).isEqualTo("DRAFT");
+        assertThat(review).isNotNull();
     }
 
     private static com.fasterxml.jackson.databind.JsonNode organizerRequest(

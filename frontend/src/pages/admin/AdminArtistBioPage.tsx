@@ -466,7 +466,7 @@ export function AdminArtistBioPage({ apiScope = 'admin' }: { apiScope?: Manageme
           {latestJob ? (
             <JobSnapshot
               job={latestJob}
-              concertTitle={concertMap.get(latestJob.concertId)?.title}
+              concertTitle={concertMap.get(latestJob.concertId ?? '')?.title}
               onOpen={() => void openDetail(latestJob)}
             />
           ) : (
@@ -567,7 +567,9 @@ export function AdminArtistBioPage({ apiScope = 'admin' }: { apiScope?: Manageme
                       </td>
                       <td>
                         <strong className="admin-table-primary">
-                          {concertMap.get(job.concertId)?.title ??
+                          {(job.eventId
+                            ? job.eventTitle
+                            : concertMap.get(job.concertId ?? '')?.title) ??
                             translate('admin:adminArtistBioPage_concertKhongXacDinh')}
                         </strong>
                       </td>
@@ -660,7 +662,7 @@ export function AdminArtistBioPage({ apiScope = 'admin' }: { apiScope?: Manageme
       {selectedJob ? (
         <ArtistBioReviewDialog
           job={selectedJob}
-          concert={concertMap.get(selectedJob.concertId)}
+          concert={concertMap.get(selectedJob.concertId ?? '')}
           loading={detailLoading}
           retrying={retrying}
           onRetry={() => void retryJob(selectedJob)}

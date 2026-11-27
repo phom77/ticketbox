@@ -21,6 +21,9 @@ public class ArtistPdfJob extends BaseEntity {
 
     private UUID concertId;
 
+    /** Set instead of concertId for jobs of a native event. */
+    private UUID eventId;
+
     private String fileUrl;
 
     private String originalFileName;
@@ -61,6 +64,13 @@ public class ArtistPdfJob extends BaseEntity {
         this.requestedBy = requestedBy;
         this.fileChecksum = fileChecksum;
         this.status = Status.PENDING;
+    }
+
+    public static ArtistPdfJob forEvent(
+            UUID eventId, String fileUrl, String originalFileName, UUID requestedBy, String fileChecksum) {
+        ArtistPdfJob job = new ArtistPdfJob(null, fileUrl, originalFileName, requestedBy, fileChecksum);
+        job.eventId = eventId;
+        return job;
     }
 
     public void startProcessing() {
