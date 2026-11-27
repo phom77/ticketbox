@@ -95,6 +95,14 @@
       "domain-rules": {
         "org.ticketbox.checkin.admission.domain.AdmissionRulesTest": []
       },
+      "scoped-admission": {
+        "org.ticketbox.checkin.integration.ScopedCheckinIntegrationTest": [
+          "organizerSeesGateCountsGuestsAndAdmissionsWithoutCredentials",
+          "staffResponsesKeepTheShapesTheScannerReads",
+          "revokedStaffLosesEveryScopedRouteOnTheNextRequest",
+          "scopedScansRejectAnotherNightAndReconcileExactlyOneOfflineAdmission"
+        ]
+      },
       "persistence-mapping": {
         "org.ticketbox.checkin.persistence.CheckinPersistenceIntegrationTest": []
       }

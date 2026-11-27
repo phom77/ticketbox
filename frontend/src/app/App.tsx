@@ -1,5 +1,4 @@
 import { EventDetailPage } from '../pages/public/EventDetailPage';
-import { translate } from '../i18n';
 import { useTranslation } from 'react-i18next';
 import {
   OrganizationProvider,
@@ -44,6 +43,22 @@ import {
 
 // Admin and Organizer workspace pages load on demand, so buyer pages do not
 // download them. OperationsLayout shows their loading and failure states.
+const StaffOverviewPage = lazyNamed(
+  () => import('../pages/staff/StaffOverviewPage'),
+  'StaffOverviewPage',
+);
+const StaffCheckInPage = lazyNamed(
+  () => import('../pages/staff/StaffCheckInPage'),
+  'StaffCheckInPage',
+);
+const StaffGuestsPage = lazyNamed(
+  () => import('../pages/staff/StaffGuestsPage'),
+  'StaffGuestsPage',
+);
+const StaffHistoryPage = lazyNamed(
+  () => import('../pages/staff/StaffHistoryPage'),
+  'StaffHistoryPage',
+);
 const PerformanceOperationsPage = lazyNamed(
   () => import('../pages/admin/PerformanceOperationsPage'),
   'PerformanceOperationsPage',
@@ -364,18 +379,21 @@ export function App() {
               <Route path="settings" element={<OrganizationSettingsPage />} />
             </Route>
             <Route
-              path="/staff/*"
+              path="/staff"
               element={
                 <ProtectedRoute allowedRoles={['STAFF']}>
-                  <main className="route-forbidden page-width">
-                    <div className="state-panel" role="status">
-                      <h1>{translate('shared:app_soatVeChuaMo')}</h1>
-                      <p>{translate('shared:app_tinhNangSeMoCungPhienBan')}</p>
-                    </div>
-                  </main>
+                  <OrganizationProvider>
+                    <OperationsLayout mode="staff" />
+                  </OrganizationProvider>
                 </ProtectedRoute>
               }
-            />
+            >
+              <Route index element={<StaffOverviewPage />} />
+              <Route path="check-in" element={<StaffCheckInPage />} />
+              <Route path="guests" element={<StaffGuestsPage />} />
+              <Route path="history" element={<StaffHistoryPage />} />
+              <Route path="*" element={<Navigate to="/staff" replace />} />
+            </Route>
           </Routes>
         </BrowserRouter>
       </ToastProvider>

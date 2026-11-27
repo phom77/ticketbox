@@ -265,3 +265,7 @@ Add new Flyway migrations to the owning application's migration directory. Keep 
 Python acceptance scripts under `scripts/e2e/` exercise the six-service topology. Use an isolated `E2E_PROJECT` and `E2E_PORT`, or use the PowerShell E2E entry point.
 
 Phase 5–6: see [replication and partitioning lab](lab-replication-partitioning.md) for the `compose.lab.yaml` override, acceptance commands, switchover and benchmark evidence.
+
+## Web staff check-in
+
+Staff accounts (role `STAFF`, `ADMISSION` in the selected organization, active assignment) use `/staff`, `/staff/check-in`, `/staff/guests` and `/staff/history`. The pages call only `/api/v2/staff/performances`, the routes the Android scanner uses, and never `checkin-dataset` or `sync`. The web app is a desk and backup tool: it is online only, never queues scans, and shows "Allowed in" only after Check-in confirms. Live camera scanning needs `getUserMedia` and `BarcodeDetector` (Chromium browsers); manual entry and image upload always work. Organizers with `EVENTS` see a Check-in panel in each released performance (refreshed every 15 seconds while visible). Verify with `npm --prefix frontend test` and `scripts/mvnw-docker.sh -B -ntp -f services/checkin/pom.xml verify`.
