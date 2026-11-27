@@ -1,6 +1,6 @@
 # ADR 0007: Organization profile ownership and settlement statements
 
-- **Status:** Proposed (organizer-settings-and-statements)
+- **Status:** Accepted (organizer-settings-and-statements, approved by the product owner on 2026-11-27)
 - **Date:** 2026-11-27
 
 ## Context

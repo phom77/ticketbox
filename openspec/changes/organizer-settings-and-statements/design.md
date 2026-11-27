@@ -212,3 +212,15 @@ settlement_statement_lines(statement_id FK, kind CHECK IN ('PERFORMANCE','OFFER'
 2. **Are statements issued, numbered and immutable with revisions, or rendered live on every download?** Recommended: issued and immutable, with superseding revisions. Reason: finance teams need a document whose figures do not change after they have filed it, and the out-of-date flag still surfaces late refunds.
 3. **Where are organization logos stored?** Recommended: Identity gets its own Cloudinary adapter, using the same account in a separate folder. Reason: it keeps profile data and its images in the owning service with no cross-service upload path, and it reuses the operational setup Catalog already has.
 4. **Who edits statement details (legal name, tax code, billing address)?** Recommended: members with `MEMBERS` or `FINANCE`; the rest of the profile needs `MEMBERS`. Reason: finance staff own the legal details printed on statements but should not need member-management rights to fix them.
+
+## Decisions confirmed by the product owner (2026-11-27)
+
+The product owner accepted the recommended answer to every open question:
+
+- The organization display name stays Admin-controlled.
+- Statements are issued, numbered and immutable, with superseding revisions.
+- Identity stores logos in its own Cloudinary folder.
+- Statement details are editable by `MEMBERS` or `FINANCE`. The rest of the profile is editable by `MEMBERS`.
+- The organization reporting timezone is used by sales reports.
+- ADR 0007 is accepted.
+- Migration numbers: Identity `V12`, Ticketing `V24`.

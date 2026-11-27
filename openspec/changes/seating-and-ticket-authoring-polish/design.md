@@ -115,3 +115,13 @@
 2. **Add ticket type descriptions now, through the snapshot to Ticketing?** Recommended: yes. *Reason: additive optional field, buyers read ticket details from the same availability response, and perks are a common request.*
 3. **Add a minimum quantity per order, enforced by Ticketing on holds?** Recommended: yes, as a validation-only check before any stock change. *Reason: enables pair and group tickets cheaply without touching stock, locking, quota or order transactions.*
 4. **Scope of the large-map work: finish task 5.2 and only the map-rendering part of task 6.3 here, leaving concurrent hold/checkout load and staging (6.3 remainder, 6.4) in redesign-concert-and-seating?** Recommended: yes. *Reason: concurrency and staging acceptance need a staging environment and merchant setup that this change cannot provide.*
+
+## Decisions confirmed by the product owner (2026-11-27)
+
+The product owner accepted the recommended answer to every open question:
+
+- Organizer-facing names are "Ticket type" and "Stock pool"/"Seat pool". API and database names are unchanged.
+- Optional ticket-type descriptions (up to 500 characters) are added to the snapshot additively.
+- `minPerOrder` is approved: Ticketing refuses holds below the minimum before any stock change. This is explicitly approved by the product owner as a hold-path validation.
+- Scope: finish task 5.2 and the map-rendering half of 6.3, keeping SVG. Concurrency and staging acceptance (6.3 remainder, 6.4) stay in redesign-concert-and-seating.
+- Migration numbers: Catalog `V23`, Ticketing `V23`.

@@ -100,3 +100,14 @@ The web staff app lists assigned performances only. Legacy concerts have no assi
 2. **Should organizers see individual admissions or only totals?** Recommended: totals plus recent admissions with ticket reference, gate, time and staff name, never the QR value. Reason: organizers need it to resolve disputes at the door, and the QR value is an admission credential.
 3. **Should organizer members with `EVENTS` be able to check tickets in on the web without a `STAFF` account?** Recommended: no; admission stays with assigned `STAFF` accounts. Reason: it keeps the approved scoped-admission model and needs no Identity or security change.
 4. **Should guest check-ins count toward the admission progress?** Recommended: show them separately (guests checked in of total) and keep the progress bar for tickets only. Reason: guests are not tickets, and mixing them would make the progress exceed sold capacity.
+
+## Decisions confirmed by the product owner (2026-11-27)
+
+The product owner accepted the recommended answer to every open question:
+
+- The web staff app is a desk and backup tool, online only, with live camera scanning where the browser supports it. The Android scanner stays the primary gate tool.
+- Organizers see totals plus recent admissions (ticket reference, gate, time, staff name, never the QR value).
+- Guests are counted separately from ticket progress.
+- Admission stays with assigned `STAFF` accounts.
+- Scanner-dependent items are deferred until redesign-staff-scanner-mobile completes.
+- Migration number, if needed: Check-in `V15`.

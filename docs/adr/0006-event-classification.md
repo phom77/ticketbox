@@ -1,6 +1,6 @@
 # ADR 0006: Event classification (segment and genre)
 
-- **Status:** Proposed (event-classification, roadmap change B)
+- **Status:** Accepted (event-classification, approved by the product owner on 2026-11-27)
 - **Date:** 2026-11-27
 - **Replaces:** the fixed-category decision in `openspec/changes/event-categories/design.md` (six ids in `events.category`, checked by the `EventCategory` enum)
 

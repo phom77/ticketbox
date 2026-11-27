@@ -108,3 +108,13 @@
 2. **Organizer pause without review.** May an organizer pause and resume sales immediately, without platform approval? *Recommended: yes, immediately and audited, with platform disruption taking precedence.* Reason: stopping sales is the safe direction, resume only restores already-approved terms, and waiting for review defeats the purpose.
 3. **Release as soon as approved.** Should organizers be able to submit with *Release as soon as approved* instead of a fixed time? *Recommended: yes, refusing approval if the sale start has already passed.* Reason: it removes the most common guess while keeping the "release before sale start" rule.
 4. **Venue edits after release.** Should organizers be able to change a venue's name or address while a released performance uses it? *Recommended: no; lock name and address, allow city, time zone, capacity hint and new spaces.* Reason: the venue name is in sale snapshots, orders and tickets, and changing a venue after sale is a postponement-class change for operations.
+
+## Decisions confirmed by the product owner (2026-11-27)
+
+The product owner accepted the recommended answer to every open question:
+
+- No geocoding provider. Coordinate columns are nullable, with no coordinate entry.
+- Organizers pause and resume sales immediately, audited, and platform disruptions take precedence.
+- "Release as soon as approved" is offered alongside a scheduled time. Approval is refused if the sale start has passed.
+- Venue name and address are locked while a released or in-review performance uses the venue.
+- Migration number: Catalog `V24` (built after Wave 2).

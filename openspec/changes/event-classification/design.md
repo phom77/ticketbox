@@ -103,3 +103,13 @@ Classification reference data is its own Catalog capability package (`classifica
 2. **Do classification changes after release need Admin approval?** Recommended: yes, as part of the existing content revision, with Admin able to correct directly. Reason: classification decides public discovery placement, and Wave 1 already reviews all public content.
 3. **May secondary genres come from other segments?** Recommended: yes, any active genre. Reason: festivals and family events often mix (a music festival tagged EDM and Indie), and tags exist for discovery.
 4. **Is the curated genre list above approved for launch?** Recommended: approve as written; later additions are a small migration plus catalog keys. Reason: it covers the Vietnamese genres named in the audit, keeps each segment under 16 entries, and every segment has an "Other" fallback.
+
+## Decisions confirmed by the product owner (2026-11-27)
+
+The product owner accepted the recommended answer to every open question:
+
+- Segment and primary genre are required to submit a performance for release. Drafts and already released events are not blocked.
+- Classification changes after release go through the content revision. Admin can correct directly.
+- Tag genres may come from any segment.
+- The curated genre list in this design is approved for launch.
+- Migration number: Catalog `V22`.
