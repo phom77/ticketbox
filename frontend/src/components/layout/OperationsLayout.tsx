@@ -230,6 +230,13 @@ const organizerNavigation: NavigationItem[] = [
     },
     icon: UserCog,
   },
+  {
+    to: '/organizer/settings',
+    get label() {
+      return translate('shared:operationsSettings');
+    },
+    icon: Settings,
+  },
 ];
 
 const concertRoutes = new Set([

@@ -20,6 +20,7 @@ import {
 import { ConcertPicker, type ConcertPickerItem } from '../../components/admin/ConcertPicker';
 import { useToast } from '../../components/feedback/toast-context';
 import { dateFormatter } from '../../data/formatters';
+import { useOrganization } from '../organizations/OrganizationProvider';
 import { bucketPoints, formatPercent, integer, money } from './salesFormat';
 import {
   periodDays,
@@ -382,6 +383,7 @@ function SalesBody({
 }) {
   const { t } = useTranslation();
   const { summary, trend, performances, offers } = loaded;
+  const canChangeZone = !!useOrganization()?.selected?.grants.includes('MEMBERS');
   const empty = summary.ticketsSold === 0 && summary.ticketsRefunded === 0;
   const chosenScope = summary.scope.type !== 'ORGANIZATION';
 
@@ -392,7 +394,10 @@ function SalesBody({
           zone: summary.timezone,
           from: summary.from,
           to: summary.to,
-        })}
+        })}{' '}
+        {canChangeZone && summary.scope.type !== 'PERFORMANCE' && (
+          <Link to="/organizer/settings">{t('operations-reports:salesTimezoneSettings')}</Link>
+        )}
       </p>
       {summary.provisional && (
         <p className="sales-provisional" role="note">

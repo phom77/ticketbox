@@ -1,0 +1,15 @@
+{
+  "organizationId": "3f1c7b52-96a1-4c6b-9d5e-1f0d8a4a1b11",
+  "displayName": "Ánh Dương Live",
+  "legalName": "Công ty TNHH Ánh Dương",
+  "taxCode": "0312345678-001",
+  "billingAddress": "1 Đường Lê Lợi, Quận 1",
+  "contactEmail": "desk@example.test",
+  "contactPhone": "+84 28 1234 5678",
+  "website": "https://example.test",
+  "logoUrl": "https://res.cloudinary.com/demo/image/upload/v1/logo.webp",
+  "logoPngUrl": "https://res.cloudinary.com/demo/image/upload/f_png,w_400,c_limit/v1/logo.webp",
+  "reportingTimezone": "Asia/Bangkok",
+  "version": 4,
+  "futureField": "ignored"
+}

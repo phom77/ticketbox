@@ -144,6 +144,14 @@ class JdbcOrganizationStore implements OrganizationStore {
                 """, organizationId, actorId, targetId, action, writeGrants(grants));
     }
 
+    @Override
+    public void auditFields(UUID organizationId, UUID actorId, String action, java.util.Collection<String> fields) {
+        jdbc.update("""
+                INSERT INTO organization_audit (organization_id, actor_id, target_id, action, grants, changed_fields)
+                VALUES (?, ?, ?, ?, ARRAY[]::text[], string_to_array(?, ','))
+                """, organizationId, actorId, actorId, action, String.join(",", fields));
+    }
+
     private Set<OrganizationGrant> readGrants(ResultSet rs) throws SQLException {
         return Arrays.stream((String[]) rs.getArray("grants").getArray())
                 .map(OrganizationGrant::valueOf)

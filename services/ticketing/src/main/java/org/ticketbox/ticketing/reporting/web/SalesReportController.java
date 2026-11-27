@@ -27,6 +27,7 @@ import org.ticketbox.ticketing.web.security.OrganizerPermission.Grant;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -48,32 +49,35 @@ public class SalesReportController {
     public ResponseEntity<ApiResponse<Summary>> summary(
             @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID organization,
             @RequestAttribute(OrganizationAccess.GRANTS) Set<String> grants,
+            @RequestAttribute(OrganizationAccess.REPORTING_ZONE) ZoneId zone,
             @RequestParam(required = false) UUID eventId, @RequestParam(required = false) UUID performanceId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
-        return ok(sales.summary(organization, eventId, performanceId, from, to, finance(grants)));
+        return ok(sales.summary(organization, zone, eventId, performanceId, from, to, finance(grants)));
     }
 
     @GetMapping("/trend")
     public ResponseEntity<ApiResponse<Trend>> trend(
             @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID organization,
             @RequestAttribute(OrganizationAccess.GRANTS) Set<String> grants,
+            @RequestAttribute(OrganizationAccess.REPORTING_ZONE) ZoneId zone,
             @RequestParam(required = false) UUID eventId, @RequestParam(required = false) UUID performanceId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required = false) String groupBy) {
-        return ok(sales.trend(organization, eventId, performanceId, from, to, groupBy, finance(grants)));
+        return ok(sales.trend(organization, zone, eventId, performanceId, from, to, groupBy, finance(grants)));
     }
 
     @GetMapping("/breakdown")
     public ResponseEntity<ApiResponse<Breakdown>> breakdown(
             @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID organization,
             @RequestAttribute(OrganizationAccess.GRANTS) Set<String> grants,
+            @RequestAttribute(OrganizationAccess.REPORTING_ZONE) ZoneId zone,
             @RequestParam(required = false) UUID eventId, @RequestParam(required = false) UUID performanceId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(defaultValue = "performance") String by) {
-        return ok(sales.breakdown(organization, eventId, performanceId, from, to, by, finance(grants)));
+        return ok(sales.breakdown(organization, zone, eventId, performanceId, from, to, by, finance(grants)));
     }
 
     /** Events with performances in the organization, for choosing a report scope. */
@@ -104,11 +108,12 @@ public class SalesReportController {
     @OrganizerPermission(Grant.FINANCE)
     public ResponseEntity<byte[]> export(
             @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID organization,
+            @RequestAttribute(OrganizationAccess.REPORTING_ZONE) ZoneId zone,
             @RequestParam(required = false) UUID eventId, @RequestParam(required = false) UUID performanceId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam String format) {
-        RevenueReportExport file = exporter.export(sales.report(organization, eventId, performanceId, from, to), format);
+        RevenueReportExport file = exporter.export(sales.report(organization, zone, eventId, performanceId, from, to), format);
         ContentDisposition disposition = ContentDisposition.attachment()
                 .filename(file.filename(), StandardCharsets.UTF_8).build();
         return ResponseEntity.ok().contentType(MediaType.parseMediaType(file.contentType()))

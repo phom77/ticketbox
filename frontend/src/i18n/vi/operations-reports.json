@@ -147,5 +147,7 @@
   "salesError_load": "Không tải được số liệu doanh số.",
   "salesError_denied": "Tổ chức chưa cấp quyền xem số liệu doanh số này.",
   "salesError_period": "Không thể hiển thị khoảng thời gian này. Hãy chọn khoảng ngắn hơn hoặc nhóm rộng hơn.",
-  "salesError_notFound": "Sự kiện hoặc suất diễn này không thuộc tổ chức của bạn."
+  "salesError_notFound": "Sự kiện hoặc suất diễn này không thuộc tổ chức của bạn.",
+  "statements": "Bảng kê",
+  "salesTimezoneSettings": "Đổi múi giờ báo cáo trong Cài đặt"
 }

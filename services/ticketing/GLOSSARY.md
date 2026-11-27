@@ -53,3 +53,19 @@ The availability of individual seats for a performance. Each allocated seat belo
 **Quoted hold**
 
 A selection of general-admission places or assigned seats temporarily reserved for one customer, with its confirmed price and deadline.
+
+**Settlement statement**
+
+An issued, numbered and immutable record of the sales, refunds and provider-verified amounts of one final performance or event at a cutoff time. It is not an invoice or a payout.
+
+**Statement revision**
+
+A later statement for the same scope that supersedes the previous one. Earlier revisions stay available.
+
+**Cutoff**
+
+The moment a statement was computed. Ledger and reconciliation rows recorded after it do not change the statement.
+
+**Out of date**
+
+A current statement for which sales, refunds or provider records arrived after its cutoff. It is computed when read and never stored.

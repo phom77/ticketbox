@@ -28,6 +28,8 @@ The default gateway is `http://localhost:18091`. Most APIs return an envelope co
 | Guest lookup / attendance | `/api/staff/guestlist/**` | Staff |
 | Concert management | `/api/admin/concerts/**`, `/api/organizer/manage/concerts/**` | Admin / organizer |
 | Sales | `/api/organizer/sales/summary`, `/trend`, `/breakdown`, `/on-sale`, `/upcoming`, `/export` | Organizer `EVENTS` or `FINANCE`; money fields and export need `FINANCE` |
+| Organization profile | `GET/PUT /api/organizations/{id}/profile`, `PUT .../profile/statement-details`, `PUT/DELETE .../profile/logo`, `GET /api/admin/organizations/{id}/profile` | Active member reads; `MEMBERS` edits profile, logo and timezone; `MEMBERS` or `FINANCE` edits statement details |
+| Settlement statements | `/api/organizer/statements` (`/eligible`, `/{id}`, `/{id}/download?format=pdf\|csv`) | Organizer `FINANCE` |
 | Revenue (deprecated) | `/api/organizer/concerts/{id}/revenue-summary`, `.../zone-revenue`, `.../sales-trend` | Owning organizer, completed concert. Replaced by Sales, removed in the next release |
 | User management | `/api/admin/users/**` | Admin |
 | Payment review | `/api/admin/payment-workflows/**` | Admin |
@@ -39,6 +41,12 @@ The controllers in each module's `web/` package define the full route and valida
 `/api/organizer/sales/*` take the `X-Organization-Id` header and `from` / `to` dates (inclusive, in the reporting timezone). `eventId` or `performanceId` narrows the scope, and another organization's id returns 404. A period is at most 1096 days. `trend?groupBy=hour|day|week` allows up to 7, 366 and 1096 days (default by length). `breakdown?by=performance|offer`; `by=offer` needs an event or performance. Figures come from the sales ledger: sales count on the payment date and refunds on the refund confirmation date (ADR 0005). Responses state `timezone` and `provisional` (some performance has not ended). `grossSales`, `refunds` and `netSales` are present only for callers with `FINANCE`; `export?format=csv|pdf` requires `FINANCE`. `GET /on-sale` and `GET /upcoming?days=7` list performances with all-time net tickets, capacity and sell-through.
 
 Reconciliation reports accept an optional `after` cursor (the previous page's `next`) to page by key instead of by offset.
+
+## Organization profile and settlement statements
+
+Identity owns the organization profile (ADR 0007). `GET /api/organizations/{id}/profile` returns the display name (read-only), contacts, statement details, logo URL, `reportingTimezone`, `version` and the caller's `canEditProfile` and `canEditStatementDetails`; another organization's id returns 404. Writes send the `version` they read and answer 409 with the current profile when it is stale; the logo goes up as multipart `file` plus `version` (JPEG, PNG or WebP, at most 2 MB, at least 128 by 128 pixels; 503 when image storage is not configured). Other services read `GET /internal/split/v1/organizations/{id}/profile` (`identity.organization-profile.v1`), and `identity.organization-access.v1` carries an optional `reportingTimezone` that Ticketing uses for organization and event scoped sales reports (fallback `Asia/Ho_Chi_Minh`; a single native performance keeps its own timezone).
+
+Ticketing issues settlement statements for final performances and events. `GET /api/organizer/statements/eligible` lists scopes ready for a statement; `POST /api/organizer/statements` with `{scopeType, scopeId, expectedRevision}` issues or re-issues (0 for the first issue; a stale revision or an up-to-date statement returns 409 with the current statement; 409 `error.statement.not-ended` or `refunds-pending` when the scope is not final; 503 when Identity cannot be read). A statement is numbered `TBS-yyyy-nnnnnn` (`-R2`, `-R3` for revisions), immutable, and reported `outOfDate` when ledger or reconciliation rows for its scope arrive after its cutoff. `GET .../{id}/download?format=pdf|csv` serves the stored PDF or a CSV of the stored rows. Statements show net sales with a platform fee of 0 VND and are not invoices or payouts.
 
 ## Purchase requests
 

@@ -16,6 +16,7 @@ import { WorkspaceSelect, type WorkspaceSelectOption } from '../../components/Wo
 import { dateFormatter, numberFormatter } from '../../data/formatters';
 import { useOrganization } from '../../features/organizations/OrganizationProvider';
 import { SalesReport } from '../../features/reporting/SalesReport';
+import { StatementsView } from '../../features/reporting/StatementsView';
 import { ReconciliationPage } from '../organizer/ReconciliationPage';
 import {
   DEFAULT_PERFORMANCE_TIME_ZONE,
@@ -52,12 +53,18 @@ const reviewStatuses = [
 const offsetDateTime =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}:\d{2})$/;
 
-type ReportView = 'operations' | 'reconciliation' | 'sales';
+type ReportView = 'operations' | 'reconciliation' | 'sales' | 'statements';
 
 function reportView(param: string | null, defaultView: ReportView): ReportView {
   // The completed-concert revenue view was replaced by live sales.
   if (param === 'revenue') return 'sales';
-  if (param === 'operations' || param === 'reconciliation' || param === 'sales') return param;
+  if (
+    param === 'operations' ||
+    param === 'reconciliation' ||
+    param === 'sales' ||
+    param === 'statements'
+  )
+    return param;
   return defaultView;
 }
 
@@ -100,7 +107,14 @@ export function OperationsReportsPage({ scope }: { scope: ManagementApiScope }) 
     params.get('view'),
     sales ? 'sales' : !operations && finance ? 'reconciliation' : 'operations',
   );
-  const allowed = view === 'operations' ? operations : view === 'sales' ? sales : finance;
+  const allowed =
+    view === 'operations'
+      ? operations
+      : view === 'sales'
+        ? sales
+        : view === 'statements'
+          ? organizer && finance
+          : finance;
   const previous = useRef(organizationId);
   const switchingOrganization = previous.current !== organizationId;
   const resetFilters = switchingOrganization && params.size > (params.has('view') ? 1 : 0);
@@ -163,6 +177,14 @@ export function OperationsReportsPage({ scope }: { scope: ManagementApiScope }) 
             {t('operations-reports:reconciliation')}
           </Link>
         )}
+        {organizer && finance && (
+          <Link
+            to={view === 'statements' ? `?${params}` : '?view=statements'}
+            aria-current={view === 'statements' ? 'page' : undefined}
+          >
+            {t('operations-reports:statements')}
+          </Link>
+        )}
       </nav>
       {!allowed ? (
         <ReportAccessNotice
@@ -173,6 +195,8 @@ export function OperationsReportsPage({ scope }: { scope: ManagementApiScope }) 
         <p role="status">{t('operations-reports:loading')}</p>
       ) : view === 'operations' ? (
         <OperationalReport key={organizationId ?? scope} scope={scope} />
+      ) : view === 'statements' ? (
+        <StatementsView key={organizationId} />
       ) : view === 'reconciliation' ? (
         <ReconciliationPage key={organizationId ?? scope} scope={scope} embedded />
       ) : (

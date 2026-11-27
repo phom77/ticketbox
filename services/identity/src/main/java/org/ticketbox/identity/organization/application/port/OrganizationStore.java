@@ -44,6 +44,8 @@ public interface OrganizationStore {
 
     void consumeInvitation(String codeHash);
 
+    void auditFields(UUID organizationId, UUID actorId, String action, java.util.Collection<String> fields);
+
     void audit(UUID organizationId, UUID actorId, UUID targetId, String action,
                Set<OrganizationGrant> grants);
 }
