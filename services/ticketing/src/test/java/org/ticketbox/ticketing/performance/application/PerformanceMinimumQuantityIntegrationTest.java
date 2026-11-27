@@ -106,7 +106,7 @@ class PerformanceMinimumQuantityIntegrationTest {
         return new PerformanceSale(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 null, version, 1L, "a".repeat(64), "Pair show", "Venue", now.plusDays(2), now.plusDays(2).plusHours(2),
                 null, "Asia/Ho_Chi_Minh", now.minusDays(1), now.plusDays(1), "ON_SALE", false, true, null, 6,
-                groups, offers);
+                groups, offers, null, null, null);
     }
 
     private String admit(Scope buyer) {
@@ -194,7 +194,8 @@ class PerformanceMinimumQuantityIntegrationTest {
         var next = new PerformanceSale(f.sale().id(), f.sale().eventId(), f.sale().organizationId(), null, 2, 1L,
                 "a".repeat(64), f.sale().title(), f.sale().venueName(), f.sale().startsAt(), f.sale().endsAt(), null,
                 f.sale().timezone(), f.sale().saleStartAt(), f.sale().saleEndAt(), "ON_SALE", false, true, null, 6,
-                f.sale().groups(), List.of(stricter, f.sale().offers().getLast()));
+                f.sale().groups(), List.of(stricter, f.sale().offers().getLast()), f.sale().segment(),
+                f.sale().primaryGenre(), f.sale().city());
         catalog.apply(next);
 
         // The unchanged line is kept while another ticket type is added.
@@ -218,7 +219,8 @@ class PerformanceMinimumQuantityIntegrationTest {
         catalog.apply(new PerformanceSale(f.sale().id(), f.sale().eventId(), f.sale().organizationId(), null, 2, 1L,
                 "a".repeat(64), f.sale().title(), f.sale().venueName(), f.sale().startsAt(), f.sale().endsAt(), null,
                 f.sale().timezone(), f.sale().saleStartAt(), f.sale().saleEndAt(), "ON_SALE", false, true, null, 6,
-                f.sale().groups(), List.of(f.sale().offers().getFirst(), stricter)));
+                f.sale().groups(), List.of(f.sale().offers().getFirst(), stricter), f.sale().segment(),
+                f.sale().primaryGenre(), f.sale().city()));
     }
 
     private void assertMinimumRefused(Runnable action, int minimum) {
@@ -271,7 +273,8 @@ class PerformanceMinimumQuantityIntegrationTest {
         catalog.apply(new PerformanceSale(f.sale().id(), f.sale().eventId(), f.sale().organizationId(), null, 2, 1L,
                 "a".repeat(64), f.sale().title(), f.sale().venueName(), f.sale().startsAt(), f.sale().endsAt(), null,
                 f.sale().timezone(), f.sale().saleStartAt(), f.sale().saleEndAt(), "ON_SALE", false, true, null, 6,
-                f.sale().groups(), List.of(f.sale().offers().getFirst(), inactive)));
+                f.sale().groups(), List.of(f.sale().offers().getFirst(), inactive), f.sale().segment(),
+                f.sale().primaryGenre(), f.sale().city()));
         assertThatThrownBy(() -> holds.replace(buyer, token, "one", 1L, 0,
                 List.of(new Pick(f.seatOffer(), f.seats().get(0), null))))
                 .isInstanceOfSatisfying(AppException.class, error ->

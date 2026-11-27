@@ -414,7 +414,7 @@ class EventContentIntegrationTest {
         var group = new org.ticketbox.catalog.performance.domain.PerformanceSale.Group(UUID.randomUUID(), null, "Floor",
                 org.ticketbox.catalog.performance.domain.PerformanceLayout.Kind.GA, 50, List.of());
         var offer = new org.ticketbox.catalog.performance.domain.PerformanceSale.Offer(UUID.randomUUID(), group.id(),
-                "Standard", java.math.BigDecimal.valueOf(100_000), "VND", starts.minusDays(2), starts.minusHours(2), true);
+                "Standard", java.math.BigDecimal.valueOf(100_000), "VND", starts.minusDays(2), starts.minusHours(2), true, null, null);
         tx(() -> catalog.saveSale(owner, actor, draft.id(), 0,
                 new org.ticketbox.catalog.performance.domain.PerformanceSale(List.of(group), List.of(offer))));
         return draft;

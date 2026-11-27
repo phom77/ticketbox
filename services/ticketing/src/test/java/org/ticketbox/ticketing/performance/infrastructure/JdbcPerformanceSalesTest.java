@@ -145,7 +145,8 @@ class JdbcPerformanceSalesTest {
         var next = new PerformanceSale(sale.id(), sale.eventId(), sale.organizationId(), null, 2, null, null,
                 sale.title(), sale.venueName(), sale.startsAt(), sale.endsAt(), null, sale.timezone(),
                 sale.saleStartAt(), sale.saleEndAt(), sale.status(), false, true, null, sale.maxPerAccount(),
-                sale.groups(), List.of(detailed, sale.offers().getLast()));
+                sale.groups(), List.of(detailed, sale.offers().getLast()), sale.segment(), sale.primaryGenre(),
+                sale.city());
         assertThat(tx.<Long>execute(status -> catalog.apply(next))).isEqualTo(2L);
         assertThat(jdbc.queryForObject("SELECT min_per_order FROM performance_offers WHERE id=?", Integer.class, offerId))
                 .isEqualTo(2);
