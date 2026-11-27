@@ -24,6 +24,11 @@ export type EventContentValue = {
   artistBio: string | null;
   ageRating: AgeRating | null;
   refundPolicy: string | null;
+  classification?: {
+    segment: string | null;
+    primaryGenre: string | null;
+    secondaryGenres: string[];
+  } | null;
 };
 
 export type ContentRevision = {
@@ -44,11 +49,14 @@ export type ContentState = { event: ManagedEvent; revision: ContentRevision | nu
 
 export type RevisionInput = Omit<
   EventContentValue,
-  'description' | 'artistBio' | 'refundPolicy'
+  'description' | 'artistBio' | 'refundPolicy' | 'classification'
 > & {
   description: string;
   artistBio: string;
   refundPolicy: string;
+  segment: string;
+  primaryGenre: string;
+  genres: string[];
 };
 
 export const getEventContent = (id: string, signal?: AbortSignal) =>

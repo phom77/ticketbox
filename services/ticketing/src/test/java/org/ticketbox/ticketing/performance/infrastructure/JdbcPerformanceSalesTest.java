@@ -69,6 +69,49 @@ class JdbcPerformanceSalesTest {
     }
 
     @Test
+    void keepsOptionalClassificationFieldsAndToleratesTheirAbsence() throws Exception {
+        var mapper = new ObjectMapper().findAndRegisterModules();
+        var plain = sale(false);
+        // A payload from before classification existed has no such properties and reads them as null.
+        var tree = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.valueToTree(plain);
+        tree.remove(List.of("segment", "primaryGenre", "city"));
+        var legacy = mapper.treeToValue(tree, PerformanceSale.class);
+        assertThat(legacy.segment()).isNull();
+        assertThat(legacy.primaryGenre()).isNull();
+        assertThat(legacy.city()).isNull();
+        assertThat(tx.<Long>execute(status -> catalog.apply(legacy))).isEqualTo(1L);
+
+        // A newer version carrying the fields is stored with them; null values are accepted too.
+        var classified = withClassification(legacy, 2, "concerts", "vpop", "Hanoi");
+        assertThat(tx.<Long>execute(status -> catalog.apply(classified))).isEqualTo(2L);
+        var stored = jdbc.queryForObject("SELECT source_payload::text FROM performance_sales WHERE id=?", String.class,
+                legacy.id());
+        var node = mapper.readTree(stored);
+        assertThat(node.path("segment").asText()).isEqualTo("concerts");
+        assertThat(node.path("primaryGenre").asText()).isEqualTo("vpop");
+        assertThat(node.path("city").asText()).isEqualTo("Hanoi");
+
+        // An older version that lacks the fields is still ignored and does not erase them.
+        assertThat(tx.<Long>execute(status -> catalog.apply(legacy))).isEqualTo(2L);
+        assertThat(mapper.readTree(jdbc.queryForObject("SELECT source_payload::text FROM performance_sales WHERE id=?",
+                String.class, legacy.id())).path("primaryGenre").asText()).isEqualTo("vpop");
+
+        var cleared = withClassification(legacy, 3, null, null, null);
+        assertThat(tx.<Long>execute(status -> catalog.apply(cleared))).isEqualTo(3L);
+        assertThat(mapper.readTree(jdbc.queryForObject("SELECT source_payload::text FROM performance_sales WHERE id=?",
+                String.class, legacy.id())).path("segment").isNull()).isTrue();
+    }
+
+    private static PerformanceSale withClassification(PerformanceSale sale, long version, String segment, String genre,
+                                                      String city) {
+        return new PerformanceSale(sale.id(), sale.eventId(), sale.organizationId(), sale.legacyConcertId(), version,
+                sale.layoutVersion(), sale.layoutChecksum(), sale.title(), sale.venueName(), sale.startsAt(),
+                sale.endsAt(), sale.doorsOpenAt(), sale.timezone(), sale.saleStartAt(), sale.saleEndAt(), sale.status(),
+                sale.salesSuspended(), sale.publicVisible(), sale.resumedAdmissionAt(), sale.maxPerAccount(),
+                sale.groups(), sale.offers(), segment, genre, city);
+    }
+
+    @Test
     void concurrentOfferWritersCanOnlyHoldOneRemainingPlace() throws Exception {
         var sale = sale(false);
         tx.execute(status -> catalog.apply(sale));
@@ -99,7 +142,7 @@ class JdbcPerformanceSalesTest {
                 List.of(new Offer(UUID.randomUUID(), group, "Early", BigDecimal.valueOf(150_000), "VND",
                         now.minusDays(1), now.plusDays(1), true),
                         new Offer(UUID.randomUUID(), group, "Standard", BigDecimal.valueOf(200_000), "VND",
-                                now.minusDays(1), now.plusDays(1), true)));
+                                now.minusDays(1), now.plusDays(1), true)), null, null, null);
     }
 
     private static PerformanceSale copy(PerformanceSale sale, long version, String title, List<Group> groups) {
@@ -107,6 +150,6 @@ class JdbcPerformanceSalesTest {
                 version, sale.layoutVersion(), sale.layoutChecksum(), title, sale.venueName(), sale.startsAt(),
                 sale.endsAt(), sale.doorsOpenAt(), sale.timezone(), sale.saleStartAt(), sale.saleEndAt(),
                 sale.status(), sale.salesSuspended(), sale.publicVisible(), sale.resumedAdmissionAt(),
-                sale.maxPerAccount(), groups, sale.offers());
+                sale.maxPerAccount(), groups, sale.offers(), sale.segment(), sale.primaryGenre(), sale.city());
     }
 }

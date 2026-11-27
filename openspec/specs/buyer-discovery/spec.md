@@ -60,3 +60,12 @@ Bản preview phát triển SHALL cho thử tỉnh/thành, thể loại và giá
 
 - **WHEN** mở bản preview phát triển và kết hợp tỉnh/thành, thể loại hoặc khoảng giá
 - **THEN** kết quả fixture, các chip đã chọn và thao tác xóa lọc phản ánh đúng lựa chọn.
+
+### Requirement: Category browsing shows categorised events
+
+The header category links SHALL list public events whose category matches, and cards and event detail SHALL show the translated category name.
+
+#### Scenario: Buyer opens Concerts
+
+- **WHEN** a buyer selects Concerts in the header
+- **THEN** the catalogue lists events with the category `concerts` and shows the Concerts chip in the selected language

@@ -81,7 +81,9 @@ try {
   const auth = { Authorization: 'Bearer ' + organizer.accessToken, 'X-Organization-Id': org.id };
   const create = (path, data) => api(organizerContext, organizerApi + path, { method: 'POST', headers: auth, data });
 
-  const event = await create('/events', { title: 'Map and pricing rehearsal ' + suffix });
+  const event = await create('/events', {
+    title: 'Map and pricing rehearsal ' + suffix, segment: 'concerts', primaryGenre: 'vpop',
+  });
   async function addPerformance(name) {
     const venue = await create('/venues', { name, address: 'Fixture Street', spaceName: 'Main hall' });
     return create('/events/' + event.id + '/performances', {

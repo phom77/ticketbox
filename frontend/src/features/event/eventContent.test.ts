@@ -75,11 +75,40 @@ describe('event content helpers', () => {
   });
 
   it('starts a form from an event and compares by content', () => {
-    const form = formFromContent({ title: 'A', description: null, category: ' Concerts ' });
-    expect(form.category).toBe('concerts');
+    const form = formFromContent({
+      title: 'A',
+      description: null,
+      segment: ' Concerts ',
+      primaryGenre: 'vpop',
+      genres: ['indie'],
+    });
+    expect(form).toMatchObject({ segment: 'concerts', primaryGenre: 'vpop', genres: ['indie'] });
     expect(sameContent(form, { ...form, description: '  ' })).toBe(true);
     expect(sameContent(form, { ...form, refundPolicy: 'x' })).toBe(false);
-    expect(sameContent(form, { ...form, category: 'sports' })).toBe(false);
+    expect(sameContent(form, { ...form, segment: 'sports' })).toBe(false);
+    expect(sameContent(form, { ...form, genres: [] })).toBe(false);
+  });
+
+  it('reads the classification of a revision, falling back to the live event', () => {
+    const live = { title: 'A', segment: 'concerts', primaryGenre: 'vpop', genres: ['indie'] };
+    const proposed = {
+      title: 'A',
+      classification: {
+        segment: 'festivals',
+        primaryGenre: 'music-festival',
+        secondaryGenres: ['edm'],
+      },
+    };
+    expect(formFromContent(proposed, live)).toMatchObject({
+      segment: 'festivals',
+      primaryGenre: 'music-festival',
+      genres: ['edm'],
+    });
+    expect(formFromContent({ title: 'A' }, live)).toMatchObject({
+      segment: 'concerts',
+      primaryGenre: 'vpop',
+      genres: ['indie'],
+    });
   });
 
   it('accepts only supported poster files within the size limit', () => {

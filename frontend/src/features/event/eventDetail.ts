@@ -27,7 +27,10 @@ export type EventDetailModel = {
   title: string;
   description: string | null;
   artistBio: string | null;
-  category: string | null;
+  segment: string | null;
+  primaryGenre: string | null;
+  /** Secondary genres, shown as tags. */
+  genres: string[];
   posterUrl: string | null;
   organizer: string | null;
   seatMapSvg: string | null;

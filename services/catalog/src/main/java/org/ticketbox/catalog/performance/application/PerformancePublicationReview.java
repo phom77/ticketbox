@@ -60,6 +60,7 @@ public class PerformancePublicationReview {
         if (!"DRAFT".equals(performance.status())) throw stale();
         requireSchedule(performance, publishAt);
         validate(owner, performance, versions);
+        catalog.requireReleasableClassification(performance.eventId());
         if (previous != null && (previous.state() == State.SUBMITTED || previous.state() == State.SCHEDULED)) {
             if (previous.versions().equals(versions) && previous.publishAt().isEqual(publishAt)) {
                 return status(publication, previous);

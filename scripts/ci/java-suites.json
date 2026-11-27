@@ -24,7 +24,13 @@
     "reports": "services/catalog/target/surefire-reports",
     "requiredGroups": {
       "sale-snapshots": {
-        "org.ticketbox.catalog.sales.CatalogPublisherIntegrationTest": []
+        "org.ticketbox.catalog.sales.CatalogPublisherIntegrationTest": [],
+        "org.ticketbox.catalog.sales.SaleSnapshotContractTest": []
+      },
+      "event-classification": {
+        "org.ticketbox.catalog.classification.domain.EventClassificationTest": [],
+        "org.ticketbox.catalog.performance.ClassificationMigrationTest": [],
+        "org.ticketbox.catalog.performance.PerformanceCatalogIntegrationTest": []
       },
       "ai-publication-replay": {
         "org.ticketbox.catalog.artistbio.application.CatalogPublicationIntegrationTest": [

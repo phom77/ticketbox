@@ -1,5 +1,6 @@
 import type { ConcertSummary } from '../../api/concerts';
 import { concertSaleState } from '../concert/concertSale';
+import { aliasForCategory, isGenreId, isSegmentId } from './classification';
 
 export const dateOptions = {
   '': 'discovery_anyDate',
@@ -48,7 +49,8 @@ export type DiscoveryFilters = {
   from: string;
   to: string;
   city: string;
-  category: string;
+  segment: string;
+  genre: string;
 } & {
   [K in FilterOption]: keyof (typeof discoveryOptions)[K];
 };
@@ -57,7 +59,8 @@ export type DiscoveryConcert = ConcertSummary & {
   performance?: { eventId: string; salesSuspended: boolean };
   minPrice?: number | null;
   city?: string | null;
-  category?: string | null;
+  segment?: string | null;
+  primaryGenre?: string | null;
   performanceCount?: number;
 };
 
@@ -130,6 +133,14 @@ export function readDiscoveryFilters(params: URLSearchParams): DiscoveryFilters 
   const from = date && date !== 'custom' ? '' : discoveryDateParam(params.get('from'));
   const to = date && date !== 'custom' ? '' : discoveryDateParam(params.get('to'));
   if (!date || date === 'custom') date = from || to ? 'custom' : '';
+  // An old `category` link means a segment (and for comedy a genre); explicit parameters win.
+  const alias = aliasForCategory(params.get('category') ?? '');
+  const slug = (name: string) => params.get(name)?.trim().slice(0, 120) ?? '';
+  // Unknown ids are dropped: Catalog answers an unknown segment or genre with an error.
+  const requested = slug('segment');
+  const segment = isSegmentId(requested) ? requested : requested ? '' : (alias?.segment ?? '');
+  const requestedGenre = slug('genre') || (requested ? '' : (alias?.genre ?? ''));
+  const genre = isGenreId(requestedGenre) ? requestedGenre : '';
   return {
     q: params.get('q')?.trim() ?? '',
     date,
@@ -143,7 +154,8 @@ export function readDiscoveryFilters(params: URLSearchParams): DiscoveryFilters 
     ),
     sort: option(sortOptions, params.get('sort')),
     city: params.get('city')?.trim().slice(0, 120) ?? '',
-    category: params.get('category')?.trim().slice(0, 120) ?? '',
+    segment,
+    genre,
     price: option(priceOptions, params.get('price')),
   };
 }
@@ -166,7 +178,8 @@ export const catalogueKeys = [
   'status',
   'sort',
   'city',
-  'category',
+  'segment',
+  'genre',
   'price',
 ] as const;
 

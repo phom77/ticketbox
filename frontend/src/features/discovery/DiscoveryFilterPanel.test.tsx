@@ -4,14 +4,22 @@ import { describe, expect, it, vi } from 'vitest';
 import { DiscoveryFilterPanel } from './DiscoveryFilterPanel';
 import { readDiscoveryFilters } from './filters';
 
-const facets = { cities: ['Hanoi', 'Ho Chi Minh City'], categories: ['jazz', 'pop'] };
+const facets = {
+  cities: ['Hanoi', 'Ho Chi Minh City'],
+  segments: [{ id: 'concerts', count: 4 }],
+  genres: [
+    { id: 'jazz', segmentId: 'concerts', count: 2 },
+    { id: 'football', segmentId: 'sports', count: 1 },
+  ],
+  categories: ['concerts'],
+};
 
-function renderPanel(query = '') {
+function renderPanel(query = '', scoped = facets) {
   const onApply = vi.fn();
   render(
     <DiscoveryFilterPanel
       filters={readDiscoveryFilters(new URLSearchParams(query))}
-      facets={facets}
+      facets={scoped}
       count={12}
       onApply={onApply}
     />,
@@ -20,13 +28,18 @@ function renderPanel(query = '') {
 }
 
 describe('DiscoveryFilterPanel', () => {
-  it('offers the cities and categories that have events and applies a choice immediately', async () => {
+  it('offers the cities, segments and genres that have events and applies a choice immediately', async () => {
     const { onApply, user } = renderPanel();
     const city = screen.getByRole('combobox', { name: /City/ });
     expect(screen.getByRole('option', { name: 'Hanoi' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Jazz' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'V-Pop' })).not.toBeInTheDocument();
     await user.selectOptions(city, 'Hanoi');
     expect(onApply).toHaveBeenCalledWith({ city: 'Hanoi' });
+    await user.selectOptions(screen.getByRole('combobox', { name: /Category/ }), 'sports');
+    expect(onApply).toHaveBeenLastCalledWith({ segment: 'sports', genre: '' });
+    await user.selectOptions(screen.getByRole('combobox', { name: /Genre/ }), 'jazz');
+    expect(onApply).toHaveBeenLastCalledWith({ genre: 'jazz' });
     await user.selectOptions(screen.getByRole('combobox', { name: /Price/ }), '500000-1000000');
     expect(onApply).toHaveBeenLastCalledWith({ price: '500000-1000000' });
   });
@@ -40,6 +53,41 @@ describe('DiscoveryFilterPanel', () => {
     await user.click(screen.getByRole('button', { name: 'Choose dates' }));
     fireEvent.change(screen.getByLabelText(/From date/), { target: { value: '2026-12-01' } });
     expect(onApply).toHaveBeenLastCalledWith({ date: 'custom', from: '2026-12-01', to: '' });
+  });
+
+  it('narrows the genres to the chosen segment and drops a genre outside a new segment', async () => {
+    // The server scopes the genre counts to the chosen segment, so Football is not among them.
+    const { onApply, user } = renderPanel('segment=concerts&genre=jazz', {
+      ...facets,
+      genres: [{ id: 'jazz', segmentId: 'concerts', count: 2 }],
+    });
+    expect(screen.getByRole('option', { name: 'Jazz' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Football' })).not.toBeInTheDocument();
+    await user.selectOptions(screen.getByRole('combobox', { name: /Category/ }), 'sports');
+    expect(onApply).toHaveBeenLastCalledWith({ segment: 'sports', genre: '' });
+  });
+
+  it('keeps the chosen segment when a genre is picked and offers cross-segment tags of that segment', async () => {
+    const onApply = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <DiscoveryFilterPanel
+        filters={readDiscoveryFilters(new URLSearchParams('segment=festivals'))}
+        facets={{
+          ...facets,
+          genres: [
+            { id: 'music-festival', segmentId: 'festivals', count: 2 },
+            { id: 'rock', segmentId: 'concerts', count: 1 },
+          ],
+        }}
+        count={3}
+        onApply={onApply}
+      />,
+    );
+    expect(screen.getByRole('option', { name: 'Rock' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Jazz' })).not.toBeInTheDocument();
+    await user.selectOptions(screen.getByRole('combobox', { name: /Genre/ }), 'rock');
+    expect(onApply).toHaveBeenLastCalledWith({ genre: 'rock' });
   });
 
   it('keeps a city from the URL selectable and opens as a sheet with a result count', async () => {

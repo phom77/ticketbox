@@ -194,12 +194,12 @@ public class OrganizerPerformanceController {
         return UUID.fromString(actor.getName());
     }
 
-    record EventRequest(String title, String description, String category, Long expectedContentVersion,
-                        Map<String, ConcertText> translations, String artistBio, String ageRating,
-                        String refundPolicy) {
+    record EventRequest(String title, String description, String category, String segment, String primaryGenre,
+                        List<String> genres, Long expectedContentVersion, Map<String, ConcertText> translations,
+                        String artistBio, String ageRating, String refundPolicy) {
         EventContentService.Input input() {
-            return new EventContentService.Input(
-                    title, description, category, translations, artistBio, ageRating, refundPolicy);
+            return new EventContentService.Input(title, description, category, segment, primaryGenre, genres,
+                    translations, artistBio, ageRating, refundPolicy);
         }
     }
     record VenueRequest(String name, String address, String spaceName) {}

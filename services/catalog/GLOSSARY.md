@@ -53,3 +53,19 @@ The one pending edit of a released event's content. A platform reviewer approves
 **Content version**
 
 The optimistic lock of the event content editors (`events.content_version`). It is separate from the event draft version, which is the token of publication reviews and only moves when the title or description of a draft changes.
+
+**Segment**
+
+The top level of event classification: Concerts, Festivals, Sports, Arts, Theater & Comedy, Family or Other. An event has one segment. The list is Catalog reference data changed only by migration.
+
+**Genre**
+
+A style inside a segment, such as V-Pop or Football. Genre ids are unique across segments. Retired genres are deactivated, never deleted; events that use one keep it.
+
+**Primary genre**
+
+The one genre of an event that belongs to its segment. A segment and a primary genre are needed before a performance can be submitted for release.
+
+**Tag (secondary genre)**
+
+Up to three additional genres of an event, from any segment, used by discovery. Changing tags after release goes through the content revision but does not re-issue sale snapshots.
