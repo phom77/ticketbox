@@ -351,7 +351,7 @@ def verify_order_refund(run_id, admin, organizer, order, ticket_type, organizati
 
     requested = action("REQUEST")
     request("POST", path, organizer, requested, expected=(403,))
-    case = request("POST", path, admin, requested)
+    case = until(lambda: request("POST", path, admin, requested))  # Payment may still be restarting after the outage step
     case_id = str(uuid.UUID(case["id"]))
     assert case["state"] == "REQUESTED"
     assert request("POST", path, admin, requested)["id"] == case_id

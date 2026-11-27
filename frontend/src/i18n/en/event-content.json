@@ -113,5 +113,7 @@
   "bioReplace": "Replace with generated draft",
   "bioReplacePrompt": "The event already has a biography. Replace it with this generated draft?",
   "decisionStale": "This revision changed while you were reviewing it. The latest version is shown; review it again before deciding.",
-  "diffClassification": "Category and genres"
+  "diffClassification": "Category and genres",
+  "guestsNotAvailableTitle": "Guest import is not available yet.",
+  "guestsNotAvailableBody": "Guest lists can be imported after this concert is released. Batch history will appear here then."
 }

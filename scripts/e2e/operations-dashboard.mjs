@@ -129,8 +129,8 @@ async function adminDashboard() {
   await supportLink.link.press('Enter');
   await page.waitForURL('**/admin/orders?support=PENDING_REFUND');
   const queue = page.getByRole('region', { name: 'Cases that need attention', exact: true });
-  await queue.getByRole('link', { name: 'order-to-check' }).waitFor();
-  assert.equal(await queue.getByRole('link', { name: 'order-to-check' }).getAttribute('href'), '/admin/orders?orderId=order-to-check');
+  await queue.getByRole('link', { name: 'View order' }).waitFor();
+  assert.equal(await queue.getByRole('link', { name: 'View order' }).getAttribute('href'), '/admin/orders?orderId=order-to-check');
   await page.getByRole('link', { name: 'Look up orders', exact: true }).click();
   assert.equal(await page.getByRole('link', { name: 'Browse support queues', exact: true }).getAttribute('href'), '/admin/orders?support=UNKNOWN_PAYMENT');
   await page.goto('/admin');
@@ -152,19 +152,27 @@ async function organizerDashboard() {
   const lateRequest = new Promise((resolve) => { markLate = resolve; });
   const lateSettled = new Promise((resolve) => { finishLate = resolve; });
   let scopedReads = 0;
-  await page.route('**/api/organizer/manage/v2/operations-report?*', async (route) => {
+  const upcomingItem = { performanceId: show, eventId: 'summer-event', title: performance.title, startsAt, netTickets: 4 };
+  const figures = { ticketsSold: 5, ticketsRefunded: 1, netTickets: 4, orders: 3, grossSales: 500000, refunds: 100000, netSales: 400000 };
+  await page.route('**/api/organizer/sales/summary?*', (route) => {
     const url = new URL(route.request().url());
+    scopedReads++;
+    return respond(route, { ...figures, scope: { type: 'ORGANIZATION' }, from: url.searchParams.get('from'),
+      to: url.searchParams.get('to'), timezone: 'Asia/Ho_Chi_Minh', provisional: false });
+  });
+  await page.route('**/api/organizer/sales/on-sale', (route) => { scopedReads++; return respond(route, []); });
+  await page.route('**/api/organizer/sales/upcoming?*', async (route) => {
     const organization = route.request().headers()['x-organization-id'];
     scopedReads++;
-    if (organization === 'alpha' && url.searchParams.get('status') === 'UPCOMING') {
+    if (organization === 'alpha') {
       markLate();
       await lateResponse;
-      await respond(route, pageResult(url, [performance], 26)).catch(() => {});
+      await respond(route, [upcomingItem]).catch(() => {});
       finishLate();
       return;
     }
-    assert.ok(['alpha', 'beta'].includes(organization), `Unexpected operations access for ${organization}`);
-    await respond(route, pageResult(url, [], 0));
+    assert.ok(organization === 'beta', `Unexpected sales access for ${organization}`);
+    await respond(route, []);
   });
   await page.route('**/api/organizer/manage/v2/event-directory?*', (route) => {
     const url = new URL(route.request().url());
@@ -189,12 +197,13 @@ async function organizerDashboard() {
   await page.setViewportSize({ width: 1440, height: 900 });
   const selection = page.getByRole('combobox', { name: 'Active organization' });
   await selectWorkspaceOption(selection, { label: 'Beta Events' });
-  await metric(page, 'Next seven days', 0);
+  await page.getByRole('region', { name: 'Next seven days', exact: true }).getByText('No performances in this period.').waitFor();
   allowLate();
   await lateSettled;
   await page.getByRole('heading', { name: 'Beta Events', exact: true }).waitFor();
   await page.getByText('No concerts in preparation.', { exact: true }).waitFor();
   assert.equal(await page.getByText(performance.title, { exact: true }).count(), 0);
+  assert.equal(await page.getByRole('link', { name: performance.title }).count(), 0);
 
   const reads = scopedReads;
   await selectWorkspaceOption(selection, { label: 'Finance only' });
