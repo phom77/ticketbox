@@ -255,7 +255,17 @@ export function DateTimePicker({
           </button>
         </div>
         {!dateOnly && (
-          <div className="date-time-time" ref={timeBox}>
+          <div
+            className="date-time-time"
+            ref={timeBox}
+            onBlur={(event) => {
+              // Keyboard users leave the time field with Tab: close the list so it does not cover the next controls.
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                setListing(false);
+                setActive(-1);
+              }
+            }}
+          >
             <input
               id={`${id}-time`}
               role="combobox"
@@ -285,6 +295,7 @@ export function DateTimePicker({
                 role="listbox"
                 aria-label={t('scheduling:timeList', { label })}
                 className="date-time-times"
+                tabIndex={-1}
               >
                 {timeSteps.map((step, index) => (
                   <li

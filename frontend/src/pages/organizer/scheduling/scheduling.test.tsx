@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
@@ -318,6 +319,24 @@ describe('VenueLibraryDialog', () => {
       'v1',
       expect.objectContaining({ expectedVersion: 2, city: 'Hue', name: 'Room' }),
     );
+  });
+
+  it('keeps the saved message when the venue version changes after saving', async () => {
+    const user = userEvent.setup();
+    scheduling.updateVenue.mockResolvedValue({ ...venue, city: 'Hue', version: 3 });
+    function Stateful() {
+      const [venues, setVenues] = useState([venue]);
+      return (
+        <VenueLibraryDialog
+          venues={venues}
+          onChange={(next) => setVenues([next])}
+          onClose={() => {}}
+        />
+      );
+    }
+    render(wrap(<Stateful />));
+    await user.click(screen.getByRole('button', { name: 'Save venue' }));
+    expect(await screen.findByText('Venue saved.')).toBeInTheDocument();
   });
 
   it('points to a new venue when the name is locked by a released performance', async () => {

@@ -181,6 +181,21 @@ describe('DateTimePicker', () => {
     expect(screen.getByTestId('value')).toHaveTextContent('2027-03-05T18:45');
   });
 
+  it('closes the time list when focus leaves the time field', async () => {
+    const user = userEvent.setup();
+    render(
+      <>
+        <Harness initial="2027-03-05T00:00" />
+        <button type="button">Next control</button>
+      </>,
+    );
+    await user.click(screen.getByLabelText('Start, time'));
+    expect(screen.getByRole('listbox')).toBeInTheDocument();
+    await user.keyboard('{Tab}');
+    expect(screen.getByRole('button', { name: 'Next control' })).toHaveFocus();
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+  });
+
   it('explains a local time that a clock change skips', () => {
     render(<Harness initial="2027-03-14T02:30" zone="America/New_York" />);
     expect(screen.getByText(/skipped when clocks change/)).toBeInTheDocument();

@@ -19,6 +19,8 @@ export function VenueLibraryDialog({
 }) {
   const { t } = useTranslation('scheduling');
   const [selected, setSelected] = useState(venues[0]?.id ?? '');
+  // Kept here: the editor remounts with every new venue version, which would clear its own message.
+  const [saved, setSaved] = useState('');
   const venue = venues.find((entry) => entry.id === selected);
   return (
     <SchedulingDialog
@@ -34,19 +36,40 @@ export function VenueLibraryDialog({
             <WorkspaceSelect
               label={t('scheduling:venue')}
               value={selected}
-              onChange={setSelected}
+              onChange={(value) => {
+                setSelected(value);
+                setSaved('');
+              }}
               options={venues.map((entry) => ({ value: entry.id, label: entry.name }))}
             />
           </label>
         )}
-        {venue && <VenueEditor key={venue.id + venue.version} venue={venue} onChange={onChange} />}
+        {venue && (
+          <VenueEditor
+            key={venue.id + venue.version}
+            venue={venue}
+            onChange={onChange}
+            saved={saved}
+            onSaved={setSaved}
+          />
+        )}
         <NewVenue onCreated={(created) => (onChange(created), setSelected(created.id))} />
       </div>
     </SchedulingDialog>
   );
 }
 
-function VenueEditor({ venue, onChange }: { venue: Venue; onChange: (venue: Venue) => void }) {
+function VenueEditor({
+  venue,
+  onChange,
+  saved,
+  onSaved: setSaved,
+}: {
+  venue: Venue;
+  onChange: (venue: Venue) => void;
+  saved: string;
+  onSaved: (message: string) => void;
+}) {
   const { t } = useTranslation('scheduling');
   const [name, setName] = useState(venue.name);
   const [address, setAddress] = useState(venue.address);
@@ -56,7 +79,6 @@ function VenueEditor({ venue, onChange }: { venue: Venue; onChange: (venue: Venu
   const [space, setSpace] = useState('');
   const [error, setError] = useState('');
   const [inUse, setInUse] = useState(false);
-  const [saved, setSaved] = useState('');
   const [busy, setBusy] = useState(false);
 
   async function run(action: () => Promise<Venue>, done: string) {
