@@ -38,6 +38,19 @@ The default gateway is `http://localhost:18091`. Most APIs return an envelope co
 
 The controllers in each module's `web/` package define the full route and validation details. Service-level contracts are in [`contracts/`](../contracts/).
 
+## Guided scheduling and sales controls
+
+Organizer routes below `/api/organizer/manage/v2` need the events grant of the selected organization.
+
+- `POST /events/{id}/performances/bulk` creates up to 30 draft performances in one transaction (`startsAt[]`, and either `sourcePerformanceId` to copy a setup or `venueSpaceId`, `timezone`, `durationMinutes`, `doorsBeforeMinutes`, optional `saleStartAt`). A past or repeated start refuses all of them with 422 and names the dates.
+- `POST /performances/{id}/duplicate` (`startsAt`) creates a draft copy of any native performance with the same space, map draft, stock pools and ticket types (new ids). Times and sale windows shift by the start offset; a shifted sale start in the past stays empty.
+- `POST /performances/{id}/sale/apply` (`targets[{performanceId, expectedSaleVersion}]`) copies ticket types and prices to draft performances of the same event with identical stock pools, all or none.
+- `PUT /venues/{id}` (`expectedVersion`, name, address, city, timezone, capacityHint), `POST /venues/{id}/spaces` and `PUT /venues/{id}/spaces/{space}`. Name and address changes return 409 `error.venue.in-use` while a released or in-review performance uses the venue.
+- `POST /performances/{id}/publication` accepts `releaseMode` (`SCHEDULED`, default, with `publishAt`, or `ON_APPROVAL` without it). Approving an `ON_APPROVAL` review records the approval time and is refused with `error.performance.release-window` once the sale has started.
+- `GET /performances/{id}/sales`, `POST /performances/{id}/sales/pause` (`actionId`, `reason`) and `POST /performances/{id}/sales/resume` (`pauseId`) pause and resume sales through the sale-suspension publication path. Pausing is refused (`error.performance.sales-control-closed`) from the doors-open time (`doorsOpenAt`, else `startsAt`); a pause still open then is resumed automatically by Catalog (audited as `SALES_RESUMED_AT_DOORS`) so Check-in admission is not blocked.
+- `GET|POST /performances/{id}/disruption-requests` and `POST .../{requestId}/withdraw` send and manage cancel or postpone requests (`kind`, `reason`, proposed schedule, `alsoPause`).
+- Admin: `GET /api/admin/v2/performance-disruption-requests?state=`, `GET .../{id}` and `POST .../{id}/decline` (`reason`). Accepting a request is `POST /api/admin/v2/performances/{id}/disruption` with the additive `requestId`, which also lets a disruption take over an open organizer pause. `requestId` is optional: when present it must name an open request of that performance, the request is marked accepted in the same transaction, and the confirmation is rolled back if the request was closed concurrently (for example declined).
+
 ## Organizer sales
 
 `/api/organizer/sales/*` take the `X-Organization-Id` header and `from` / `to` dates (inclusive, in the reporting timezone). `eventId` or `performanceId` narrows the scope, and another organization's id returns 404. A period is at most 1096 days. `trend?groupBy=hour|day|week` allows up to 7, 366 and 1096 days (default by length). `breakdown?by=performance|offer`; `by=offer` needs an event or performance. Figures come from the sales ledger: sales count on the payment date and refunds on the refund confirmation date (ADR 0005). Responses state `timezone` and `provisional` (some performance has not ended). `grossSales`, `refunds` and `netSales` are present only for callers with `FINANCE`; `export?format=csv|pdf` requires `FINANCE`. `GET /on-sale` and `GET /upcoming?days=7` list performances with all-time net tickets, capacity and sell-through.

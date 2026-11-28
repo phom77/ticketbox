@@ -238,6 +238,7 @@
   "reviewInvalidOffer": "Nhập tên, giá nguyên dương theo VND và chọn nhóm chỗ cho từng loại vé.",
   "reviewMissingOffer": "Bật bán ít nhất một loại vé.",
   "reviewUnassignedSeats": "Gán tất cả ghế có thể bán vào loại vé.",
+  "reviewMissingSaleStart": "Chưa có thời điểm mở bán. Hãy đặt thời điểm mở bán trước khi phát hành.",
   "reviewSaleEnded": "Khung giờ bán đã kết thúc. Cập nhật lịch trước khi phát hành.",
   "reviewReady": "Suất diễn đã sẵn sàng phát hành.",
   "reviewFixBeforePublishing": "Hoàn tất các mục sau trước khi phát hành.",

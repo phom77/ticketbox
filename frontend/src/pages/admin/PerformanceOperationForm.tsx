@@ -5,6 +5,7 @@ import type {
   PerformanceDisruptionInput,
   PerformanceSchedule,
 } from '../../api/performanceOperations';
+import type { DisruptionRequest } from '../../api/performanceScheduling';
 import { PerformanceDateTimeField } from '../organizer/PerformanceDateTimeField';
 import {
   resolvePerformanceDateTime,
@@ -19,15 +20,28 @@ const scheduleFields = [
   ['saleEndAt', 'performances:saleEndAt'],
 ] as const;
 type ScheduleField = keyof PerformanceSchedule;
+
+/** The schedule an organizer proposed; sales close at the proposed start. */
+function proposed(request: DisruptionRequest | undefined, field: ScheduleField) {
+  if (request?.kind !== 'POSTPONE' || !request.proposedStartsAt) return null;
+  if (field === 'startsAt') return request.proposedStartsAt;
+  if (field === 'endsAt') return request.proposedEndsAt;
+  if (field === 'doorsOpenAt') return request.proposedDoorsOpenAt;
+  if (field === 'saleEndAt') return request.proposedStartsAt;
+  return null;
+}
 type Errors = Partial<Record<ScheduleField, string>>;
 
 export function PerformanceOperationForm({
   performance,
   kind,
+  request,
   onReview,
   onCancel,
 }: {
   performance: OperationsPerformance;
+  /** An organizer request whose reason and proposed schedule fill the form; the operator may change them. */
+  request?: DisruptionRequest;
   kind: PerformanceDisruptionInput['kind'];
   onReview: (input: PerformanceDisruptionInput) => void;
   onCancel: () => void;
@@ -38,7 +52,10 @@ export function PerformanceOperationForm({
       Object.fromEntries(
         scheduleFields.map(([field]) => [
           field,
-          toPerformanceLocalDateTime(performance[field], performance.timezone),
+          toPerformanceLocalDateTime(
+            proposed(request, field) ?? performance[field],
+            performance.timezone,
+          ),
         ]),
       ) as Record<ScheduleField, string>,
   );
@@ -117,6 +134,7 @@ export function PerformanceOperationForm({
               name={field}
               label={t(label)}
               value={dates[field]}
+              timeZone={performance.timezone}
               required={field !== 'doorsOpenAt'}
               error={errors[field]}
               onChange={(value) => {
@@ -134,6 +152,7 @@ export function PerformanceOperationForm({
           name="reason"
           rows={3}
           required
+          defaultValue={request?.reason}
           maxLength={1000}
           aria-invalid={reasonError || undefined}
           aria-describedby={reasonError ? 'operation-reason-error' : undefined}

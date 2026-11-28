@@ -147,10 +147,18 @@ public class PerformanceCatalog {
 
     @Transactional
     public Venue createVenue(UUID owner, String name, String address, String spaceName) {
+        return createVenue(owner, name, address, spaceName, null, null, null);
+    }
+
+    @Transactional
+    public Venue createVenue(UUID owner, String name, String address, String spaceName, String city, String timezone,
+                             Integer capacityHint) {
         require(PerformanceRules.text(name, 500) && PerformanceRules.text(address, 1000)
                         && PerformanceRules.text(spaceName, 200), "error.performance.invalid-venue");
+        var details = VenueLibrary.details(address, city, timezone, capacityHint);
         UUID id = UUID.randomUUID();
-        store.createVenue(id, UUID.randomUUID(), owner, name.trim(), address.trim(), spaceName.trim());
+        store.createVenue(id, UUID.randomUUID(), owner, name.trim(), address.trim(), spaceName.trim(),
+                details.city(), details.timezone(), details.capacityHint());
         return store.venue(id, owner).orElseThrow();
     }
 
@@ -295,6 +303,7 @@ public class PerformanceCatalog {
         long eventVersion = store.lockNativeEventVersion(performance.eventId(), owner)
                 .orElseThrow(PerformanceCatalog::missing);
         if (expectedEventDraft != null) version(expectedEventDraft, eventVersion);
+        require(performance.saleStartAt() != null, "error.performance.invalid-sale-window");
         require(performance.saleEndAt().isAfter(OffsetDateTime.now()), "error.performance.sale-window-ended");
         var sale = store.sale(performance.id());
         PerformanceRules.validateSale(sale, performance.saleStartAt(), performance.saleEndAt(),
@@ -440,7 +449,7 @@ public class PerformanceCatalog {
                 "error.performance.invalid-background");
     }
 
-    private static String privateBackgroundUrl(UUID performance, UUID asset) {
+    static String privateBackgroundUrl(UUID performance, UUID asset) {
         return "/api/organizer/manage/v2/performances/" + performance + "/layout/background/" + asset;
     }
 
@@ -452,6 +461,7 @@ public class PerformanceCatalog {
                 performance.doorsOpenAt(), performance.timezone(), performance.saleStartAt(), performance.saleEndAt(),
                 status, suspended, resumedAdmissionAt, performance.publicVisible(), performance.maxPerAccount(),
                 null, sale.groups(), sale.offers(), event.segment(), event.primaryGenre(),
-                VenueCity.of(performance.venueAddress()));
+                performance.venueCity() != null && !performance.venueCity().isBlank()
+                        ? performance.venueCity() : VenueCity.of(performance.venueAddress()));
     }
 }

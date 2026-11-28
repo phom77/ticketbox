@@ -37,7 +37,7 @@ public class JdbcPerformanceReviewStore implements PerformanceReviewStore {
                     SELECT DISTINCT ON (performance_id) * FROM performance_publication_reviews
                     ORDER BY performance_id,submitted_at DESC,id
                 ) review WHERE state IN ('SUBMITTED','SCHEDULED','HELD','MISSED')
-                ORDER BY publish_at,id LIMIT 200
+                ORDER BY publish_at NULLS FIRST,id LIMIT 200
                 """, this::review);
     }
 
@@ -55,18 +55,20 @@ public class JdbcPerformanceReviewStore implements PerformanceReviewStore {
         jdbc.update("""
                 INSERT INTO performance_publication_reviews
                 (id,performance_id,submitted_by,publish_at,sale_version,layout_version,event_draft_version,
-                 schedule_draft_version,summary,state)
-                VALUES (?,?,?,?,?,?,?,?,CAST(? AS jsonb),'SUBMITTED')
+                 schedule_draft_version,summary,state,release_on_approval)
+                VALUES (?,?,?,?,?,?,?,?,CAST(? AS jsonb),'SUBMITTED',?)
                 """, review.id(), review.performanceId(), review.submittedBy(), review.publishAt(),
-                versions.sale(), versions.layout(), versions.event(), versions.schedule(), serialize(review.summary()));
+                versions.sale(), versions.layout(), versions.event(), versions.schedule(), serialize(review.summary()),
+                review.releaseOnApproval());
     }
 
     @Override
-    public void decide(UUID id, State state, UUID reviewer, String reason) {
+    public void decide(UUID id, State state, UUID reviewer, String reason, OffsetDateTime publishAt) {
         jdbc.update("""
-                UPDATE performance_publication_reviews SET state=?,reviewer_id=?,reason=?,decided_at=clock_timestamp()
+                UPDATE performance_publication_reviews SET state=?,reviewer_id=?,reason=?,decided_at=clock_timestamp(),
+                    publish_at=COALESCE(?,publish_at)
                 WHERE id=?
-                """, state.name(), reviewer, reason, id);
+                """, state.name(), reviewer, reason, publishAt, id);
     }
 
     @Override
@@ -81,7 +83,8 @@ public class JdbcPerformanceReviewStore implements PerformanceReviewStore {
                     new Versions(row.getLong("sale_version"), row.getLong("layout_version"),
                             row.getLong("event_draft_version"), row.getLong("schedule_draft_version")),
                     json.readValue(row.getString("summary"), Summary.class), State.valueOf(row.getString("state")),
-                    row.getObject("reviewer_id", UUID.class), row.getString("reason"));
+                    row.getObject("reviewer_id", UUID.class), row.getString("reason"),
+                    row.getBoolean("release_on_approval"));
         } catch (JsonProcessingException failure) {
             throw new IllegalStateException("Invalid performance review summary", failure);
         }

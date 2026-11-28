@@ -21,6 +21,8 @@ export type OperationsPerformance = {
   salesSuspended: boolean;
   ticketingAcknowledged: boolean;
   checkinAcknowledged: boolean;
+  /** Sales are paused by the organizer; a platform disruption may take the pause over. */
+  organizerPaused?: boolean;
 };
 
 export type PerformanceDisruption = {
@@ -35,8 +37,8 @@ export type PerformanceSchedule = Pick<
   'startsAt' | 'endsAt' | 'doorsOpenAt' | 'saleStartAt' | 'saleEndAt'
 >;
 export type PerformanceDisruptionInput =
-  | { kind: 'CANCEL'; reason: string }
-  | ({ kind: 'POSTPONE'; reason: string } & PerformanceSchedule);
+  | { kind: 'CANCEL'; reason: string; requestId?: string }
+  | ({ kind: 'POSTPONE'; reason: string; requestId?: string } & PerformanceSchedule);
 
 export function findOperatingPerformances(query: string, page: number, signal: AbortSignal) {
   const params = new URLSearchParams({ query, page: String(page), size: '15' });

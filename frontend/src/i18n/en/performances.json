@@ -240,6 +240,7 @@
   "reviewInvalidOffer": "Give each ticket type a name and a positive whole price in VND, and choose its stock pool.",
   "reviewMissingOffer": "Activate at least one ticket type.",
   "reviewUnassignedSeats": "Assign every sellable seat to a ticket type.",
+  "reviewMissingSaleStart": "Sale start missing. Set when sales open before publishing.",
   "reviewSaleEnded": "The sale window has ended. Change the schedule before publishing.",
   "reviewReady": "This performance is ready to publish.",
   "reviewFixBeforePublishing": "Complete these items before publishing.",

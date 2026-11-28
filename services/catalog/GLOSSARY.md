@@ -69,3 +69,19 @@ The one genre of an event that belongs to its segment. A segment and a primary g
 **Tag (secondary genre)**
 
 Up to three additional genres of an event, from any segment, used by discovery. Changing tags after release goes through the content revision but does not re-issue sale snapshots.
+
+**Venue space**
+
+A named room or stage of a venue (Hall A, Main stage). A performance is held in one space; space names are unique within a venue. A venue also carries a city, a default time zone and an optional capacity hint. Its name, address and space names are fixed while a released or in-review performance uses it.
+
+**Release on approval**
+
+A publication review submitted with *Release as soon as approved* instead of a release time. Approval records the approval time as the release time, and is refused after the sale start.
+
+**Sales pause**
+
+An organizer's immediate, audited stop of sales for a released performance. It publishes the next sale version with sales suspended, like a postponement, and the organizer can resume it. A platform disruption takes precedence and closes it as superseded.
+
+**Disruption request**
+
+An organizer's request to cancel or postpone a released performance, with a reason and, for postponement, a proposed schedule. It commits nothing. Platform operations accept it by confirming the performance disruption (which links it) or decline it with a reason; the organizer can withdraw it before a decision.

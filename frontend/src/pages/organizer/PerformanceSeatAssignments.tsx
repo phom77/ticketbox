@@ -1,4 +1,5 @@
 import { WorkspaceSelect } from '../../components/WorkspaceSelect';
+import { saleOpeningInstant } from '../../features/performance/saleWindowPresets';
 import { MoneyInput } from '../../components/admin/MoneyInput';
 import { useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -101,7 +102,7 @@ export function PerformanceSeatAssignments({
           price,
           currency: 'VND',
           active: true,
-          saleStartAt: performance.saleStartAt,
+          saleStartAt: saleOpeningInstant(performance),
           saleEndAt: performance.saleEndAt,
         },
       ],

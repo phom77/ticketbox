@@ -6,7 +6,12 @@ import {
 export const salePresets = ['whole', 'early', 'final', 'later', 'custom'] as const;
 export type SalePreset = (typeof salePresets)[number];
 export type SaleWindow = { saleStartAt: string; saleEndAt: string };
-export type PerformanceSaleWindow = SaleWindow & { timezone: string };
+/** The performance sale window; a draft may not have a sale start yet. */
+export type PerformanceSaleWindow = {
+  saleStartAt: string | null;
+  saleEndAt: string;
+  timezone: string;
+};
 export type PresetInput = { date?: string; days?: number };
 export type PresetResult =
   | { ok: true; window: SaleWindow }
@@ -14,6 +19,11 @@ export type PresetResult =
 
 export const defaultFinalDays = 7;
 export const maxFinalDays = 30;
+
+/** When a performance's sales open; a draft without a sale start opens now. */
+export function saleOpeningInstant(performance: { saleStartAt: string | null }) {
+  return performance.saleStartAt ?? new Date().toISOString();
+}
 
 const dayMs = 24 * 60 * 60 * 1000;
 
@@ -44,9 +54,11 @@ export function applyPreset(
   input: PresetInput = {},
 ): PresetResult {
   const { saleStartAt: from, saleEndAt: to, timezone } = performance;
-  const fromMs = Date.parse(from);
+  // Without a sale start the window opens now.
+  const opening = from ?? new Date().toISOString();
+  const fromMs = from ? Date.parse(from) : Number.NEGATIVE_INFINITY;
   const toMs = Date.parse(to);
-  let start = from;
+  let start = opening;
   let end = to;
   if (preset === 'early') {
     const instant = input.date ? resolve(input.date + 'T23:59', timezone) : null;
@@ -59,11 +71,11 @@ export function applyPreset(
     }
     const instant = resolve(shiftDate(venueDate(to, timezone), -days) + 'T00:00', timezone);
     if (!instant) return { ok: false, reason: 'invalid' };
-    start = Date.parse(instant) < fromMs ? from : instant;
+    start = Date.parse(instant) < fromMs ? opening : instant;
   } else if (preset === 'later') {
     const instant = input.date ? resolve(input.date, timezone) : null;
     if (!instant) return { ok: false, reason: 'invalid' };
-    start = Date.parse(instant) < fromMs ? from : instant;
+    start = Date.parse(instant) < fromMs ? opening : instant;
   } else if (preset === 'custom') {
     return { ok: false, reason: 'invalid' };
   }
@@ -83,7 +95,9 @@ export function detectPreset(
   performance: PerformanceSaleWindow,
 ): { preset: SalePreset } & PresetInput {
   const { timezone } = performance;
-  const sameStart = Date.parse(window.saleStartAt) === Date.parse(performance.saleStartAt);
+  const sameStart =
+    performance.saleStartAt !== null &&
+    Date.parse(window.saleStartAt) === Date.parse(performance.saleStartAt);
   const sameEnd = Date.parse(window.saleEndAt) === Date.parse(performance.saleEndAt);
   if (sameStart && sameEnd) return { preset: 'whole' };
   const localStart = toPerformanceLocalDateTime(window.saleStartAt, timezone);

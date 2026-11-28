@@ -51,8 +51,8 @@ public class JdbcPerformanceStore implements PerformanceStore {
 
     // Best-effort city: the last comma-separated part of the venue address, without a trailing country.
     private static final String CITY = """
-            CASE WHEN position(',' IN p.venue_address) > 0 THEN NULLIF(btrim(substring(
-                regexp_replace(p.venue_address, '\\s*,\\s*vi.t\\s*nam\\s*$', '', 'i') FROM '([^,]+)$')), '') END
+            COALESCE(NULLIF(btrim(p.venue_city), ''), CASE WHEN position(',' IN p.venue_address) > 0 THEN NULLIF(btrim(substring(
+                regexp_replace(p.venue_address, '\\s*,\\s*vi.t\\s*nam\\s*$', '', 'i') FROM '([^,]+)$')), '') END)
             """;
     private static final String MIN_PRICE = """
             COALESCE((SELECT min(o.price) FROM performance_sale_offers o WHERE o.performance_id=p.id AND o.active),
@@ -158,7 +158,9 @@ public class JdbcPerformanceStore implements PerformanceStore {
     private static final String OPERATIONS_FIELDS = """
             SELECT p.id,e.title,v.name AS venue_name,s.name AS space_name,p.starts_at,p.ends_at,
                    p.doors_open_at,p.timezone,p.sale_start_at,p.sale_end_at,p.status,p.sales_suspended,
-                   COALESCE(pub.ticketing_ack,false) AS ticketing_ack,COALESCE(pub.checkin_ack,false) AS checkin_ack
+                   COALESCE(pub.ticketing_ack,false) AS ticketing_ack,COALESCE(pub.checkin_ack,false) AS checkin_ack,
+                   EXISTS(SELECT 1 FROM performance_sales_pauses sp WHERE sp.performance_id=p.id
+                          AND sp.closed_reason IS NULL) AS organizer_paused
             """;
     private static final String OPERATIONS_ACK = """
             LEFT JOIN performance_sale_publications pub ON pub.performance_id=p.id AND pub.version=p.sale_version
@@ -384,7 +386,8 @@ public class JdbcPerformanceStore implements PerformanceStore {
     }
 
     private Venue venue(ResultSet rs, int n) throws SQLException {
-        return new Venue(id(rs, "id"), rs.getString("name"), rs.getString("address"),
+        return new Venue(id(rs, "id"), rs.getString("name"), rs.getString("address"), rs.getString("city"),
+                rs.getString("timezone"), rs.getObject("capacity_hint", Integer.class), rs.getLong("version"),
                 read(rs.getString("spaces"), SPACES));
     }
 
@@ -397,9 +400,61 @@ public class JdbcPerformanceStore implements PerformanceStore {
     }
 
     @Override
-    public void createVenue(UUID id, UUID space, UUID organizer, String name, String address, String spaceName) {
-        jdbc.update("INSERT INTO venues(id,organization_id,name,address) VALUES(?,?,?,?)", id, organizer, name, address);
+    public void createVenue(UUID id, UUID space, UUID organizer, String name, String address, String spaceName,
+                            String city, String timezone, Integer capacityHint) {
+        jdbc.update("INSERT INTO venues(id,organization_id,name,address,city,timezone,capacity_hint) VALUES(?,?,?,?,?,?,?)",
+                id, organizer, name, address, city, timezone, capacityHint);
         jdbc.update("INSERT INTO venue_spaces(id,venue_id,name) VALUES(?,?,?)", space, id, spaceName);
+    }
+
+    @Override
+    public Optional<Venue> lockVenue(UUID id, UUID organizer) {
+        return first("SELECT id FROM venues WHERE id=? AND organization_id=? FOR UPDATE",
+                (rs, n) -> id(rs, "id"), id, organizer).flatMap(locked -> venue(locked, organizer));
+    }
+
+    @Override
+    public boolean venueInUse(UUID venue) {
+        return jdbc.queryForObject("""
+                SELECT EXISTS(SELECT 1 FROM performances p JOIN venue_spaces s ON s.id=p.venue_space_id
+                              WHERE s.venue_id=? AND p.status<>'DRAFT')
+                    OR EXISTS(SELECT 1 FROM performance_publication_reviews r JOIN performances p ON p.id=r.performance_id
+                              JOIN venue_spaces s ON s.id=p.venue_space_id
+                              WHERE s.venue_id=? AND r.state IN ('SUBMITTED','SCHEDULED'))
+                """, Boolean.class, venue, venue);
+    }
+
+    @Override
+    public void updateVenue(UUID id, String name, String address, String city, String timezone, Integer capacityHint) {
+        jdbc.update("""
+                UPDATE venues SET name=?,address=?,city=?,timezone=?,capacity_hint=?,version=version+1 WHERE id=?
+                """, name, address, city, timezone, capacityHint, id);
+    }
+
+    @Override
+    public boolean spaceNameTaken(UUID venue, String name, UUID except) {
+        return jdbc.queryForObject("""
+                SELECT EXISTS(SELECT 1 FROM venue_spaces WHERE venue_id=? AND lower(btrim(name))=lower(btrim(?))
+                              AND (CAST(? AS uuid) IS NULL OR id<>?))
+                """, Boolean.class, venue, name, except, except);
+    }
+
+    @Override
+    public void addSpace(UUID venue, UUID space, String name) {
+        jdbc.update("INSERT INTO venue_spaces(id,venue_id,name) VALUES(?,?,?)", space, venue, name);
+    }
+
+    @Override
+    public void renameSpace(UUID venue, UUID space, String name) {
+        jdbc.update("UPDATE venue_spaces SET name=? WHERE id=? AND venue_id=?", name, space, venue);
+    }
+
+    @Override
+    public boolean hasPendingReview(UUID performance) {
+        return jdbc.queryForObject("""
+                SELECT EXISTS(SELECT 1 FROM performance_publication_reviews
+                              WHERE performance_id=? AND state IN ('SUBMITTED','SCHEDULED'))
+                """, Boolean.class, performance);
     }
 
     @Override
@@ -435,11 +490,34 @@ public class JdbcPerformanceStore implements PerformanceStore {
     }
 
     @Override
-    public Optional<Performance> lockNativePerformance(UUID id) {
+    public Optional<UUID> ownedEvent(UUID performance, UUID organizer) {
         return first("""
-                SELECT v.* FROM performances p JOIN catalog_performance_view v ON v.id=p.id
-                WHERE p.id=? AND p.legacy_concert_id IS NULL FOR UPDATE OF p
-                """, this::performance, id);
+                SELECT p.event_id FROM performances p JOIN events e ON e.id=p.event_id
+                WHERE p.id=? AND e.organization_id=? AND p.legacy_concert_id IS NULL
+                """, (rs, n) -> id(rs, "event_id"), performance, organizer);
+    }
+
+    @Override
+    public Optional<Performance> lockNativePerformance(UUID id) {
+        // Lock first, then read the view, so the read includes the preceding writer's commit.
+        return first("""
+                SELECT p.id FROM performances p WHERE p.id=? AND p.legacy_concert_id IS NULL FOR UPDATE OF p
+                """, (rs, n) -> id(rs, "id"), id).flatMap(this::performanceView);
+    }
+
+    @Override
+    public void lockVenueOfSpace(UUID space) {
+        jdbc.query("""
+                SELECT v.id FROM venue_spaces s JOIN venues v ON v.id=s.venue_id WHERE s.id=? FOR UPDATE OF v
+                """, (rs, n) -> rs.getObject("id"), space);
+    }
+
+    @Override
+    public Optional<Performance> ownedPerformance(UUID id, UUID organizer) {
+        return first("""
+                SELECT p.id FROM performances p JOIN events e ON e.id=p.event_id
+                WHERE p.id=? AND e.organization_id=? AND p.legacy_concert_id IS NULL
+                """, (rs, n) -> id(rs, "id"), id, organizer).flatMap(this::performanceView);
     }
 
     @Override
@@ -481,7 +559,8 @@ public class JdbcPerformanceStore implements PerformanceStore {
         return new OperationsPerformance(id(rs, "id"), rs.getString("title"), rs.getString("venue_name"),
                 rs.getString("space_name"), time(rs, "starts_at"), time(rs, "ends_at"), time(rs, "doors_open_at"),
                 rs.getString("timezone"), time(rs, "sale_start_at"), time(rs, "sale_end_at"), rs.getString("status"),
-                rs.getBoolean("sales_suspended"), rs.getBoolean("ticketing_ack"), rs.getBoolean("checkin_ack"));
+                rs.getBoolean("sales_suspended"), rs.getBoolean("ticketing_ack"), rs.getBoolean("checkin_ack"),
+                rs.getBoolean("organizer_paused"));
     }
 
     private Optional<Performance> performanceView(UUID id) {
@@ -495,7 +574,7 @@ public class JdbcPerformanceStore implements PerformanceStore {
                 time(rs, "sale_start_at"), time(rs, "sale_end_at"), rs.getString("status"),
                 rs.getBoolean("sales_suspended"), time(rs, "resumed_admission_at"), rs.getBoolean("public_visible"), rs.getInt("max_per_account"),
                 rs.getLong("sale_version"), rs.getObject("layout_version", Long.class), id(rs, "legacy_concert_id"),
-                rs.getLong("draft_version"));
+                rs.getLong("draft_version"), rs.getString("venue_city"));
     }
 
     @Override

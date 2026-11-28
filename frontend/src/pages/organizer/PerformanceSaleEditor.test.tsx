@@ -27,7 +27,7 @@ const standard = {
   price: 500000,
   currency: 'VND' as const,
   active: true,
-  saleStartAt: performance.saleStartAt,
+  saleStartAt: performance.saleStartAt!,
   saleEndAt: performance.saleEndAt,
 };
 

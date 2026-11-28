@@ -62,7 +62,7 @@ export type OperationsReviewRow = {
   title: string;
   status: PublicationReview['state'];
   submittedAt: string;
-  publishAt: string;
+  publishAt: string | null;
   reason: string | null;
 };
 

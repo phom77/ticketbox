@@ -12,6 +12,7 @@ import {
   summarizeWindow,
   venueDate,
   type SalePreset,
+  saleOpeningInstant,
 } from '../../features/performance/saleWindowPresets';
 import { PerformanceDateTimeField } from './PerformanceDateTimeField';
 import { resolvePerformanceDateTime, toPerformanceLocalDateTime } from './performanceDateTime';
@@ -66,16 +67,18 @@ export function PerformanceTicketTypeFields({
   const [preset, setPreset] = useState<SalePreset>(detected.preset);
   const [days, setDays] = useState(detected.days ?? defaultFinalDays);
   const [earlyDate, setEarlyDate] = useState(
-    detected.preset === 'early' ? (detected.date ?? '') : venueDate(saleWindow.saleStartAt, zone),
+    detected.preset === 'early'
+      ? (detected.date ?? '')
+      : venueDate(saleOpeningInstant(saleWindow), zone),
   );
   const [laterStart, setLaterStart] = useState(
     detected.preset === 'later'
       ? (detected.date ?? '')
-      : toPerformanceLocalDateTime(saleWindow.saleStartAt, zone),
+      : toPerformanceLocalDateTime(saleOpeningInstant(saleWindow), zone),
   );
   const [presetError, setPresetError] = useState('');
 
-  const opensAt = toPerformanceLocalDateTime(performance.saleStartAt, zone);
+  const opensAt = toPerformanceLocalDateTime(saleOpeningInstant(performance), zone);
   const closesAt = toPerformanceLocalDateTime(performance.saleEndAt, zone);
   const description = offer.description ?? '';
   // The field keeps what the organizer typed; an unusable value is flagged on blur and blocks saving.
@@ -251,6 +254,7 @@ export function PerformanceTicketTypeFields({
             name={`${idPrefix}-later`}
             label={t('performances:presetStartsOn')}
             value={laterStart}
+            timeZone={zone}
             min={opensAt}
             max={closesAt}
             onChange={(value) => {
@@ -267,6 +271,7 @@ export function PerformanceTicketTypeFields({
                 name={`${idPrefix}-${field}`}
                 label={t(`performances:${field}`)}
                 value={edited?.[field] ?? toPerformanceLocalDateTime(offer[field], zone)}
+                timeZone={zone}
                 onChange={(value) => onDateChange(field, value)}
                 min={opensAt}
                 max={closesAt}

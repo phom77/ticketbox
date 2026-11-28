@@ -185,7 +185,7 @@ function ReleaseQueue() {
                   </Link>
                   <p>
                     {t(`shared:release_${row.status}`)} ·{' '}
-                    {formatDate.format(new Date(row.publishAt))} (ICT)
+                    {row.publishAt ? `${formatDate.format(new Date(row.publishAt))} (ICT)` : '—'}
                   </p>
                 </>
               ) : (
@@ -237,7 +237,9 @@ function PerformanceReviewSummary({
     <details open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary>
         <strong>{row.title}</strong> · {t(`shared:release_${row.status}`)} ·{' '}
-        {formatDate.format(new Date(row.publishAt))} (ICT)
+        {row.publishAt
+          ? `${formatDate.format(new Date(row.publishAt))} (ICT)`
+          : t('scheduling:releaseWhenApproved')}
       </summary>
       {open && (
         <>
@@ -306,7 +308,11 @@ function PerformanceReviewItem({
       <dl className="publication-status">
         <div>
           <dt>{t('shared:releasePublishAt')} (ICT)</dt>
-          <dd>{formatDate.format(new Date(row.publishAt))}</dd>
+          <dd>
+            {row.publishAt
+              ? formatDate.format(new Date(row.publishAt))
+              : t('scheduling:releaseWhenApproved')}
+          </dd>
         </div>
         <div>
           <dt>{t('shared:releaseSaleAt')} (ICT)</dt>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { saleOpeningInstant } from '../../features/performance/saleWindowPresets';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, Map as MapIcon, Ticket } from 'lucide-react';
@@ -81,6 +82,7 @@ export function PerformanceWorkspace({
   const [sale, setSale] = useState<SaleDraft | null>(null);
   const [publication, setPublication] = useState<Publication | null>(null);
   const [publishAt, setPublishAt] = useState('');
+  const [releaseMode, setReleaseMode] = useState<'SCHEDULED' | 'ON_APPROVAL'>('SCHEDULED');
   const [layoutDirty, setLayoutDirty] = useState(false);
   const [layoutBusy, setLayoutBusy] = useState(false);
   const [saleDirty, setSaleDirty] = useState(false);
@@ -208,7 +210,7 @@ export function PerformanceWorkspace({
         entry.id === offer.id
           ? {
               ...entry,
-              saleStartAt: performance.saleStartAt,
+              saleStartAt: saleOpeningInstant(performance),
               saleEndAt: performance.saleEndAt,
             }
           : entry,
@@ -247,7 +249,9 @@ export function PerformanceWorkspace({
     }
 
     const errors: OfferDates = {};
-    const starts = Date.parse(performance.saleStartAt);
+    const starts = performance.saleStartAt
+      ? Date.parse(performance.saleStartAt)
+      : Number.NEGATIVE_INFINITY;
     const ends = Date.parse(performance.saleEndAt);
     const offers = sale.offers.map((offer) => {
       const edited = editedDates[offer.id];
@@ -361,6 +365,7 @@ export function PerformanceWorkspace({
       replaceSale({ ...sale, groups });
   }
 
+  const configuredCapacity = sale?.groups.reduce((total, group) => total + group.capacity, 0) ?? 0;
   const review =
     stage === 'review' && sale && draft
       ? inspectSaleDraft(draft.layout, sale, performance, Date.now())
@@ -372,16 +377,18 @@ export function PerformanceWorkspace({
   );
 
   async function publish() {
-    if (!sale || !draft || !ready || immutable || stage !== 'review' || !publishAt) return;
-    const release = checkPublishAt(publishAt, performance, Date.now());
-    if (!release.ok) return;
+    if (!sale || !draft || !ready || immutable || stage !== 'review') return;
+    const onApproval = releaseMode === 'ON_APPROVAL';
+    if (!onApproval && !publishAt) return;
+    const release = onApproval ? null : checkPublishAt(publishAt, performance, Date.now());
+    if (release && !release.ok) return;
     await run(async () => {
       const scheduled = await publishPerformance(
         id,
         sale.version,
         draft.version,
         { event: event.draftVersion, schedule: performance.draftVersion },
-        release.instant,
+        release?.ok ? release.instant : null,
       );
       setPublication(scheduled);
     });
@@ -756,6 +763,14 @@ export function PerformanceWorkspace({
               </div>
             )}
           </div>
+          {venue?.capacityHint != null && configuredCapacity > venue.capacityHint && (
+            <p role="status" className="performance-feedback">
+              {t('scheduling:capacityWarning', {
+                configured: number.format(configuredCapacity),
+                hint: number.format(venue.capacityHint),
+              })}
+            </p>
+          )}
           {stage === 'review' && review && (
             <ReviewPerformance
               event={event}
@@ -778,6 +793,8 @@ export function PerformanceWorkspace({
               onPublish={() => void publish()}
               publishAt={publishAt}
               onPublishAt={setPublishAt}
+              releaseMode={releaseMode}
+              onReleaseMode={setReleaseMode}
               publication={publication}
             />
           )}
@@ -837,6 +854,8 @@ function ReviewPerformance({
   onPublish,
   publishAt,
   onPublishAt,
+  releaseMode,
+  onReleaseMode,
   publication,
 }: {
   event: ManagedEvent;
@@ -855,6 +874,8 @@ function ReviewPerformance({
   onPublish: () => void;
   publishAt: string;
   onPublishAt: (value: string) => void;
+  releaseMode: 'SCHEDULED' | 'ON_APPROVAL';
+  onReleaseMode: (value: 'SCHEDULED' | 'ON_APPROVAL') => void;
   publication: Publication | null;
 }) {
   const { t, i18n } = useTranslation('performances');
@@ -864,8 +885,9 @@ function ReviewPerformance({
   const state =
     review?.state === 'RELEASED' && !publication?.ticketingAcknowledged ? 'PENDING' : review?.state;
   const releaseTime =
-    review &&
-    formatPerformanceDateTime(review.publishAt, performance.timezone, i18n.resolvedLanguage);
+    review?.publishAt && review.publishAt !== null
+      ? `${formatPerformanceDateTime(review.publishAt, performance.timezone, i18n.resolvedLanguage)} (${performance.timezone})`
+      : t('scheduling:releaseWhenApproved');
   const release = publishAt ? checkPublishAt(publishAt, performance, Date.now()) : null;
   const releaseError = release && !release.ok ? t(`performances:publishAt_${release.reason}`) : '';
   function suggestPublishAt(instant: number) {
@@ -974,7 +996,7 @@ function ReviewPerformance({
       )}
       {state && (
         <p role="status">
-          {t(`shared:release_${state}`)} · {releaseTime} ({performance.timezone})
+          {t(`shared:release_${state}`)} · {releaseTime}
         </p>
       )}
       {review?.reason && <p>{review.reason}</p>}
@@ -1015,41 +1037,74 @@ function ReviewPerformance({
         </button>
         {!immutable && (
           <>
-            <div className="performance-release-time">
-              <PerformanceDateTimeField
-                name="publishAt"
-                label={`${t('shared:releasePublishAt')} (${performance.timezone})`}
-                value={publishAt}
-                onChange={onPublishAt}
-                required
-                disabled={disabled}
-                max={toPerformanceLocalDateTime(performance.saleStartAt, performance.timezone)}
-                error={releaseError}
-                description={t('performances:publishAtHelp')}
-              />
-              <div className="performance-options">
-                <button
-                  type="button"
-                  className="button button-secondary"
-                  disabled={disabled || !(saleOpens > soon)}
-                  onClick={() => suggestPublishAt(soon)}
-                >
-                  {t('performances:publishAtSoon')}
-                </button>
-                <button
-                  type="button"
-                  className="button button-secondary"
-                  disabled={disabled || !(saleOpens > Date.now() + 60_000)}
-                  onClick={() => suggestPublishAt(saleOpens)}
-                >
-                  {t('performances:publishAtSaleStart')}
-                </button>
+            <fieldset className="performance-release-mode" disabled={disabled}>
+              <legend>{t('scheduling:releaseChoice')}</legend>
+              <label className="performance-inline">
+                <input
+                  type="radio"
+                  name="releaseMode"
+                  checked={releaseMode === 'ON_APPROVAL'}
+                  onChange={() => onReleaseMode('ON_APPROVAL')}
+                />
+                {t('scheduling:releaseOnApproval')}
+              </label>
+              <small className="performance-field-help">
+                {t('scheduling:releaseOnApprovalHelp')}
+              </small>
+              <label className="performance-inline">
+                <input
+                  type="radio"
+                  name="releaseMode"
+                  checked={releaseMode === 'SCHEDULED'}
+                  onChange={() => onReleaseMode('SCHEDULED')}
+                />
+                {t('scheduling:releaseScheduled')}
+              </label>
+            </fieldset>
+            {releaseMode === 'SCHEDULED' && (
+              <div className="performance-release-time">
+                <PerformanceDateTimeField
+                  name="publishAt"
+                  timeZone={performance.timezone}
+                  label={t('shared:releasePublishAt')}
+                  value={publishAt}
+                  onChange={onPublishAt}
+                  required
+                  disabled={disabled}
+                  max={
+                    performance.saleStartAt
+                      ? toPerformanceLocalDateTime(performance.saleStartAt, performance.timezone)
+                      : undefined
+                  }
+                  error={releaseError}
+                  description={t('performances:publishAtHelp')}
+                />
+                <div className="performance-options">
+                  <button
+                    type="button"
+                    className="button button-secondary"
+                    disabled={disabled || !(saleOpens > soon)}
+                    onClick={() => suggestPublishAt(soon)}
+                  >
+                    {t('performances:publishAtSoon')}
+                  </button>
+                  <button
+                    type="button"
+                    className="button button-secondary"
+                    disabled={disabled || !(saleOpens > Date.now() + 60_000)}
+                    onClick={() => suggestPublishAt(saleOpens)}
+                  >
+                    {t('performances:publishAtSaleStart')}
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
             <button
               type="button"
               className="button button-primary"
-              disabled={disabled || !ready || !publishAt || !release?.ok}
+              disabled={
+                disabled || !ready || (releaseMode === 'SCHEDULED' && (!publishAt || !release?.ok))
+              }
               onClick={onPublish}
             >
               {t('shared:releaseSend')}

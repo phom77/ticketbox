@@ -17,6 +17,17 @@ An organizer with the event management grant SHALL be able to pause sales of a r
 - **WHEN** the organizer resumes the open pause while the sale window is still open and no disruption is active
 - **THEN** Catalog publishes a new sale version that is not suspended and buyers can buy again once Ticketing acknowledges it.
 
+#### Scenario: Pause refused once doors open
+
+- **WHEN** an organizer pauses sales at or after the performance's doors-open time (`doors_open_at`, or `starts_at` when doors is not set)
+- **THEN** the pause is refused with a message that sales controls close when doors open and to contact TicketBox, and no version is published.
+
+#### Scenario: Open pause resumed at doors open
+
+- **GIVEN** an organizer pause is still open when doors open
+- **WHEN** the doors-open time is reached
+- **THEN** Catalog resumes sales automatically through the normal publication path, records the pause as resumed by the system and audits it, so Check-in admission is not blocked by the suspension. Platform disruptions are unaffected.
+
 #### Scenario: Repeated or stale request
 
 - **WHEN** the same pause or resume request is sent twice, or a pause is requested for a performance that is already suspended, not on sale, ended or not yet acknowledged by Ticketing

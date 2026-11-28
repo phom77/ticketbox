@@ -68,7 +68,26 @@ public interface PerformanceStore {
 
     boolean ownsSpace(UUID id, UUID organizer);
 
-    void createVenue(UUID id, UUID space, UUID organizer, String name, String address, String spaceName);
+    void createVenue(UUID id, UUID space, UUID organizer, String name, String address, String spaceName,
+                     String city, String timezone, Integer capacityHint);
+
+    /** Locks the venue row of an organizer for a version-checked edit. */
+    Optional<Venue> lockVenue(UUID id, UUID organizer);
+
+    /** True while a released performance, or one under review, uses a space of the venue. */
+    boolean venueInUse(UUID venue);
+
+    void updateVenue(UUID id, String name, String address, String city, String timezone, Integer capacityHint);
+
+    /** True when another space of the venue already has this name (case-insensitive); `except` may be null. */
+    boolean spaceNameTaken(UUID venue, String name, UUID except);
+
+    void addSpace(UUID venue, UUID space, String name);
+
+    void renameSpace(UUID venue, UUID space, String name);
+
+    /** True while the performance has a submitted or scheduled publication review. */
+    boolean hasPendingReview(UUID performance);
 
     Performance createPerformance(
             UUID id, UUID event, UUID space, OffsetDateTime starts, OffsetDateTime ends, OffsetDateTime doors,
@@ -79,6 +98,15 @@ public interface PerformanceStore {
             String timezone, OffsetDateTime saleStart, OffsetDateTime saleEnd, int limit, boolean isPublic);
 
     Optional<Performance> lockOwnedPerformance(UUID id, UUID organizer);
+
+    /** Locks the venue row of a space, serializing with venue edits that check whether the venue is in use. */
+    void lockVenueOfSpace(UUID space);
+
+    /** Reads an owned native performance without locking it. */
+    Optional<Performance> ownedPerformance(UUID id, UUID organizer);
+
+    /** The event of a native performance owned by the organizer, read without locking. */
+    Optional<UUID> ownedEvent(UUID performance, UUID organizer);
 
     Optional<Performance> publicPerformance(UUID id);
 

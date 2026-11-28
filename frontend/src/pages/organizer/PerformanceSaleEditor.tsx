@@ -9,7 +9,11 @@ import type {
   SaleGroup,
   SaleOffer,
 } from '../../api/performanceManagement';
-import { applyPreset, venueDate } from '../../features/performance/saleWindowPresets';
+import {
+  applyPreset,
+  saleOpeningInstant,
+  venueDate,
+} from '../../features/performance/saleWindowPresets';
 import { PerformanceTicketTypeFields } from './PerformanceTicketTypeFields';
 import type { OfferDateField, OfferDates } from './performanceSaleReview';
 
@@ -111,9 +115,8 @@ export function PerformanceSaleEditor({
 
   /** A second ticket type in the same pool that sells at the early price until the middle of the sale. */
   function addEarlyBird(offer: SaleOffer) {
-    const middle = new Date(
-      (Date.parse(performance.saleStartAt) + Date.parse(performance.saleEndAt)) / 2,
-    ).toISOString();
+    const opens = performance.saleStartAt ? Date.parse(performance.saleStartAt) : Date.now();
+    const middle = new Date((opens + Date.parse(performance.saleEndAt)) / 2).toISOString();
     const result = applyPreset('early', performance, {
       date: venueDate(middle, performance.timezone),
     });
@@ -423,7 +426,7 @@ function newOffer(
     price,
     currency: 'VND',
     active: true,
-    saleStartAt: performance.saleStartAt,
+    saleStartAt: saleOpeningInstant(performance),
     saleEndAt: performance.saleEndAt,
   };
 }

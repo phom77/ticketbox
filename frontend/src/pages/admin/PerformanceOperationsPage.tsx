@@ -21,6 +21,10 @@ import { currency, numberFormatter } from '../../data/formatters';
 import { formatLanguage } from '../../i18n';
 import { formatPerformanceDateTime } from '../organizer/performanceDateTime';
 import { PerformanceOperationForm } from './PerformanceOperationForm';
+import { DisruptionRequestsPanel } from './DisruptionRequestsPanel';
+import { useOpenRequestCount } from './useOpenRequestCount';
+import { getDisruptionRequest, type DisruptionRequest } from '../../api/performanceScheduling';
+import '../organizer/scheduling/scheduling.css';
 import './PerformanceOperationsPage.css';
 
 const namespace = 'performance-operations';
@@ -58,10 +62,42 @@ export function PerformanceOperationsPage() {
   const selection = params.get('performance');
   const query = (params.get('q') ?? '').slice(0, 200);
   const page = Math.max(0, Number.parseInt(params.get('page') ?? '1', 10) - 1 || 0);
-  return selection ? (
-    <OperatingPerformance key={selection} id={selection} back={indexUrl(query, page)} />
-  ) : (
-    <PerformanceDirectory key={query + ':' + page} query={query} page={page} />
+  const tab = params.get('tab');
+  if (selection) {
+    return (
+      <OperatingPerformance
+        key={selection}
+        id={selection}
+        requestId={params.get('request') ?? undefined}
+        back={indexUrl(query, page)}
+      />
+    );
+  }
+  return (
+    <>
+      <OperationsTabs active={tab === 'requests' ? 'requests' : 'performances'} />
+      {tab === 'requests' ? (
+        <DisruptionRequestsPanel />
+      ) : (
+        <PerformanceDirectory key={query + ':' + page} query={query} page={page} />
+      )}
+    </>
+  );
+}
+
+function OperationsTabs({ active }: { active: 'performances' | 'requests' }) {
+  const { t } = useTranslation('scheduling');
+  const count = useOpenRequestCount();
+  return (
+    <nav className="performance-ops-tabs" aria-label={t('scheduling:operationsTabs')}>
+      <Link to={roots} aria-current={active === 'performances' ? 'page' : undefined}>
+        {t('scheduling:performancesTab')}
+      </Link>
+      <Link to={roots + '?tab=requests'} aria-current={active === 'requests' ? 'page' : undefined}>
+        {t('scheduling:requestsTab')}
+        {count ? <span className="performance-ops-badge">{count}</span> : null}
+      </Link>
+    </nav>
   );
 }
 
@@ -248,8 +284,17 @@ function SaleStatus({ performance }: { performance: OperationsPerformance }) {
   );
 }
 
-function OperatingPerformance({ id, back }: { id: string; back: string }) {
+function OperatingPerformance({
+  id,
+  back,
+  requestId,
+}: {
+  id: string;
+  back: string;
+  requestId?: string;
+}) {
   const { t } = useTranslation(namespace);
+  const [request, setRequest] = useState<DisruptionRequest | null>(null);
   const [detail, setDetail] = useState<OperationsPerformance>();
   const [status, setStatus] = useState<PerformanceDisruption | null>();
   const [loadError, setLoadError] = useState('');
@@ -340,21 +385,38 @@ function OperatingPerformance({ id, back }: { id: string; back: string }) {
     }
   }
 
+  useEffect(() => {
+    if (!requestId) return;
+    const controller = new AbortController();
+    getDisruptionRequest(requestId, controller.signal)
+      .then((result) => {
+        if (!controller.signal.aborted && result.request.state === 'REQUESTED')
+          setRequest(result.request);
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [requestId]);
+
   function openConfirmation(action: Action) {
     setCommandError('');
-    setConfirming(action);
+    setConfirming(
+      request && (action.kind === 'POSTPONE' || action.kind === 'CANCEL')
+        ? { ...action, requestId: request.id }
+        : action,
+    );
   }
 
   const operationAllowed = Boolean(
     detail &&
     ['ON_SALE', 'SOLD_OUT'].includes(detail.status) &&
     detail.ticketingAcknowledged &&
-    !detail.salesSuspended &&
+    (!detail.salesSuspended || detail.organizerPaused) &&
     status !== undefined &&
     (!status || status.state === 'RESUMED') &&
     !loadError,
   );
   const canOperate = operationAllowed && impactReady;
+  const requestedKind = canOperate && !kind && request ? request.kind : null;
   const canResume =
     detail && status?.state === 'PAUSED' && Date.now() < Date.parse(detail.saleEndAt) && !loadError;
   const canComplete = canOperate && detail && Date.now() >= Date.parse(detail.endsAt);
@@ -502,11 +564,12 @@ function OperatingPerformance({ id, back }: { id: string; back: string }) {
                   )}
                 </div>
               )}
-              {kind && canOperate && (
+              {(kind ?? requestedKind) && canOperate && (
                 <PerformanceOperationForm
-                  key={kind}
+                  key={kind ?? requestedKind}
                   performance={detail}
-                  kind={kind}
+                  kind={(kind ?? requestedKind)!}
+                  request={request ?? undefined}
                   onCancel={() => setKind(null)}
                   onReview={openConfirmation}
                 />
