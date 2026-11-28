@@ -1,0 +1,234 @@
+{
+  "segments": [
+    {
+      "id": "concerts",
+      "genres": [
+        {
+          "id": "vpop",
+          "popular": true
+        },
+        {
+          "id": "indie",
+          "popular": true
+        },
+        {
+          "id": "rap-hip-hop",
+          "popular": true
+        },
+        {
+          "id": "edm",
+          "popular": true
+        },
+        {
+          "id": "rock",
+          "popular": true
+        },
+        {
+          "id": "bolero",
+          "popular": true
+        },
+        {
+          "id": "ballad",
+          "popular": false
+        },
+        {
+          "id": "jazz",
+          "popular": false
+        },
+        {
+          "id": "classical",
+          "popular": false
+        },
+        {
+          "id": "kpop",
+          "popular": false
+        },
+        {
+          "id": "international-pop",
+          "popular": false
+        },
+        {
+          "id": "rnb-soul",
+          "popular": false
+        },
+        {
+          "id": "acoustic",
+          "popular": false
+        },
+        {
+          "id": "traditional-music",
+          "popular": false
+        },
+        {
+          "id": "music-other",
+          "popular": false
+        }
+      ]
+    },
+    {
+      "id": "festivals",
+      "genres": [
+        {
+          "id": "music-festival",
+          "popular": true
+        },
+        {
+          "id": "cultural-festival",
+          "popular": true
+        },
+        {
+          "id": "food-festival",
+          "popular": true
+        },
+        {
+          "id": "film-festival",
+          "popular": false
+        },
+        {
+          "id": "art-festival",
+          "popular": false
+        },
+        {
+          "id": "festival-other",
+          "popular": false
+        }
+      ]
+    },
+    {
+      "id": "sports",
+      "genres": [
+        {
+          "id": "football",
+          "popular": true
+        },
+        {
+          "id": "esports",
+          "popular": true
+        },
+        {
+          "id": "running",
+          "popular": true
+        },
+        {
+          "id": "combat-sports",
+          "popular": true
+        },
+        {
+          "id": "basketball",
+          "popular": false
+        },
+        {
+          "id": "volleyball",
+          "popular": false
+        },
+        {
+          "id": "tennis-badminton",
+          "popular": false
+        },
+        {
+          "id": "motorsport",
+          "popular": false
+        },
+        {
+          "id": "sports-other",
+          "popular": false
+        }
+      ]
+    },
+    {
+      "id": "arts-theater-comedy",
+      "genres": [
+        {
+          "id": "theater",
+          "popular": true
+        },
+        {
+          "id": "stand-up",
+          "popular": true
+        },
+        {
+          "id": "musical",
+          "popular": true
+        },
+        {
+          "id": "dance",
+          "popular": true
+        },
+        {
+          "id": "cai-luong",
+          "popular": true
+        },
+        {
+          "id": "cheo-tuong",
+          "popular": false
+        },
+        {
+          "id": "water-puppetry",
+          "popular": false
+        },
+        {
+          "id": "opera",
+          "popular": false
+        },
+        {
+          "id": "comedy-show",
+          "popular": false
+        },
+        {
+          "id": "exhibition",
+          "popular": false
+        },
+        {
+          "id": "arts-other",
+          "popular": false
+        }
+      ]
+    },
+    {
+      "id": "family",
+      "genres": [
+        {
+          "id": "kids-show",
+          "popular": true
+        },
+        {
+          "id": "circus-magic",
+          "popular": true
+        },
+        {
+          "id": "family-concert",
+          "popular": true
+        },
+        {
+          "id": "workshop-kids",
+          "popular": false
+        },
+        {
+          "id": "family-other",
+          "popular": false
+        }
+      ]
+    },
+    {
+      "id": "other",
+      "genres": [
+        {
+          "id": "talk-conference",
+          "popular": true
+        },
+        {
+          "id": "workshop",
+          "popular": true
+        },
+        {
+          "id": "meetup",
+          "popular": false
+        },
+        {
+          "id": "other",
+          "popular": false
+        }
+      ]
+    }
+  ]
+}

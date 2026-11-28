@@ -2,7 +2,7 @@ package org.ticketbox.catalog.concert.application.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import org.ticketbox.catalog.concert.domain.ConcertText;
+import org.ticketbox.catalog.content.domain.ConcertText;
 
 import java.time.OffsetDateTime;
 import java.util.Map;

@@ -24,5 +24,20 @@
   "scheduledPublication": "Lịch công khai",
   "eventsGrantRequired": "Hãy yêu cầu quản trị viên của tổ chức cấp quyền quản lý concert.",
   "organizationTools": "Công cụ tổ chức",
-  "financialReports": "Xem báo cáo tài chính"
+  "financialReports": "Xem báo cáo tài chính",
+  "legacyDraftReadOnly": "Concert chỉ xem. Mọi thay đổi do bộ phận hỗ trợ TicketBox thực hiện.",
+  "salesTitle": "Doanh số",
+  "salesStrip": "Vé đã bán",
+  "salesToday": "Hôm nay",
+  "salesLast7": "7 ngày qua",
+  "salesTickets": "{{tickets}} vé",
+  "salesNetAmount": "{{amount}} ròng",
+  "salesGrossAmount": "{{amount}} gộp",
+  "openSalesReport": "Mở báo cáo doanh số",
+  "salesOnSaleNow": "Đang mở bán",
+  "noOnSale": "Hiện chưa có suất diễn nào đang mở bán.",
+  "sellThrough": "Đã bán đến nay {{percent}} ({{sold}}/{{capacity}})",
+  "sellThroughLabel": "Tỷ lệ bán của {{title}}",
+  "checkedIn": "Đã check-in {{checked}}/{{total}}",
+  "checkinUnavailable": "Chưa có tiến độ check-in."
 }

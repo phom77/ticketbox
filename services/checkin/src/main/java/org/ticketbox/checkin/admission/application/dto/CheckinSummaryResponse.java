@@ -1,6 +1,9 @@
 package org.ticketbox.checkin.admission.application.dto;
 
+import org.ticketbox.checkin.admission.application.port.GateAdmissions;
+
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 public record CheckinSummaryResponse(
@@ -14,4 +17,7 @@ public record CheckinSummaryResponse(
         long onlineCheckins,
         long offlineCheckins,
         OffsetDateTime latestCheckedAt,
-        OffsetDateTime datasetUpdatedAt) {}
+        OffsetDateTime datasetUpdatedAt,
+        List<GateAdmissions> gates,
+        long guestsTotal,
+        long guestsCheckedIn) {}

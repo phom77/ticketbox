@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Identity organization profile v1",
+  "description": "Success response of GET /internal/split/v1/organizations/{id}/profile. Send the existing X-Service-Token. Unknown organizations return 404. Optional fields are omitted when empty. logoPngUrl is a 400 px wide PNG rendition of the logo for PDF writers.",
+  "type": "object",
+  "required": [
+    "organizationId",
+    "displayName",
+    "reportingTimezone",
+    "version"
+  ],
+  "properties": {
+    "organizationId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "displayName": {
+      "type": "string"
+    },
+    "legalName": {
+      "type": "string",
+      "maxLength": 200
+    },
+    "taxCode": {
+      "type": "string",
+      "pattern": "^[0-9]{10}(-[0-9]{3})?$"
+    },
+    "billingAddress": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "contactEmail": {
+      "type": "string",
+      "maxLength": 254
+    },
+    "contactPhone": {
+      "type": "string",
+      "maxLength": 32
+    },
+    "website": {
+      "type": "string",
+      "pattern": "^https://",
+      "maxLength": 2048
+    },
+    "logoUrl": {
+      "type": "string",
+      "format": "uri"
+    },
+    "logoPngUrl": {
+      "type": "string",
+      "format": "uri"
+    },
+    "reportingTimezone": {
+      "type": "string",
+      "description": "IANA time zone id"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "additionalProperties": true
+}

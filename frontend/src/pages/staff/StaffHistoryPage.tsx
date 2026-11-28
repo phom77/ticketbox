@@ -1,254 +1,130 @@
-import { useCallback, useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight, FileClock, RefreshCw } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   getStaffCheckinHistory,
-  getStaffConcerts,
   type StaffCheckinHistory,
-  type StaffConcert,
+  type StaffPerformance,
 } from '../../api/admin';
-import type { Page } from '../../api/concerts';
 import { isRequestCanceled } from '../../api/client';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
-import { selectInitialConcert, staffConcertLabel, staffDateTime } from './staffPageUtils';
+import { StaffAccessGate } from './StaffAccessGate';
+import { staffDateTime } from './staffPageUtils';
+import './staff.css';
+
+const pageSize = 20;
 
 export function StaffHistoryPage() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [concerts, setConcerts] = useState<StaffConcert[]>([]);
-  const [selectedConcertId, setSelectedConcertId] = useState('');
-  const [loadingConcerts, setLoadingConcerts] = useState(true);
-  const [history, setHistory] = useState<Page<StaffCheckinHistory> | null>(null);
-  const [loadingHistory, setLoadingHistory] = useState(true);
-  const [error, setError] = useState('');
-  const page = Math.max(0, Math.floor(Number(searchParams.get('page')) || 0));
-
-  useEffect(() => {
-    const controller = new AbortController();
-    async function loadConcerts() {
-      setLoadingConcerts(true);
-      setError('');
-      try {
-        const data = await getStaffConcerts('ON_SALE', controller.signal);
-        setConcerts(data.content);
-        setSelectedConcertId(
-          (current) => current || selectInitialConcert(data.content, searchParams.get('concert')),
-        );
-      } catch (requestError) {
-        if (!isRequestCanceled(requestError)) {
-          setError(
-            requestError instanceof Error
-              ? requestError.message
-              : 'Không thể tải danh sách concert.',
-          );
-        }
-      } finally {
-        if (!controller.signal.aborted) setLoadingConcerts(false);
-      }
-    }
-    void loadConcerts();
-    return () => controller.abort();
-  }, [searchParams]);
-
-  const loadHistory = useCallback(
-    async (signal?: AbortSignal, silent = false) => {
-      if (!selectedConcertId) {
-        setHistory(null);
-        setLoadingHistory(false);
-        return;
-      }
-      if (!silent) setLoadingHistory(true);
-      setError('');
-      try {
-        setHistory(await getStaffCheckinHistory(selectedConcertId, page, 20, signal));
-      } catch (requestError) {
-        if (!isRequestCanceled(requestError)) {
-          setError(
-            requestError instanceof Error
-              ? requestError.message
-              : 'Không thể tải lịch sử check-in.',
-          );
-        }
-      } finally {
-        if (!signal?.aborted && !silent) setLoadingHistory(false);
-      }
-    },
-    [page, selectedConcertId],
-  );
-
-  useEffect(() => {
-    const controller = new AbortController();
-    void loadHistory(controller.signal);
-    return () => controller.abort();
-  }, [loadHistory]);
-
-  function changePage(nextPage: number) {
-    const params = new URLSearchParams(searchParams);
-    params.set('page', String(nextPage));
-    if (selectedConcertId) params.set('concert', selectedConcertId);
-    setSearchParams(params);
-  }
-
+  const { t } = useTranslation();
   return (
     <>
       <AdminPageHeader
-        title="Lịch sử check-in"
-        description="Theo dõi các lượt vào cổng theo concert, gồm lượt quét online từ web/mobile và các log offline đã đồng bộ lên máy chủ."
-        actions={
+        title={t('staff:historyTitle')}
+        description={t('staff:historyDescription')}
+      />
+      <StaffAccessGate select>
+        {({ performance, reportDenied }) =>
+          performance ? (
+            <History key={performance.id} performance={performance} reportDenied={reportDenied} />
+          ) : null
+        }
+      </StaffAccessGate>
+    </>
+  );
+}
+
+function History({
+  performance,
+  reportDenied,
+}: {
+  performance: StaffPerformance;
+  reportDenied: (failure: unknown) => boolean;
+}) {
+  const { t } = useTranslation();
+  const [page, setPage] = useState(0);
+  const [attempt, setAttempt] = useState(0);
+  const [rows, setRows] = useState<StaffCheckinHistory[] | null>(null);
+  const [last, setLast] = useState(true);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setFailed(false);
+    setRows(null);
+    getStaffCheckinHistory(performance.id, page, pageSize, controller.signal)
+      .then((result) => {
+        setRows(result.content);
+        setLast(result.last);
+      })
+      .catch((failure) => {
+        if (isRequestCanceled(failure) || controller.signal.aborted) return;
+        if (!reportDenied(failure)) setFailed(true);
+      });
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [performance.id, page, attempt]);
+
+  return (
+    <section className="staff-panel">
+      {failed ? (
+        <div role="alert">
+          <p>{t('staff:historyFailed')}</p>
           <button
             className="admin-secondary-action"
-            disabled={loadingHistory}
             type="button"
-            onClick={() => void loadHistory()}
+            onClick={() => setAttempt((v) => v + 1)}
           >
-            <RefreshCw aria-hidden="true" size={17} />
-            Làm mới
+            {t('staff:retry')}
           </button>
-        }
-      />
-
-      {error ? (
-        <div className="admin-notice error" role="alert">
-          {error}
         </div>
       ) : null}
-
-      <section className="admin-concert-switcher">
-        <label>
-          Concert
-          <select
-            disabled={loadingConcerts || !concerts.length}
-            value={selectedConcertId}
-            onChange={(event) => {
-              const nextConcertId = event.target.value;
-              setSelectedConcertId(nextConcertId);
-              const params = new URLSearchParams(searchParams);
-              params.set('concert', nextConcertId);
-              params.set('page', '0');
-              setSearchParams(params);
-            }}
-          >
-            {loadingConcerts ? <option>Đang tải concert...</option> : null}
-            {!loadingConcerts && !concerts.length ? (
-              <option>Không có concert đang bán</option>
-            ) : null}
-            {concerts.map((concert) => (
-              <option key={concert.id} value={concert.id}>
-                {staffConcertLabel(concert)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div>
-          <span>Tổng log</span>
-          <strong>{history?.totalElements ?? 0}</strong>
-        </div>
-      </section>
-
-      <section className="admin-data-panel">
-        {loadingHistory ? (
-          <div
-            className="admin-row-skeleton"
-            aria-label="Đang tải lịch sử check-in"
-            aria-live="polite"
-          >
-            {[1, 2, 3, 4].map((item) => (
-              <span key={item} />
-            ))}
-          </div>
-        ) : history?.content.length ? (
-          <div className="admin-table-wrap">
-            <table className="admin-table staff-history-table">
-              <thead>
-                <tr>
-                  <th>Thời gian</th>
-                  <th>Vé</th>
-                  <th>Nguồn</th>
-                  <th>Cổng</th>
-                  <th>Trạng thái vé</th>
-                  <th>Ghi chú</th>
+      {!rows && !failed ? <p role="status">{t('staff:performancesLoading')}</p> : null}
+      {rows && !rows.length ? <p>{t('staff:historyEmpty')}</p> : null}
+      {rows?.length ? (
+        <div className="staff-table-wrap">
+          <table>
+            <caption className="sr-only">{t('staff:historyCaption')}</caption>
+            <thead>
+              <tr>
+                <th scope="col">{t('staff:colTime')}</th>
+                <th scope="col">{t('staff:colGate')}</th>
+                <th scope="col">{t('staff:colTicket')}</th>
+                <th scope="col">{t('staff:colType')}</th>
+                <th scope="col">{t('staff:colMode')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.id}>
+                  <td>{staffDateTime(row.checkedAt)}</td>
+                  <td>{row.gate ?? t('staff:noGate')}</td>
+                  <td>{row.referenceCode ?? row.ticketId.slice(0, 8)}</td>
+                  <td>{row.ticketTypeName ?? '-'}</td>
+                  <td>{row.offline ? t('staff:offline') : t('staff:online')}</td>
                 </tr>
-              </thead>
-              <tbody>
-                {history.content.map((item) => (
-                  <tr key={item.id}>
-                    <td>
-                      <strong className="admin-table-primary">
-                        {staffDateTime.format(new Date(item.checkedAt))}
-                      </strong>
-                      <span className="admin-table-secondary">
-                        {item.syncAt
-                          ? `Đồng bộ ${staffDateTime.format(new Date(item.syncAt))}`
-                          : 'Online thời gian thực'}
-                      </span>
-                    </td>
-                    <td>
-                      <strong className="admin-table-primary">
-                        {item.referenceCode ?? 'Vé đã quét'}
-                      </strong>
-                      {item.ticketTypeName ? (
-                        <span className="admin-table-secondary">{item.ticketTypeName}</span>
-                      ) : null}
-                    </td>
-                    <td>
-                      <span
-                        className={`admin-status ${item.offline ? 'status-sold_out' : 'status-on_sale'}`}
-                      >
-                        {item.offline ? 'Offline sync' : 'Online'}
-                      </span>
-                    </td>
-                    <td>
-                      <strong className="admin-table-primary">{item.gate ?? 'Không rõ'}</strong>
-                    </td>
-                    <td>
-                      <strong className="admin-table-primary">
-                        {item.ticketStatus ?? 'Không rõ'}
-                      </strong>
-                    </td>
-                    <td>
-                      <span className="admin-table-secondary">{item.notes ?? 'Không có'}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="admin-empty-state">
-            <FileClock aria-hidden="true" size={28} />
-            <h2>Chưa có log check-in</h2>
-            <p>
-              Các lượt check-in thành công sẽ xuất hiện tại đây sau khi nhân viên quét vé hoặc đồng
-              bộ offline.
-            </p>
-          </div>
-        )}
-      </section>
-
-      {history && history.totalPages > 1 ? (
-        <div className="admin-pagination">
-          <span>
-            Trang {history.number + 1} / {history.totalPages}
-          </span>
-          <div>
-            <button
-              disabled={history.first}
-              type="button"
-              onClick={() => changePage(Math.max(0, history.number - 1))}
-              aria-label="Trang trước"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <button
-              disabled={history.last}
-              type="button"
-              onClick={() => changePage(history.number + 1)}
-              aria-label="Trang sau"
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
+              ))}
+            </tbody>
+          </table>
         </div>
       ) : null}
-    </>
+      <div className="staff-pager">
+        <button
+          type="button"
+          className="admin-secondary-action"
+          disabled={page === 0}
+          onClick={() => setPage((value) => value - 1)}
+        >
+          {t('staff:previous')}
+        </button>
+        <span>{t('staff:page', { page: page + 1 })}</span>
+        <button
+          type="button"
+          className="admin-secondary-action"
+          disabled={last}
+          onClick={() => setPage((value) => value + 1)}
+        >
+          {t('staff:next')}
+        </button>
+      </div>
+    </section>
   );
 }

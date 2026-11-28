@@ -4,6 +4,7 @@ import {
   clampView,
   heldUntil,
   holdProblem,
+  nextQuantity,
   parseQuantity,
   priceBounds,
   stepperReason,
@@ -78,6 +79,25 @@ describe('selection helpers', () => {
     expect(stepperReason({ ...r, available: 0 }, 0, 'add')).toBe('soldOut');
     expect(stepperReason(r, 0, 'remove')).toBe('none');
     expect(stepperReason(r, 1, 'add')).toBeNull();
+  });
+
+  it('steps from zero to the minimum and back, and blocks a minimum that cannot be met', () => {
+    const pair = { available: 5, maxPerAccount: 4, minPerOrder: 2 };
+    expect(nextQuantity(pair, 0, 'add')).toBe(2);
+    expect(nextQuantity(pair, 2, 'add')).toBe(3);
+    expect(nextQuantity(pair, 3, 'remove')).toBe(2);
+    expect(nextQuantity(pair, 2, 'remove')).toBe(0);
+    expect(nextQuantity({}, 0, 'add')).toBe(1);
+    expect(stepperReason({ ...pair, available: 1 }, 0, 'add')).toBe('minimum');
+    expect(stepperReason({ ...pair, maxPerAccount: 1 }, 0, 'add')).toBe('limit');
+    expect(stepperReason(pair, 0, 'add')).toBeNull();
+  });
+
+  it('recognises a refused minimum before the limit wording', () => {
+    expect(holdProblem(new ApiClientError('Choose at least 2 for Pair.', 400))).toBe('minimum');
+    expect(holdProblem(new ApiClientError('Hãy chọn tối thiểu 2 vé cho Pair.', 400))).toBe(
+      'minimum',
+    );
   });
 
   it('maps server failures to problems without raw text', () => {

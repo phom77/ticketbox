@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.ticketbox.catalog.classification.domain.EventClassification;
 import org.ticketbox.catalog.performance.application.PerformanceViews.Background;
 import org.ticketbox.catalog.performance.application.PerformanceViews.ConcertCategory;
 import org.ticketbox.catalog.performance.application.PerformanceViews.DiscoveryCard;
@@ -27,9 +28,12 @@ public interface PerformanceStore {
 
     Page<DiscoveryCard> discover(DiscoveryQuery query, Pageable page);
 
-    PerformanceViews.DiscoveryFacets discoveryFacets();
+    PerformanceViews.DiscoveryFacets discoveryFacets(String segment);
 
     Optional<Event> event(UUID id, UUID organizer);
+
+    /** The event with every performance, drafts included; `organizer` null means any owner (platform preview). */
+    Optional<Event> previewEvent(UUID id, UUID organizer);
 
     boolean ownsNativeEvent(UUID id, UUID organizer);
 
@@ -39,15 +43,24 @@ public interface PerformanceStore {
 
     boolean hasPublicationReview(UUID performance);
 
-    void createEvent(UUID id, UUID organizer, String title, String description, String category);
+    void createEvent(UUID id, UUID organizer, String title, String description);
 
-    void updateDraftEvent(UUID id, String title, String description, String category);
+    void updateDraftEvent(UUID id, String title, String description);
+
+    /** Replaces the classification of an event; null clears it. Callers bump the content version. */
+    void writeClassification(UUID eventId, EventClassification classification);
+
+    /** The stored classification of an event, or null when there is none. */
+    EventClassification classification(UUID eventId);
 
     /** The category of the event mapped to a legacy concert; `organizer` null means any owner. */
     Optional<ConcertCategory> legacyEventCategory(UUID concert, UUID organizer);
 
     /** Returns false when no such legacy concert is visible to the organizer. */
-    boolean updateLegacyEventCategory(UUID concert, UUID organizer, String category);
+    /** The event mapped to a legacy concert; `organizer` null is the platform. */
+    Optional<UUID> legacyEventId(UUID concert, UUID organizer);
+
+    void bumpContentVersion(UUID eventId);
 
     List<Venue> venues(UUID organizer);
 
@@ -55,7 +68,26 @@ public interface PerformanceStore {
 
     boolean ownsSpace(UUID id, UUID organizer);
 
-    void createVenue(UUID id, UUID space, UUID organizer, String name, String address, String spaceName);
+    void createVenue(UUID id, UUID space, UUID organizer, String name, String address, String spaceName,
+                     String city, String timezone, Integer capacityHint);
+
+    /** Locks the venue row of an organizer for a version-checked edit. */
+    Optional<Venue> lockVenue(UUID id, UUID organizer);
+
+    /** True while a released performance, or one under review, uses a space of the venue. */
+    boolean venueInUse(UUID venue);
+
+    void updateVenue(UUID id, String name, String address, String city, String timezone, Integer capacityHint);
+
+    /** True when another space of the venue already has this name (case-insensitive); `except` may be null. */
+    boolean spaceNameTaken(UUID venue, String name, UUID except);
+
+    void addSpace(UUID venue, UUID space, String name);
+
+    void renameSpace(UUID venue, UUID space, String name);
+
+    /** True while the performance has a submitted or scheduled publication review. */
+    boolean hasPendingReview(UUID performance);
 
     Performance createPerformance(
             UUID id, UUID event, UUID space, OffsetDateTime starts, OffsetDateTime ends, OffsetDateTime doors,
@@ -66,6 +98,15 @@ public interface PerformanceStore {
             String timezone, OffsetDateTime saleStart, OffsetDateTime saleEnd, int limit, boolean isPublic);
 
     Optional<Performance> lockOwnedPerformance(UUID id, UUID organizer);
+
+    /** Locks the venue row of a space, serializing with venue edits that check whether the venue is in use. */
+    void lockVenueOfSpace(UUID space);
+
+    /** Reads an owned native performance without locking it. */
+    Optional<Performance> ownedPerformance(UUID id, UUID organizer);
+
+    /** The event of a native performance owned by the organizer, read without locking. */
+    Optional<UUID> ownedEvent(UUID performance, UUID organizer);
 
     Optional<Performance> publicPerformance(UUID id);
 

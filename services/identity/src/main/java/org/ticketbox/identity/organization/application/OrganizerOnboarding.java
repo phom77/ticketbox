@@ -8,6 +8,7 @@ import org.ticketbox.identity.account.application.port.UserRepository;
 import org.ticketbox.identity.account.domain.User;
 import org.ticketbox.identity.application.error.AppException;
 import org.ticketbox.identity.application.error.ErrorCode;
+import org.ticketbox.identity.organization.application.port.OrganizationProfileStore;
 import org.ticketbox.identity.organization.application.port.OrganizationStore;
 import org.ticketbox.identity.organization.application.port.OrganizationStore.Organization;
 import org.ticketbox.identity.organization.application.port.OrganizerOnboardingStore;
@@ -37,14 +38,16 @@ public class OrganizerOnboarding {
     private static final Set<OrganizationGrant> MANAGER = Set.of(OrganizationGrant.MEMBERS, OrganizationGrant.EVENTS, OrganizationGrant.FINANCE);
     private final OrganizerOnboardingStore store;
     private final OrganizationStore organizations;
+    private final OrganizationProfileStore profiles;
     private final UserRepository accounts;
     private final PasswordEncoder passwords;
     private final SecretKeySpec signingKey;
 
-    public OrganizerOnboarding(OrganizerOnboardingStore store, OrganizationStore organizations,
+    public OrganizerOnboarding(OrganizerOnboardingStore store, OrganizationStore organizations, OrganizationProfileStore profiles,
             UserRepository accounts, PasswordEncoder passwords, @Value("${ticketbox.reset.key:}") String key) {
         this.store = store;
         this.organizations = organizations;
+        this.profiles = profiles;
         this.accounts = accounts;
         this.passwords = passwords;
         signingKey = key.isBlank() ? null : new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
@@ -83,6 +86,7 @@ public class OrganizerOnboarding {
             throw new AppException(ErrorCode.CONFLICT, "error.conflict");
         }
         organizations.audit(organization, actor, manager.getId(), "APPROVED", MANAGER);
+        profiles.seedContactEmail(organization, application.email());
         store.approve(id, organization, manager.getId(), actor);
         issue(organization, manager.getId(), application.email(), MANAGER, actor);
         return organization;

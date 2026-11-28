@@ -17,6 +17,12 @@
       },
       "domain-rules": {
         "org.ticketbox.identity.account.domain.UserRulesTest": []
+      },
+      "organization-profile": {
+        "org.ticketbox.identity.organization.OrganizationProfileIntegrationTest": [],
+        "org.ticketbox.identity.organization.domain.LogoImageTest": [],
+        "org.ticketbox.identity.web.UploadTooLargeHandlerTest": [],
+        "org.ticketbox.identity.organization.infrastructure.CloudinaryOrganizationImageStorageTest": []
       }
     }
   },
@@ -24,7 +30,17 @@
     "reports": "services/catalog/target/surefire-reports",
     "requiredGroups": {
       "sale-snapshots": {
-        "org.ticketbox.catalog.sales.CatalogPublisherIntegrationTest": []
+        "org.ticketbox.catalog.sales.CatalogPublisherIntegrationTest": [],
+        "org.ticketbox.catalog.sales.SaleSnapshotContractTest": []
+      },
+      "event-classification": {
+        "org.ticketbox.catalog.classification.domain.EventClassificationTest": [],
+        "org.ticketbox.catalog.performance.ClassificationMigrationTest": [],
+        "org.ticketbox.catalog.performance.PerformanceCatalogIntegrationTest": []
+      },
+      "guided-scheduling": {
+        "org.ticketbox.catalog.performance.GuidedSchedulingIntegrationTest": [],
+        "org.ticketbox.catalog.performance.GuidedSchedulingMigrationTest": []
       },
       "ai-publication-replay": {
         "org.ticketbox.catalog.artistbio.application.CatalogPublicationIntegrationTest": [
@@ -46,6 +62,14 @@
       },
       "domain-rules": {
         "org.ticketbox.catalog.concert.domain.ConcertRulesTest": []
+      },
+      "event-content": {
+        "org.ticketbox.catalog.performance.EventContentIntegrationTest": [],
+        "org.ticketbox.catalog.performance.domain.EventContentRevisionTest": [],
+        "org.ticketbox.catalog.performance.domain.PerformanceRulesOfferTest": []
+      },
+      "organizer-legacy-guard": {
+        "org.ticketbox.catalog.web.security.OrganizerLegacyGuardTest": []
       }
     }
   },
@@ -75,6 +99,14 @@
       "domain-rules": {
         "org.ticketbox.checkin.admission.domain.AdmissionRulesTest": []
       },
+      "scoped-admission": {
+        "org.ticketbox.checkin.integration.ScopedCheckinIntegrationTest": [
+          "organizerSeesGateCountsGuestsAndAdmissionsWithoutCredentials",
+          "staffResponsesKeepTheShapesTheScannerReads",
+          "revokedStaffLosesEveryScopedRouteOnTheNextRequest",
+          "scopedScansRejectAnotherNightAndReconcileExactlyOneOfflineAdmission"
+        ]
+      },
       "persistence-mapping": {
         "org.ticketbox.checkin.persistence.CheckinPersistenceIntegrationTest": []
       }
@@ -91,6 +123,9 @@
       },
       "waiting-room": {
         "org.ticketbox.ticketing.queue.application.WaitingRoomServiceIntegrationTest": []
+      },
+      "offer-minimum-quantity": {
+        "org.ticketbox.ticketing.performance.application.PerformanceMinimumQuantityIntegrationTest": []
       },
       "checkout-and-publication-replay": {
         "org.ticketbox.ticketing.order.application.OrderConcurrencyIntegrationTest": [
@@ -111,8 +146,22 @@
           "hashMigrationPreservesEventsReplayChecksAndAppendOnlyPermissions"
         ]
       },
+      "sales-ledger": {
+        "org.ticketbox.ticketing.reporting.SalesLedgerIntegrationTest": [],
+        "org.ticketbox.ticketing.reporting.infrastructure.persistence.SalesLedgerBackfillTest": [],
+        "org.ticketbox.ticketing.reporting.infrastructure.persistence.SalesLedgerScaleTest": [],
+        "org.ticketbox.ticketing.reporting.infrastructure.persistence.JdbcReconciliationStoreTest": []
+      },
       "vietnamese-pdfs": {
         "org.ticketbox.ticketing.reporting.VietnamesePdfTest": []
+      },
+      "settlement-statements": {
+        "org.ticketbox.ticketing.reporting.SettlementStatementIntegrationTest": [],
+        "org.ticketbox.ticketing.reporting.infrastructure.IdentityOrganizationProfilesTest": [],
+        "org.ticketbox.ticketing.reporting.infrastructure.HttpStatementLogoFetcherTest": [],
+        "org.ticketbox.ticketing.reporting.infrastructure.persistence.SettlementStatementPermissionsTest": [],
+        "org.ticketbox.ticketing.reporting.infrastructure.persistence.SettlementStatementScaleTest": [],
+        "org.ticketbox.ticketing.web.security.OrganizationAccessZoneTest": []
       },
       "ticket-transfer": {
         "org.ticketbox.ticketing.issuance.application.TicketTransferIntegrationTest": [],

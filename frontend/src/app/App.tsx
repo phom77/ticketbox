@@ -1,5 +1,4 @@
 import { EventDetailPage } from '../pages/public/EventDetailPage';
-import { translate } from '../i18n';
 import { useTranslation } from 'react-i18next';
 import {
   OrganizationProvider,
@@ -8,6 +7,7 @@ import {
 } from '../features/organizations/OrganizationProvider';
 import { useLayoutEffect } from 'react';
 import { lazyNamed } from './lazyNamed';
+import { OrganizerEventRedirect } from './OrganizerEventRedirect';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import { OperationsLayout } from '../components/layout/OperationsLayout';
 import { PublicLayout } from '../components/layout/PublicLayout';
@@ -43,6 +43,22 @@ import {
 
 // Admin and Organizer workspace pages load on demand, so buyer pages do not
 // download them. OperationsLayout shows their loading and failure states.
+const StaffOverviewPage = lazyNamed(
+  () => import('../pages/staff/StaffOverviewPage'),
+  'StaffOverviewPage',
+);
+const StaffCheckInPage = lazyNamed(
+  () => import('../pages/staff/StaffCheckInPage'),
+  'StaffCheckInPage',
+);
+const StaffGuestsPage = lazyNamed(
+  () => import('../pages/staff/StaffGuestsPage'),
+  'StaffGuestsPage',
+);
+const StaffHistoryPage = lazyNamed(
+  () => import('../pages/staff/StaffHistoryPage'),
+  'StaffHistoryPage',
+);
 const PerformanceOperationsPage = lazyNamed(
   () => import('../pages/admin/PerformanceOperationsPage'),
   'PerformanceOperationsPage',
@@ -91,6 +107,10 @@ const OrganizationMembersPage = lazyNamed(
   () => import('../pages/organizer/OrganizationMembersPage'),
   'OrganizationMembersPage',
 );
+const OrganizationSettingsPage = lazyNamed(
+  () => import('../pages/organizer/OrganizationSettingsPage'),
+  'OrganizationSettingsPage',
+);
 const AdminArtistBioPage = lazyNamed(
   () => import('../pages/admin/AdminArtistBioPage'),
   'AdminArtistBioPage',
@@ -131,10 +151,6 @@ const AdminUsersPage = lazyNamed(() => import('../pages/admin/AdminUsersPage'), 
 const OrganizerOverviewPage = lazyNamed(
   () => import('../pages/organizer/OrganizerOverviewPage'),
   'OrganizerOverviewPage',
-);
-const OrganizerRevenuePage = lazyNamed(
-  () => import('../pages/organizer/OrganizerRevenuePage'),
-  'OrganizerRevenuePage',
 );
 
 const audiencePage = (page: React.ReactNode) => (
@@ -306,53 +322,23 @@ export function App() {
                 }
               />
               <Route
-                path="concerts"
-                element={
-                  <RequireOrganizationGrant grant="EVENTS">
-                    <AdminConcertsPage apiScope="organizer" />
-                  </RequireOrganizationGrant>
-                }
-              />
-              <Route
-                path="concerts/:id/preview"
+                path="events/:eventId/preview"
                 element={
                   <RequireOrganizationGrant grant="EVENTS">
                     <EventDetailPage preview />
                   </RequireOrganizationGrant>
                 }
               />
+              {/* The one-date concert screens are retired for organizers; saved links land in the event workspace. */}
+              <Route path="concerts" element={<Navigate to="/organizer/events" replace />} />
               <Route
-                path="concerts/:id"
-                element={
-                  <RequireOrganizationGrant grant="EVENTS">
-                    <ConcertWorkspacePage apiScope="organizer" />
-                  </RequireOrganizationGrant>
-                }
+                path="concerts/:id/preview"
+                element={<OrganizerEventRedirect suffix="/preview" />}
               />
-              <Route
-                path="ticket-types"
-                element={
-                  <RequireOrganizationGrant grant="EVENTS">
-                    <AdminTicketTypesPage apiScope="organizer" />
-                  </RequireOrganizationGrant>
-                }
-              />
-              <Route
-                path="guests"
-                element={
-                  <RequireOrganizationGrant grant="EVENTS">
-                    <AdminGuestImportsPage apiScope="organizer" uploadMode="scheduled" />
-                  </RequireOrganizationGrant>
-                }
-              />
-              <Route
-                path="artist-bio"
-                element={
-                  <RequireOrganizationGrant grant="EVENTS">
-                    <AdminArtistBioPage apiScope="organizer" />
-                  </RequireOrganizationGrant>
-                }
-              />
+              <Route path="concerts/:id" element={<OrganizerEventRedirect />} />
+              <Route path="ticket-types" element={<Navigate to="/organizer/events" replace />} />
+              <Route path="guests" element={<Navigate to="/organizer/events" replace />} />
+              <Route path="artist-bio" element={<Navigate to="/organizer/events" replace />} />
               <Route path="reports" element={<OperationsReportsPage scope="organizer" />} />
               <Route
                 path="reconciliation"
@@ -372,11 +358,7 @@ export function App() {
               />
               <Route
                 path="revenue"
-                element={
-                  <RequireOrganizationGrant grant="FINANCE">
-                    <OrganizerRevenuePage />
-                  </RequireOrganizationGrant>
-                }
+                element={<Navigate to="/organizer/reports?view=sales" replace />}
               />
               <Route
                 path="orders"
@@ -394,20 +376,24 @@ export function App() {
                   </RequireOrganizationGrant>
                 }
               />
+              <Route path="settings" element={<OrganizationSettingsPage />} />
             </Route>
             <Route
-              path="/staff/*"
+              path="/staff"
               element={
                 <ProtectedRoute allowedRoles={['STAFF']}>
-                  <main className="route-forbidden page-width">
-                    <div className="state-panel" role="status">
-                      <h1>{translate('shared:app_soatVeChuaMo')}</h1>
-                      <p>{translate('shared:app_tinhNangSeMoCungPhienBan')}</p>
-                    </div>
-                  </main>
+                  <OrganizationProvider>
+                    <OperationsLayout mode="staff" />
+                  </OrganizationProvider>
                 </ProtectedRoute>
               }
-            />
+            >
+              <Route index element={<StaffOverviewPage />} />
+              <Route path="check-in" element={<StaffCheckInPage />} />
+              <Route path="guests" element={<StaffGuestsPage />} />
+              <Route path="history" element={<StaffHistoryPage />} />
+              <Route path="*" element={<Navigate to="/staff" replace />} />
+            </Route>
           </Routes>
         </BrowserRouter>
       </ToastProvider>

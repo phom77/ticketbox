@@ -135,12 +135,15 @@ class JdbcPerformanceCatalog implements PerformanceCatalog {
                 """, offer.id(), sale.id(), offer.name(), offer.price(), capacity,
                 sale.maxPerAccount(), offer.active());
         int configured = jdbc.update("""
-                INSERT INTO performance_offers(id,performance_id,group_id,sale_start_at,sale_end_at)
-                VALUES(?,?,?,?,?)
-                ON CONFLICT(id) DO UPDATE SET sale_start_at=EXCLUDED.sale_start_at,sale_end_at=EXCLUDED.sale_end_at
+                INSERT INTO performance_offers(id,performance_id,group_id,sale_start_at,sale_end_at,
+                  description,min_per_order)
+                VALUES(?,?,?,?,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET sale_start_at=EXCLUDED.sale_start_at,sale_end_at=EXCLUDED.sale_end_at,
+                  description=EXCLUDED.description,min_per_order=EXCLUDED.min_per_order
                 WHERE performance_offers.performance_id=EXCLUDED.performance_id
                   AND performance_offers.group_id=EXCLUDED.group_id
-                """, offer.id(), sale.id(), offer.groupId(), offer.saleStartAt(), offer.saleEndAt());
+                """, offer.id(), sale.id(), offer.groupId(), offer.saleStartAt(), offer.saleEndAt(),
+                offer.description(), offer.minPerOrder());
         if (projected != 1 || configured != 1) {
             throw new IllegalStateException("Conflicting performance offer identity");
         }

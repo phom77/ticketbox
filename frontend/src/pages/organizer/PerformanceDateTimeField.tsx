@@ -1,6 +1,5 @@
 import { WorkspaceSelect } from '../../components/WorkspaceSelect';
-import { useId } from 'react';
-import { formatLanguage } from '../../i18n';
+import { DateTimePicker } from '../../components/date/DateTimePicker';
 import { getPerformanceTimeZones } from './performanceDateTime';
 
 type FieldProps = {
@@ -17,55 +16,21 @@ type DateTimeProps = FieldProps & {
   max?: string;
   error?: string;
   description?: string;
+  /** The performance time zone; it is labelled next to the value and used to check clock changes. */
+  timeZone?: string;
+  /** Shows a calendar-only control; the value is still read as an ISO date prefix. */
+  dateOnly?: boolean;
 };
 
-export function PerformanceDateTimeField({
-  name,
-  label,
-  value,
-  onChange,
-  required,
-  min,
-  max,
-  disabled,
-  error,
-  description,
-}: DateTimeProps) {
-  const id = useId();
-  const labelId = `${id}-label`;
-  const feedbackId = error || description ? `${id}-feedback` : undefined;
-
+/** Workspace date and time entry: the accessible calendar and time picker, in the performance time zone. */
+export function PerformanceDateTimeField({ dateOnly, value, ...props }: DateTimeProps) {
   return (
-    <label htmlFor={id}>
-      <span id={labelId}>{label}</span>
-      <input
-        id={id}
-        name={name}
-        type="datetime-local"
-        lang={formatLanguage()}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        required={required}
-        disabled={disabled}
-        min={min}
-        max={max}
-        step={value.length > 16 ? 'any' : undefined}
-        aria-labelledby={labelId}
-        aria-invalid={error ? true : undefined}
-        aria-describedby={feedbackId}
-      />
-      {error ? (
-        <small id={feedbackId} className="performance-field-error">
-          {error}
-        </small>
-      ) : (
-        description && (
-          <small id={feedbackId} className="performance-field-help">
-            {description}
-          </small>
-        )
-      )}
-    </label>
+    <DateTimePicker
+      {...props}
+      dateOnly={dateOnly}
+      value={dateOnly && value ? value.slice(0, 10) + 'T00:00' : value}
+      onChange={(next) => props.onChange(dateOnly ? next.slice(0, 10) : next)}
+    />
   );
 }
 

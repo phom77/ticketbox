@@ -8,6 +8,7 @@ import java.util.UUID;
 public record ArtistBioJobResponse(
         UUID id,
         UUID concertId,
+        UUID eventId,
         String originalFileName,
         String status,
         String provider,
@@ -20,12 +21,21 @@ public record ArtistBioJobResponse(
         OffsetDateTime appliedAt,
         UUID appliedBy,
         OffsetDateTime createdAt,
-        OffsetDateTime updatedAt) {
+        OffsetDateTime updatedAt,
+        String eventTitle) {
+
+    /** The job with the title of the native event it belongs to, for lists. */
+    public ArtistBioJobResponse withEventTitle(String title) {
+        return new ArtistBioJobResponse(id, concertId, eventId, originalFileName, status, provider, model,
+                extractedCharCount, resultBio, errorMessage, startedAt, completedAt, appliedAt, appliedBy, createdAt,
+                updatedAt, title);
+    }
 
     public static ArtistBioJobResponse from(ArtistPdfJob job) {
         return new ArtistBioJobResponse(
                 job.getId(),
                 job.getConcertId(),
+                job.getEventId(),
                 job.getOriginalFileName(),
                 job.getStatus().name(),
                 job.getProvider(),
@@ -38,6 +48,7 @@ public record ArtistBioJobResponse(
                 job.getAppliedAt(),
                 job.getAppliedBy(),
                 job.getCreatedAt(),
-                job.getUpdatedAt());
+                job.getUpdatedAt(),
+                null);
     }
 }

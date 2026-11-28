@@ -260,7 +260,7 @@ export function OrganizerRevenuePage({ embedded = false }: { embedded?: boolean 
         <p>{translate('organizer:organizerRevenuePage_baoCaoDoanhThuChiKhaDung')}</p>
         <Link
           className="button button-secondary"
-          to={embedded ? '/organizer' : '/organizer/concerts'}
+          to={embedded ? '/organizer' : '/organizer/events'}
         >
           {translate(
             embedded

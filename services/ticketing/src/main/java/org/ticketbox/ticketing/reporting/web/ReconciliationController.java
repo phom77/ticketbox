@@ -32,10 +32,12 @@ public class ReconciliationController {
     @GetMapping("/api/organizer/reconciliation")
     public ResponseEntity<ApiResponse<Report>> organizer(
             @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID organization,
-            @RequestParam(required = false) UUID concertId, @RequestParam LocalDate from, @RequestParam LocalDate to,
+            @RequestParam(required = false) UUID concertId, @RequestParam(required = false) UUID eventId,
+            @RequestParam LocalDate from, @RequestParam LocalDate to,
             @RequestParam(defaultValue = "ATTEMPT") DateBasis basis,
-            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
-        return report(service.filter(organization, false, concertId, from, to, basis), page, size);
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String after) {
+        return report(service.filter(organization, false, concertId, eventId, from, to, basis), page, size, after);
     }
 
     @GetMapping("/api/admin/reconciliation")
@@ -44,16 +46,18 @@ public class ReconciliationController {
             @RequestParam(defaultValue = "false") boolean unattributed,
             @RequestParam(required = false) UUID concertId, @RequestParam LocalDate from, @RequestParam LocalDate to,
             @RequestParam(defaultValue = "ATTEMPT") DateBasis basis,
-            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
-        return report(service.filter(organizationId, unattributed, concertId, from, to, basis), page, size);
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String after) {
+        return report(service.filter(organizationId, unattributed, concertId, from, to, basis), page, size, after);
     }
 
     @GetMapping("/api/organizer/reconciliation/export")
     public ResponseEntity<StreamingResponseBody> organizerExport(
             @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID organization,
-            @RequestParam(required = false) UUID concertId, @RequestParam LocalDate from, @RequestParam LocalDate to,
+            @RequestParam(required = false) UUID concertId, @RequestParam(required = false) UUID eventId,
+            @RequestParam LocalDate from, @RequestParam LocalDate to,
             @RequestParam(defaultValue = "ATTEMPT") DateBasis basis) {
-        return export(service.filter(organization, false, concertId, from, to, basis));
+        return export(service.filter(organization, false, concertId, eventId, from, to, basis));
     }
 
     @GetMapping("/api/admin/reconciliation/export")
@@ -65,9 +69,9 @@ public class ReconciliationController {
         return export(service.filter(organizationId, unattributed, concertId, from, to, basis));
     }
 
-    private ResponseEntity<ApiResponse<Report>> report(Filter filter, int page, int size) {
+    private ResponseEntity<ApiResponse<Report>> report(Filter filter, int page, int size, String after) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
-                .body(ApiResponse.success(service.report(filter, page, size)));
+                .body(ApiResponse.success(service.report(filter, page, size, after)));
     }
 
     private ResponseEntity<StreamingResponseBody> export(Filter filter) {

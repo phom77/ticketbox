@@ -17,6 +17,8 @@ import java.io.OutputStreamWriter;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.util.Base64;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Objects;
@@ -28,7 +30,7 @@ import java.util.stream.Stream;
 @Service
 public class ReconciliationService {
     public enum DateBasis { ATTEMPT, COLLECTION }
-    public record Report(List<Row> content, Totals totals, int page, int size) {}
+    public record Report(List<Row> content, Totals totals, int page, int size, String next) {}
 
     private static final ZoneId REPORTING_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final Set<String> PROVIDERS = Set.of("MOCK", "VNPAY", "MOMO");
@@ -60,20 +62,47 @@ public class ReconciliationService {
 
     public Filter filter(UUID organization, boolean unattributed, UUID concert,
             LocalDate from, LocalDate to, DateBasis basis) {
+        return filter(organization, unattributed, concert, null, from, to, basis);
+    }
+
+    /** {@code event} limits the rows to the orders of every performance of that event. */
+    public Filter filter(UUID organization, boolean unattributed, UUID concert, UUID event,
+            LocalDate from, LocalDate to, DateBasis basis) {
         if (from == null || to == null || !from.isBefore(to) || (unattributed && organization != null)) {
             throw new AppException(ErrorCode.INVALID_REQUEST, "error.reconciliation.invalid-period");
         }
-        return new Filter(organization, unattributed, concert,
+        return new Filter(organization, unattributed, concert, event,
                 from.atStartOfDay(REPORTING_ZONE).toOffsetDateTime(),
                 to.atStartOfDay(REPORTING_ZONE).toOffsetDateTime(), basis == DateBasis.COLLECTION);
     }
 
+    /**
+     * {@code after} is the {@code next} value of the previous page. It pages by key, so rows inserted meanwhile do not
+     * shift later pages. Without it the page index is used as an offset over the same stable order.
+     */
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
-    public Report report(Filter filter, int page, int size) {
+    public Report report(Filter filter, int page, int size, String after) {
         int limit = Math.clamp(size, 1, 100);
         int index = Math.max(page, 0);
-        return new Report(store.page(filter, (long) index * limit, limit),
-                store.totals(filter), index, limit);
+        var cursor = after == null || after.isBlank() ? null : decode(after);
+        var rows = store.page(filter, (long) index * limit, limit, cursor);
+        String next = rows.size() < limit ? null : encode(filter, rows.get(rows.size() - 1));
+        return new Report(rows, store.totals(filter), index, limit, next);
+    }
+
+    private static String encode(Filter filter, Row last) {
+        var at = filter.byCollection() ? last.verifiedAt() : last.attemptedAt();
+        return Base64.getUrlEncoder().withoutPadding()
+                .encodeToString((at + "|" + last.intentId()).getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static ReconciliationStore.Cursor decode(String value) {
+        try {
+            String[] parts = new String(Base64.getUrlDecoder().decode(value), StandardCharsets.UTF_8).split("\\|");
+            return new ReconciliationStore.Cursor(OffsetDateTime.parse(parts[0]), UUID.fromString(parts[1]));
+        } catch (RuntimeException failure) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "error.invalid-request");
+        }
     }
 
     @Transactional(readOnly = true)

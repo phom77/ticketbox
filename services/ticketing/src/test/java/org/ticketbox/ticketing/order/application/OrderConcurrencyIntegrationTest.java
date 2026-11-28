@@ -310,7 +310,7 @@ class OrderConcurrencyIntegrationTest {
                 new Offer(UUID.randomUUID(), pool.id(), "Floor", BigDecimal.valueOf(100_000), "VND",
                         now.minusDays(1), now.plusDays(1), true),
                 new Offer(UUID.randomUUID(), section.id(), "Balcony", BigDecimal.valueOf(210_000), "VND",
-                        now.minusDays(1), now.plusDays(1), true)));
+                        now.minusDays(1), now.plusDays(1), true)), null, null, null);
         performanceCatalog.apply(sale);
         return sale;
     }

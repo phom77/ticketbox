@@ -1,6 +1,13 @@
 import { api, apiGet } from './client';
-import type { Page } from './concerts';
-import type { EventDetails, Layout, MapSection, Performance, SectionKind } from './performances';
+import type { ConcertTranslations, Page } from './concerts';
+import type {
+  AgeRating,
+  EventDetails,
+  Layout,
+  MapSection,
+  Performance,
+  SectionKind,
+} from './performances';
 import type { PublicationReview, ReviewDecision } from './publication';
 
 const root = '/api/organizer/manage/v2';
@@ -15,9 +22,15 @@ export type Venue = {
   id: string;
   name: string;
   address: string;
+  city: string | null;
+  timezone: string;
+  capacityHint: number | null;
+  version: number;
   spaces: { id: string; name: string }[];
 };
-export type ManagedPerformance = Performance & {
+/** A draft may have no sale start yet (for example a copied date whose shifted start is past). */
+export type ManagedPerformance = Omit<Performance, 'saleStartAt'> & {
+  saleStartAt: string | null;
   draftVersion: number;
   venueSpaceId: string;
   venueAddress: string;
@@ -27,8 +40,10 @@ export type ManagedPerformance = Performance & {
   publicVisible: boolean;
 };
 export type ManagedEvent = Omit<EventDetails, 'performances'> & {
-  category?: string | null;
+  /** Token of the publication review; moves when the title or description changes. */
   draftVersion: number;
+  /** Optimistic lock of the content editors. */
+  contentVersion: number;
   performances: ManagedPerformance[];
 };
 export type DraftLayout = Omit<Layout, 'version' | 'sections'> & { sections: MapSection[] };
@@ -51,12 +66,18 @@ export type SaleOffer = {
   saleStartAt: string;
   saleEndAt: string;
   active: boolean;
+  /** Buyer-facing perks, up to 500 characters. */
+  description?: string | null;
+  /** Fewest places of this ticket type in one order. Absent means 1. */
+  minPerOrder?: number;
 };
 export type SaleDraft = { version: number; groups: SaleGroup[]; offers: SaleOffer[] };
 export type PerformanceReview = {
   id: string;
   performanceId: string;
-  publishAt: string;
+  /** Empty for a release-on-approval review until it is approved. */
+  publishAt: string | null;
+  releaseOnApproval?: boolean;
   state: PublicationReview['state'];
   reason: string | null;
   summary: {
@@ -93,7 +114,19 @@ export const decidePerformanceReview = (
   action: ReviewDecision | 'HOLD',
   reason: string,
 ) => api.post<unknown, PerformanceReview>(reviewPath + '/' + key(id), { revision, action, reason });
-export type EventInput = { title: string; description: string; category: string | null };
+export type EventContentInput = {
+  title: string;
+  description: string;
+  translations: ConcertTranslations;
+  artistBio: string;
+  ageRating: AgeRating | null;
+  refundPolicy: string;
+};
+export type EventInput = EventContentInput & {
+  segment: string;
+  primaryGenre: string;
+  genres: string[];
+};
 type VenueInput = { name: string; address: string; spaceName: string };
 export type PerformanceInput = Pick<
   ManagedPerformance,
@@ -114,8 +147,12 @@ export const getManagedEvent = (id: string, signal?: AbortSignal) =>
   apiGet<ManagedEvent>(eventPath(id), signal);
 export const createManagedEvent = (body: EventInput) =>
   api.post<unknown, ManagedEvent>(events, body);
-export const updateManagedEvent = (id: string, expectedDraftVersion: number, body: EventInput) =>
-  api.put<unknown, ManagedEvent>(eventPath(id), { ...body, expectedDraftVersion });
+export const updateManagedEvent = (id: string, expectedContentVersion: number, body: EventInput) =>
+  api.put<unknown, ManagedEvent>(eventPath(id), { ...body, expectedContentVersion });
+export const deleteDraftPerformance = (id: string, expectedDraftVersion: number) =>
+  api.delete<unknown, void>(performance(id) + '?expectedDraftVersion=' + expectedDraftVersion);
+export const deleteDraftEvent = (id: string, expectedDraftVersion: number) =>
+  api.delete<unknown, void>(eventPath(id) + '?expectedDraftVersion=' + expectedDraftVersion);
 export const listVenues = (signal?: AbortSignal) => apiGet<Venue[]>(venues, signal);
 export const createVenue = (body: VenueInput) => api.post<unknown, Venue>(venues, body);
 export const createPerformance = (eventId: string, body: PerformanceInput) =>
@@ -177,11 +214,12 @@ export const publishPerformance = (
   expectedSaleVersion: number,
   expectedLayoutVersion: number,
   draftVersions: { event: number; schedule: number },
-  publishAt: string,
+  publishAt: string | null,
 ) =>
   api.post<unknown, Publication>(performance(id) + '/publication', {
     expectedSaleVersion,
     expectedLayoutVersion,
+    releaseMode: publishAt ? 'SCHEDULED' : 'ON_APPROVAL',
     publishAt,
     expectedEventDraftVersion: draftVersions.event,
     expectedScheduleDraftVersion: draftVersions.schedule,

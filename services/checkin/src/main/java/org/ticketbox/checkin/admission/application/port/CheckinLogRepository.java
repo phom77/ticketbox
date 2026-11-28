@@ -21,6 +21,8 @@ public interface CheckinLogRepository {
 
     OffsetDateTime findLatestCheckedAtByConcertId(UUID concertId);
 
+    java.util.List<GateAdmissions> countByGate(UUID concertId);
+
     int insertOfflineIfAbsent(
             UUID id,
             UUID ticketId,

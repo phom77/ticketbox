@@ -47,12 +47,12 @@ The organizer event directory SHALL let organizers find events by name and lifec
 
 ### Requirement: Delete draft events and performances
 
-Organizers with `EVENTS` SHALL be able to delete a draft performance, or an event whose performances are all drafts, when nothing about it is under review or released.
+Organizers with `EVENTS` SHALL be able to delete a draft performance, or an event whose performances are all drafts, when nothing about it is under review, scheduled or released. A draft whose last review was held, rejected or returned for changes was never released and has nothing active, so it can be deleted.
 
 #### Scenario: Delete a draft performance
 
-- **WHEN** the organizer confirms deletion of a draft performance that was never submitted or released
-- **THEN** the performance and its draft map and tickets are removed, the event remains, and shared venue templates and backgrounds are kept.
+- **WHEN** the organizer confirms deletion of a draft performance that was never released and whose last review, if any, was held, rejected or returned for changes
+- **THEN** the performance and its draft map and tickets are removed, the event remains, map backgrounds only that performance used are removed, and backgrounds or templates still used elsewhere are kept.
 
 #### Scenario: Deletion is not allowed
 

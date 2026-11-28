@@ -127,7 +127,7 @@ export function PublicationPanel({
     <section className="admin-data-panel organization-panel" aria-labelledby="sale-publication">
       <h2 id="sale-publication">{t('shared:releaseTitle')}</h2>
       {scope === 'organizer' ? (
-        <Link className="admin-secondary-action" to={`/organizer/concerts/${id}/preview`}>
+        <Link className="admin-secondary-action" to={`/organizer/events/${id}/preview`}>
           {t('shared:publicationPanel_xemTruoc')}
         </Link>
       ) : null}

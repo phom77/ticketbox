@@ -34,6 +34,11 @@ public interface OrganizationStore {
 
     Set<OrganizationGrant> grants(UUID organizationId, UUID accountId);
 
+    /** A member's grants with the organization's reporting timezone, read in one query. Null timezone when unknown. */
+    record MemberAccess(Set<OrganizationGrant> grants, String reportingTimezone) {}
+
+    MemberAccess memberAccess(UUID organizationId, UUID accountId);
+
     void saveGrants(UUID organizationId, UUID accountId, Set<OrganizationGrant> grants);
 
     void invalidateInvitations(UUID organizationId, UUID accountId);
@@ -43,6 +48,8 @@ public interface OrganizationStore {
     Optional<Invitation> findInvitation(String codeHash);
 
     void consumeInvitation(String codeHash);
+
+    void auditFields(UUID organizationId, UUID actorId, String action, java.util.Collection<String> fields);
 
     void audit(UUID organizationId, UUID actorId, UUID targetId, String action,
                Set<OrganizationGrant> grants);

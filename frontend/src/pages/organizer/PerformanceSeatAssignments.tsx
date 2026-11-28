@@ -1,4 +1,6 @@
 import { WorkspaceSelect } from '../../components/WorkspaceSelect';
+import { saleOpeningInstant } from '../../features/performance/saleWindowPresets';
+import { MoneyInput } from '../../components/admin/MoneyInput';
 import { useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ManagedPerformance, SaleDraft, SaleGroup } from '../../api/performanceManagement';
@@ -31,9 +33,13 @@ export function PerformanceSeatAssignments({
   const [groupId, setGroupId] = useState('');
   const [visibleRows, setVisibleRows] = useState(rowBatchSize);
   const [assignmentMessage, setAssignmentMessage] = useState('');
+  const [newPrice, setNewPrice] = useState(0);
   const section = sections.find((item) => item.id === sectionId) ?? sections[0];
   if (!section) return null;
 
+  const poolSeats = new Set(
+    sale.groups.flatMap((group) => (group.kind === 'ASSIGNED' ? group.seats.map((s) => s.id) : [])),
+  );
   const groups = sale.groups.filter(
     (group) => group.sectionId === section.id && group.kind === 'ASSIGNED',
   );
@@ -69,7 +75,7 @@ export function PerformanceSeatAssignments({
     const form = event.currentTarget;
     const values = new FormData(form);
     const name = String(values.get('name') ?? '').trim();
-    const price = Number(values.get('price'));
+    const price = newPrice;
     if (!name || !Number.isSafeInteger(price) || price < 1 || price > 999_999_999_999) return;
     const id = window.crypto.randomUUID();
     const groups: SaleDraft['groups'] = [
@@ -96,7 +102,7 @@ export function PerformanceSeatAssignments({
           price,
           currency: 'VND',
           active: true,
-          saleStartAt: performance.saleStartAt,
+          saleStartAt: saleOpeningInstant(performance),
           saleEndAt: performance.saleEndAt,
         },
       ],
@@ -106,6 +112,7 @@ export function PerformanceSeatAssignments({
       setAssignmentMessage(t('performances:setupAssignedCount', { count: remaining.length, name }));
     else setAssignmentMessage(t('performances:setupChooseSeatsForPrice', { name }));
     form.reset();
+    setNewPrice(0);
   }
 
   function assign(seats: SaleGroup['seats'], target: string | null) {
@@ -152,6 +159,33 @@ export function PerformanceSeatAssignments({
       aria-label={t('performances:seatAssignment')}
     >
       <h3>{t('performances:seatAssignment')}</h3>
+      <ul className="performance-zone-coverage" aria-label={t('performance-layout:zones')}>
+        {sections.map((zone) => {
+          const seats = zone.rows.flatMap((row) => row.seats.filter((seat) => !seat.blocked));
+          const without = seats.filter((seat) => !poolSeats.has(seat.id)).length;
+          return (
+            <li key={zone.id}>
+              <button
+                type="button"
+                className="button button-secondary"
+                aria-pressed={zone.id === section.id}
+                onClick={() => {
+                  setSectionId(zone.id);
+                  setGroupId('');
+                  setVisibleRows(rowBatchSize);
+                  setAssignmentMessage('');
+                }}
+              >
+                <strong>{zone.label}</strong>
+                <span>
+                  {t('performance-layout:zoneSeats', { count: seats.length })} ·{' '}
+                  {t('performance-layout:zoneWithoutPool', { count: without })}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
       <div className="performance-options">
         <label>
           {t('performances:seatingSection')}
@@ -178,7 +212,13 @@ export function PerformanceSeatAssignments({
             </label>
             <label>
               {t('performances:price')}
-              <input name="price" type="number" min={1} max={999999999999} step={1} required />
+              <MoneyInput
+                name="price"
+                required
+                max={999_999_999_999}
+                value={newPrice}
+                onValueChange={setNewPrice}
+              />
             </label>
             {remaining.length > 0 && (
               <label className="performance-wide performance-inline">

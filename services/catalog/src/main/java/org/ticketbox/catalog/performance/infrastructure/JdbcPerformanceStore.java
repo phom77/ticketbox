@@ -9,6 +9,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -24,6 +25,7 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
+import org.ticketbox.catalog.classification.domain.EventClassification;
 import org.ticketbox.catalog.performance.application.DiscoveryQuery;
 import org.ticketbox.catalog.performance.application.PerformanceStore;
 import org.ticketbox.catalog.performance.application.PerformanceViews.*;
@@ -36,33 +38,47 @@ public class JdbcPerformanceStore implements PerformanceStore {
     private static final TypeReference<List<PerformanceLayout.Shape>> SHAPES = new TypeReference<>() {};
     private static final TypeReference<List<Space>> SPACES = new TypeReference<>() {};
     private static final TypeReference<Map<String, DiscoveryText>> TRANSLATIONS = new TypeReference<>() {};
+    private static final String EVENT_SELECT = """
+            SELECT e.id,e.title,e.description,ev.segment_id,ev.primary_genre_id,e.draft_version,ev.content_version,
+                   COALESCE(ev.poster_url, c.poster_url) AS poster_url,
+                   COALESCE(CAST(ev.localized_content AS jsonb), CAST(c.localized_content AS jsonb))->'translations' AS translations,
+                   COALESCE(ev.artist_bio, c.artist_bio) AS artist_bio, ev.age_rating, ev.refund_policy
+            FROM catalog_event_view e JOIN events ev ON ev.id=e.id LEFT JOIN concerts c ON c.id=e.legacy_concert_id
+            """;
     private static final String PUBLIC_EVENT = """
             EXISTS (SELECT 1 FROM catalog_performance_view p WHERE p.event_id = e.id AND p.discoverable)
             """;
 
     // Best-effort city: the last comma-separated part of the venue address, without a trailing country.
     private static final String CITY = """
-            CASE WHEN position(',' IN p.venue_address) > 0 THEN NULLIF(btrim(substring(
-                regexp_replace(p.venue_address, '\\s*,\\s*vi.t\\s*nam\\s*$', '', 'i') FROM '([^,]+)$')), '') END
+            COALESCE(NULLIF(btrim(p.venue_city), ''), CASE WHEN position(',' IN p.venue_address) > 0 THEN NULLIF(btrim(substring(
+                regexp_replace(p.venue_address, '\\s*,\\s*vi.t\\s*nam\\s*$', '', 'i') FROM '([^,]+)$')), '') END)
             """;
     private static final String MIN_PRICE = """
             COALESCE((SELECT min(o.price) FROM performance_sale_offers o WHERE o.performance_id=p.id AND o.active),
                      (SELECT min(t.price) FROM ticket_types t WHERE t.concert_id=p.legacy_concert_id AND t.is_active))
+            """;
+    private static final String CONTENT = """
+            COALESCE(CAST(ev.localized_content AS jsonb), CAST(c.localized_content AS jsonb))
             """;
     private static final String DISCOVERY = """
             WITH base AS (
                 SELECT e.id AS catalog_event_id, COALESCE(p.legacy_concert_id, p.id) AS id,
                        CASE WHEN p.legacy_concert_id IS NULL THEN e.id END AS event_id,
                        e.title, p.venue_name, p.starts_at AS event_date, p.sale_start_at, p.sale_end_at,
-                       p.status, p.sales_suspended, c.poster_url, e.category,
-                       {city} AS city, {minPrice} AS min_price,
-                       CAST(c.localized_content AS jsonb)->'translations' AS translations,
+                       p.status, p.sales_suspended, COALESCE(ev.poster_url, c.poster_url) AS poster_url,
+                       ev.segment_id, ev.primary_genre_id, {city} AS city, {minPrice} AS min_price,
+                       {content}->'translations' AS translations,
                        CASE WHEN :saleStartFirst THEN p.sale_start_at ELSE p.starts_at END AS sort_date
                 FROM catalog_event_view e JOIN catalog_performance_view p ON p.event_id=e.id
+                JOIN events ev ON ev.id=e.id
                 LEFT JOIN concerts c ON c.id=p.legacy_concert_id
                 WHERE p.discoverable
                   AND (CAST(:startsFrom AS timestamptz) IS NULL OR p.starts_at >= :startsFrom)
                   AND (CAST(:startsBefore AS timestamptz) IS NULL OR p.starts_at < :startsBefore)
+                  AND (CAST(:segment AS text) IS NULL OR ev.segment_id = :segment)
+                  AND (CAST(:genre AS text) IS NULL OR ev.primary_genre_id = :genre OR EXISTS (
+                      SELECT 1 FROM event_genres tag WHERE tag.event_id = e.id AND tag.genre_id = :genre))
                   AND (CAST(:saleStatus AS text) IS NULL OR :saleStatus = CASE
                       WHEN p.status='CANCELLED' THEN 'CANCELLED'
                       WHEN p.legacy_concert_id IS NULL AND p.sales_suspended THEN 'CLOSED'
@@ -75,13 +91,12 @@ public class JdbcPerformanceStore implements PerformanceStore {
                       SELECT 1 FROM regexp_split_to_table(:words, ' ') AS search(word)
                       WHERE strpos(replace(regexp_replace(lower(normalize(concat_ws(' ', e.title, p.venue_name,
                           (SELECT string_agg(translation.value->>'title', ' ')
-                           FROM jsonb_each(CAST(c.localized_content AS jsonb)->'translations') AS translation)), NFD)),
+                           FROM jsonb_each({content}->'translations') AS translation)), NFD)),
                            U&'[\\0300-\\036f]', '', 'g'), U&'\\0111', 'd'), search.word) = 0
                   ))
             ), matching AS (
                 SELECT * FROM base
                 WHERE (CAST(:city AS text) IS NULL OR lower(city) = lower(:city))
-                  AND (CAST(:category AS text) IS NULL OR lower(category) = lower(:category))
                   AND (CAST(:minPrice AS numeric) IS NULL OR min_price >= :minPrice)
                   AND (CAST(:maxPrice AS numeric) IS NULL OR min_price <= :maxPrice)
             ), representatives AS (
@@ -97,13 +112,40 @@ public class JdbcPerformanceStore implements PerformanceStore {
             FROM (SELECT count(*) AS total_elements FROM representatives) total
             LEFT JOIN card_page ON TRUE
             ORDER BY card_page.sort_date, card_page.event_date, card_page.id
-            """.replace("{city}", CITY).replace("{minPrice}", MIN_PRICE);
+            """.replace("{city}", CITY).replace("{minPrice}", MIN_PRICE).replace("{content}", CONTENT);
 
-    private static final String FACETS = """
-            SELECT DISTINCT {city} AS city, e.category
+    private static final String FACET_CITIES = """
+            SELECT DISTINCT {city} AS city
             FROM catalog_event_view e JOIN catalog_performance_view p ON p.event_id=e.id
             WHERE p.discoverable AND p.starts_at >= now()
             """.replace("{city}", CITY);
+    private static final String FACET_SEGMENTS = """
+            SELECT s.id, count(*) AS events FROM (
+                SELECT DISTINCT e.id AS event_id FROM catalog_event_view e
+                JOIN catalog_performance_view p ON p.event_id=e.id WHERE p.discoverable AND p.starts_at >= now()
+            ) upcoming JOIN events ev ON ev.id=upcoming.event_id
+            JOIN classification_segments s ON s.id=ev.segment_id
+            GROUP BY s.id, s.sort ORDER BY s.sort
+            """;
+    // A genre counts an event once, whether it is the primary genre or a tag.
+    // With a segment, only events of that segment count, so cross-segment tags on them are offered too.
+    private static final String FACET_GENRES = """
+            WITH upcoming AS (
+                SELECT DISTINCT e.id AS event_id FROM catalog_event_view e
+                JOIN catalog_performance_view p ON p.event_id=e.id
+                JOIN events ev ON ev.id=e.id
+                WHERE p.discoverable AND p.starts_at >= now()
+                  AND (CAST(:segment AS text) IS NULL OR ev.segment_id = :segment)
+            ), uses AS (
+                SELECT u.event_id, ev.primary_genre_id AS genre_id FROM upcoming u JOIN events ev ON ev.id=u.event_id
+                WHERE ev.primary_genre_id IS NOT NULL
+                UNION
+                SELECT u.event_id, g.genre_id FROM upcoming u JOIN event_genres g ON g.event_id=u.event_id
+            )
+            SELECT g.id, g.segment_id, count(*) AS events FROM uses JOIN classification_genres g ON g.id=uses.genre_id
+            JOIN classification_segments s ON s.id=g.segment_id
+            GROUP BY g.id, g.segment_id, s.sort, g.sort ORDER BY s.sort, g.sort
+            """;
 
     private static final String OPERATIONS_SHOWS = """
             FROM performances p JOIN events e ON e.id=p.event_id
@@ -116,7 +158,9 @@ public class JdbcPerformanceStore implements PerformanceStore {
     private static final String OPERATIONS_FIELDS = """
             SELECT p.id,e.title,v.name AS venue_name,s.name AS space_name,p.starts_at,p.ends_at,
                    p.doors_open_at,p.timezone,p.sale_start_at,p.sale_end_at,p.status,p.sales_suspended,
-                   COALESCE(pub.ticketing_ack,false) AS ticketing_ack,COALESCE(pub.checkin_ack,false) AS checkin_ack
+                   COALESCE(pub.ticketing_ack,false) AS ticketing_ack,COALESCE(pub.checkin_ack,false) AS checkin_ack,
+                   EXISTS(SELECT 1 FROM performance_sales_pauses sp WHERE sp.performance_id=p.id
+                          AND sp.closed_reason IS NULL) AS organizer_paused
             """;
     private static final String OPERATIONS_ACK = """
             LEFT JOIN performance_sale_publications pub ON pub.performance_id=p.id AND pub.version=p.sale_version
@@ -139,9 +183,8 @@ public class JdbcPerformanceStore implements PerformanceStore {
                 .addValue("organizer", organizer).addValue("limit", page.getPageSize()).addValue("offset", page.getOffset());
         long total = named.queryForObject(
                 "SELECT count(*) FROM catalog_event_view e WHERE " + where, params, Long.class);
-        var rows = named.query("""
-                SELECT e.id,e.title,e.description,e.category,e.draft_version FROM catalog_event_view e WHERE %s
-                ORDER BY e.created_at DESC,e.id LIMIT :limit OFFSET :offset
+        var rows = named.query(EVENT_SELECT + """
+                WHERE %s ORDER BY e.created_at DESC,e.id LIMIT :limit OFFSET :offset
                 """.formatted(where), params, (rs, n) -> readEvent(rs));
         return new PageImpl<>(withPerformances(rows, organizer == null), page, total);
     }
@@ -156,7 +199,8 @@ public class JdbcPerformanceStore implements PerformanceStore {
                 .addValue("saleStatus", query.status() == null ? null : query.status().name())
                 .addValue("saleStartFirst", query.saleStartFirst())
                 .addValue("city", query.city())
-                .addValue("category", query.category())
+                .addValue("segment", query.segment())
+                .addValue("genre", query.genre())
                 .addValue("minPrice", query.minPrice())
                 .addValue("maxPrice", query.maxPrice())
                 .addValue("size", page.getPageSize())
@@ -174,21 +218,23 @@ public class JdbcPerformanceStore implements PerformanceStore {
                         time(rows, "sale_end_at"), rows.getString("status"), rows.getString("poster_url"),
                         rows.getBoolean("sales_suspended"), translations == null ? Map.of() : read(translations, TRANSLATIONS),
                         rows.getBigDecimal("event_min_price") == null ? null : rows.getBigDecimal("event_min_price").longValue(),
-                        rows.getString("city"), rows.getString("category"), rows.getInt("performance_count")));
+                        rows.getString("city"), rows.getString("segment_id"), rows.getString("primary_genre_id"),
+                        rows.getInt("performance_count")));
             }
             return new PageImpl<>(cards, page, total);
         });
     }
 
     @Override
-    public DiscoveryFacets discoveryFacets() {
+    public DiscoveryFacets discoveryFacets(String segment) {
         var cities = new java.util.TreeSet<String>();
-        var categories = new java.util.TreeSet<String>();
-        jdbc.query(FACETS, rows -> {
+        jdbc.query(FACET_CITIES, rows -> {
             if (rows.getString("city") != null) cities.add(rows.getString("city"));
-            if (rows.getString("category") != null) categories.add(rows.getString("category"));
         });
-        return new DiscoveryFacets(List.copyOf(cities), List.copyOf(categories));
+        var segments = jdbc.query(FACET_SEGMENTS, (rs, n) -> new SegmentCount(rs.getString("id"), rs.getInt("events")));
+        var genres = named.query(FACET_GENRES, new MapSqlParameterSource().addValue("segment", segment),
+                (rs, n) -> new GenreCount(rs.getString("id"), rs.getString("segment_id"), rs.getInt("events")));
+        return new DiscoveryFacets(List.copyOf(cities), segments, genres, segments.stream().map(SegmentCount::id).toList());
     }
 
     @Override
@@ -196,26 +242,41 @@ public class JdbcPerformanceStore implements PerformanceStore {
         var where = organizer == null ? PUBLIC_EVENT : "e.organization_id = :organizer";
         var params = new org.springframework.jdbc.core.namedparam.MapSqlParameterSource()
                 .addValue("id", id).addValue("organizer", organizer);
-        var rows = named.query("""
-                SELECT e.id,e.title,e.description,e.category,e.draft_version FROM catalog_event_view e WHERE e.id=:id AND %s
-                """.formatted(where), params, (rs, n) -> readEvent(rs));
+        var rows = named.query(EVENT_SELECT + " WHERE e.id=:id AND " + where, params, (rs, n) -> readEvent(rs));
         return withPerformances(rows, organizer == null).stream().findFirst();
     }
 
-    private static Event readEvent(ResultSet rs) throws SQLException {
+    @Override
+    public Optional<Event> previewEvent(UUID id, UUID organizer) {
+        var params = new MapSqlParameterSource().addValue("id", id).addValue("organizer", organizer);
+        var rows = named.query(EVENT_SELECT + " WHERE e.id=:id AND (CAST(:organizer AS uuid) IS NULL OR e.organization_id=:organizer)",
+                params, (rs, n) -> readEvent(rs));
+        return withPerformances(rows, false).stream().findFirst();
+    }
+
+    private Event readEvent(ResultSet rs) throws SQLException {
+        var translations = rs.getString("translations");
         return new Event(id(rs, "id"), rs.getString("title"), rs.getString("description"),
-                rs.getString("category"), rs.getLong("draft_version"), List.of());
+                rs.getString("segment_id"), rs.getString("primary_genre_id"), List.of(), rs.getLong("draft_version"), rs.getLong("content_version"), List.of(), rs.getString("poster_url"),
+                translations == null ? Map.of() : read(translations, TRANSLATIONS), rs.getString("artist_bio"),
+                rs.getString("age_rating"), rs.getString("refund_policy"));
     }
 
     private List<Event> withPerformances(List<Event> events, boolean publicOnly) {
         if (events.isEmpty()) return events;
+        var tags = new HashMap<UUID, List<String>>();
+        named.query("SELECT event_id, genre_id FROM event_genres WHERE event_id IN (:ids) ORDER BY sort, genre_id",
+                Map.of("ids", events.stream().map(Event::id).toList()), rs -> {
+                    tags.computeIfAbsent(rs.getObject("event_id", UUID.class), key -> new ArrayList<>())
+                            .add(rs.getString("genre_id"));
+                });
+        events = events.stream().map(event -> event.withGenres(tags.getOrDefault(event.id(), List.of()))).toList();
         var performances = named.query("""
                 SELECT * FROM catalog_performance_view WHERE event_id IN (:ids)
                 """ + (publicOnly ? " AND discoverable" : "") + " ORDER BY starts_at,id",
                 Map.of("ids", events.stream().map(Event::id).toList()), this::performance)
                 .stream().collect(Collectors.groupingBy(Performance::eventId));
-        return events.stream().map(event -> new Event(event.id(), event.title(), event.description(),
-                event.category(), event.draftVersion(), performances.getOrDefault(event.id(), List.of()))).toList();
+        return events.stream().map(event -> event.withPerformances(performances.getOrDefault(event.id(), List.of()))).toList();
     }
 
     @Override
@@ -248,33 +309,62 @@ public class JdbcPerformanceStore implements PerformanceStore {
     }
 
     @Override
-    public void createEvent(UUID id, UUID organizer, String title, String description, String category) {
-        jdbc.update("INSERT INTO events(id,organization_id,title,description,category) VALUES(?,?,?,?,?)",
-                id, organizer, title, description, category);
+    public void createEvent(UUID id, UUID organizer, String title, String description) {
+        jdbc.update("INSERT INTO events(id,organization_id,title,description) VALUES(?,?,?,?)",
+                id, organizer, title, description);
     }
 
     @Override
-    public void updateDraftEvent(UUID id, String title, String description, String category) {
+    public void updateDraftEvent(UUID id, String title, String description) {
         jdbc.update("""
-                UPDATE events SET title=?,description=?,category=?,draft_version=draft_version+1 WHERE id=?
-                """, title, description, category, id);
+                UPDATE events SET title=?,description=?,draft_version=draft_version+1 WHERE id=?
+                """, title, description, id);
+    }
+
+    @Override
+    public void writeClassification(UUID eventId, EventClassification classification) {
+        jdbc.update("UPDATE events SET segment_id=?, primary_genre_id=? WHERE id=?",
+                classification == null ? null : classification.segment(),
+                classification == null ? null : classification.primaryGenre(), eventId);
+        jdbc.update("DELETE FROM event_genres WHERE event_id=?", eventId);
+        if (classification == null) return;
+        short sort = 0;
+        for (String genre : classification.secondaryGenres()) {
+            jdbc.update("INSERT INTO event_genres(event_id, genre_id, sort) VALUES (?,?,?)", eventId, genre, sort++);
+        }
+    }
+
+    @Override
+    public EventClassification classification(UUID eventId) {
+        var row = jdbc.query("SELECT segment_id, primary_genre_id FROM events WHERE id=?",
+                (rs, n) -> new String[] {rs.getString("segment_id"), rs.getString("primary_genre_id")}, eventId)
+                .stream().findFirst().orElse(null);
+        if (row == null || row[0] == null) return null;
+        var tags = jdbc.queryForList("SELECT genre_id FROM event_genres WHERE event_id=? ORDER BY sort, genre_id",
+                String.class, eventId);
+        return new EventClassification(row[0], row[1], tags);
     }
 
     @Override
     public Optional<ConcertCategory> legacyEventCategory(UUID concert, UUID organizer) {
         return jdbc.query("""
-                SELECT e.category FROM events e JOIN concerts c ON c.id=e.legacy_concert_id
+                SELECT e.segment_id FROM events e JOIN concerts c ON c.id=e.legacy_concert_id
                 WHERE e.legacy_concert_id=? AND (?::uuid IS NULL OR c.organization_id=?)
-                """, (rs, row) -> new ConcertCategory(rs.getString("category")), concert, organizer, organizer)
+                """, (rs, row) -> new ConcertCategory(rs.getString("segment_id")), concert, organizer, organizer)
                 .stream().findFirst();
     }
 
     @Override
-    public boolean updateLegacyEventCategory(UUID concert, UUID organizer, String category) {
-        return jdbc.update("""
-                UPDATE events e SET category=? FROM concerts c
-                WHERE c.id=e.legacy_concert_id AND e.legacy_concert_id=? AND (?::uuid IS NULL OR c.organization_id=?)
-                """, category, concert, organizer, organizer) > 0;
+    public Optional<UUID> legacyEventId(UUID concert, UUID organizer) {
+        return jdbc.queryForList("""
+                SELECT e.id FROM events e JOIN concerts c ON c.id=e.legacy_concert_id
+                WHERE e.legacy_concert_id=? AND (?::uuid IS NULL OR c.organization_id=?)
+                """, UUID.class, concert, organizer, organizer).stream().findFirst();
+    }
+
+    @Override
+    public void bumpContentVersion(UUID eventId) {
+        jdbc.update("UPDATE events SET content_version=content_version+1 WHERE id=?", eventId);
     }
 
     @Override
@@ -296,7 +386,8 @@ public class JdbcPerformanceStore implements PerformanceStore {
     }
 
     private Venue venue(ResultSet rs, int n) throws SQLException {
-        return new Venue(id(rs, "id"), rs.getString("name"), rs.getString("address"),
+        return new Venue(id(rs, "id"), rs.getString("name"), rs.getString("address"), rs.getString("city"),
+                rs.getString("timezone"), rs.getObject("capacity_hint", Integer.class), rs.getLong("version"),
                 read(rs.getString("spaces"), SPACES));
     }
 
@@ -309,9 +400,61 @@ public class JdbcPerformanceStore implements PerformanceStore {
     }
 
     @Override
-    public void createVenue(UUID id, UUID space, UUID organizer, String name, String address, String spaceName) {
-        jdbc.update("INSERT INTO venues(id,organization_id,name,address) VALUES(?,?,?,?)", id, organizer, name, address);
+    public void createVenue(UUID id, UUID space, UUID organizer, String name, String address, String spaceName,
+                            String city, String timezone, Integer capacityHint) {
+        jdbc.update("INSERT INTO venues(id,organization_id,name,address,city,timezone,capacity_hint) VALUES(?,?,?,?,?,?,?)",
+                id, organizer, name, address, city, timezone, capacityHint);
         jdbc.update("INSERT INTO venue_spaces(id,venue_id,name) VALUES(?,?,?)", space, id, spaceName);
+    }
+
+    @Override
+    public Optional<Venue> lockVenue(UUID id, UUID organizer) {
+        return first("SELECT id FROM venues WHERE id=? AND organization_id=? FOR UPDATE",
+                (rs, n) -> id(rs, "id"), id, organizer).flatMap(locked -> venue(locked, organizer));
+    }
+
+    @Override
+    public boolean venueInUse(UUID venue) {
+        return jdbc.queryForObject("""
+                SELECT EXISTS(SELECT 1 FROM performances p JOIN venue_spaces s ON s.id=p.venue_space_id
+                              WHERE s.venue_id=? AND p.status<>'DRAFT')
+                    OR EXISTS(SELECT 1 FROM performance_publication_reviews r JOIN performances p ON p.id=r.performance_id
+                              JOIN venue_spaces s ON s.id=p.venue_space_id
+                              WHERE s.venue_id=? AND r.state IN ('SUBMITTED','SCHEDULED'))
+                """, Boolean.class, venue, venue);
+    }
+
+    @Override
+    public void updateVenue(UUID id, String name, String address, String city, String timezone, Integer capacityHint) {
+        jdbc.update("""
+                UPDATE venues SET name=?,address=?,city=?,timezone=?,capacity_hint=?,version=version+1 WHERE id=?
+                """, name, address, city, timezone, capacityHint, id);
+    }
+
+    @Override
+    public boolean spaceNameTaken(UUID venue, String name, UUID except) {
+        return jdbc.queryForObject("""
+                SELECT EXISTS(SELECT 1 FROM venue_spaces WHERE venue_id=? AND lower(btrim(name))=lower(btrim(?))
+                              AND (CAST(? AS uuid) IS NULL OR id<>?))
+                """, Boolean.class, venue, name, except, except);
+    }
+
+    @Override
+    public void addSpace(UUID venue, UUID space, String name) {
+        jdbc.update("INSERT INTO venue_spaces(id,venue_id,name) VALUES(?,?,?)", space, venue, name);
+    }
+
+    @Override
+    public void renameSpace(UUID venue, UUID space, String name) {
+        jdbc.update("UPDATE venue_spaces SET name=? WHERE id=? AND venue_id=?", name, space, venue);
+    }
+
+    @Override
+    public boolean hasPendingReview(UUID performance) {
+        return jdbc.queryForObject("""
+                SELECT EXISTS(SELECT 1 FROM performance_publication_reviews
+                              WHERE performance_id=? AND state IN ('SUBMITTED','SCHEDULED'))
+                """, Boolean.class, performance);
     }
 
     @Override
@@ -347,11 +490,34 @@ public class JdbcPerformanceStore implements PerformanceStore {
     }
 
     @Override
-    public Optional<Performance> lockNativePerformance(UUID id) {
+    public Optional<UUID> ownedEvent(UUID performance, UUID organizer) {
         return first("""
-                SELECT v.* FROM performances p JOIN catalog_performance_view v ON v.id=p.id
-                WHERE p.id=? AND p.legacy_concert_id IS NULL FOR UPDATE OF p
-                """, this::performance, id);
+                SELECT p.event_id FROM performances p JOIN events e ON e.id=p.event_id
+                WHERE p.id=? AND e.organization_id=? AND p.legacy_concert_id IS NULL
+                """, (rs, n) -> id(rs, "event_id"), performance, organizer);
+    }
+
+    @Override
+    public Optional<Performance> lockNativePerformance(UUID id) {
+        // Lock first, then read the view, so the read includes the preceding writer's commit.
+        return first("""
+                SELECT p.id FROM performances p WHERE p.id=? AND p.legacy_concert_id IS NULL FOR UPDATE OF p
+                """, (rs, n) -> id(rs, "id"), id).flatMap(this::performanceView);
+    }
+
+    @Override
+    public void lockVenueOfSpace(UUID space) {
+        jdbc.query("""
+                SELECT v.id FROM venue_spaces s JOIN venues v ON v.id=s.venue_id WHERE s.id=? FOR UPDATE OF v
+                """, (rs, n) -> rs.getObject("id"), space);
+    }
+
+    @Override
+    public Optional<Performance> ownedPerformance(UUID id, UUID organizer) {
+        return first("""
+                SELECT p.id FROM performances p JOIN events e ON e.id=p.event_id
+                WHERE p.id=? AND e.organization_id=? AND p.legacy_concert_id IS NULL
+                """, (rs, n) -> id(rs, "id"), id, organizer).flatMap(this::performanceView);
     }
 
     @Override
@@ -393,7 +559,8 @@ public class JdbcPerformanceStore implements PerformanceStore {
         return new OperationsPerformance(id(rs, "id"), rs.getString("title"), rs.getString("venue_name"),
                 rs.getString("space_name"), time(rs, "starts_at"), time(rs, "ends_at"), time(rs, "doors_open_at"),
                 rs.getString("timezone"), time(rs, "sale_start_at"), time(rs, "sale_end_at"), rs.getString("status"),
-                rs.getBoolean("sales_suspended"), rs.getBoolean("ticketing_ack"), rs.getBoolean("checkin_ack"));
+                rs.getBoolean("sales_suspended"), rs.getBoolean("ticketing_ack"), rs.getBoolean("checkin_ack"),
+                rs.getBoolean("organizer_paused"));
     }
 
     private Optional<Performance> performanceView(UUID id) {
@@ -407,7 +574,7 @@ public class JdbcPerformanceStore implements PerformanceStore {
                 time(rs, "sale_start_at"), time(rs, "sale_end_at"), rs.getString("status"),
                 rs.getBoolean("sales_suspended"), time(rs, "resumed_admission_at"), rs.getBoolean("public_visible"), rs.getInt("max_per_account"),
                 rs.getLong("sale_version"), rs.getObject("layout_version", Long.class), id(rs, "legacy_concert_id"),
-                rs.getLong("draft_version"));
+                rs.getLong("draft_version"), rs.getString("venue_city"));
     }
 
     @Override
@@ -427,11 +594,12 @@ public class JdbcPerformanceStore implements PerformanceStore {
                 row.getString("section_label"), PerformanceLayout.Kind.valueOf(row.getString("kind")),
                 row.getInt("capacity"), seatsByGroup.getOrDefault(id(row, "id"), List.of())), id);
         var offers = jdbc.query("""
-                SELECT id,group_id,name,price,currency,sale_start_at,sale_end_at,active
+                SELECT id,group_id,name,price,currency,sale_start_at,sale_end_at,active,description,min_per_order
                 FROM performance_sale_offers WHERE performance_id=? ORDER BY sort_index
                 """, (row, index) -> new PerformanceSale.Offer(id(row, "id"), id(row, "group_id"),
                 row.getString("name"), row.getBigDecimal("price"), row.getString("currency"),
-                time(row, "sale_start_at"), time(row, "sale_end_at"), row.getBoolean("active")), id);
+                time(row, "sale_start_at"), time(row, "sale_end_at"), row.getBoolean("active"),
+                row.getString("description"), row.getInt("min_per_order")), id);
         return new PerformanceSale(groups, offers);
     }
 
@@ -463,12 +631,14 @@ public class JdbcPerformanceStore implements PerformanceStore {
         for (int position = 0; position < sale.offers().size(); position++) {
             var offer = sale.offers().get(position);
             offers.add(new Object[] {id, offer.id(), offer.groupId(), offer.name(), offer.price(), offer.currency(),
-                    offer.saleStartAt(), offer.saleEndAt(), offer.active(), position});
+                    offer.saleStartAt(), offer.saleEndAt(), offer.active(), position, offer.description(),
+                    offer.minPerOrder()});
         }
         jdbc.batchUpdate("""
                 INSERT INTO performance_sale_offers(
-                    performance_id,id,group_id,name,price,currency,sale_start_at,sale_end_at,active,sort_index)
-                VALUES (?,?,?,?,?,?,?,?,?,?)
+                    performance_id,id,group_id,name,price,currency,sale_start_at,sale_end_at,active,sort_index,
+                    description,min_per_order)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
                 """, offers);
     }
 

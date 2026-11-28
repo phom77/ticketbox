@@ -24,6 +24,10 @@ export type OperationsEventRow = {
   nextStartsAt: string | null;
   actionPerformanceId: string | null;
   changeReason: string | null;
+  posterUrl: string | null;
+  /** The most urgent status among the performances; an event without any is a draft. */
+  status: string;
+  contentChangeInReview: boolean;
 };
 
 export type OperationsPerformanceRow = {
@@ -58,7 +62,7 @@ export type OperationsReviewRow = {
   title: string;
   status: PublicationReview['state'];
   submittedAt: string;
-  publishAt: string;
+  publishAt: string | null;
   reason: string | null;
 };
 

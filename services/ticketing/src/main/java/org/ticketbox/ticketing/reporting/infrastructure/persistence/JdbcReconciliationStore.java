@@ -16,18 +16,22 @@ import java.util.function.Consumer;
 
 @Repository
 class JdbcReconciliationStore implements ReconciliationStore {
-    private static final String ROWS = """
+    /**
+     * Intents are filtered by organization (and, on the attempt basis, by period) before they are joined to the
+     * Payment snapshots, so the indexed intent columns do the work. Only the platform's unattributed view needs the
+     * FULL JOIN, because it also lists snapshots that match no intent.
+     */
+    private static final String SELECT = """
             SELECT coalesce(p.intent_id, i.intent_id) AS intent_id,
                    coalesce(p.order_id, i.order_id) AS order_id, o.organization_id, o.concert_id,
                    o.reference_code, c.title AS concert_title, coalesce(p.provider, i.provider) AS provider,
                    coalesce(p.state, 'PENDING_REPORT') AS payment_state,
                    o.status AS order_status, coalesce(p.requested_amount, i.amount) AS requested_amount,
                    CASE WHEN o.status = 'PAID' THEN o.total_amount ELSE 0 END AS sales_amount,
-                   p.transaction_id, p.collected_amount, coalesce(p.attempted_at, i.created_at) AS attempted_at,
+                   p.transaction_id, p.collected_amount, coalesce(i.effective_at, p.attempted_at) AS attempted_at,
                    p.verified_at, p.refund_amount, p.refund_reference, p.changed_at, p.received_at
-              FROM ticketing_payment_intents i
-              FULL JOIN payment_reconciliation p ON p.intent_id = i.intent_id AND p.order_id = i.order_id
-                   AND p.provider = i.provider AND p.requested_amount = i.amount
+            """;
+    private static final String JOINS = """
               LEFT JOIN orders o ON o.id = i.order_id
               LEFT JOIN concerts c ON c.id = o.concert_id
             """;
@@ -67,6 +71,13 @@ class JdbcReconciliationStore implements ReconciliationStore {
                   AND payment_reconciliation.requested_amount = excluded.requested_amount
                   AND payment_reconciliation.attempted_at = excluded.attempted_at
                 """, new SimplePropertySqlParameterSource(s));
+        jdbc.update("""
+                UPDATE ticketing_payment_intents i SET effective_at = p.attempted_at
+                  FROM payment_reconciliation p
+                 WHERE i.intent_id = :intentId AND p.intent_id = i.intent_id AND p.order_id = i.order_id
+                   AND p.provider = i.provider AND p.requested_amount = i.amount
+                   AND i.effective_at <> p.attempted_at
+                """, new SimplePropertySqlParameterSource(s));
     }
 
     @Override
@@ -83,33 +94,54 @@ class JdbcReconciliationStore implements ReconciliationStore {
     }
 
     @Override
-    public List<Row> page(Filter filter, long offset, int limit) {
-        return jdbc.query(sorted(filter) + " LIMIT :limit OFFSET :offset",
-                params(filter).addValue("limit", limit).addValue("offset", offset), ROW);
+    public List<Row> page(Filter filter, long offset, int limit, Cursor after) {
+        var params = params(filter).addValue("limit", limit);
+        String keyset = "";
+        if (after != null) {
+            keyset = " WHERE (sort_at < :afterAt OR (sort_at = :afterAt AND intent_id > :afterId))";
+            params.addValue("afterAt", after.at()).addValue("afterId", after.intentId());
+        } else {
+            params.addValue("offset", offset);
+        }
+        return jdbc.query("SELECT * FROM (" + filtered(filter) + ") matches" + keyset + ORDER
+                + " LIMIT :limit" + (after == null ? " OFFSET :offset" : ""), params, ROW);
     }
 
     @Override
     public void scan(Filter filter, Consumer<Row> consumer) {
-        jdbc.query(sorted(filter), params(filter), (org.springframework.jdbc.core.RowCallbackHandler)
-                row -> consumer.accept(ROW.mapRow(row, 0)));
+        jdbc.query("SELECT * FROM (" + filtered(filter) + ") matches" + ORDER, params(filter),
+                (org.springframework.jdbc.core.RowCallbackHandler) row -> consumer.accept(ROW.mapRow(row, 0)));
     }
 
-    private String sorted(Filter filter) {
-        return "SELECT * FROM (" + filtered(filter) + ") matches ORDER BY "
-                + (filter.byCollection() ? "verified_at" : "attempted_at") + " DESC, intent_id, order_id";
-    }
+    /** Stable total order: the period basis time, newest first, then the intent id. */
+    private static final String ORDER = " ORDER BY sort_at DESC, intent_id, order_id";
 
     private String filtered(Filter filter) {
-        String date = filter.byCollection() ? "p.verified_at" : "coalesce(p.attempted_at, i.created_at)";
-        String scope = filter.unattributed() ? "o.organization_id IS NULL"
-                : filter.organizationId() == null ? "o.organization_id IS NOT NULL" : "o.organization_id = :organization";
-        return ROWS + " WHERE " + scope + " AND " + date + " >= :from AND " + date + " < :to"
-                + (filter.concertId() == null ? "" : " AND o.concert_id = :concert");
+        String concert = (filter.concertId() == null ? "" : " AND o.concert_id = :concert")
+                + (filter.eventId() == null ? "" : " AND o.concert_id IN (SELECT ec.id FROM concerts ec"
+                + " LEFT JOIN performance_sales eps ON eps.id = ec.id WHERE ec.id = :event OR eps.event_id = :event)");
+        String from = " >= :from AND ";
+        if (filter.unattributed()) {
+            String date = filter.byCollection() ? "p.verified_at" : "coalesce(i.effective_at, p.attempted_at)";
+            return SELECT + ", " + date + " AS sort_at FROM ticketing_payment_intents i FULL JOIN payment_reconciliation p"
+                    + " ON p.intent_id = i.intent_id AND p.order_id = i.order_id AND p.provider = i.provider"
+                    + " AND p.requested_amount = i.amount" + JOINS
+                    + " WHERE (i.intent_id IS NULL OR i.organization_id IS NULL) AND " + date + from + date + " < :to"
+                    + concert;
+        }
+        String scope = filter.organizationId() == null ? "i.organization_id IS NOT NULL" : "i.organization_id = :organization";
+        String attempt = filter.byCollection() ? "" : " AND i.effective_at >= :from AND i.effective_at < :to";
+        String collected = filter.byCollection() ? " WHERE p.verified_at >= :from AND p.verified_at < :to" : "";
+        String sort = filter.byCollection() ? "p.verified_at" : "i.effective_at";
+        return SELECT + ", " + sort + " AS sort_at FROM (SELECT * FROM ticketing_payment_intents i WHERE " + scope
+                + attempt + ") i LEFT JOIN payment_reconciliation p ON p.intent_id = i.intent_id"
+                + " AND p.order_id = i.order_id AND p.provider = i.provider AND p.requested_amount = i.amount"
+                + JOINS + collected + (collected.isEmpty() ? " WHERE true" : "") + concert;
     }
 
     private MapSqlParameterSource params(Filter filter) {
         return new MapSqlParameterSource("from", filter.from()).addValue("to", filter.to())
-                .addValue("organization", filter.organizationId()).addValue("concert", filter.concertId());
+                .addValue("organization", filter.organizationId()).addValue("concert", filter.concertId()).addValue("event", filter.eventId());
     }
 
     private static Long amount(ResultSet row, String column) throws SQLException {

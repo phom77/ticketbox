@@ -47,7 +47,10 @@ public enum ErrorCode {
 
     REFUND_REQUEST_NOT_ALLOWED("error.refund-request.not-allowed"),
     REFUND_REQUEST_NOT_OPEN("error.refund-request.not-open"),
-    REFUND_REQUEST_NOT_FOUND("error.refund-request.not-found");
+    REFUND_REQUEST_NOT_FOUND("error.refund-request.not-found"),
+
+    STATEMENT_NOT_FINAL("error.statement.not-ended"),
+    STATEMENT_PROFILE_UNAVAILABLE("error.statement.profile-unavailable");
 
     private final String messageKey;
 

@@ -152,7 +152,7 @@ try {
   assert.equal(await organizer.getByRole('link', { name: 'Legacy Concert', exact: true }).count(), 0);
   await organizer.goto('/organizer/events');
   assert.equal(await organizer.locator('main').getByRole('link', { name: 'Legacy Concert', exact: true }).getAttribute('href'),
-    '/organizer/concerts/' + legacy.legacyConcertId);
+    '/organizer/events/' + legacy.id + '?show=' + legacy.actionPerformanceId);
   await organizer.getByRole('searchbox', { name: 'Search concerts' }).fill('No matching title');
   await organizer.getByRole('button', { name: 'Apply', exact: true }).click();
   await organizer.getByRole('heading', { name: 'No matching concerts', exact: true }).waitFor();

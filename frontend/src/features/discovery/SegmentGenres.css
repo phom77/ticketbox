@@ -1,0 +1,60 @@
+.segment-genres {
+  display: grid;
+  gap: 0.75rem;
+  margin-block: 0.5rem 1.25rem;
+}
+
+.segment-genres h2 {
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+
+.segment-genres-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.segment-genres-chips[hidden] {
+  display: none;
+}
+
+.segment-genres-chips button,
+.segment-genres-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-block-size: 44px;
+  padding: 0 0.875rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--cream);
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.segment-genres-chips button[aria-pressed='true'] {
+  border-color: var(--coral);
+  background: var(--buyer-selected-bg);
+  color: var(--violet);
+}
+
+.segment-genres-more {
+  justify-self: start;
+  border-style: dashed;
+}
+
+.segment-genres-count {
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.segment-genres button:focus-visible {
+  outline: 2px solid var(--coral);
+  outline-offset: 2px;
+}

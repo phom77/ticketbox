@@ -1,5 +1,5 @@
 import { api, publicGet } from './client';
-import type { ConcertStatus, ConcertSummary, Page } from './concerts';
+import type { ConcertStatus, ConcertSummary, ConcertTranslations, Page } from './concerts';
 import type { Order } from './orders';
 
 export type Performance = {
@@ -22,12 +22,24 @@ export type Performance = {
   legacyConcertId: string | null;
 };
 
+export type AgeRating = 'ALL' | '13+' | '16+' | '18+';
+
 export type EventDetails = {
   id: string;
   title: string;
   description: string | null;
+  segment?: string | null;
+  primaryGenre?: string | null;
+  /** Secondary genres, shown as tags. */
+  genres?: string[];
+  /** Deprecated: echoes the segment id. */
   category?: string | null;
   performances: Performance[];
+  posterUrl?: string | null;
+  translations?: ConcertTranslations;
+  artistBio?: string | null;
+  ageRating?: AgeRating | null;
+  refundPolicy?: string | null;
 };
 
 type DiscoveryEvent = ConcertSummary & {
@@ -35,11 +47,24 @@ type DiscoveryEvent = ConcertSummary & {
   salesSuspended: boolean;
   minPrice: number | null;
   city: string | null;
-  category: string | null;
+  segment?: string | null;
+  primaryGenre?: string | null;
+  category?: string | null;
   performanceCount: number;
 };
 
-export type DiscoveryFacets = { cities: string[]; categories: string[] };
+export type DiscoveryFacets = {
+  cities: string[];
+  /** Segments with upcoming events and how many events each has. */
+  segments: Array<{ id: string; count: number }>;
+  /** Genres (primary or tag) with upcoming events. */
+  genres: Array<{ id: string; segmentId: string; count: number }>;
+  /** Deprecated: segment ids. */
+  categories: string[];
+};
+
+export type ClassificationGenre = { id: string; sort: number; popular: boolean };
+export type ClassificationSegment = { id: string; sort: number; genres: ClassificationGenre[] };
 
 export type Point = { x: number; y: number };
 export type SectionKind = 'GA' | 'ASSIGNED';
@@ -72,7 +97,16 @@ export type Layout = {
   sections: Section[];
 };
 
-export type Offer = { id: string; name: string; price: number; active: boolean };
+export type Offer = {
+  id: string;
+  name: string;
+  price: number;
+  active: boolean;
+  /** Perks the organizer describes for buyers. */
+  description?: string | null;
+  /** Fewest places of this ticket type in one order. Absent means 1. */
+  minPerOrder?: number;
+};
 export type AvailableGroup = {
   id: string;
   sectionId: string | null;
@@ -134,8 +168,13 @@ export async function getDiscoveryEvents(search: string, page: number, signal: A
   return response;
 }
 
-export function getDiscoveryFacets(signal?: AbortSignal) {
-  return publicGet<DiscoveryFacets>('/api/v2/events/discovery/facets', signal);
+export function getDiscoveryFacets(segment = '', signal?: AbortSignal) {
+  const query = segment ? `?segment=${encodeURIComponent(segment)}` : '';
+  return publicGet<DiscoveryFacets>(`/api/v2/events/discovery/facets${query}`, signal);
+}
+
+export function getClassifications(signal?: AbortSignal) {
+  return publicGet<{ segments: ClassificationSegment[] }>('/api/v2/classifications', signal);
 }
 
 export function getEvent(id: string, signal?: AbortSignal) {

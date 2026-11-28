@@ -232,22 +232,23 @@ ${code},Z,2,365,125`) });
   await page.getByRole('button', { name: 'Continue to tickets' }).click();
 
   const sale = page.getByRole('region', { name: 'Sale configuration' });
-  await sale.getByText('Inventory and pricing', { exact: true }).click();
-  await sale.getByRole('button', { name: 'Add inventory group' }).click();
+  await sale.getByRole('button', { name: 'Add stock pool' }).click();
   await sale.getByRole('group', { name: 'Floor' }).getByLabel('Capacity').fill('120');
-  await sale.getByRole('button', { name: 'Add offer' }).click();
-  const standing = sale.getByRole('group', { name: 'Sale offer' });
+  await sale.getByRole('button', { name: 'Add ticket type to this pool' }).click();
+  const standing = sale.getByRole('group', { name: 'Ticket type', exact: true });
   await standing.getByLabel('Price in VND').fill('150000');
   await standing.getByLabel('Name', { exact: true }).fill('Standing');
   const standingTicket = sale.getByRole('group', { name: 'Standing' });
-  await standingTicket.getByText('Ticket sale window', { exact: true }).click();
+  await selectWorkspaceOption(standingTicket.getByLabel('When is it on sale?'), { label: 'Custom' });
   const offerOpens = standingTicket.getByLabel('Sale opens at');
   assert.equal(await offerOpens.getAttribute('type'), 'datetime-local');
   await offerOpens.fill(localTime(-12));
   await sale.getByRole('button', { name: 'Save sale' }).click();
   await standingTicket.getByText(/Each ticket sale window must fit/).first().waitFor();
-  await standingTicket.getByRole('button', { name: 'Use performance sale window' }).click();
-  await offerOpens.waitFor({ state: 'visible' });
+  await selectWorkspaceOption(standingTicket.getByLabel('When is it on sale?'), {
+    label: 'Whole sale period',
+  });
+  await offerOpens.waitFor({ state: 'detached' });
 
   const assignment = sale.getByRole('region', { name: 'Seat assignment' });
   await selectWorkspaceOption(assignment.getByLabel('Seating section'), { label: 'Balcony' });
@@ -281,7 +282,7 @@ ${code},Z,2,365,125`) });
   const generalAdmission = sale.getByRole('form', { name: 'Add general admission ticket' });
   await generalAdmission.getByLabel('Ticket type name').fill('General Admission');
   await generalAdmission.getByLabel('Capacity', { exact: true }).fill('150');
-  await generalAdmission.getByLabel('Price in VND', { exact: true }).fill('250000');
+  await generalAdmission.getByLabel('Price in VND').fill('250000');
   await generalAdmission.getByRole('button', { name: 'Add general admission ticket' }).click();
   await sale.getByRole('button', { name: 'Save and review' }).click();
   await review.getByText('General admission without a map', { exact: true }).waitFor();
@@ -333,7 +334,9 @@ ${code},Z,2,365,125`) });
   for (const [view, scope] of [[reviewer, 'admin'], [page, 'organizer']]) {
     await view.goto(`/${scope}/events/${event}?show=${ga.id}`);
     await view.getByRole('navigation', { name: 'Concert navigation' }).getByRole('link', { name: 'View report', exact: true }).click();
-    await view.getByRole('link', { name: new RegExp('Open performance for ' + title) }).waitFor();
+    // Organizers land on the Sales report (filtered to this show); Admin keeps the operational performance list.
+    if (scope === 'admin') await view.getByRole('link', { name: new RegExp('Open performance for ' + title) }).waitFor();
+    else await view.getByLabel('Sales summary').getByText('Net sales', { exact: true }).waitFor();
     assert.equal(new URL(view.url()).searchParams.get('performanceId'), ga.id);
     await view.getByRole('link', { name: 'Back to concert', exact: true }).click();
     assert.equal(new URL(view.url()).searchParams.get('show'), ga.id);

@@ -7,10 +7,14 @@ export type OfferDates = Record<string, Partial<Record<OfferDateField, string>> 
 export function inspectSaleDraft(
   layout: DraftLayout | null,
   sale: SaleDraft,
-  performance: Pick<ManagedPerformance, 'saleStartAt' | 'saleEndAt'>,
+  performance: Pick<ManagedPerformance, 'saleStartAt' | 'saleEndAt'> &
+    Partial<Pick<ManagedPerformance, 'maxPerAccount'>>,
   now: number,
 ) {
-  const starts = Date.parse(performance.saleStartAt);
+  // A draft without a sale start has no lower bound to check offers against.
+  const starts = performance.saleStartAt
+    ? Date.parse(performance.saleStartAt)
+    : Number.NEGATIVE_INFINITY;
   const ends = Date.parse(performance.saleEndAt);
   const sections = new Map(layout?.sections.map((section) => [section.id, section]));
   const groups = new Set(sale.groups.map((group) => group.id));
@@ -64,6 +68,20 @@ export function inspectSaleDraft(
         saveIssue = 'reviewInvalidOffer';
         break;
       }
+      const minimum = offer.minPerOrder ?? 1;
+      const pool = sale.groups.find((group) => group.id === offer.groupId);
+      if (!Number.isInteger(minimum) || minimum < 1 || minimum > 100) {
+        saveIssue = 'reviewInvalidMinimum';
+        break;
+      }
+      if (performance.maxPerAccount !== undefined && minimum > performance.maxPerAccount) {
+        saveIssue = 'reviewMinAboveLimit';
+        break;
+      }
+      if (pool && minimum > pool.capacity) {
+        saveIssue = 'reviewMinAboveCapacity';
+        break;
+      }
       const offerStart = Date.parse(offer.saleStartAt);
       const offerEnd = Date.parse(offer.saleEndAt);
       if (!(offerStart >= starts && offerEnd <= ends && offerStart < offerEnd)) {
@@ -83,6 +101,7 @@ export function inspectSaleDraft(
       ),
   );
   if (!saveIssue && unassigned) publishIssues.push('reviewUnassignedSeats');
+  if (!performance.saleStartAt) publishIssues.push('reviewMissingSaleStart');
   if (ends <= now) publishIssues.push('reviewSaleEnded');
 
   return { saveIssue, publishIssues };

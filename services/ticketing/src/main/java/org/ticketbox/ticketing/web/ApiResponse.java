@@ -74,6 +74,10 @@ public class ApiResponse<T> {
         return new ApiResponse<>(HttpStatus.ACCEPTED.value(), "response.accepted", data, null);
     }
 
+    public static <T> ApiResponse<T> failure(int code, String message, T data) {
+        return new ApiResponse<>(code, message, data, null);
+    }
+
     public static <T> ApiResponse<T> error(int code, String message) {
         return new ApiResponse<>(code, message, null, null);
     }

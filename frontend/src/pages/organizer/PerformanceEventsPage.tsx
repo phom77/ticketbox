@@ -1,15 +1,5 @@
 import { WorkspaceSelect } from '../../components/WorkspaceSelect';
-import { categoryLabelKey, eventCategories } from '../../features/discovery/categories';
-import {
-  Fragment,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type FormEvent,
-  type ReactNode,
-} from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Link,
@@ -21,25 +11,33 @@ import {
 } from 'react-router-dom';
 import {
   ArrowLeft,
-  ArrowRight,
   CalendarClock,
   Check,
+  Copy,
+  Eye,
   FileCheck,
   Info,
   Plus,
   Armchair,
+  Trash2,
+  Users,
 } from 'lucide-react';
 import {
-  createManagedEvent,
+  deleteDraftEvent,
+  deleteDraftPerformance,
   getManagedEvent,
   listVenues,
-  updateManagedEvent,
-  type EventInput,
   type ManagedEvent,
   type ManagedPerformance,
   type Venue,
 } from '../../api/performanceManagement';
-import { ApiClientError } from '../../api/client';
+import { AdminConfirmDialog } from '../../components/admin/AdminConfirmDialog';
+import { AddDatesDialog } from './scheduling/AddDatesDialog';
+import { ApplyPricingDialog } from './scheduling/ApplyPricingDialog';
+import { DuplicateDialog } from './scheduling/DuplicateDialog';
+import { PerformanceSalesPanel } from './scheduling/PerformanceSalesPanel';
+import { VenueLibraryDialog } from './scheduling/VenueLibraryDialog';
+import { useToast } from '../../components/feedback/toast-context';
 import { performanceTime } from '../../features/performance/format';
 import { performanceStatusKey } from './performanceSetup';
 import { useOperationsConcert } from '../../components/layout/operationsConcertNavigation';
@@ -49,6 +47,9 @@ import {
   RequireOrganizationGrant,
   useOrganization,
 } from '../../features/organizations/OrganizationProvider';
+import { EventDetailsStep } from './EventDetailsStep';
+import { LegacyConcertSummary } from './LegacyConcertSummary';
+import { PerformanceGuests } from './PerformanceGuests';
 import { PerformanceScheduleForm } from './PerformanceScheduleForm';
 import { PerformanceWorkspace } from './PerformanceWorkspace';
 import './PerformanceWorkspace.css';
@@ -56,15 +57,22 @@ import './PerformanceOrganizer.css';
 
 const listPath = '/organizer/events';
 const manageEventPath = (id: string) => listPath + '/' + encodeURIComponent(id);
-const steps = ['event', 'schedule', 'tickets', 'review'] as const;
+const steps = ['event', 'schedule', 'tickets', 'review', 'guests'] as const;
 type Step = (typeof steps)[number];
 const stepLabels: Record<Step, string> = {
   event: 'performances:step_event',
   schedule: 'performances:step_schedule',
   tickets: 'performances:step_tickets',
   review: 'performances:step_review',
+  guests: 'event-content:stepGuests',
 };
-const stepIcons = { event: Info, schedule: CalendarClock, tickets: Armchair, review: FileCheck };
+const stepIcons = {
+  event: Info,
+  schedule: CalendarClock,
+  tickets: Armchair,
+  review: FileCheck,
+  guests: Users,
+};
 
 export function PerformanceEventAccess({ children }: { children: ReactNode }) {
   const organization = useOrganization();
@@ -161,11 +169,12 @@ export function NewPerformanceEventPage() {
         <h1>{t('performances:createConcert')}</h1>
       </header>
       <FlowSteps step="event" canOpen={(entry) => entry === 'event'} onOpen={() => {}} />
-      <EventInformationForm
+      <EventDetailsStep
+        released={false}
         onDirtyChange={setDirty}
         onBusyChange={setBusy}
-        onSave={async (body) => {
-          const created = await createManagedEvent(body);
+        onEventChange={() => undefined}
+        onCreated={(created) => {
           setDirty(false);
           navigate(manageEventPath(created.id), { replace: true });
         }}
@@ -182,6 +191,12 @@ export function PerformanceEventPage() {
 function EventWorkspace({ id }: { id: string }) {
   const { t } = useTranslation('performances');
   const location = useLocation();
+  const navigate = useNavigate();
+  const toast = useToast();
+  const [deleting, setDeleting] = useState<'performance' | 'event' | null>(null);
+  const [schedulingDialog, setSchedulingDialog] = useState<
+    'add' | 'duplicate' | 'apply' | 'venues' | null
+  >(null);
   const [event, setEvent] = useState<ManagedEvent | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedId = searchParams.get('show');
@@ -226,17 +241,21 @@ function EventWorkspace({ id }: { id: string }) {
     event?.performances.find((entry) => entry.id === selectedId) ?? event?.performances[0];
   const active = newSchedule ? undefined : selected;
   const isDraft = active?.status === 'DRAFT' && !active.legacyConcertId;
-  const editableEvent = event?.performances.every(
+  const legacyConcert = Boolean(active?.legacyConcertId);
+  const allDrafts = event?.performances.every(
     (entry) => entry.status === 'DRAFT' && !entry.legacyConcertId,
   );
+  const applyTargets = (event?.performances ?? []).filter(
+    (entry) => entry.id !== active?.id && entry.status === 'DRAFT' && !entry.legacyConcertId,
+  );
+  const released = Boolean(event?.performances.some((entry) => entry.status !== 'DRAFT'));
   const requestedStep = step ?? (active ? 'tickets' : 'schedule');
   let activeStep = requestedStep;
+  if (active && requestedStep === 'schedule' && !isDraft) activeStep = 'tickets';
   if (
-    active &&
-    ((requestedStep === 'schedule' && !isDraft) || (requestedStep === 'event' && !editableEvent))
+    !active &&
+    (requestedStep === 'tickets' || requestedStep === 'review' || requestedStep === 'guests')
   )
-    activeStep = 'tickets';
-  if (!active && (requestedStep === 'tickets' || requestedStep === 'review'))
     activeStep = 'schedule';
 
   useEffect(() => {
@@ -309,6 +328,16 @@ function EventWorkspace({ id }: { id: string }) {
     });
   }
 
+  /** Reloads the event after dates were added or copied and opens the first new date. */
+  function afterDatesChanged(message: string, show?: string) {
+    setSchedulingDialog(null);
+    setDirty(false);
+    toast.success(message);
+    setEvent(null);
+    setRetry((current) => current + 1);
+    if (show) setStep('tickets', show);
+  }
+
   function updatePerformance(performance: ManagedPerformance) {
     setEvent(
       (previous) =>
@@ -328,10 +357,11 @@ function EventWorkspace({ id }: { id: string }) {
   function canOpen(entry: Step) {
     switch (entry) {
       case 'event':
-        return Boolean(editableEvent);
+        return true;
       case 'schedule':
         return !active || Boolean(isDraft);
       case 'tickets':
+      case 'guests':
         return Boolean(active);
       case 'review':
         return Boolean(active && !isDraft && !active.legacyConcertId);
@@ -339,10 +369,11 @@ function EventWorkspace({ id }: { id: string }) {
   }
   const contextualNavigation = useMemo(() => {
     if (!event) return null;
-    const sections: Step[] = [];
-    if (editableEvent) sections.push('event');
+    if (legacyConcert)
+      return { title: event.title, eventId: id, performanceId: active?.id, links: [] };
+    const sections: Step[] = ['event'];
     if (!active || isDraft) sections.push('schedule');
-    if (active) sections.push('tickets', 'review');
+    if (active) sections.push('tickets', 'review', 'guests');
     return {
       title: event.title,
       eventId: id,
@@ -372,7 +403,7 @@ function EventWorkspace({ id }: { id: string }) {
     activeStep,
     confirmLeave,
     dirty,
-    editableEvent,
+    legacyConcert,
     id,
     isDraft,
     location.state,
@@ -380,6 +411,33 @@ function EventWorkspace({ id }: { id: string }) {
     t,
   ]);
   useOperationsConcert(contextualNavigation);
+
+  async function confirmDelete() {
+    if (!event || !deleting) return;
+    setBusy(true);
+    try {
+      if (deleting === 'event') {
+        await deleteDraftEvent(id, event.draftVersion);
+        setDirty(false);
+        toast.success(t('event-content:eventDeleted', { title: event.title }));
+        navigate(listPath, { replace: true });
+        return;
+      }
+      if (!active) return;
+      await deleteDraftPerformance(active.id, active.draftVersion);
+      toast.success(t('event-content:draftDeleted'));
+      setDeleting(null);
+      setDirty(false);
+      setSearchParams(new URLSearchParams({ step: 'tickets' }), { replace: true });
+      setEvent(null);
+      setRetry((current) => current + 1);
+    } catch (failure) {
+      setDeleting(null);
+      toast.error(failure instanceof Error ? failure.message : t('performances:saveFailed'));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const directory = location.state?.directorySearch;
   const reportBack = reportReturnPath(searchParams.get('returnTo'), 'organizer');
@@ -409,13 +467,45 @@ function EventWorkspace({ id }: { id: string }) {
         ) : (
           <p role="status">{t('performances:loading')}</p>
         ))}
-      {event && (
+      {event && legacyConcert && active && (
         <>
           <header className="performance-flow-header">
             <h1>{event.title}</h1>
-            {event.performances.every((entry) => entry.status === 'DRAFT') && (
+            <span className="performance-flow-status">{t('event-content:legacyBadge')}</span>
+          </header>
+          <LegacyConcertSummary eventId={id} performance={active} title={event.title} />
+        </>
+      )}
+      {event && !legacyConcert && (
+        <>
+          <header className="performance-flow-header">
+            <h1>{event.title}</h1>
+            {!released && (
               <span className="performance-flow-status">{t('performances:draftStatus')}</span>
             )}
+            <div className="performance-flow-actions">
+              <Link
+                className="button button-secondary"
+                to={manageEventPath(id) + '/preview' + (active ? '?performance=' + active.id : '')}
+                onClick={(click) => {
+                  if (!confirmLeave()) click.preventDefault();
+                }}
+              >
+                <Eye size={17} aria-hidden="true" />
+                {t('event-content:preview')}
+              </Link>
+              {allDrafts && (
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  disabled={busy}
+                  onClick={() => setDeleting('event')}
+                >
+                  <Trash2 size={17} aria-hidden="true" />
+                  {t('event-content:deleteEvent')}
+                </button>
+              )}
+            </div>
           </header>
           {event.performances.length > 0 && (
             <section className="performance-flow-context">
@@ -449,9 +539,58 @@ function EventWorkspace({ id }: { id: string }) {
                   setStep('schedule');
                 }}
               >
-                <Plus size={17} aria-hidden />
+                <Plus size={17} aria-hidden="true" />
                 {t('performances:addPerformance')}
               </button>
+              <button
+                type="button"
+                className="button button-secondary"
+                disabled={busy || !venues}
+                onClick={() => setSchedulingDialog('add')}
+              >
+                <CalendarClock size={17} aria-hidden="true" />
+                {t('scheduling:addDates')}
+              </button>
+              {active && !newSchedule && (
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  disabled={busy}
+                  onClick={() => setSchedulingDialog('duplicate')}
+                >
+                  <Copy size={17} aria-hidden="true" />
+                  {t('scheduling:duplicate')}
+                </button>
+              )}
+              {active && !newSchedule && applyTargets.length > 0 && (
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  disabled={busy}
+                  onClick={() => setSchedulingDialog('apply')}
+                >
+                  {t('scheduling:applyPricing')}
+                </button>
+              )}
+              <button
+                type="button"
+                className="button button-secondary"
+                disabled={busy || !venues}
+                onClick={() => setSchedulingDialog('venues')}
+              >
+                {t('scheduling:manageVenues')}
+              </button>
+              {isDraft && !newSchedule && (
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  disabled={busy}
+                  onClick={() => setDeleting('performance')}
+                >
+                  <Trash2 size={17} aria-hidden="true" />
+                  {t('event-content:deleteDraft')}
+                </button>
+              )}
               <p className="performance-flow-help performance-show-context-help">
                 {t('performances:setupConcertScheduleHelp')}
               </p>
@@ -473,14 +612,17 @@ function EventWorkspace({ id }: { id: string }) {
             {t(stepLabels[activeStep])}
           </h2>
           {activeStep === 'event' && (
-            <EventInformationForm
+            <EventDetailsStep
               key={revision}
-              initial={event}
+              event={event}
+              released={released}
               onDirtyChange={setDirty}
               onBusyChange={setBusy}
               onReload={reloadWorkspace}
-              onSave={async (body) => {
-                const updated = await updateManagedEvent(id, event.draftVersion, body);
+              onEventChange={(updated) =>
+                setEvent((previous) => previous && { ...previous, ...updated })
+              }
+              onSaved={(updated) => {
                 setEvent(updated);
                 setDirty(false);
                 setStep(active && !isDraft ? 'tickets' : 'schedule');
@@ -524,7 +666,86 @@ function EventWorkspace({ id }: { id: string }) {
                 setStep('review');
               }}
               onEditSchedule={isDraft ? () => goTo('schedule') : undefined}
+              onEditEvent={() => goTo('event')}
               onEdit={() => setStep('tickets')}
+            />
+          )}
+          {active && !isDraft && !legacyConcert && activeStep !== 'event' && (
+            <PerformanceSalesPanel key={active.id + revision} performance={active} />
+          )}
+          {active && activeStep === 'guests' && (
+            <PerformanceGuests
+              key={active.id}
+              performanceId={active.id}
+              label={`${event.title} · ${performanceTime(active)}`}
+              released={!isDraft}
+              reviewPath={manageEventPath(id) + '?' + queryForStep('review', active.id)}
+            />
+          )}
+          {schedulingDialog === 'add' && venues && (
+            <AddDatesDialog
+              eventId={id}
+              performances={event.performances}
+              venues={venues}
+              defaultSource={active}
+              onClose={() => setSchedulingDialog(null)}
+              onDone={(created) =>
+                afterDatesChanged(
+                  t('scheduling:datesAdded', { count: created.length }),
+                  created[0]?.id,
+                )
+              }
+            />
+          )}
+          {schedulingDialog === 'duplicate' && active && (
+            <DuplicateDialog
+              performance={active}
+              onClose={() => setSchedulingDialog(null)}
+              onDone={(copy) => afterDatesChanged(t('scheduling:duplicated'), copy.id)}
+            />
+          )}
+          {schedulingDialog === 'apply' && active && (
+            <ApplyPricingDialog
+              source={active}
+              candidates={applyTargets}
+              onClose={() => setSchedulingDialog(null)}
+              onDone={(count) => afterDatesChanged(t('scheduling:pricingApplied', { count }))}
+            />
+          )}
+          {schedulingDialog === 'venues' && venues && (
+            <VenueLibraryDialog
+              venues={venues}
+              onClose={() => setSchedulingDialog(null)}
+              onChange={(venue) =>
+                setVenues((current) =>
+                  (current ?? []).some((entry) => entry.id === venue.id)
+                    ? (current ?? []).map((entry) => (entry.id === venue.id ? venue : entry))
+                    : [...(current ?? []), venue],
+                )
+              }
+            />
+          )}
+          {deleting && (
+            <AdminConfirmDialog
+              title={t(
+                deleting === 'event'
+                  ? 'event-content:deleteEventTitle'
+                  : 'event-content:deleteDraftTitle',
+              )}
+              description={
+                deleting === 'event'
+                  ? t('event-content:deleteEventDescription', { title: event.title })
+                  : t('event-content:deleteDraftDescription', {
+                      title: event.title,
+                      when: active ? performanceTime(active) : '',
+                    })
+              }
+              confirmLabel={t(
+                deleting === 'event' ? 'event-content:deleteEvent' : 'event-content:deleteDraft',
+              )}
+              loading={busy}
+              onClose={() => setDeleting(null)}
+              onConfirm={() => void confirmDelete()}
             />
           )}
         </>
@@ -592,121 +813,6 @@ function FlowSteps({
         })}
       </ol>
     </nav>
-  );
-}
-
-function EventInformationForm({
-  initial,
-  onSave,
-  onDirtyChange,
-  onBusyChange,
-  onReload,
-}: {
-  initial?: ManagedEvent;
-  onSave: (body: EventInput) => Promise<void>;
-  onReload?: () => void;
-  onDirtyChange: (dirty: boolean) => void;
-  onBusyChange: (busy: boolean) => void;
-}) {
-  const { t } = useTranslation('performances');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const [conflict, setConflict] = useState(false);
-  const [category, setCategory] = useState(() =>
-    categoryLabelKey(initial?.category ?? '') ? (initial?.category ?? '').trim().toLowerCase() : '',
-  );
-  const categoryOptions = [
-    { value: '', label: t('performances:categoryNone') },
-    ...eventCategories.map((entry) => ({ value: entry.id, label: t(entry.label) })),
-  ];
-
-  async function save(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const values = new FormData(event.currentTarget);
-    const title = String(values.get('title')).trim();
-    if (!title) {
-      setError(t('performances:eventTitleRequired'));
-      event.currentTarget.querySelector('input')?.focus();
-      return;
-    }
-    setBusy(true);
-    onBusyChange(true);
-    setError('');
-    setConflict(false);
-    try {
-      await onSave({
-        title,
-        description: String(values.get('description')).trim(),
-        category: category || null,
-      });
-    } catch (failure) {
-      setConflict(failure instanceof ApiClientError && failure.status === 409);
-      setError(failure instanceof Error ? failure.message : t('performances:saveFailed'));
-    } finally {
-      setBusy(false);
-      onBusyChange(false);
-    }
-  }
-
-  return (
-    <section className="performance-panel performance-flow-panel">
-      <p className="performance-flow-help">{t(initial ? 'eventInfoHelp' : 'newEventHelp')}</p>
-      <form
-        className="performance-form performance-event-form"
-        onSubmit={(event) => void save(event)}
-        onChange={() => onDirtyChange(true)}
-      >
-        <label>
-          {t('performances:title')}
-          <input
-            name="title"
-            defaultValue={initial?.title}
-            maxLength={500}
-            disabled={busy}
-            required
-          />
-        </label>
-        <label>
-          {t('performances:categoryOptional')}
-          <WorkspaceSelect
-            label={t('performances:categoryOptional')}
-            value={category}
-            options={categoryOptions}
-            disabled={busy}
-            onChange={(value) => {
-              setCategory(value);
-              onDirtyChange(true);
-            }}
-          />
-        </label>
-        <label className="performance-wide">
-          {t('performances:descriptionOptional')}
-          <textarea
-            name="description"
-            rows={5}
-            maxLength={60_000}
-            defaultValue={initial?.description ?? ''}
-            disabled={busy}
-          />
-        </label>
-        {error && (
-          <p className="performance-wide performance-flow-error" role="alert">
-            {error}
-          </p>
-        )}
-        <div className="performance-flow-actions performance-wide">
-          {conflict && onReload && (
-            <button type="button" className="button button-secondary" onClick={onReload}>
-              {t('performances:reloadDraft')}
-            </button>
-          )}
-          <button className="button button-primary" disabled={busy}>
-            {t(busy ? 'savingChanges' : 'saveAndContinue')}
-            <ArrowRight size={17} aria-hidden />
-          </button>
-        </div>
-      </form>
-    </section>
   );
 }
 

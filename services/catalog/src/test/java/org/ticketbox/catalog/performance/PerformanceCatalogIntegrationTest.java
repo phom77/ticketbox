@@ -57,6 +57,9 @@ import org.ticketbox.catalog.performance.domain.PerformanceLayout.Point;
 import org.ticketbox.catalog.performance.domain.PerformanceSale;
 import org.ticketbox.catalog.performance.infrastructure.JdbcPerformanceStore;
 import org.ticketbox.catalog.performance.infrastructure.PerformancePublisher;
+import org.ticketbox.catalog.classification.application.ClassificationQuery;
+import org.ticketbox.catalog.classification.domain.EventClassification;
+import org.ticketbox.catalog.classification.infrastructure.JdbcClassificationStore;
 import org.ticketbox.catalog.performance.web.OrganizerPerformanceController;
 import org.ticketbox.catalog.performance.web.PerformanceOperationsController;
 import org.ticketbox.catalog.performance.web.PublicPerformanceController;
@@ -65,6 +68,9 @@ import org.ticketbox.catalog.web.security.OrganizationAccess;
 
 @Testcontainers
 class PerformanceCatalogIntegrationTest {
+    private static final EventClassification VPOP = new EventClassification("concerts", "vpop", List.of());
+    private static final EventClassification STAND_UP =
+            new EventClassification("arts-theater-comedy", "stand-up", List.of());
     @Container
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
     private static final String TICKETING = "http://ticketing/internal/ticketing/catalog/performances/";
@@ -75,6 +81,8 @@ class PerformanceCatalogIntegrationTest {
     private static TransactionTemplate transaction;
     private static ObjectMapper json;
     private static PerformanceCatalog catalog;
+    private static ClassificationQuery classifications;
+    private static org.ticketbox.catalog.performance.application.EventContentService content;
     private static PerformancePublicationReview reviews;
     private static MockMvc organizer;
     private static MockMvc publicCatalog;
@@ -91,9 +99,13 @@ class PerformanceCatalogIntegrationTest {
         transaction = new TransactionTemplate(new DataSourceTransactionManager(source));
         json = new ObjectMapper().findAndRegisterModules().disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         var store = new JdbcPerformanceStore(jdbc, json);
-        catalog = new PerformanceCatalog(store, "*");
+        classifications = new ClassificationQuery(new JdbcClassificationStore(jdbc));
+        catalog = new PerformanceCatalog(store, classifications, "*");
+        content = new org.ticketbox.catalog.performance.application.EventContentService(
+                store, new org.ticketbox.catalog.performance.infrastructure.JdbcEventContentStore(jdbc, json),
+                new org.ticketbox.catalog.performance.EventContentIntegrationTest.FakePosters(), catalog, classifications);
         reviews = new PerformancePublicationReview(store, new JdbcPerformanceReviewStore(jdbc, json), catalog);
-        organizer = MockMvcBuilders.standaloneSetup(new OrganizerPerformanceController(catalog, reviews), new PerformanceOperationsController(catalog),
+        organizer = MockMvcBuilders.standaloneSetup(new OrganizerPerformanceController(catalog, reviews, content), new PerformanceOperationsController(catalog),
                 new org.ticketbox.catalog.performance.web.LegacyConcertCategoryController(catalog))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setMessageConverters(new MappingJackson2HttpMessageConverter(json))
@@ -113,7 +125,7 @@ class PerformanceCatalogIntegrationTest {
                 VALUES (?,'Evening showcase','Grand Hall','Main Street',?,?,'ON_SALE','https://example.test/poster.jpg',?,?)
                 """, legacy, starts, starts.minusDays(1), owner,
                 "{\"original\":{\"title\":\"Evening showcase\"},\"translations\":{\"vi\":{\"title\":\"Đêm nhạc Duy Anh\"}}}");
-        var nativeEvent = tx(() -> catalog.createEvent(owner, "Đêm nhạc Duy Anh", "Tour", "concerts")).id();
+        var nativeEvent = tx(() -> catalog.createEvent(owner, "Đêm nhạc Duy Anh", "Tour", VPOP)).id();
         var first = discoveryShow(nativeEvent, starts.plusDays(1), starts.minusDays(4), true);
         discoveryShow(nativeEvent, starts.plusDays(2), starts.minusDays(3), true);
         discoveryShow(nativeEvent, starts.minusDays(1), starts.minusDays(5), false);
@@ -149,7 +161,7 @@ class PerformanceCatalogIntegrationTest {
         var now = OffsetDateTime.now(ZoneOffset.UTC).withNano(0);
         var localStart = now.atZoneSameInstant(ZoneId.of("Asia/Ho_Chi_Minh")).toLocalDate()
                 .plusDays(2).atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh")).toOffsetDateTime();
-        var nativeEvent = tx(() -> catalog.createEvent(owner, "Chương trình lọc suất", "Tour", "concerts")).id();
+        var nativeEvent = tx(() -> catalog.createEvent(owner, "Chương trình lọc suất", "Tour", VPOP)).id();
         var futureSale = discoveryShow(nativeEvent, localStart, now.plusMinutes(30), true);
         var onSale = discoveryShow(nativeEvent, localStart.plusDays(1), now.minusDays(1), true);
         discoveryShow(nativeEvent, localStart.plusMinutes(5), now.minusDays(1), false);
@@ -183,7 +195,7 @@ class PerformanceCatalogIntegrationTest {
         jdbc.update("INSERT INTO ticket_types (concert_id,name,price,total_quantity,available_qty) VALUES (?,'Standard',450000,10,10),(?,'Early',300000,10,10)",
                 legacy, legacy);
         jdbc.update("UPDATE concerts SET status='ON_SALE' WHERE id=?", legacy);
-        var nativeEvent = tx(() -> catalog.createEvent(owner, "Facet native", "Tour", "comedy")).id();
+        var nativeEvent = tx(() -> catalog.createEvent(owner, "Facet native", "Tour", STAND_UP)).id();
         discoveryShow(nativeEvent, starts.plusDays(1), starts.minusDays(4), true);
         discoveryShow(nativeEvent, starts.plusDays(2), starts.minusDays(3), true);
 
@@ -196,7 +208,9 @@ class PerformanceCatalogIntegrationTest {
 
         var nativeCard = discoveryPage(MockMvcRequestBuilders.get(path).param("q", "facet native"))
                 .path("content").get(0);
-        assertThat(nativeCard.path("category").asText()).isEqualTo("comedy");
+        assertThat(nativeCard.path("segment").asText()).isEqualTo("arts-theater-comedy");
+        assertThat(nativeCard.path("primaryGenre").asText()).isEqualTo("stand-up");
+        assertThat(nativeCard.path("category").asText()).isEqualTo("arts-theater-comedy");
         assertThat(nativeCard.path("performanceCount").asInt()).isEqualTo(2);
         assertThat(nativeCard.path("minPrice").isNull()).isFalse();
 
@@ -217,7 +231,9 @@ class PerformanceCatalogIntegrationTest {
 
         var facets = discoveryPage(MockMvcRequestBuilders.get(path + "/facets"));
         assertThat(facets.path("cities").toString()).contains("Hanoi");
-        assertThat(facets.path("categories").toString()).contains("comedy");
+        assertThat(facets.path("categories").toString()).contains("arts-theater-comedy");
+        assertThat(facets.path("segments").toString()).contains("arts-theater-comedy");
+        assertThat(facets.path("genres").toString()).contains("stand-up");
     }
 
     @Test
@@ -227,8 +243,13 @@ class PerformanceCatalogIntegrationTest {
         organizerRequest(MockMvcRequestBuilders.post(ORGANIZER + "/events"), owner, unknown, 400);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM events WHERE title='Category gala'", Integer.class)).isZero();
 
+        var legacyInput = organizerRequest(MockMvcRequestBuilders.post(ORGANIZER + "/events"), owner,
+                json.createObjectNode().put("title", "Category legacy input").put("category", "comedy"), 200);
+        assertThat(legacyInput.path("segment").asText()).isEqualTo("arts-theater-comedy");
+        assertThat(legacyInput.path("primaryGenre").asText()).isEqualTo("stand-up");
         var sports = organizerRequest(MockMvcRequestBuilders.post(ORGANIZER + "/events"), owner,
-                json.createObjectNode().put("title", "Category derby").put("category", "sports"), 200);
+                json.createObjectNode().put("title", "Category derby").put("category", "family")
+                        .put("segment", "sports").put("primaryGenre", "football"), 200);
         var none = organizerRequest(MockMvcRequestBuilders.post(ORGANIZER + "/events"), owner,
                 json.createObjectNode().put("title", "Category open mic").put("category", " "), 200);
         assertThat(sports.path("category").asText()).isEqualTo("sports");
@@ -261,10 +282,136 @@ class PerformanceCatalogIntegrationTest {
         var saved = organizerRequest(MockMvcRequestBuilders.put(path), owner,
                 json.createObjectNode().put("category", "family"), 200);
         assertThat(saved.path("category").asText()).isEqualTo("family");
-        assertThat(jdbc.queryForObject("SELECT category FROM catalog_event_view WHERE id=?", String.class, legacy))
+        assertThat(jdbc.queryForObject("SELECT segment_id FROM events WHERE id=?", String.class, legacy))
                 .isEqualTo("family");
         assertThat(catalog.setLegacyEventCategory(legacy, null, null).category()).isNull();
-        assertThat(jdbc.queryForObject("SELECT category FROM events WHERE id=?", String.class, legacy)).isNull();
+        assertThat(jdbc.queryForObject("SELECT segment_id FROM events WHERE id=?", String.class, legacy)).isNull();
+    }
+
+    @Test
+    void settingTheLegacyCategoryKeepsGenresWhileTheSegmentIsUnchangedAndBumpsTheContentVersion() {
+        UUID legacy = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO concerts (id,title,venue_name,venue_address,event_date,status,created_by,organization_id)
+                VALUES (?,'Legacy keeps genre','Hall','Main Street',now() + interval '40 days','DRAFT',?,?)
+                """, legacy, owner, owner);
+        catalog.setLegacyEventCategory(legacy, null, "concerts");
+        UUID mapped = jdbc.queryForObject("SELECT id FROM events WHERE legacy_concert_id=?", UUID.class, legacy);
+        jdbc.update("UPDATE events SET primary_genre_id='vpop' WHERE id=?", mapped);
+        jdbc.update("INSERT INTO event_genres(event_id, genre_id, sort) VALUES (?, 'indie', 0)", mapped);
+        long version = jdbc.queryForObject("SELECT content_version FROM events WHERE id=?", Long.class, mapped);
+
+        catalog.setLegacyEventCategory(legacy, null, "concerts");
+        assertThat(jdbc.queryForObject("SELECT primary_genre_id FROM events WHERE id=?", String.class, mapped)).isEqualTo("vpop");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM event_genres WHERE event_id=?", Integer.class, mapped)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT content_version FROM events WHERE id=?", Long.class, mapped)).isEqualTo(version + 1);
+
+        catalog.setLegacyEventCategory(legacy, null, "sports");
+        assertThat(jdbc.queryForObject("SELECT segment_id FROM events WHERE id=?", String.class, mapped)).isEqualTo("sports");
+        assertThat(jdbc.queryForObject("SELECT primary_genre_id FROM events WHERE id=?", String.class, mapped)).isNull();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM event_genres WHERE event_id=?", Integer.class, mapped)).isZero();
+        assertThat(jdbc.queryForObject("SELECT content_version FROM events WHERE id=?", Long.class, mapped)).isEqualTo(version + 2);
+    }
+
+    @Test
+    void discoveryFiltersBySegmentAndGenreAcrossPrimaryAndTagUseAndCountsEachEventOnce() throws Exception {
+        var starts = OffsetDateTime.now(ZoneOffset.UTC).plusDays(80).withNano(0);
+        var before = discoveryPage(MockMvcRequestBuilders.get("/api/v2/events/discovery/facets"));
+        var beforeConcerts = discoveryPage(MockMvcRequestBuilders.get("/api/v2/events/discovery/facets")
+                .param("segment", "concerts")).path("genres");
+        var beforeFestivals = discoveryPage(MockMvcRequestBuilders.get("/api/v2/events/discovery/facets")
+                .param("segment", "festivals")).path("genres");
+        var rock = tx(() -> catalog.createEvent(owner, "Genre rock night", "Tour",
+                new EventClassification("concerts", "rock", List.of("indie", "edm")))).id();
+        var festival = tx(() -> catalog.createEvent(owner, "Genre summer fest", "Tour",
+                new EventClassification("festivals", "music-festival", List.of("rock")))).id();
+        var football = tx(() -> catalog.createEvent(owner, "Genre derby", "Tour",
+                new EventClassification("sports", "football", List.of()))).id();
+        for (var id : List.of(rock, festival, football)) {
+            discoveryShow(id, starts, starts.minusDays(4), true);
+            discoveryShow(id, starts.plusDays(1), starts.minusDays(4), true);
+        }
+        var path = "/api/v2/events/discovery";
+        assertThat(titles(discoveryPage(MockMvcRequestBuilders.get(path).param("q", "genre").param("segment", "concerts"))))
+                .containsExactly("Genre rock night");
+        // The rock genre matches a primary genre and a tag; each event is counted once.
+        var rockPage = discoveryPage(MockMvcRequestBuilders.get(path).param("q", "genre").param("genre", "rock"));
+        assertThat(rockPage.path("totalElements").asInt()).isEqualTo(2);
+        assertThat(titles(rockPage)).containsExactlyInAnyOrder("Genre rock night", "Genre summer fest");
+        assertThat(titles(discoveryPage(MockMvcRequestBuilders.get(path).param("q", "genre").param("genre", "indie"))))
+                .containsExactly("Genre rock night");
+        assertThat(discoveryPage(MockMvcRequestBuilders.get(path).param("q", "genre").param("segment", "festivals")
+                .param("genre", "rock")).path("totalElements").asInt()).isEqualTo(1);
+        assertThat(discoveryPage(MockMvcRequestBuilders.get(path).param("q", "genre").param("segment", "sports")
+                .param("genre", "rock")).path("totalElements").asInt()).isZero();
+        assertThat(discoveryPage(MockMvcRequestBuilders.get(path).param("q", "genre").param("category", "sports"))
+                .path("totalElements").asInt()).isEqualTo(1);
+        publicCatalog.perform(MockMvcRequestBuilders.get(path).param("segment", "opera")).andExpect(status().isBadRequest());
+        publicCatalog.perform(MockMvcRequestBuilders.get(path).param("genre", "nonsense")).andExpect(status().isBadRequest());
+
+        var facets = discoveryPage(MockMvcRequestBuilders.get(path + "/facets"));
+        // Facet counts include other tests' events, so compare the change: two events use rock (primary and tag).
+        assertThat(count(facets.path("genres"), "id", "rock") - count(before.path("genres"), "id", "rock")).isEqualTo(2);
+        assertThat(count(facets.path("genres"), "id", "indie") - count(before.path("genres"), "id", "indie")).isEqualTo(1);
+        assertThat(count(facets.path("genres"), "id", "football") - count(before.path("genres"), "id", "football"))
+                .isEqualTo(1);
+        assertThat(facets.path("genres").toString()).contains("\"segmentId\":\"festivals\"");
+        assertThat(count(facets.path("segments"), "id", "sports") - count(before.path("segments"), "id", "sports"))
+                .isEqualTo(1);
+        assertThat(count(facets.path("segments"), "id", "concerts") - count(before.path("segments"), "id", "concerts"))
+                .isEqualTo(1);
+        assertThat(facets.path("categories").toString()).contains("sports");
+
+        // With a segment, genre counts cover that segment's events only, primary or tag, tags from any segment included.
+        var concerts = discoveryPage(MockMvcRequestBuilders.get(path + "/facets").param("segment", "concerts")).path("genres");
+        assertThat(count(concerts, "id", "rock") - count(beforeConcerts, "id", "rock")).isEqualTo(1);
+        assertThat(count(concerts, "id", "indie") - count(beforeConcerts, "id", "indie")).isEqualTo(1);
+        assertThat(count(concerts, "id", "football") - count(beforeConcerts, "id", "football")).isZero();
+        var festivals = discoveryPage(MockMvcRequestBuilders.get(path + "/facets").param("segment", "festivals")).path("genres");
+        assertThat(count(festivals, "id", "music-festival") - count(beforeFestivals, "id", "music-festival")).isEqualTo(1);
+        assertThat(count(festivals, "id", "rock") - count(beforeFestivals, "id", "rock")).isEqualTo(1);
+        assertThat(festivals.toString()).contains("\"id\":\"rock\",\"segmentId\":\"concerts\"");
+        assertThat(count(festivals, "id", "football") - count(beforeFestivals, "id", "football")).isZero();
+        publicCatalog.perform(MockMvcRequestBuilders.get(path + "/facets").param("segment", "opera"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void submittingForReleaseNeedsASegmentAndAPrimaryGenre() throws Exception {
+        var bare = tx(() -> catalog.createEvent(owner, "Unclassified", "Tour", null)).id();
+        var segmentOnly = tx(() -> catalog.createEvent(owner, "Segment only", "Tour",
+                new EventClassification("sports", null, List.of()))).id();
+        for (var id : List.of(bare, segmentOnly)) {
+            var starts = OffsetDateTime.now(ZoneOffset.UTC).plusDays(30).withNano(0);
+            var performance = tx(() -> catalog.createPerformance(owner, id, new PerformanceCatalog.Schedule(space, starts,
+                    starts.plusHours(2), null, "Asia/Ho_Chi_Minh", starts.minusDays(3), starts.minusHours(1), 4, true)));
+            tx(() -> catalog.saveSale(owner, owner, performance.id(), 0,
+                    maplessSale(performance.saleStartAt(), performance.saleEndAt())));
+            var versions = new org.ticketbox.catalog.performance.application.PerformanceReviewStore.Versions(
+                    1, 0, catalog.event(id, owner).draftVersion(), performance.draftVersion());
+            assertThatThrownBy(() -> tx(() -> reviews.submit(owner, owner, performance.id(), versions,
+                    OffsetDateTime.now(ZoneOffset.UTC).plusHours(1))))
+                    .isInstanceOf(AppException.class).hasMessage("error.performance.classification-missing");
+        }
+        tx(() -> catalog.updateDraftEvent(owner, segmentOnly, 0L, "Segment only", "Tour",
+                new EventClassification("sports", "football", List.of())));
+        var performance = jdbc.queryForObject("SELECT id FROM performances WHERE event_id=?", UUID.class, segmentOnly);
+        assertThat(tx(() -> catalog.publish(owner, owner, performance, 1L, 0L, null, null)).status()).isEqualTo("ON_SALE");
+        var payload = json.readTree(jdbc.queryForObject(
+                "SELECT payload FROM performance_sale_publications WHERE performance_id=? AND version=2", String.class, performance));
+        assertThat(payload.path("segment").asText()).isEqualTo("sports");
+        assertThat(payload.path("primaryGenre").asText()).isEqualTo("football");
+    }
+
+    private static List<String> titles(com.fasterxml.jackson.databind.JsonNode page) {
+        var values = new java.util.ArrayList<String>();
+        page.path("content").forEach(card -> values.add(card.path("title").asText()));
+        return values;
+    }
+
+    private static int count(com.fasterxml.jackson.databind.JsonNode entries, String key, String value) {
+        for (var entry : entries) if (value.equals(entry.path(key).asText())) return entry.path("count").asInt();
+        return 0;
     }
 
     @Test
@@ -329,8 +476,8 @@ class PerformanceCatalogIntegrationTest {
     @Test
     void revisesEventDraftInPlaceAndRejectsStaleEditors() {
         var draft = newPerformance(3);
-        var update = json.createObjectNode().put("title", "Third night").put("category", "concerts")
-                .put("expectedDraftVersion", 0);
+        var update = json.createObjectNode().put("title", "Third night").put("segment", "concerts").put("primaryGenre", "vpop")
+                .put("expectedContentVersion", 0);
         var path = ORGANIZER + "/events/" + event;
         organizerRequest(MockMvcRequestBuilders.put(path), UUID.randomUUID(), update, 404);
         var revised = organizerRequest(MockMvcRequestBuilders.put(path), owner, update, 200);
@@ -402,7 +549,7 @@ class PerformanceCatalogIntegrationTest {
         var draft = newPerformance(3);
         tx(() -> catalog.saveSale(owner, owner, draft.id(), 0, maplessSale(draft.saleStartAt(), draft.saleEndAt())));
         var eventPath = ORGANIZER + "/events/" + event;
-        var eventUpdate = json.createObjectNode().put("title", "Ready to publish").put("expectedDraftVersion", 0);
+        var eventUpdate = json.createObjectNode().put("title", "Ready to publish").put("expectedContentVersion", 0);
         organizerRequest(MockMvcRequestBuilders.put(eventPath), owner, eventUpdate, 200);
         var schedulePath = ORGANIZER + "/performances/" + draft.id() + "/schedule";
         var schedule = json.<ObjectNode>valueToTree(new PerformanceCatalog.Schedule(space, draft.startsAt(),
@@ -428,8 +575,98 @@ class PerformanceCatalogIntegrationTest {
         tx(() -> { reviews.release(draft.id()); return null; });
         assertThat(tx(() -> catalog.publication(owner, draft.id())).status()).isEqualTo("ON_SALE");
         assertThat(tx(() -> catalog.publication(owner, draft.id())).ticketingAcknowledged()).isFalse();
-        organizerRequest(MockMvcRequestBuilders.put(eventPath), owner, eventUpdate.put("expectedDraftVersion", 1), 400);
+        organizerRequest(MockMvcRequestBuilders.put(eventPath), owner, eventUpdate.put("expectedContentVersion", 1), 400);
         organizerRequest(MockMvcRequestBuilders.put(schedulePath), owner, schedule.put("expectedDraftVersion", 1), 400);
+    }
+
+    private UUID approvedReview(org.ticketbox.catalog.performance.application.PerformanceViews.Performance draft) {
+        tx(() -> catalog.saveSale(owner, owner, draft.id(), 0, maplessSale(draft.saleStartAt(), draft.saleEndAt())));
+        var current = catalog.event(event, owner);
+        var versions = new org.ticketbox.catalog.performance.application.PerformanceReviewStore.Versions(
+                1, 0, current.draftVersion(), draft.draftVersion());
+        var submitted = tx(() -> reviews.submit(owner, owner, draft.id(), versions,
+                OffsetDateTime.now(ZoneOffset.UTC).plusHours(1)));
+        UUID revision = submitted.review().id();
+        tx(() -> reviews.decide(draft.id(), revision, UUID.randomUUID(), Action.APPROVE, null));
+        jdbc.update("UPDATE performance_publication_reviews SET publish_at=clock_timestamp()-interval '1 second' WHERE id=?",
+                revision);
+        return revision;
+    }
+
+    private String reviewState(UUID performance) {
+        return tx(() -> reviews.status(owner, performance)).review().state().name();
+    }
+
+    @Test
+    void approvingAContentRevisionKeepsAScheduledReleaseAndResyncsTheTitleOfReleasedShows() {
+        var first = newPerformance(3);
+        var second = newPerformance(4);
+        tx(() -> catalog.saveSale(owner, owner, first.id(), 0, maplessSale(first.saleStartAt(), first.saleEndAt())));
+        tx(() -> catalog.publish(owner, owner, first.id(), 1L, 0L, null, null));
+        approvedReview(second);
+        long draftVersion = catalog.event(event, owner).draftVersion();
+
+        var input = new org.ticketbox.catalog.performance.application.EventContentService.Input(
+                "Renamed show", "New text", null, java.util.Map.of(), null, null, null);
+        tx(() -> content.stage(owner, event, 0L, input));
+        tx(() -> content.submit(owner, owner, event, 1L));
+        tx(() -> content.decide(UUID.randomUUID(), event,
+                org.ticketbox.catalog.performance.domain.EventContentRevision.Action.APPROVE, null, 1));
+
+        assertThat(catalog.event(event, owner).title()).isEqualTo("Renamed show");
+        assertThat(catalog.event(event, owner).draftVersion()).isEqualTo(draftVersion);
+        assertThat(reviewState(second.id())).isEqualTo("SCHEDULED");
+        tx(() -> { reviews.release(second.id()); return null; });
+        assertThat(tx(() -> catalog.publication(owner, second.id())).status()).isEqualTo("ON_SALE");
+        assertThat(reviewState(second.id())).isEqualTo("RELEASED");
+
+        // The released show got a new snapshot version carrying the approved title.
+        var versions = jdbc.queryForList("SELECT version FROM performance_sale_publications WHERE performance_id=? ORDER BY version",
+                Long.class, first.id());
+        assertThat(versions).containsExactly(2L, 3L);
+        assertThat(jdbc.queryForObject("SELECT payload->>'title' FROM performance_sale_publications WHERE performance_id=? AND version=3",
+                String.class, first.id())).isEqualTo("Renamed show");
+        assertThat(tx(() -> catalog.publication(owner, first.id())).saleVersion()).isEqualTo(3);
+    }
+
+    @Test
+    void everyPreReleaseContentWriteSupersedesAPendingReview() {
+        var plain = newPerformance(3);
+        approvedReview(plain);
+        var event0 = catalog.event(event, owner);
+        var bio = new org.ticketbox.catalog.performance.application.EventContentService.Input(
+                event0.title(), event0.description(), "concerts", java.util.Map.of(), "A bio", "ALL", null);
+        var after = tx(() -> content.updateDraft(owner, event, event0.contentVersion(), bio));
+        assertThat(after.draftVersion()).isEqualTo(event0.draftVersion() + 1);
+        tx(() -> { reviews.release(plain.id()); return null; });
+        assertThat(reviewState(plain.id())).isEqualTo("SUPERSEDED");
+    }
+
+    @Test
+    void aPreReleasePosterChangeSupersedesAPendingReview() {
+        var show = newPerformance(3);
+        approvedReview(show);
+        var event0 = catalog.event(event, owner);
+        var upload = new org.ticketbox.catalog.support.TestUpload("file", "poster.png", "image/png", new byte[] {1});
+        var after = tx(() -> content.replacePoster(owner, event, event0.contentVersion(), null, upload)).event();
+        assertThat(after.draftVersion()).isEqualTo(event0.draftVersion() + 1);
+        tx(() -> { reviews.release(show.id()); return null; });
+        assertThat(reviewState(show.id())).isEqualTo("SUPERSEDED");
+    }
+
+    @Test
+    void aPreReleaseTitleChangeSupersedesAPendingReview() {
+        var show = newPerformance(3);
+        UUID review = approvedReview(show);
+        var event0 = catalog.event(event, owner);
+        var renamed = new org.ticketbox.catalog.performance.application.EventContentService.Input(
+                "Another title", event0.description(), "concerts", java.util.Map.of(), null, null, null);
+        var after = tx(() -> content.updateDraft(owner, event, event0.contentVersion(), renamed));
+        assertThat(after.draftVersion()).isEqualTo(event0.draftVersion() + 1);
+        tx(() -> { reviews.release(show.id()); return null; });
+        assertThat(reviewState(show.id())).isEqualTo("SUPERSEDED");
+        assertThat(tx(() -> catalog.publication(owner, show.id())).status()).isEqualTo("DRAFT");
+        assertThat(review).isNotNull();
     }
 
     private static com.fasterxml.jackson.databind.JsonNode organizerRequest(
@@ -452,7 +689,7 @@ class PerformanceCatalogIntegrationTest {
     void draftEvent() {
         jdbc.update("UPDATE performance_sale_publications SET ticketing_ack=true, checkin_ack=true");
         owner = UUID.randomUUID();
-        event = tx(() -> catalog.createEvent(owner, "Two nights", "Tour", "concerts")).id();
+        event = tx(() -> catalog.createEvent(owner, "Two nights", "Tour", VPOP)).id();
         var created = tx(() -> catalog.createVenue(owner, "Room", "Address", "Stage"));
         venue = created.id();
         space = created.spaces().getFirst().id();
@@ -462,8 +699,8 @@ class PerformanceCatalogIntegrationTest {
     void organizationRolloutOnlyControlsNewPublications() {
         var night = newPerformance(3);
         var draft = newPerformance(4);
-        var enabled = new PerformanceCatalog(new JdbcPerformanceStore(jdbc, json), owner.toString());
-        var disabled = new PerformanceCatalog(new JdbcPerformanceStore(jdbc, json), "");
+        var enabled = new PerformanceCatalog(new JdbcPerformanceStore(jdbc, json), classifications, owner.toString());
+        var disabled = new PerformanceCatalog(new JdbcPerformanceStore(jdbc, json), classifications, "");
         tx(() -> catalog.saveSale(owner, owner, night.id(), 0, maplessSale(night.saleStartAt(), night.saleEndAt())));
         assertThatThrownBy(() -> tx(() -> disabled.publish(owner, owner, night.id(), 1L, 0L, null, null)))
                 .isInstanceOf(AppException.class).hasMessage("error.performance.rollout-disabled");
@@ -543,13 +780,51 @@ class PerformanceCatalogIntegrationTest {
         assertThatThrownBy(() -> catalog.layoutOverview(another.id())).isInstanceOf(AppException.class);
 
         var revisedOffer = new PerformanceSale.Offer(offer.id(), offer.groupId(), offer.name(),
-                BigDecimal.valueOf(200_000), offer.currency(), offer.saleStartAt(), offer.saleEndAt(), true);
+                BigDecimal.valueOf(200_000), offer.currency(), offer.saleStartAt(), offer.saleEndAt(), true, "Includes a poster", 1);
         var revised = tx(() -> catalog.saveSale(owner, owner, night.id(), 2,
                 new PerformanceSale(List.of(group), List.of(revisedOffer))));
         assertThat(revised.version()).isEqualTo(3);
         assertThat(jdbc.queryForObject("""
+                SELECT payload->'offers'->0->>'minPerOrder' FROM performance_sale_publications
+                WHERE performance_id=? AND version=3
+                """, String.class, night.id())).isEqualTo("1");
+        assertThat(jdbc.queryForObject("""
+                SELECT payload->'offers'->0->>'description' FROM performance_sale_publications
+                WHERE performance_id=? AND version=3
+                """, String.class, night.id())).isEqualTo("Includes a poster");
+        assertSnapshotMatchesContract(jdbc.queryForObject("""
+                SELECT payload::text FROM performance_sale_publications WHERE performance_id=? AND version=3
+                """, String.class, night.id()));
+        // A seated pool of one seat cannot require two seats per order.
+        var aboveSeats = new PerformanceSale.Offer(offer.id(), offer.groupId(), offer.name(), offer.price(),
+                offer.currency(), offer.saleStartAt(), offer.saleEndAt(), true, null, 2);
+        assertThatThrownBy(() -> tx(() -> catalog.saveSale(owner, owner, night.id(), 3,
+                new PerformanceSale(List.of(group), List.of(aboveSeats)))))
+                .hasMessage("error.performance.offer-min-above-capacity");
+        var tooHigh = new PerformanceSale.Offer(offer.id(), offer.groupId(), offer.name(), offer.price(),
+                offer.currency(), offer.saleStartAt(), offer.saleEndAt(), true, null, 101);
+        assertThatThrownBy(() -> tx(() -> catalog.saveSale(owner, owner, night.id(), 3,
+                new PerformanceSale(List.of(group), List.of(tooHigh)))))
+                .isInstanceOf(RuntimeException.class);
+        assertThat(jdbc.queryForObject("SELECT min_per_order FROM performance_sale_offers WHERE performance_id=?",
+                Integer.class, night.id())).isEqualTo(1);
+        assertThat(jdbc.queryForObject("""
                 SELECT count(DISTINCT payload->>'layoutChecksum') FROM performance_sale_publications WHERE performance_id=?
                 """, Integer.class, night.id())).isEqualTo(1);
+    }
+
+    /** The emitted payload must satisfy the contract Ticketing and Check-in consume. */
+    private static void assertSnapshotMatchesContract(String payload) {
+        try {
+            var contract = java.nio.file.Path.of("..", "..", "contracts", "catalog.performance-sale-snapshot.v2.json");
+            var schema = com.networknt.schema.JsonSchemaFactory
+                    .getInstance(com.networknt.schema.SpecVersion.VersionFlag.V202012)
+                    .getSchema(java.nio.file.Files.readString(contract));
+            var errors = schema.validate(new ObjectMapper().readTree(payload));
+            assertThat(errors).as("snapshot payload %s", payload).isEmpty();
+        } catch (java.io.IOException failure) {
+            throw new java.io.UncheckedIOException(failure);
+        }
     }
 
     @Test
@@ -603,7 +878,7 @@ class PerformanceCatalogIntegrationTest {
 
     private static PerformanceSale.Offer standard(UUID pool, OffsetDateTime start, OffsetDateTime end) {
         return new PerformanceSale.Offer(UUID.randomUUID(), pool, "Standard", BigDecimal.valueOf(100_000),
-                "VND", start, end, true);
+                "VND", start, end, true, null, null);
     }
 
     private static PerformanceLayout assignedLayout() {

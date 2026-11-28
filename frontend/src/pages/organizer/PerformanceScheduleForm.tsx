@@ -69,6 +69,9 @@ export function PerformanceScheduleForm({
   const [error, setError] = useState('');
   const [missingVenue, setMissingVenue] = useState(false);
   const [conflict, setConflict] = useState(false);
+  const [changingZone, setChangingZone] = useState(false);
+  const [zoneChosen, setZoneChosen] = useState(Boolean(performance));
+  const touched = useRef(new Set<DateField>());
   const venueFormId = useId();
   const venueForm = useRef<HTMLFormElement>(null);
   const venueToggle = useRef<HTMLButtonElement>(null);
@@ -211,6 +214,21 @@ export function PerformanceScheduleForm({
     onDirtyChange(true);
   }
 
+  /** Fills doors, end and sale end from a new start unless the organizer already edited them. */
+  function withDefaults(current: Dates, start: string): Dates {
+    const resolved = resolvePerformanceDateTime(start, timezone);
+    // The start always follows the field; the dependent times are only filled for a new performance.
+    if (performance || !resolved.ok || !resolved.instant) return { ...current, startsAt: start };
+    const base = Date.parse(resolved.instant);
+    const at = (minutes: number) =>
+      toPerformanceLocalDateTime(new Date(base + minutes * 60_000).toISOString(), timezone);
+    const next = { ...current, startsAt: start };
+    if (!touched.current.has('doorsOpenAt')) next.doorsOpenAt = at(-30);
+    if (!touched.current.has('endsAt')) next.endsAt = at(120);
+    if (!touched.current.has('saleEndAt')) next.saleEndAt = at(0);
+    return next;
+  }
+
   function timeField(name: DateField, label: string) {
     return (
       <PerformanceDateTimeField
@@ -218,9 +236,14 @@ export function PerformanceScheduleForm({
         label={label}
         value={dates[name]}
         error={fieldErrors[name]}
+        timeZone={timezone}
         required={name !== 'doorsOpenAt'}
         onChange={(value) => {
-          setDates((current) => ({ ...current, [name]: value }));
+          if (name === 'startsAt') setDates((current) => withDefaults(current, value));
+          else {
+            touched.current.add(name);
+            setDates((current) => ({ ...current, [name]: value }));
+          }
           setFieldErrors((current) => ({ ...current, [name]: undefined }));
           setShortcutError('');
         }}
@@ -328,6 +351,11 @@ export function PerformanceScheduleForm({
               placeholder={t(venues ? 'chooseVenue' : 'loading')}
               onChange={(value) => {
                 setVenueSpaceId(value);
+                // A new performance takes the default time zone of its venue until the zone is chosen.
+                const zone = venues?.find((venue) =>
+                  venue.spaces.some((space) => space.id === value),
+                )?.timezone;
+                if (zone && !zoneChosen && !performance) setTimezone(zone);
                 setMissingVenue(false);
                 setReusedVenue(false);
                 onDirtyChange(true);
@@ -358,17 +386,31 @@ export function PerformanceScheduleForm({
               </small>
             )}
           </label>
-          <PerformanceTimeZoneField
-            label={t('performances:timezone')}
-            value={timezone}
-            onChange={(value) => {
-              setTimezone(value);
-              setFieldErrors({});
-              onDirtyChange(true);
-              setReusedVenue(false);
-              setShortcutError('');
-            }}
-          />
+          <div className="performance-zone">
+            <span>{t('scheduling:zoneLabel', { zone: timezone.replace(/_/g, ' ') })}</span>
+            <button
+              type="button"
+              className="button button-secondary"
+              aria-expanded={changingZone}
+              onClick={() => setChangingZone((current) => !current)}
+            >
+              {t('scheduling:changeZone')}
+            </button>
+          </div>
+          {changingZone && (
+            <PerformanceTimeZoneField
+              label={t('performances:timezone')}
+              value={timezone}
+              onChange={(value) => {
+                setTimezone(value);
+                setZoneChosen(true);
+                setFieldErrors({});
+                onDirtyChange(true);
+                setReusedVenue(false);
+                setShortcutError('');
+              }}
+            />
+          )}
           <div className="performance-wide">
             <button
               type="button"

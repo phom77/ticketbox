@@ -14,7 +14,8 @@ public interface PerformanceStock {
                 int maxPerAccount) {}
 
     record Offer(UUID id, UUID groupId, String name, String sectionLabel, Kind kind, BigDecimal price,
-                 OffsetDateTime beginsAt, OffsetDateTime endsAt, boolean enabled) {
+                 OffsetDateTime beginsAt, OffsetDateTime endsAt, boolean enabled,
+                 String description, int minPerOrder) {
         public boolean activeAt(OffsetDateTime now) {
             return enabled && !now.isBefore(beginsAt) && now.isBefore(endsAt);
         }

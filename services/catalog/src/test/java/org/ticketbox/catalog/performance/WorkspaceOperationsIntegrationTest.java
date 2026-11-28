@@ -76,7 +76,9 @@ class WorkspaceOperationsIntegrationTest {
         var operations = new WorkspaceOperations(new JdbcWorkspaceOperationsStore(jdbc));
         var performanceStore = new JdbcPerformanceStore(jdbc, json);
         var review = new PerformancePublicationReview(performanceStore, new JdbcPerformanceReviewStore(jdbc, json),
-                new PerformanceCatalog(performanceStore, "*"));
+                new PerformanceCatalog(performanceStore,
+                        new org.ticketbox.catalog.classification.application.ClassificationQuery(
+                                new org.ticketbox.catalog.classification.infrastructure.JdbcClassificationStore(jdbc)), "*"));
         mvc = MockMvcBuilders.standaloneSetup(new WorkspaceOperationsController(operations),
                         new PerformancePublicationReviewController(review))
                 .setControllerAdvice(new GlobalExceptionHandler())

@@ -35,6 +35,15 @@ public class CloudinaryPosterStorage implements PosterStorage {
 
     @Override
     public StoredPoster upload(UUID concertId, Upload file) {
+        return store(concertId.toString(), file);
+    }
+
+    @Override
+    public StoredPoster uploadEventPoster(UUID eventId, Upload file) {
+        return store("event-" + eventId, file);
+    }
+
+    private StoredPoster store(String name, Upload file) {
         ensureConfigured();
         byte[] bytes = validateAndRead(file);
 
@@ -48,7 +57,7 @@ public class CloudinaryPosterStorage implements PosterStorage {
                                             "folder",
                                             properties.folder(),
                                             "public_id",
-                                            concertId + "-" + UUID.randomUUID(),
+                                            name + "-" + UUID.randomUUID(),
                                             "resource_type",
                                             "image"));
             Object secureUrlValue = result.get("secure_url");
@@ -65,7 +74,7 @@ public class CloudinaryPosterStorage implements PosterStorage {
         } catch (AppException exception) {
             throw exception;
         } catch (IOException | RuntimeException exception) {
-            log.error("Cloudinary poster upload failed for concert {}", concertId, exception);
+            log.error("Cloudinary poster upload failed for {}", name, exception);
             throw new AppException(
                     ErrorCode.IMAGE_STORAGE_UNAVAILABLE, "error.poster.upload-failed");
         }

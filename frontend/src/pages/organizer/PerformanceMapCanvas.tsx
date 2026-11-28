@@ -52,6 +52,8 @@ type Props = {
   onDraw: (points: Point[]) => void;
   onMove: (selection: Item, delta: Point) => void;
   onResize?: (selection: Item, corner: Point) => void;
+  /** Zooms to a zone when its id changes or the nonce increases (zone list). */
+  focusRequest?: { id: string; nonce: number };
 };
 
 const fit: Camera = { x: 0, y: 0, zoom: 1 };
@@ -130,6 +132,7 @@ export function PerformanceMapCanvas({
   onDraw,
   onMove,
   onResize,
+  focusRequest,
 }: Props) {
   const { t, i18n } = useTranslation('performances');
   const percent = useMemo(
@@ -484,6 +487,26 @@ export function PerformanceMapCanvas({
   const labelSize = Math.min(layout.width, layout.height) / 28;
   const ringSize = viewport.width / 120;
   const pressToFit = () => setCamera(fit);
+  useEffect(() => {
+    if (!focusRequest) return;
+    const zone = layout.sections.find(({ id: zoneId }) => zoneId === focusRequest.id);
+    if (!zone) return;
+    const { x, y, width, height } = mapBounds(zone.points);
+    const zoom = clamp(
+      Math.min(layout.width / Math.max(width, 1), layout.height / Math.max(height, 1)) * 0.85,
+      1,
+      maxZoom,
+    );
+    setCamera(
+      restrictCamera(layout, {
+        zoom,
+        x: x + width / 2 - layout.width / (2 * zoom),
+        y: y + height / 2 - layout.height / (2 * zoom),
+      }),
+    );
+    // Only a new request moves the camera, not later edits to the layout.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusRequest]);
   const gridSize = Math.max(1, Math.min(layout.width, layout.height) / 24);
   const draftDot = viewport.width / 190;
 
@@ -762,7 +785,7 @@ export function PerformanceMapCanvas({
         </div>
       </div>
       {visibleSeats.limited && (
-        <p className="performance-map-canvas-note">{t('performances:mapCanvasSeatLimit')}</p>
+        <p className="performance-map-canvas-note">{t('performance-layout:hiddenSeatsHint')}</p>
       )}
       {current.message && (
         <p className="performance-map-canvas-error" role="alert">

@@ -23,5 +23,18 @@
   "selectPerformance": "Select performance",
   "chooseApprovedOwner": "Select an approved organization or TicketBox.",
   "reviewSaved": "Decision saved · {{state}}",
-  "createdFor": "Draft created for {{organization}}."
+  "createdFor": "Draft created for {{organization}}.",
+  "contentInReview": "Content change in review",
+  "statusCancelled": "Cancelled",
+  "statusChangesRequested": "Changes requested",
+  "statusDraft": "Draft",
+  "statusInReview": "In review",
+  "statusOnSale": "On sale",
+  "statusPast": "Past",
+  "statusScheduled": "Scheduled",
+  "statusSoldOut": "Sold out",
+  "actions": "Actions",
+  "open": "Open",
+  "preview": "Preview",
+  "report": "Report"
 }

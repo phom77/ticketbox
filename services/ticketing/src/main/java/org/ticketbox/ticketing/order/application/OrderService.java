@@ -72,6 +72,7 @@ public class OrderService {
     private final QueueAccessPort queueAccessPort;
     private final org.ticketbox.ticketing.inventory.hold.application.port.TicketHoldRepository
             ticketHoldRepository;
+    private final org.ticketbox.ticketing.reporting.application.port.SalesLedger salesLedger;
 
     private static final List<Order.Status> ACTIVE_STATUSES =
             List.of(Order.Status.AWAITING_PAYMENT, Order.Status.PAID);
@@ -797,6 +798,7 @@ public class OrderService {
         order.pay(Order.PaymentProvider.valueOf(provider), providerRef, decisionTime);
         orderEvents.record(order, version, OrderPaid);
         orderRepository.save(order);
+        salesLedger.recordSale(orderId, provider, decisionTime);
 
         List<OrderItem> items = orderItemRepository.findByOrderId(orderId);
         List<Ticket> ticketsToSave = new ArrayList<>();

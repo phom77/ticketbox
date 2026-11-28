@@ -87,7 +87,8 @@ export function performanceStatusKey(
   }
   if (performance.salesSuspended) return 'performances:setupStatusPaused';
   if (performance.status === 'SOLD_OUT') return 'performances:setupStatusSoldOut';
-  if (now < Date.parse(performance.saleStartAt)) return 'performances:setupStatusScheduled';
+  if (performance.saleStartAt && now < Date.parse(performance.saleStartAt))
+    return 'performances:setupStatusScheduled';
   if (now >= Date.parse(performance.saleEndAt)) return 'performances:setupStatusClosed';
   return 'performances:setupStatusSelling';
 }

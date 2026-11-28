@@ -15,7 +15,8 @@ import { ConcertPicker, type ConcertPickerItem } from '../../components/admin/Co
 import { WorkspaceSelect, type WorkspaceSelectOption } from '../../components/WorkspaceSelect';
 import { dateFormatter, numberFormatter } from '../../data/formatters';
 import { useOrganization } from '../../features/organizations/OrganizationProvider';
-import { OrganizerRevenuePage } from '../organizer/OrganizerRevenuePage';
+import { SalesReport } from '../../features/reporting/SalesReport';
+import { StatementsView } from '../../features/reporting/StatementsView';
 import { ReconciliationPage } from '../organizer/ReconciliationPage';
 import {
   DEFAULT_PERFORMANCE_TIME_ZONE,
@@ -52,10 +53,18 @@ const reviewStatuses = [
 const offsetDateTime =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}:\d{2})$/;
 
-type ReportView = 'operations' | 'reconciliation' | 'revenue';
+type ReportView = 'operations' | 'reconciliation' | 'sales' | 'statements';
 
 function reportView(param: string | null, defaultView: ReportView): ReportView {
-  if (param === 'operations' || param === 'reconciliation' || param === 'revenue') return param;
+  // The completed-concert revenue view was replaced by live sales.
+  if (param === 'revenue') return 'sales';
+  if (
+    param === 'operations' ||
+    param === 'reconciliation' ||
+    param === 'sales' ||
+    param === 'statements'
+  )
+    return param;
   return defaultView;
 }
 
@@ -78,8 +87,8 @@ function performancePath(
   returnTo: string,
 ) {
   const params = new URLSearchParams({ returnTo });
-  if (row.legacyConcertId)
-    return `/${scope}/concerts/${encodeURIComponent(row.legacyConcertId)}?${params}`;
+  if (row.legacyConcertId && scope === 'admin')
+    return `/admin/concerts/${encodeURIComponent(row.legacyConcertId)}?${params}`;
   params.set('show', row.id);
   return `/${scope}/events/${encodeURIComponent(row.eventId)}?${params}`;
 }
@@ -93,11 +102,19 @@ export function OperationsReportsPage({ scope }: { scope: ManagementApiScope }) 
   const grants = organization?.selected?.grants;
   const operations = !organizer || !!grants?.includes('EVENTS');
   const finance = !organizer || !!grants?.includes('FINANCE');
+  const sales = organizer && (operations || finance);
   const view = reportView(
     params.get('view'),
-    !operations && finance ? 'reconciliation' : 'operations',
+    sales ? 'sales' : !operations && finance ? 'reconciliation' : 'operations',
   );
-  const allowed = view === 'operations' ? operations : finance && (view !== 'revenue' || organizer);
+  const allowed =
+    view === 'operations'
+      ? operations
+      : view === 'sales'
+        ? sales
+        : view === 'statements'
+          ? organizer && finance
+          : finance;
   const previous = useRef(organizationId);
   const switchingOrganization = previous.current !== organizationId;
   const resetFilters = switchingOrganization && params.size > (params.has('view') ? 1 : 0);
@@ -136,6 +153,14 @@ export function OperationsReportsPage({ scope }: { scope: ManagementApiScope }) 
         </div>
       </header>
       <nav aria-label={t('operations-reports:views')} className="operations-report-views">
+        {sales && (
+          <Link
+            to={view === 'sales' ? `?${params}` : '?view=sales'}
+            aria-current={view === 'sales' ? 'page' : undefined}
+          >
+            {t('operations-reports:sales')}
+          </Link>
+        )}
         {operations && (
           <Link
             to={view === 'operations' ? `?${params}` : '?view=operations'}
@@ -154,23 +179,28 @@ export function OperationsReportsPage({ scope }: { scope: ManagementApiScope }) 
         )}
         {organizer && finance && (
           <Link
-            to={view === 'revenue' ? `?${params}` : '?view=revenue'}
-            aria-current={view === 'revenue' ? 'page' : undefined}
+            to={view === 'statements' ? `?${params}` : '?view=statements'}
+            aria-current={view === 'statements' ? 'page' : undefined}
           >
-            {t('operations-reports:revenue')}
+            {t('operations-reports:statements')}
           </Link>
         )}
       </nav>
       {!allowed ? (
-        <ReportAccessNotice scope={scope} area={view === 'operations' ? 'operations' : 'finance'} />
+        <ReportAccessNotice
+          scope={scope}
+          area={view === 'operations' ? 'operations' : view === 'sales' ? 'sales' : 'finance'}
+        />
       ) : resetFilters ? (
         <p role="status">{t('operations-reports:loading')}</p>
       ) : view === 'operations' ? (
         <OperationalReport key={organizationId ?? scope} scope={scope} />
+      ) : view === 'statements' ? (
+        <StatementsView key={organizationId} />
       ) : view === 'reconciliation' ? (
         <ReconciliationPage key={organizationId ?? scope} scope={scope} embedded />
       ) : (
-        <OrganizerRevenuePage key={organizationId} embedded />
+        <SalesReport key={organizationId} finance={finance} />
       )}
     </div>
   );
@@ -181,7 +211,7 @@ function ReportAccessNotice({
   area,
 }: {
   scope: ManagementApiScope;
-  area: 'operations' | 'finance';
+  area: 'operations' | 'finance' | 'sales';
 }) {
   const { t } = useTranslation();
   return (
@@ -192,7 +222,9 @@ function ReportAccessNotice({
           : t(
               area === 'operations'
                 ? 'operations-reports:operationsAccess'
-                : 'operations-reports:financeAccess',
+                : area === 'sales'
+                  ? 'operations-reports:salesAccess'
+                  : 'operations-reports:financeAccess',
             )}
       </p>
       <Link to={`/${scope}`} className="admin-secondary-action">

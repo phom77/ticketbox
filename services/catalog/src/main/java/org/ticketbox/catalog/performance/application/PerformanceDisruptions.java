@@ -20,18 +20,21 @@ public class PerformanceDisruptions {
     private final PerformanceStore performances;
     private final PerformanceDisruptionStore disruptions;
     private final EventDisruptionImpact impacts;
+    private final SalesControlStore controls;
 
     public PerformanceDisruptions(
-            PerformanceStore performances, PerformanceDisruptionStore disruptions, EventDisruptionImpact impacts) {
+            PerformanceStore performances, PerformanceDisruptionStore disruptions, EventDisruptionImpact impacts,
+            SalesControlStore controls) {
         this.performances = performances;
         this.disruptions = disruptions;
         this.impacts = impacts;
+        this.controls = controls;
     }
 
     public record Command(
             UUID actionId, Kind kind, String reason, OffsetDateTime startsAt, OffsetDateTime endsAt,
             OffsetDateTime doorsOpenAt, OffsetDateTime saleStartAt, OffsetDateTime saleEndAt,
-            List<PerformanceSale.Offer> offers) {}
+            List<PerformanceSale.Offer> offers, UUID requestId) {}
 
     public record Status(UUID id, Kind kind, String state, String reason, OffsetDateTime startsAt,
                          boolean ticketingAcknowledged, boolean checkinAcknowledged, boolean dispatched) {}
@@ -63,8 +66,15 @@ public class PerformanceDisruptions {
                     || !saved.command().equals(request)) throw invalid();
             return status(saved);
         }
-        if (performance.salesSuspended() || !List.of("ON_SALE", "SOLD_OUT").contains(performance.status())
+        // An open organizer pause is the only suspension a disruption may take over.
+        var pause = controls.openPause(id);
+        if ((performance.salesSuspended() && pause.isEmpty())
+                || !List.of("ON_SALE", "SOLD_OUT").contains(performance.status())
                 || !performances.publication(performance).ticketingAcknowledged()) throw invalid();
+        if (request.requestId() != null && controls.request(request.requestId())
+                .filter(value -> value.performanceId().equals(id) && "REQUESTED".equals(value.state())).isEmpty()) {
+            throw invalid();
+        }
         var sale = performances.sale(id);
         boolean postpone = request.kind() == Kind.POSTPONE;
         if (postpone) {
@@ -73,7 +83,8 @@ public class PerformanceDisruptions {
             if (!request.saleEndAt().isAfter(OffsetDateTime.now())) throw invalid();
             if (request.offers() != null) sale = new PerformanceSale(sale.groups(), request.offers());
             PerformanceRules.validateSale(sale, request.saleStartAt(), request.saleEndAt(),
-                    performances.draftLayout(id).map(PerformanceViews.Layout::layout).orElse(null), false);
+                    performances.draftLayout(id).map(PerformanceViews.Layout::layout).orElse(null), false,
+                    performance.maxPerAccount());
             if (!PerformanceCatalog.retainsOfferScopes(performances.sale(id), sale)) throw invalid();
             performances.changeTiming(id, request.startsAt(), request.endsAt(), request.doorsOpenAt(),
                     request.saleStartAt(), request.saleEndAt(), null);
@@ -86,6 +97,10 @@ public class PerformanceDisruptions {
         performances.saveSale(id, version, sale);
         publish(performance, actor, version, postpone ? performance.status() : "CANCELLED", true, null, sale);
         disruptions.insert(action, request, version);
+        pause.ifPresent(open -> controls.supersedePause(open.id()));
+        if (request.requestId() != null && !controls.accept(request.requestId(), actor, action.id())) {
+            throw invalid(); // The request was closed concurrently: roll the whole disruption back.
+        }
         return status(disruptions.find(action.id()).orElseThrow());
     }
 
@@ -134,7 +149,7 @@ public class PerformanceDisruptions {
         return performances.lockNativePerformance(id).orElseThrow(PerformanceDisruptions::missing);
     }
 
-    private static Status status(Entry entry) {
+    static Status status(Entry entry) {
         var operation = entry.operation();
         String state;
         if (entry.resumeVersion() != null) {

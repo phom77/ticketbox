@@ -19,6 +19,10 @@ public interface JpaGuestListRepository
 
     Page<GuestList> findByConcertId(UUID concertId, Pageable pageable);
 
+    long countByConcertIdAndIsActiveTrue(UUID concertId);
+
+    long countByConcertIdAndIsActiveTrueAndCheckedInAtIsNotNull(UUID concertId);
+
     @Query("""
             select g from GuestList g where g.concertId = :concertId
               and (:activeOnly = false or g.isActive = true)

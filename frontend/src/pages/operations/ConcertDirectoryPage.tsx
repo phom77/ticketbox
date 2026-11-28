@@ -11,6 +11,7 @@ import { getApprovedOrganizations, type ApprovedOrganization } from '../../api/o
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { WorkspaceSelect } from '../../components/WorkspaceSelect';
 import { dateFormatter, numberFormatter } from '../../data/formatters';
+import { eventStatusKey } from '../../features/operations/eventStatus';
 import './ConcertDirectoryPage.css';
 
 const date = dateFormatter({
@@ -20,9 +21,21 @@ const date = dateFormatter({
 });
 const number = numberFormatter();
 
+const statuses = [
+  'DRAFT',
+  'IN_REVIEW',
+  'CHANGES_REQUESTED',
+  'SCHEDULED',
+  'ON_SALE',
+  'SOLD_OUT',
+  'PAST',
+  'CANCELLED',
+] as const;
+
 function concertPath(scope: ManagementApiScope, concert: OperationsEventRow) {
-  if (concert.legacyConcertId)
-    return `/${scope}/concerts/${encodeURIComponent(concert.legacyConcertId)}`;
+  // Organizers open a legacy concert in the event workspace; its event id is the concert id.
+  if (concert.legacyConcertId && scope === 'admin')
+    return `/admin/concerts/${encodeURIComponent(concert.legacyConcertId)}`;
   const base = `/${scope}/events/${encodeURIComponent(concert.id)}`;
   if (scope === 'organizer' && concert.actionPerformanceId) {
     const search = new URLSearchParams({ show: concert.actionPerformanceId });
@@ -134,8 +147,10 @@ export function ConcertDirectoryPage({ scope }: { scope: ManagementApiScope }) {
             onChange={(value) => changeFilter('status', value)}
             options={[
               { value: '', label: t('concert-directory:allStatuses') },
-              { value: 'PREPARING', label: t('concert-directory:preparing') },
-              { value: 'CHANGES_REQUESTED', label: t('shared:release_CHANGES_REQUESTED') },
+              ...(status === 'PREPARING'
+                ? [{ value: 'PREPARING', label: t('concert-directory:preparing') }]
+                : []),
+              ...statuses.map((value) => ({ value, label: t(eventStatusKey(value)) })),
             ]}
           />
         </label>
@@ -201,22 +216,30 @@ export function ConcertDirectoryPage({ scope }: { scope: ManagementApiScope }) {
                 {scope === 'admin' && <th scope="col">{t('concert-directory:organization')}</th>}
                 <th scope="col">{t('performances:setupNextShowColumn')}</th>
                 <th scope="col">{t('concert-directory:status')}</th>
+                {scope === 'organizer' && <th scope="col">{t('concert-directory:actions')}</th>}
               </tr>
             </thead>
             <tbody>
               {listing.content.map((concert) => (
                 <tr key={concert.id}>
                   <td>
-                    <Link
-                      className="admin-table-primary"
-                      to={concertPath(scope, concert)}
-                      state={{ directorySearch: parameters.toString() }}
-                    >
-                      {concert.title}
-                    </Link>
-                    <span className="admin-table-secondary">
-                      {t('performances:performanceCount', { count: concert.performanceCount })}
-                    </span>
+                    <div className="event-row-title">
+                      <span className="event-row-poster" aria-hidden="true">
+                        {concert.posterUrl ? <img src={concert.posterUrl} alt="" /> : null}
+                      </span>
+                      <span>
+                        <Link
+                          className="admin-table-primary"
+                          to={concertPath(scope, concert)}
+                          state={{ directorySearch: parameters.toString() }}
+                        >
+                          {concert.title}
+                        </Link>
+                        <span className="admin-table-secondary">
+                          {t('performances:performanceCount', { count: concert.performanceCount })}
+                        </span>
+                      </span>
+                    </div>
                   </td>
                   {scope === 'admin' && (
                     <td>
@@ -230,15 +253,45 @@ export function ConcertDirectoryPage({ scope }: { scope: ManagementApiScope }) {
                     {concert.nextStartsAt ? date.format(new Date(concert.nextStartsAt)) : '—'}
                   </td>
                   <td>
-                    {concert.changesRequested && (
-                      <strong>{t('shared:release_CHANGES_REQUESTED')}</strong>
-                    )}
+                    <strong>{t(eventStatusKey(concert.status))}</strong>
                     {concert.changesRequested && concert.changeReason && (
                       <span className="admin-table-secondary">{concert.changeReason}</span>
                     )}
-                    {!concert.changesRequested &&
-                      (concert.preparing ? t('concert-directory:preparing') : '—')}
+                    {concert.contentChangeInReview && (
+                      <span className="event-status-badge">
+                        {t('concert-directory:contentInReview')}
+                      </span>
+                    )}
                   </td>
+                  {scope === 'organizer' && (
+                    <td>
+                      <div className="event-row-actions">
+                        <Link
+                          className="admin-table-primary"
+                          to={concertPath(scope, concert)}
+                          state={{ directorySearch: parameters.toString() }}
+                        >
+                          {t('concert-directory:open')}
+                        </Link>
+                        <Link
+                          className="admin-table-primary"
+                          to={`/organizer/events/${encodeURIComponent(concert.id)}/preview`}
+                        >
+                          {t('concert-directory:preview')}
+                        </Link>
+                        <Link
+                          className="admin-table-primary"
+                          to={`/organizer/reports?${new URLSearchParams(
+                            concert.legacyConcertId
+                              ? { concertId: concert.legacyConcertId }
+                              : { eventId: concert.id },
+                          )}`}
+                        >
+                          {t('concert-directory:report')}
+                        </Link>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

@@ -276,7 +276,7 @@ const cases = [
 
       const browse = header.getByRole('navigation', { name: 'Browse events' });
       await browse.getByRole('link', { name: 'Concerts' }).click();
-      await page.waitForURL((value) => value.pathname === '/events' && value.searchParams.get('category') === 'concerts');
+      await page.waitForURL((value) => value.pathname === '/events' && value.searchParams.get('segment') === 'concerts');
       assert.equal(await browse.getByRole('link', { name: 'Concerts' }).getAttribute('aria-current'), 'page');
       assert.equal(await browse.getByRole('link', { name: 'All events' }).getAttribute('aria-current'), null);
     });

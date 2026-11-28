@@ -3,7 +3,7 @@ package org.ticketbox.catalog.concert.infrastructure.persistence;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.AttributeConverter;
-import org.ticketbox.catalog.concert.domain.ConcertContent;
+import org.ticketbox.catalog.content.domain.ConcertContent;
 
 public class ConcertContentConverter implements AttributeConverter<ConcertContent, String> {
     private final ObjectMapper json = new ObjectMapper();

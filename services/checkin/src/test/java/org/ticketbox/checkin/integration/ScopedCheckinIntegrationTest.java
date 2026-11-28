@@ -225,6 +225,240 @@ class ScopedCheckinIntegrationTest {
                 .andExpect(jsonPath("$.data.content[0].referenceCode").value("VE-10000007"));
     }
 
+    @Test
+    void organizerSeesGateCountsGuestsAndAdmissionsWithoutCredentials() throws Exception {
+        UUID org = UUID.randomUUID();
+        UUID otherOrg = UUID.randomUUID();
+        UUID manager = UUID.randomUUID();
+        UUID staff = UUID.randomUUID();
+        UUID performance = UUID.randomUUID();
+        UUID offer = UUID.randomUUID();
+        identity.allow(org, manager, "EVENTS", staff, "ADMISSION");
+        identity.allow(otherOrg, manager, "EVENTS", UUID.randomUUID(), "ADMISSION");
+        publish(performance, org, offer);
+        mvc.perform(actor(put(assignment(performance, staff)), org, manager, "ORGANIZER"))
+                .andExpect(status().isNoContent());
+        String[] codes = new String[3];
+        for (int i = 0; i < codes.length; i++) {
+            UUID id = UUID.randomUUID();
+            var snapshot = ticket(id, performance, offer);
+            codes[i] = snapshot.path("ticket").path("qr_code").asText();
+            mvc.perform(service(put(TICKETS + id), snapshot)).andExpect(status().isNoContent());
+        }
+        mvc.perform(actor(scan(performance, codes[0], "web-1", "North"), org, staff, "STAFF"))
+                .andExpect(jsonPath("$.data.status").value("SUCCESS"));
+        mvc.perform(actor(scan(performance, codes[1], "web-1", "North"), org, staff, "STAFF"))
+                .andExpect(jsonPath("$.data.status").value("SUCCESS"));
+        mvc.perform(actor(scan(performance, codes[2], "web-2", null), org, staff, "STAFF"))
+                .andExpect(jsonPath("$.data.status").value("SUCCESS"));
+        // The same ticket again is not admitted twice.
+        mvc.perform(actor(scan(performance, codes[0], "web-2", "South"), org, staff, "STAFF"))
+                .andExpect(jsonPath("$.data.status").value("FAILED"));
+        for (int i = 0; i < 3; i++) {
+            jdbc.update("INSERT INTO guest_lists (concert_id, phone, full_name, checked_in_at) VALUES (?,?,?,?)",
+                    performance, "09000000" + i, "Guest " + i, i == 0 ? OffsetDateTime.now(ZoneOffset.UTC) : null);
+        }
+        jdbc.update("INSERT INTO guest_lists (concert_id, phone, full_name, is_active) VALUES (?,?,?,false)",
+                performance, "0911111111", "Removed guest");
+
+        mvc.perform(actor(get("/api/organizer/manage/concerts/" + performance + "/checkin-summary"),
+                        org, manager, "ORGANIZER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.checkedIn").value(3))
+                .andExpect(jsonPath("$.data.onlineCheckins").value(3))
+                .andExpect(jsonPath("$.data.offlineCheckins").value(0))
+                .andExpect(jsonPath("$.data.validTickets").value(0))
+                .andExpect(jsonPath("$.data.guestsTotal").value(3))
+                .andExpect(jsonPath("$.data.guestsCheckedIn").value(1))
+                .andExpect(jsonPath("$.data.gates.length()").value(2))
+                .andExpect(jsonPath("$.data.gates[?(@.gate=='North')].checkedIn").value(2))
+                .andExpect(jsonPath("$.data.gates[?(@.gate==null)].checkedIn").value(1));
+
+        mvc.perform(actor(get(MANAGE + performance + "/checkins"), org, manager, "ORGANIZER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(3))
+                                .andExpect(jsonPath("$.data.content[0].qrCode").doesNotExist())
+                .andExpect(jsonPath("$.data.content[0].deviceId").doesNotExist())
+                .andExpect(jsonPath("$.data.content[0].staffId").value(staff.toString()))
+                .andExpect(jsonPath("$.data.content[0].ticketId").exists());
+        mvc.perform(actor(get(MANAGE + performance + "/checkins").param("size", "51"), org, manager, "ORGANIZER"))
+                .andExpect(status().is4xxClientError());
+        mvc.perform(actor(get(MANAGE + performance + "/checkins"), otherOrg, manager, "ORGANIZER"))
+                .andExpect(status().isNotFound());
+        identity.allow(org, manager, "FINANCE", staff, "ADMISSION");
+        mvc.perform(actor(get(MANAGE + performance + "/checkins"), org, manager, "ORGANIZER"))
+                .andExpect(status().isForbidden());
+        mvc.perform(actor(get("/api/organizer/manage/concerts/" + performance + "/checkin-summary"),
+                        org, manager, "ORGANIZER"))
+                .andExpect(status().isForbidden());
+    }
+
+    /** The scanner reads these exact fields; a change here must be agreed with the scanner first. */
+    @Test
+    void staffResponsesKeepTheShapesTheScannerReads() throws Exception {
+        UUID org = UUID.randomUUID();
+        UUID manager = UUID.randomUUID();
+        UUID staff = UUID.randomUUID();
+        UUID performance = UUID.randomUUID();
+        UUID offer = UUID.randomUUID();
+        UUID id = UUID.randomUUID();
+        identity.allow(org, manager, "EVENTS", staff, "ADMISSION");
+        publish(performance, org, offer);
+        mvc.perform(actor(put(assignment(performance, staff)), org, manager, "ORGANIZER"))
+                .andExpect(status().isNoContent());
+        var snapshot = ticket(id, performance, offer);
+        String qr = snapshot.path("ticket").path("qr_code").asText();
+        mvc.perform(service(put(TICKETS + id), snapshot)).andExpect(status().isNoContent());
+
+        jdbc.update("INSERT INTO guest_lists (concert_id, phone, full_name) VALUES (?,?,?)",
+                performance, "0900000001", "Guest One");
+
+        // The dataset lists tickets still admissible, so read it before the scan.
+        var dataset = mvc.perform(actor(get(STAFF + "/" + performance + "/checkin-dataset"), org, staff, "STAFF"))
+                .andExpect(status().isOk()).andReturn();
+        assertShape(dataset, "/data", "concertId:string", "generatedAt:string", "totalCount:number",
+                "tickets:array");
+        assertShape(dataset, "/data/tickets/0",
+                "ticketId:string", "qrCode:string", "ticketTypeId:string?", "referenceCode:string?",
+                "ticketTypeName:string?");
+        assertShape(mvc.perform(actor(scan(performance, qr, "reader", "Gate 1"), org, staff, "STAFF"))
+                .andExpect(status().isOk()).andReturn(), "/data",
+                "ticketId:string", "concertId:string", "status:string", "message:string", "checkAt:string");
+        assertShape(mvc.perform(actor(get(STAFF), org, staff, "STAFF"))
+                .andExpect(status().isOk()).andReturn(), "/data/content/0",
+                "id:string", "title:string", "venueName:string", "eventDate:string", "status:string");
+        assertShape(mvc.perform(actor(get(STAFF + "/" + performance + "/overview"), org, staff, "STAFF"))
+                .andExpect(status().isOk()).andReturn(), "/data",
+                "concert:object", "totalTickets:number", "validTickets:number", "usedTickets:number",
+                "cancelledTickets:number", "transferredTickets:number", "totalCheckins:number",
+                "datasetUpdatedAt:string?");
+        assertShape(mvc.perform(actor(get(STAFF + "/" + performance + "/tickets"), org, staff, "STAFF"))
+                .andExpect(status().isOk()).andReturn(), "/data/content/0",
+                "ticketId:string", "ticketTypeId:string?", "qrCode:string", "status:string",
+                "issuedAt:string?", "usedAt:string?", "sectionLabel:string?", "rowLabel:string?",
+                "seatLabel:string?", "referenceCode:string?", "ticketTypeName:string?");
+        assertShape(mvc.perform(actor(get(STAFF + "/" + performance + "/checkins"), org, staff, "STAFF"))
+                .andExpect(status().isOk()).andReturn(), "/data/content/0",
+                "id:string", "ticketId:string", "concertId:string", "staffId:string", "deviceId:string",
+                "checkedAt:string", "syncAt:string?", "offline:boolean", "gate:string?", "qrCode:string",
+                "ticketStatus:string", "referenceCode:string?", "ticketTypeName:string?");
+        var guests = mvc.perform(actor(get(STAFF + "/" + performance + "/guests"), org, staff, "STAFF"))
+                .andExpect(status().isOk()).andReturn();
+        assertShape(guests, "/data/content/0",
+                "found:boolean", "guestId:string", "concertId:string", "phone:string", "fullName:string",
+                "category:string?", "sponsorName:string?", "notes:string?", "checkedInAt:string?",
+                "checkinGate:string?");
+        String guestId = json.readTree(guests.getResponse().getContentAsString())
+                .at("/data/content/0/guestId").asText();
+        var guestCheckin = mvc.perform(actor(post(STAFF + "/" + performance + "/guests/" + guestId + "/check-in")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"gate\":\"Gate 1\"}"),
+                        org, staff, "STAFF"))
+                .andExpect(status().isOk()).andReturn();
+        assertShape(guestCheckin, "/data",
+                "found:boolean", "guestId:string", "concertId:string", "phone:string", "fullName:string",
+                "checkedInAt:string", "checkinGate:string");
+        var synced = mvc.perform(actor(sync(performance, qr, "reader"), org, staff, "STAFF"))
+                .andExpect(status().isOk()).andReturn();
+        assertShape(synced, "/data", "total:number", "accepted:number", "skipped:number", "invalid:number",
+                "results:array");
+        assertShape(synced, "/data/results/0", "qrCode:string", "result:string", "reason:string?");
+        mvc.perform(actor(get("/api/staff/concerts"), org, staff, "STAFF"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void concurrentScansOfOneTicketAdmitItOnce() throws Exception {
+        UUID org = UUID.randomUUID();
+        UUID manager = UUID.randomUUID();
+        UUID staff = UUID.randomUUID();
+        UUID performance = UUID.randomUUID();
+        UUID offer = UUID.randomUUID();
+        UUID id = UUID.randomUUID();
+        identity.allow(org, manager, "EVENTS", staff, "ADMISSION");
+        publish(performance, org, offer);
+        mvc.perform(actor(put(assignment(performance, staff)), org, manager, "ORGANIZER"))
+                .andExpect(status().isNoContent());
+        var snapshot = ticket(id, performance, offer);
+        String qr = snapshot.path("ticket").path("qr_code").asText();
+        mvc.perform(service(put(TICKETS + id), snapshot)).andExpect(status().isNoContent());
+
+        var start = new CountDownLatch(1);
+        try (var workers = Executors.newFixedThreadPool(2)) {
+            var first = workers.submit(() -> {
+                start.await();
+                return scanStatus(performance, qr, "web-a", org, staff);
+            });
+            var second = workers.submit(() -> {
+                start.await();
+                return scanStatus(performance, qr, "web-b", org, staff);
+            });
+            start.countDown();
+            assertThat(List.of(first.get(10, TimeUnit.SECONDS), second.get(10, TimeUnit.SECONDS)))
+                    .containsExactlyInAnyOrder("SUCCESS", "FAILED");
+        }
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM checkin_logs WHERE ticket_id=?", Long.class, id))
+                .isOne();
+    }
+
+    private String scanStatus(UUID performance, String qr, String device, UUID org, UUID actor)
+            throws Exception {
+        return json.readTree(mvc.perform(actor(scan(performance, qr, device), org, actor, "STAFF"))
+                        .andExpect(status().isOk()).andReturn().getResponse().getContentAsString())
+                .path("data").path("status").asText();
+    }
+
+    @Test
+    void revokedStaffLosesEveryScopedRouteOnTheNextRequest() throws Exception {
+        UUID org = UUID.randomUUID();
+        UUID manager = UUID.randomUUID();
+        UUID staff = UUID.randomUUID();
+        UUID performance = UUID.randomUUID();
+        UUID offer = UUID.randomUUID();
+        UUID id = UUID.randomUUID();
+        identity.allow(org, manager, "EVENTS", staff, "ADMISSION");
+        publish(performance, org, offer);
+        mvc.perform(actor(put(assignment(performance, staff)), org, manager, "ORGANIZER"))
+                .andExpect(status().isNoContent());
+        var snapshot = ticket(id, performance, offer);
+        String qr = snapshot.path("ticket").path("qr_code").asText();
+        mvc.perform(service(put(TICKETS + id), snapshot)).andExpect(status().isNoContent());
+        mvc.perform(actor(delete(assignment(performance, staff)), org, manager, "ORGANIZER"))
+                .andExpect(status().isNoContent());
+        for (String path : List.of("/overview", "/tickets", "/checkins", "/guests")) {
+            mvc.perform(actor(get(STAFF + "/" + performance + path), org, staff, "STAFF"))
+                    .andExpect(status().isForbidden());
+        }
+        mvc.perform(actor(scan(performance, qr, "reader", null), org, staff, "STAFF"))
+                .andExpect(status().isForbidden());
+        mvc.perform(actor(get(STAFF), org, staff, "STAFF"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.content.length()").value(0));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM checkin_logs WHERE ticket_id=?", Long.class, id))
+                .isZero();
+    }
+
+    /** Each entry is name:type with type string, number, boolean, object or array; a trailing ? allows null. */
+    private void assertShape(org.springframework.test.web.servlet.MvcResult result, String pointer,
+                             String... fields) throws Exception {
+        var node = json.readTree(result.getResponse().getContentAsString()).at(pointer);
+        for (String field : fields) {
+            String[] parts = field.split(":");
+            boolean nullable = parts[1].endsWith("?");
+            String type = nullable ? parts[1].substring(0, parts[1].length() - 1) : parts[1];
+            var value = node.path(parts[0]);
+            assertThat(node.has(parts[0])).as(pointer + " has " + parts[0]).isTrue();
+            if (nullable && value.isNull()) continue;
+            boolean matches = switch (type) {
+                case "string" -> value.isTextual();
+                case "number" -> value.isNumber();
+                case "boolean" -> value.isBoolean();
+                case "object" -> value.isObject();
+                case "array" -> value.isArray();
+                default -> throw new IllegalArgumentException(type);
+            };
+            assertThat(matches).as(pointer + "/" + parts[0] + " is " + type + " but was " + value).isTrue();
+        }
+    }
+
     private String sendOffline(UUID performance, String qr, String device, UUID org, UUID actor)
             throws Exception {
         return json.readTree(mvc.perform(actor(sync(performance, qr, device), org, actor, "STAFF"))
@@ -233,11 +467,31 @@ class ScopedCheckinIntegrationTest {
     }
 
     private void publish(UUID performance, UUID org, UUID offer) throws Exception {
+        publish(performance, org, offer, 1, snapshot -> { });
+    }
+
+    @Test
+    void projectionAppliesSnapshotsWithAndWithoutClassificationFields() throws Exception {
+        UUID performance = UUID.randomUUID();
+        UUID org = UUID.randomUUID();
+        UUID offer = UUID.randomUUID();
+        publish(performance, org, offer, 1, snapshot -> { });
+        publish(performance, org, offer, 2, snapshot -> snapshot.put("segment", "concerts")
+                .put("primaryGenre", "vpop").put("city", "Hanoi"));
+        publish(performance, org, offer, 3, snapshot -> snapshot.putNull("segment").putNull("primaryGenre").putNull("city"));
+        assertThat(jdbc.queryForObject("SELECT performance_snapshot_version FROM concerts WHERE id=?", Long.class,
+                performance)).isEqualTo(3L);
+        assertThat(jdbc.queryForObject("SELECT title FROM concerts WHERE id=?", String.class, performance))
+                .isEqualTo("Test performance");
+    }
+
+    private void publish(UUID performance, UUID org, UUID offer, int version,
+                         java.util.function.Consumer<ObjectNode> extra) throws Exception {
         var snapshot = json.createObjectNode();
         snapshot.put("id", performance.toString());
         snapshot.put("eventId", UUID.randomUUID().toString());
         snapshot.put("organizationId", org.toString());
-        snapshot.put("version", 1);
+        snapshot.put("version", version);
         snapshot.put("layoutVersion", 1);
         snapshot.put("layoutChecksum", "fixture");
         snapshot.putNull("legacyConcertId");
@@ -257,8 +511,9 @@ class ScopedCheckinIntegrationTest {
         snapshot.putArray("offers").addObject()
                 .put("id", offer.toString()).put("name", "Main floor")
                 .put("price", 100_000).put("active", true);
+        extra.accept(snapshot);
         mvc.perform(service(put(PROJECTION + performance), snapshot))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.version").value(1));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.version").value(version));
     }
 
     private ObjectNode ticket(UUID id, UUID performance, UUID offer) {
@@ -282,8 +537,14 @@ class ScopedCheckinIntegrationTest {
     }
 
     private MockHttpServletRequestBuilder scan(UUID performance, String qr, String device) {
+        return scan(performance, qr, device, null);
+    }
+
+    private MockHttpServletRequestBuilder scan(UUID performance, String qr, String device, String gate) {
+        var body = json.createObjectNode().put("qrCode", qr).put("deviceId", device);
+        if (gate != null) body.put("gate", gate);
         return post(STAFF + "/" + performance + "/scan").contentType(MediaType.APPLICATION_JSON)
-                .content(json.createObjectNode().put("qrCode", qr).put("deviceId", device).toString());
+                .content(body.toString());
     }
 
     private MockHttpServletRequestBuilder sync(UUID performance, String qr, String device) {

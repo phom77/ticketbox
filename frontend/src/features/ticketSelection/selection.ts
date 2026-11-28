@@ -22,6 +22,10 @@ export type OfferRow = {
   available: number;
   kind: 'GA' | 'ASSIGNED' | 'ZONE';
   maxPerAccount: number | null;
+  /** Buyer-facing perks set by the organizer. */
+  description?: string | null;
+  /** Fewest places of this ticket type in one order. Absent means 1. */
+  minPerOrder?: number;
 };
 
 export type SortOrder = 'price' | 'best';
@@ -99,17 +103,34 @@ export function stockLevel(available: number): Stock {
 
 /** Why a quantity change is not possible, or null when it is. */
 export function stepperReason(
-  row: Pick<OfferRow, 'available' | 'maxPerAccount'>,
+  row: Pick<OfferRow, 'available' | 'maxPerAccount' | 'minPerOrder'>,
   quantity: number,
   direction: 'add' | 'remove',
-): 'soldOut' | 'limit' | 'none' | null {
+): 'soldOut' | 'limit' | 'minimum' | 'none' | null {
   if (direction === 'remove') return quantity > 0 ? null : 'none';
   if (row.available <= 0) return 'soldOut';
-  if (row.maxPerAccount != null && quantity >= row.maxPerAccount) return 'limit';
+  const minimum = row.minPerOrder ?? 1;
+  if (quantity === 0 && row.available < minimum) return 'minimum';
+  if (
+    row.maxPerAccount != null &&
+    Math.max(quantity + 1, quantity === 0 ? minimum : 0) > row.maxPerAccount
+  )
+    return 'limit';
   return null;
 }
 
-export type HoldProblem = 'quota' | 'soldOut' | 'conflict' | 'rateLimit' | 'generic';
+/** The quantity after one step: from 0 it jumps to the minimum, and from the minimum it drops back to 0. */
+export function nextQuantity(
+  row: Pick<OfferRow, 'minPerOrder'>,
+  quantity: number,
+  direction: 'add' | 'remove',
+) {
+  const minimum = Math.max(1, row.minPerOrder ?? 1);
+  if (direction === 'add') return quantity === 0 ? minimum : quantity + 1;
+  return quantity <= minimum ? 0 : quantity - 1;
+}
+
+export type HoldProblem = 'quota' | 'soldOut' | 'conflict' | 'rateLimit' | 'minimum' | 'generic';
 
 /** Maps a hold or order failure to a translatable problem, never raw server text. */
 export function holdProblem(error: unknown): HoldProblem {
@@ -117,6 +138,7 @@ export function holdProblem(error: unknown): HoldProblem {
   if (error.status === 429) return 'rateLimit';
   // Limit and sold-out answers are also 409, so read the (localized) message before the status.
   const text = error.message.toLowerCase();
+  if (/at least|tối thiểu/.test(text)) return 'minimum';
   if (/quota|limit|per account|maximum|exceed|giới hạn|tối đa/.test(text)) return 'quota';
   if (/sold out|no longer available|already held|taken|bán hết|không còn/.test(text))
     return 'soldOut';

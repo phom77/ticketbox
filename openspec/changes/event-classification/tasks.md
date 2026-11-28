@@ -1,0 +1,47 @@
+# Tasks
+
+Prerequisite: archive `event-categories` (all tasks done) before archiving this change, because the spec deltas rename and modify its requirements.
+
+## 1. Catalog
+
+- [x] 1.1 Migration (next free version, V22 at the time of writing): `classification_segments`, `classification_genres` (seeded with the curated list in design.md), `events.segment_id`/`primary_genre_id` with the composite FK and CHECK, `event_genres` with its index, backfill from `category` with logged counts, demo seed genres. Migration test on a copy with every old category value and nulls.
+- [x] 1.2 `classification` capability: `EventClassification` domain value and `ClassificationReference`, `ClassificationStore` port with cached JDBC adapter, `GET /api/v2/classifications` (anonymous, cacheable). Remove `EventCategory`. Unit tests for every validation rule (segment, outside segment, unknown, inactive new vs unchanged, duplicate, primary as tag, 4 tags). Update ArchitectureTest.
+- [x] 1.3 Event writes: organizer create/update and content revision details carry `segment`, `primaryGenre`, `genres`; old `category` input mapped; version bumps as for other reviewed content; approval applies classification under the event lock. Integration tests for draft save, staged revision on a released event, approval, 403/404/401.
+- [x] 1.4 Readiness: `classification-missing` is enforced at submission only. Tests that submission is refused, that a scheduled review still releases, and that released events keep selling.
+- [x] 1.5 Admin `PUT /api/admin/events/{id}/classification` (native and legacy-linked, version check, audit); `/admin/concerts/{id}/category` mapped for one release. HTTP tests including a stale version.
+- [x] 1.6 Discovery and facets: `segment` and `genre` filters (primary or tag), `category` alias, 400 for unknown ids, facets with counts and the deprecated `categories`. Integration tests for each filter, the alias and counts across primary and tag use.
+- [x] 1.7 Snapshot: `segment`, `primaryGenre`, `city` in `SaleSnapshot`; re-issue on approved or Admin segment/primary-genre change of released performances (reuse title re-sync). Contract test validates snapshots with and without the fields against the schema.
+- [x] 1.8 Event and card reads return classification and the deprecated `category`. Update `docs/api.md` and the Catalog `GLOSSARY.md` (segment, genre, primary genre, tag).
+
+## 2. Contracts
+
+- [x] 2.1 Add the three optional nullable properties to `contracts/catalog.performance-sale-snapshot.v2.json`. Confirm no required list or `additionalProperties` change.
+
+## 3. Ticketing
+
+- [x] 3.1 Add nullable `segment`, `primaryGenre`, `city` to `PerformanceSale`; tests apply a snapshot with the fields, without them and with nulls, and prove an older version is still ignored. No migration.
+
+## 4. Check-in
+
+- [x] 4.1 Test that `CheckinProjectionReceiver` applies a snapshot carrying the new fields unchanged.
+
+## 5. Web
+
+- [x] 5.1 `features/discovery/classification.ts` replacing `categories.ts` (ids, label keys, fallback text, old-category alias map) and an API client for `/api/v2/classifications`. `contracts/classification-ids.json` is the shared id list: a Catalog test compares it with the reference rows and a Vitest test with `classification.ts`.
+- [x] 5.2 `ClassificationPicker`: segment radio group, searchable primary genre combobox, tag multi-select with chips and limit message; light and dark workspace themes. Component tests for keyboard selection, filtering, segment change clearing an out-of-segment primary genre, and the 3-tag limit. DESIGN_SYSTEM.md note.
+- [x] 5.3 Event details step and Admin content-change comparison use the picker; readiness link to it; *Classify this event* prompt for released unclassified events.
+- [x] 5.4 Buyer: header segment links, segment page genre chips and *More genres*, filter panel Segment and Genre, old `category` URL rewrite, facets fallback, translated genre on cards and event detail.
+- [x] 5.5 en/vi catalogs: `shared:segment_*`, `shared:genre_*`, picker and validation messages; remove unused `shared:category_*`.
+
+## 5b. Review fixes
+
+- [x] 5b.1 Admin correction is refused (409) while a revision is SUBMITTED; a revision cannot remove the primary genre of a released event; legacy category writes keep genre and tags while the segment is unchanged and bump the content version; Catalog-side writes are validated.
+- [x] 5b.2 Buyer filters keep the chosen segment when a genre is picked; `/facets?segment=` scopes genre counts (primary or tag); segment and genre filters sit in the discovery base query; index on `events(primary_genre_id)`.
+- [x] 5b.3 Picker shows retired current ids, moves focus at the tag limit and scrolls the active option into view. E2E fixtures classify events before submission.
+
+## 6. Verification
+
+- [x] 6.1 Catalog, Ticketing and Check-in Maven verify; `verify-service-boundaries.py --service catalog`, `--service ticketing`, `--service checkin`.
+- [x] 6.2 `npm --prefix frontend run lint`, `test` and `build`.
+- [ ] 6.3 Compose walkthrough on an isolated project: classify a new event, release it, change its genre and approve, browse Concerts → genre chip, open an old `?category=` link, confirm the Ticketing projection has the fields. Screenshots of the picker and a segment page at 1440, 834 and 390 px, keyboard path through the picker.
+- [x] 6.4 `openspec validate event-classification --type change --strict`.

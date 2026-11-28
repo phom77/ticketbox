@@ -8,14 +8,22 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 public interface WorkspaceOperationsStore {
-    enum EventStatus { PREPARING, CHANGES_REQUESTED }
+    /** Lifecycle filters of the event directory; PREPARING is the older alias for draft, in review or changes requested. */
+    enum EventStatus { PREPARING, DRAFT, IN_REVIEW, CHANGES_REQUESTED, SCHEDULED, ON_SALE, SOLD_OUT, PAST, CANCELLED }
     enum ReportStatus { DRAFT, ON_SALE, SOLD_OUT, CANCELLED, COMPLETED, ON_SALE_NOW, UPCOMING }
     enum ReviewStatus { ALL, SUBMITTED, SCHEDULED, CHANGES_REQUESTED, REJECTED, HELD, RELEASED, MISSED }
     enum ReviewModel { LEGACY, PERFORMANCE }
 
-    record EventRow(UUID id, String title, String description, String category, UUID organizationId,
+    record EventRow(UUID id, String title, String description, String segment, String primaryGenre, UUID organizationId,
                     UUID legacyConcertId, long performanceCount, boolean preparing, boolean changesRequested,
-                    OffsetDateTime nextStartsAt, UUID actionPerformanceId, String changeReason) {}
+                    OffsetDateTime nextStartsAt, UUID actionPerformanceId, String changeReason, String posterUrl,
+                    String status, boolean contentChangeInReview) {
+        /** Deprecated: the segment id, kept for one release. */
+        @com.fasterxml.jackson.annotation.JsonProperty("category")
+        public String category() {
+            return segment;
+        }
+    }
 
     record PerformanceRow(UUID id, UUID eventId, String title, UUID organizationId, UUID legacyConcertId,
                           String venueName, String spaceName, OffsetDateTime startsAt, OffsetDateTime endsAt,

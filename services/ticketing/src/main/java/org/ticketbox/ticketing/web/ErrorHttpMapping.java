@@ -42,6 +42,8 @@ public final class ErrorHttpMapping {
             case TRANSFER_NOT_FOUND, TRANSFER_RECIPIENT_NOT_FOUND -> HttpStatus.NOT_FOUND;
             case REFUND_REQUEST_NOT_ALLOWED, REFUND_REQUEST_NOT_OPEN -> HttpStatus.CONFLICT;
             case REFUND_REQUEST_NOT_FOUND -> HttpStatus.NOT_FOUND;
+            case STATEMENT_NOT_FINAL -> HttpStatus.CONFLICT;
+            case STATEMENT_PROFILE_UNAVAILABLE -> HttpStatus.SERVICE_UNAVAILABLE;
         };
     }
 }

@@ -3,6 +3,7 @@ package org.ticketbox.catalog.performance.web;
 import java.security.Principal;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -20,6 +21,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import org.ticketbox.catalog.content.domain.ConcertText;
+import org.ticketbox.catalog.performance.application.EventContentService;
 import org.ticketbox.catalog.performance.application.PerformanceCatalog;
 import org.ticketbox.catalog.performance.application.PerformancePublicationReview;
 import org.ticketbox.catalog.performance.application.PerformancePublicationReview.Status;
@@ -42,9 +45,13 @@ public class OrganizerPerformanceController {
 
     private final PerformancePublicationReview reviews;
 
-    public OrganizerPerformanceController(PerformanceCatalog catalog, PerformancePublicationReview reviews) {
+    private final EventContentService content;
+
+    public OrganizerPerformanceController(
+            PerformanceCatalog catalog, PerformancePublicationReview reviews, EventContentService content) {
         this.catalog = catalog;
         this.reviews = reviews;
+        this.content = content;
     }
 
     @GetMapping("/events")
@@ -57,7 +64,7 @@ public class OrganizerPerformanceController {
     @PostMapping("/events")
     public ApiResponse<Event> createEvent(
             @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID owner, @RequestBody EventRequest request) {
-        return ApiResponse.success(catalog.createEvent(owner, request.title(), request.description(), request.category()));
+        return ApiResponse.success(content.create(owner, request.input()));
     }
 
     @GetMapping("/events/{id}")
@@ -69,8 +76,7 @@ public class OrganizerPerformanceController {
     public ApiResponse<Event> updateDraftEvent(
             @PathVariable UUID id, @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID owner,
             @RequestBody EventRequest request) {
-        return ApiResponse.success(catalog.updateDraftEvent(
-                owner, id, request.expectedDraftVersion(), request.title(), request.description(), request.category()));
+        return ApiResponse.success(content.updateDraft(owner, id, request.expectedContentVersion(), request.input()));
     }
 
     @GetMapping("/venues")
@@ -81,7 +87,8 @@ public class OrganizerPerformanceController {
     @PostMapping("/venues")
     public ApiResponse<Venue> createVenue(
             @RequestAttribute(OrganizationAccess.ORGANIZATION) UUID owner, @RequestBody VenueRequest request) {
-        return ApiResponse.success(catalog.createVenue(owner, request.name(), request.address(), request.spaceName()));
+        return ApiResponse.success(catalog.createVenue(owner, request.name(), request.address(), request.spaceName(),
+                request.city(), request.timezone(), request.capacityHint()));
     }
 
     @PostMapping("/events/{id}/performances")
@@ -123,7 +130,9 @@ public class OrganizerPerformanceController {
             @Valid @RequestBody PublishRequest request) {
         return ApiResponse.success(reviews.submit(owner, actor(actor), id,
                 new Versions(request.expectedSaleVersion(), request.expectedLayoutVersion(),
-                        request.expectedEventDraftVersion(), request.expectedScheduleDraftVersion()), request.publishAt()));
+                        request.expectedEventDraftVersion(), request.expectedScheduleDraftVersion()),
+                request.releaseMode() == null ? PerformancePublicationReview.ReleaseMode.SCHEDULED : request.releaseMode(),
+                request.publishAt()));
     }
 
     @GetMapping("/performances/{id}/layout")
@@ -188,8 +197,16 @@ public class OrganizerPerformanceController {
         return UUID.fromString(actor.getName());
     }
 
-    record EventRequest(String title, String description, String category, Long expectedDraftVersion) {}
-    record VenueRequest(String name, String address, String spaceName) {}
+    record EventRequest(String title, String description, String category, String segment, String primaryGenre,
+                        List<String> genres, Long expectedContentVersion, Map<String, ConcertText> translations,
+                        String artistBio, String ageRating, String refundPolicy) {
+        EventContentService.Input input() {
+            return new EventContentService.Input(title, description, category, segment, primaryGenre, genres,
+                    translations, artistBio, ageRating, refundPolicy);
+        }
+    }
+    record VenueRequest(String name, String address, String spaceName, String city, String timezone,
+                        Integer capacityHint) {}
     record ScheduleRequest(UUID venueSpaceId, OffsetDateTime startsAt, OffsetDateTime endsAt,
                            OffsetDateTime doorsOpenAt, String timezone, OffsetDateTime saleStartAt,
                            OffsetDateTime saleEndAt, int maxPerAccount, boolean publicVisible, Long expectedDraftVersion) {
@@ -202,7 +219,7 @@ public class OrganizerPerformanceController {
     record PublishRequest(
             @NotNull @PositiveOrZero Long expectedSaleVersion, @NotNull @PositiveOrZero Long expectedLayoutVersion,
             @NotNull @PositiveOrZero Long expectedEventDraftVersion, @NotNull @PositiveOrZero Long expectedScheduleDraftVersion,
-            @NotNull OffsetDateTime publishAt) {}
+            PerformancePublicationReview.ReleaseMode releaseMode, OffsetDateTime publishAt) {}
     record LayoutRequest(long expectedVersion, PerformanceLayout layout) {}
     record TemplateRequest(UUID venueSpaceId, String name, PerformanceLayout layout) {}
     record CopyRequest(UUID templateId, long revision, long expectedVersion) {}

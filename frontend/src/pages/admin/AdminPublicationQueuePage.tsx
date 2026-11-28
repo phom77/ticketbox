@@ -14,6 +14,7 @@ import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { useToast } from '../../components/feedback/toast-context';
 import { dateFormatter, numberFormatter } from '../../data/formatters';
 import { DirectoryPagination } from '../operations/ConcertDirectoryPage';
+import { ContentChangesQueue } from './ContentChangesQueue';
 
 const path = '/admin/event-review';
 const formatDate = dateFormatter({
@@ -23,7 +24,42 @@ const formatDate = dateFormatter({
 });
 const money = numberFormatter({ style: 'currency', currency: 'VND', maximumFractionDigits: 0 });
 
+/** Performance releases and, in a second tab, reviewed changes to the content of released events. */
 export function AdminPublicationQueuePage() {
+  const { t } = useTranslation();
+  const [parameters] = useSearchParams();
+  const content = parameters.get('tab') === 'content';
+  return (
+    <>
+      <nav className="concert-workspace-tabs" aria-label={t('event-content:queueTabs')}>
+        <Link
+          className={content ? undefined : 'active'}
+          aria-current={content ? undefined : 'page'}
+          to={path}
+        >
+          {t('event-content:tabReleases')}
+        </Link>
+        <Link
+          className={content ? 'active' : undefined}
+          aria-current={content ? 'page' : undefined}
+          to={path + '?tab=content'}
+        >
+          {t('event-content:tabContent')}
+        </Link>
+      </nav>
+      {content ? (
+        <>
+          <AdminPageHeader title={t('event-content:contentQueueTitle')} />
+          <ContentChangesQueue />
+        </>
+      ) : (
+        <ReleaseQueue />
+      )}
+    </>
+  );
+}
+
+function ReleaseQueue() {
   const { t } = useTranslation();
   const [parameters, setParameters] = useSearchParams();
   const [retry, setRetry] = useState(0);
@@ -149,7 +185,7 @@ export function AdminPublicationQueuePage() {
                   </Link>
                   <p>
                     {t(`shared:release_${row.status}`)} ·{' '}
-                    {formatDate.format(new Date(row.publishAt))} (ICT)
+                    {row.publishAt ? `${formatDate.format(new Date(row.publishAt))} (ICT)` : '—'}
                   </p>
                 </>
               ) : (
@@ -201,7 +237,9 @@ function PerformanceReviewSummary({
     <details open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary>
         <strong>{row.title}</strong> · {t(`shared:release_${row.status}`)} ·{' '}
-        {formatDate.format(new Date(row.publishAt))} (ICT)
+        {row.publishAt
+          ? `${formatDate.format(new Date(row.publishAt))} (ICT)`
+          : t('scheduling:releaseWhenApproved')}
       </summary>
       {open && (
         <>
@@ -270,7 +308,11 @@ function PerformanceReviewItem({
       <dl className="publication-status">
         <div>
           <dt>{t('shared:releasePublishAt')} (ICT)</dt>
-          <dd>{formatDate.format(new Date(row.publishAt))}</dd>
+          <dd>
+            {row.publishAt
+              ? formatDate.format(new Date(row.publishAt))
+              : t('scheduling:releaseWhenApproved')}
+          </dd>
         </div>
         <div>
           <dt>{t('shared:releaseSaleAt')} (ICT)</dt>

@@ -19,6 +19,11 @@ import java.util.UUID;
 
 public final class OrganizationAccess implements HandlerInterceptor {
     public static final String ORGANIZATION = "authorizedOrganizationId";
+    /** The caller's grants in the selected organization, as a Set of grant names. */
+    public static final String GRANTS = "authorizedOrganizationGrants";
+    /** The organization's reporting timezone as a {@link java.time.ZoneId}; never null. */
+    public static final String REPORTING_ZONE = "authorizedOrganizationReportingZone";
+    public static final java.time.ZoneId DEFAULT_REPORTING_ZONE = java.time.ZoneId.of("Asia/Ho_Chi_Minh");
     private static final String SCOPE_HEADER = "X-Organization-Id";
 
     private final RestClient http;
@@ -45,8 +50,10 @@ public final class OrganizationAccess implements HandlerInterceptor {
             if (mapping.startsWith("/api/admin")) {
                 requirePlatformAccess(authorization);
             } else {
-                UUID organization = requireOrganizationAccess(request, method, authorization);
-                request.setAttribute(ORGANIZATION, organization);
+                Authorized organization = requireOrganizationAccess(request, method, authorization);
+                request.setAttribute(ORGANIZATION, organization.id());
+                request.setAttribute(GRANTS, organization.grants());
+                request.setAttribute(REPORTING_ZONE, organization.zone());
             }
         } catch (RestClientResponseException failure) {
             if (failure.getStatusCode().value() == 401 || failure.getStatusCode().value() == 403) {
@@ -67,7 +74,7 @@ public final class OrganizationAccess implements HandlerInterceptor {
         }
     }
 
-    private UUID requireOrganizationAccess(HttpServletRequest request, HandlerMethod method, String authorization) {
+    private Authorized requireOrganizationAccess(HttpServletRequest request, HandlerMethod method, String authorization) {
         OrganizerPermission permission = method.getMethodAnnotation(OrganizerPermission.class);
         if (permission == null) {
             permission = method.getBeanType().getAnnotation(OrganizerPermission.class);
@@ -87,7 +94,19 @@ public final class OrganizationAccess implements HandlerInterceptor {
         if (Arrays.stream(permission.value()).map(Enum::name).noneMatch(access.grants()::contains)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
-        return organization;
+        return new Authorized(organization, Set.copyOf(access.grants()), reportingZone(access.reportingTimezone()));
+    }
+
+    private record Authorized(UUID id, Set<String> grants, java.time.ZoneId zone) {}
+
+    /** An absent or invalid value falls back to Asia/Ho_Chi_Minh, so authorization never depends on it. */
+    static java.time.ZoneId reportingZone(String value) {
+        if (value == null || value.isBlank()) return DEFAULT_REPORTING_ZONE;
+        try {
+            return java.time.ZoneId.of(value.strip());
+        } catch (java.time.DateTimeException invalid) {
+            return DEFAULT_REPORTING_ZONE;
+        }
     }
 
     private UUID selectedOrganization(HttpServletRequest request) {
@@ -102,5 +121,5 @@ public final class OrganizationAccess implements HandlerInterceptor {
         }
     }
 
-    private record Access(UUID accountId, UUID organizationId, Set<String> grants) {}
+    private record Access(UUID accountId, UUID organizationId, Set<String> grants, String reportingTimezone) {}
 }

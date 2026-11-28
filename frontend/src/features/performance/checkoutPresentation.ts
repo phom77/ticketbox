@@ -43,8 +43,8 @@ export async function checkoutPresentation(
 }
 
 /**
- * Best-effort poster for an order. A performance order has no image of its own, so
- * the poster of its legacy concert is used when the performance links one.
+ * Best-effort poster for an order: the event's own poster, else the poster of the
+ * legacy concert the performance links.
  */
 export async function loadOrderPoster(order: Order, signal: AbortSignal): Promise<string | null> {
   try {
@@ -53,6 +53,7 @@ export async function loadOrderPoster(order: Order, signal: AbortSignal): Promis
     }
     if (!order.eventId) return null;
     const event = await getEvent(order.eventId, signal);
+    if (event.posterUrl) return event.posterUrl;
     const legacyId = event.performances.find(
       (performance) => performance.id === order.performanceId,
     )?.legacyConcertId;

@@ -7,6 +7,8 @@ import {
   type ConcertDetail,
   type TicketType,
 } from '../../api/concerts';
+import { getEventPreview } from '../../api/eventContent';
+import { getSaleDraft, type SaleDraft } from '../../api/performanceManagement';
 import {
   getAvailability,
   getEvent,
@@ -14,12 +16,15 @@ import {
   type EventDetails,
 } from '../../api/performances';
 import { getConcertPreview } from '../../api/publication';
+import { currentLanguage } from '../../i18n';
 import { concertDescription, concertTitle } from '../concert/concertText';
 import { useTicketAvailability } from '../concert/useTicketAvailability';
 import type { DetailDate, EventDetailModel } from './eventDetail';
 
 export type DetailSource = EventDetailModel & {
   inlineTypes: TicketType[] | null;
+  /** Ticket rows of each date read from the organizer's sale setup, for previews of native events. */
+  previewRows?: Record<string, TicketRow[]>;
   /** The legacy concert read, kept so its title and description follow the selected language. */
   concert?: ConcertDetail;
 };
@@ -30,7 +35,9 @@ export function legacyModel(concert: ConcertDetail): DetailSource {
     title: concertTitle(concert),
     description: concertDescription(concert),
     artistBio: concert.artistBio,
-    category: null,
+    segment: null,
+    primaryGenre: null,
+    genres: [],
     posterUrl: concert.posterUrl,
     organizer: concert.organizationName?.trim() || null,
     seatMapSvg: concert.seatMapSvg,
@@ -62,12 +69,17 @@ export function eventModel(event: EventDetails): DetailSource {
     eventId: event.id,
     title: event.title,
     description: event.description,
-    artistBio: null,
-    category: event.category ?? null,
-    posterUrl: null,
+    artistBio: event.artistBio ?? null,
+    segment: event.segment ?? event.category ?? null,
+    primaryGenre: event.primaryGenre ?? null,
+    genres: event.genres ?? [],
+    posterUrl: event.posterUrl ?? null,
     organizer: null,
     seatMapSvg: null,
     inlineTypes: null,
+    translations: event.translations,
+    ageRating: event.ageRating ?? null,
+    refundPolicy: event.refundPolicy ?? null,
     dates: [...event.performances]
       .sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt))
       .map((performance) => ({
@@ -89,9 +101,72 @@ export function eventModel(event: EventDetails): DetailSource {
   };
 }
 
+/** Ticket rows of an organizer's sale setup: each active offer with its group's capacity. */
+export function saleDraftRows(sale: SaleDraft): TicketRow[] {
+  return sale.offers
+    .filter((offer) => offer.active)
+    .map((offer) => {
+      const group = sale.groups.find((entry) => entry.id === offer.groupId);
+      return {
+        id: offer.id,
+        name: offer.name,
+        group: group?.sectionLabel ?? null,
+        price: offer.price,
+        available: group?.capacity ?? 0,
+        color: null,
+        maxPerAccount: null,
+      };
+    });
+}
+
+/** A private preview: the organizer's event with its drafts, or its staged revision. */
+async function loadPreview(id: string, revision: boolean, signal: AbortSignal) {
+  const event = await getEventPreview(id, revision, signal);
+  const model = eventModel(event);
+  const legacyId = model.dates.length === 1 ? model.dates[0].legacyConcertId : null;
+  if (legacyId) {
+    try {
+      return mergeConcert(model, legacyModel(await getConcertPreview(legacyId, signal)));
+    } catch (error) {
+      if (signal.aborted) throw error;
+      return model;
+    }
+  }
+  const rows: Record<string, TicketRow[]> = {};
+  await Promise.all(
+    model.dates.slice(0, 24).map((date) =>
+      getSaleDraft(date.id, signal)
+        .then((sale) => {
+          rows[date.id] = saleDraftRows(sale);
+        })
+        .catch(() => undefined),
+    ),
+  );
+  return { ...model, previewRows: rows };
+}
+
+function mergeConcert(model: DetailSource, concert: DetailSource): DetailSource {
+  return {
+    ...model,
+    title: concert.title,
+    description: concert.description,
+    concert: concert.concert,
+    artistBio: concert.artistBio,
+    posterUrl: model.posterUrl ?? concert.posterUrl,
+    organizer: concert.organizer,
+    seatMapSvg: concert.seatMapSvg,
+    inlineTypes: concert.inlineTypes,
+  };
+}
+
 /** The Event + Performance model first; a legacy concert id that has no event falls back to the concert. */
-export async function loadDetail(id: string, preview: boolean, signal: AbortSignal) {
-  if (preview) return legacyModel(await getConcertPreview(id, signal));
+export async function loadDetail(
+  id: string,
+  preview: boolean,
+  signal: AbortSignal,
+  revision = false,
+) {
+  if (preview) return loadPreview(id, revision, signal);
   let event: EventDetails;
   try {
     event = await getEvent(id, signal);
@@ -106,31 +181,20 @@ export async function loadDetail(id: string, preview: boolean, signal: AbortSign
   const legacyId = model.dates.length === 1 ? model.dates[0].legacyConcertId : null;
   if (!legacyId) return model;
   try {
-    const concert = legacyModel(await getConcert(legacyId, signal));
-    return {
-      ...model,
-      title: concert.title,
-      description: concert.description,
-      concert: concert.concert,
-      artistBio: concert.artistBio,
-      posterUrl: concert.posterUrl,
-      organizer: concert.organizer,
-      seatMapSvg: concert.seatMapSvg,
-      inlineTypes: concert.inlineTypes,
-    };
+    return mergeConcert(model, legacyModel(await getConcert(legacyId, signal)));
   } catch (error) {
     if (signal.aborted) throw error;
     return model;
   }
 }
 
-export function useEventDetail(id: string, preview: boolean) {
+export function useEventDetail(id: string, preview: boolean, revision = false) {
   const [source, setSource] = useState<DetailSource | null>(null);
   const [error, setError] = useState<'unavailable' | 'temporary' | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
-    loadDetail(id, preview, controller.signal)
+    loadDetail(id, preview, controller.signal, revision)
       .then((model) => {
         if (!controller.signal.aborted) setSource(model);
       })
@@ -143,23 +207,31 @@ export function useEventDetail(id: string, preview: boolean) {
         );
       });
     return () => controller.abort();
-  }, [id, preview, reloadKey]);
+  }, [id, preview, revision, reloadKey]);
   const retry = useCallback(() => {
     setError(null);
     setReloadKey((key) => key + 1);
   }, []);
   const { i18n } = useTranslation();
-  const localized = useMemo(
-    () =>
-      source?.concert
-        ? {
-            ...source,
-            title: concertTitle(source.concert),
-            description: concertDescription(source.concert),
-          }
-        : source,
-    [source, i18n.language],
-  );
+  const localized = useMemo(() => {
+    if (source?.concert)
+      return {
+        ...source,
+        title: concertTitle(source.concert),
+        description: concertDescription(source.concert),
+      };
+    if (source?.translations) {
+      const text = source.translations[currentLanguage()];
+      return {
+        ...source,
+        title: text?.title || source.title,
+        description: text?.description || source.description,
+      };
+    }
+    return source;
+    // The language is read at call time; i18n.language is what changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [source, i18n.language]);
   return { source: localized, error, retry };
 }
 
@@ -265,7 +337,7 @@ export function useTicketRows(
   return useMemo(() => {
     if (preview)
       return {
-        rows: (source?.inlineTypes ?? []).map(typeRow),
+        rows: (date && source?.previewRows?.[date.id]) || (source?.inlineTypes ?? []).map(typeRow),
         loading: false,
         failed: false,
         soldOut: false,
@@ -290,7 +362,7 @@ export function useTicketRows(
       soldOut: isSoldOut(rows),
       retry,
     };
-  }, [preview, source, legacyId, live, perf, performanceId, retry]);
+  }, [preview, source, date, legacyId, live, perf, performanceId, retry]);
 }
 
 export type DateInfo = { minPrice: number | null; soldOut: boolean };

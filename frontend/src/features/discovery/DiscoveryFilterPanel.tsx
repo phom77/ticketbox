@@ -2,14 +2,14 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { SlidersHorizontal, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { DiscoveryFacets } from '../../api/performances';
+import { dateOptions, priceOptions, statusOptions, type DiscoveryFilters } from './filters';
 import {
-  capitalize,
-  dateOptions,
-  priceOptions,
-  statusOptions,
-  type DiscoveryFilters,
-} from './filters';
-import { categoryLabelKey, eventCategories } from './categories';
+  classificationSegments,
+  classificationText,
+  segmentGenres,
+  segmentOfGenre,
+  segmentIds,
+} from './classification';
 
 function withCurrent(values: string[], current: string) {
   return current && !values.includes(current) ? [current, ...values] : values;
@@ -61,7 +61,7 @@ export function DiscoveryFilterPanel({
   }
 
   const select = (
-    name: 'city' | 'category' | 'price' | 'status',
+    name: 'city' | 'segment' | 'genre' | 'price' | 'status',
     label: string,
     anyLabel: string,
     options: Array<[string, string]>,
@@ -71,7 +71,19 @@ export function DiscoveryFilterPanel({
       <select
         name={name}
         value={filters[name]}
-        onChange={(event) => onApply({ [name]: event.target.value })}
+        onChange={(event) => {
+          const value = event.target.value;
+          // A genre belongs to one segment, so changing the segment drops a genre outside it.
+          if (name === 'segment') {
+            onApply({
+              segment: value,
+              genre: value && segmentOfGenre(filters.genre) !== value ? '' : filters.genre,
+            });
+          } else if (name === 'genre') {
+            // The chosen segment stays: a genre can also be a tag on an event of another segment.
+            onApply({ genre: value });
+          } else onApply({ [name]: value });
+        }}
       >
         <option value="">{anyLabel}</option>
         {options.map(([value, text]) => (
@@ -82,7 +94,21 @@ export function DiscoveryFilterPanel({
       </select>
     </label>
   );
-  const active = ['date', 'status', 'city', 'category', 'price'].filter(
+  const text = (id: string, kind: 'segment' | 'genre') => classificationText(id, kind, t);
+  // Genres that have upcoming events (within the chosen segment, primary or tag, so cross-segment tags are offered).
+  // While the counts are not known, the whole list, or the chosen segment's own genres.
+  const withEvents = new Set(facets.genres.map((genre) => genre.id));
+  const genreOptions = (
+    filters.segment && withEvents.size === 0
+      ? classificationSegments.filter((segment) => segment.id === filters.segment)
+      : classificationSegments
+  )
+    .flatMap((segment) => segmentGenres(segment))
+    .filter(
+      (genre) => withEvents.size === 0 || withEvents.has(genre.id) || genre.id === filters.genre,
+    )
+    .map((genre) => [genre.id, text(genre.id, 'genre')] as [string, string]);
+  const active = ['date', 'status', 'city', 'segment', 'genre', 'price'].filter(
     (key) => filters[key as keyof DiscoveryFilters],
   ).length;
 
@@ -129,19 +155,16 @@ export function DiscoveryFilterPanel({
             withCurrent(facets.cities, filters.city).map((value) => [value, value]),
           )}
           {select(
-            'category',
-            t('public:discovery_category'),
-            t('public:discovery_anyCategory'),
-            withCurrent(
-              [
-                ...eventCategories.map(({ id }) => id),
-                ...facets.categories.filter((value) => !categoryLabelKey(value)),
-              ],
-              filters.category,
-            ).map((value) => {
-              const key = categoryLabelKey(value);
-              return [value, key ? t(key) : capitalize(value)];
-            }),
+            'segment',
+            t('public:discovery_segment'),
+            t('public:discovery_anySegment'),
+            segmentIds.map((id) => [id, text(id, 'segment')]),
+          )}
+          {select(
+            'genre',
+            t('public:discovery_genre'),
+            t('public:discovery_anyGenre'),
+            genreOptions,
           )}
           {select(
             'price',

@@ -6,6 +6,7 @@ services:
       context: ./frontend
       args:
         VITE_SUPPORT_URL: ${VITE_SUPPORT_URL:-}
+        VITE_SUPPORT_EMAIL: ${VITE_SUPPORT_EMAIL:-}
         VITE_TERMS_URL: ${VITE_TERMS_URL:-}
         VITE_ACCOUNT_TERMS_URL: ${VITE_ACCOUNT_TERMS_URL:-}
         VITE_PRIVACY_URL: ${VITE_PRIVACY_URL:-}
