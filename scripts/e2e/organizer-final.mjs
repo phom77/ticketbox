@@ -95,12 +95,14 @@ async function anonymous() {
 }
 
 /** Screenshots at the three required widths. Horizontal overflow is recorded, and fails the flow at the end. */
-async function shoot(page, name, { full = true } = {}) {
+async function shoot(page, name, { full = true, target } = {}) {
   for (const width of [1440, 834, 390]) {
     await page.setViewportSize({ width, height: 900 });
     await page.waitForTimeout(300);
+    // The workspace scrolls inside a fixed layout, so a long panel is shown by scrolling it into a viewport shot.
+    if (target) { await target.scrollIntoViewIfNeeded(); await page.waitForTimeout(200); }
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-    await page.screenshot({ path: shots + '/' + name + '-' + width + '.png', fullPage: full, animations: 'disabled' });
+    await page.screenshot({ path: shots + '/' + name + '-' + width + '.png', fullPage: target ? false : full, animations: 'disabled' });
     if (overflow > 1) overflows.push(name + ' overflows by ' + overflow + 'px at ' + width + 'px');
   }
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -520,13 +522,13 @@ try {
     await page.goto('/organizer/events/' + e2.event.id + '?show=' + e2.a.id + '&step=review');
     const panel = page.getByRole('region', { name: 'Sales controls' });
     await panel.getByText('Sales are open').first().waitFor();
-    await shoot(page, 'sales-controls-open');
+    await shoot(page, 'sales-controls-open', { target: panel });
     await panel.getByRole('button', { name: 'Pause sales' }).click();
     const dialog = page.getByRole('dialog');
     await dialog.getByLabel('Reason').fill('Stage inspection before doors');
     await dialog.getByRole('button', { name: 'Pause sales' }).click();
     await panel.getByText('Sales paused', { exact: true }).waitFor({ timeout: 60_000 });
-    await shoot(page, 'sales-controls-paused');
+    await shoot(page, 'sales-controls-paused', { target: panel });
     const spaced = async (wantOk, label) => {
       for (let i = 0; i < 12; i++) {
         await sleep(5000);
@@ -550,7 +552,7 @@ try {
     const doorsPanel = page.getByRole('region', { name: 'Sales controls' });
     await doorsPanel.getByText('Sales controls close when doors open.', { exact: false }).waitFor();
     assert.equal(await doorsPanel.getByRole('button', { name: 'Pause sales' }).isDisabled(), true);
-    await shoot(page, 'sales-controls-doors-open');
+    await shoot(page, 'sales-controls-doors-open', { target: doorsPanel });
     const refused = await organizer('/performances/' + e2.d.id + '/sales/pause', { method: 'POST', expect: [400, 403, 409, 422], body: { actionId: randomUUID(), reason: 'Too late' } });
     return { holdWhilePaused: blocked.status + ' ' + JSON.stringify(blocked.payload.message), resumed: true, pauseAfterDoors: 'button disabled with explanation, API ' + refused.status };
   });
@@ -872,7 +874,7 @@ try {
     await selectWorkspaceOption(panel.getByLabel('Staff member'), { label: /staff-member fixture/ });
     await panel.getByRole('button', { name: /^Assign/ }).click();
     await until(async () => (await organizer('/performances/' + e6.show.id + '/staff')).data.some((entry) => entry.staffId === members.STAFF.user.id), { label: 'assignment' });
-    await shoot(page, 'organizer-staff-panel');
+    await shoot(page, 'organizer-staff-panel', { target: panel });
     return { tickets: tickets.map((ticket) => ticket.referenceCode), assigned: members.STAFF.user.id };
   });
   await flow('6b', 'Staff web app: assigned performance listed, manual ticket code Allowed in, repeat rejected, guest desk check-in, revoke removes access (second performance untouched)', async () => {
@@ -916,7 +918,7 @@ try {
     await panel.getByText(/1 of 2/).first().waitFor();
     const text = await panel.innerText();
     for (const ticket of e6.tickets) assert.equal(text.includes(ticket.qrCode), false, 'the QR value is never shown');
-    await shoot(page, 'organizer-checkin-panel');
+    await shoot(page, 'organizer-checkin-panel', { target: panel });
     const financeOnly = await session(members.FINANCE, organization);
     await financeOnly.page.goto('/organizer/events/' + e6.event.id + '?show=' + e6.show.id + '&step=review');
     await financeOnly.page.waitForTimeout(2500);

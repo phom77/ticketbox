@@ -14,3 +14,33 @@
 [data-stale] {
   opacity: 0.75;
 }
+
+.checkin-recent {
+  overflow-x: auto;
+}
+
+.checkin-recent table {
+  display: table;
+  inline-size: 100%;
+  border-collapse: collapse;
+}
+
+.checkin-recent thead {
+  display: table-header-group;
+}
+
+.checkin-recent tbody {
+  display: table-row-group;
+}
+
+.checkin-recent tr {
+  display: table-row;
+}
+
+.checkin-recent th,
+.checkin-recent td {
+  display: table-cell;
+  padding: 0.5rem 0.75rem;
+  text-align: start;
+  white-space: nowrap;
+}
