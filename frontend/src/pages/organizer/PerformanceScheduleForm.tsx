@@ -217,7 +217,8 @@ export function PerformanceScheduleForm({
   /** Fills doors, end and sale end from a new start unless the organizer already edited them. */
   function withDefaults(current: Dates, start: string): Dates {
     const resolved = resolvePerformanceDateTime(start, timezone);
-    if (performance || !resolved.ok || !resolved.instant) return current;
+    // The start always follows the field; the dependent times are only filled for a new performance.
+    if (performance || !resolved.ok || !resolved.instant) return { ...current, startsAt: start };
     const base = Date.parse(resolved.instant);
     const at = (minutes: number) =>
       toPerformanceLocalDateTime(new Date(base + minutes * 60_000).toISOString(), timezone);

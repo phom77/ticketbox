@@ -220,29 +220,31 @@ function FigureDetails({
       )}
       <h3>{t('performance-checkin:recent')}</h3>
       {admissions.length ? (
-        <table>
-          <caption className="sr-only">{t('performance-checkin:recentCaption')}</caption>
-          <thead>
-            <tr>
-              <th scope="col">{t('performance-checkin:colTime')}</th>
-              <th scope="col">{t('performance-checkin:colGate')}</th>
-              <th scope="col">{t('performance-checkin:colTicket')}</th>
-              <th scope="col">{t('performance-checkin:colType')}</th>
-              <th scope="col">{t('performance-checkin:colStaff')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {admissions.map((row) => (
-              <tr key={row.id}>
-                <td>{format.time(row.checkedAt)}</td>
-                <td>{row.gate ?? t('performance-checkin:noGate')}</td>
-                <td>{row.referenceCode ?? row.ticketId.slice(0, 8)}</td>
-                <td>{row.ticketTypeName ?? '-'}</td>
-                <td>{staffName(row.staffId)}</td>
+        <div className="checkin-recent">
+          <table>
+            <caption className="sr-only">{t('performance-checkin:recentCaption')}</caption>
+            <thead>
+              <tr>
+                <th scope="col">{t('performance-checkin:colTime')}</th>
+                <th scope="col">{t('performance-checkin:colGate')}</th>
+                <th scope="col">{t('performance-checkin:colTicket')}</th>
+                <th scope="col">{t('performance-checkin:colType')}</th>
+                <th scope="col">{t('performance-checkin:colStaff')}</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {admissions.map((row) => (
+                <tr key={row.id}>
+                  <td>{format.time(row.checkedAt)}</td>
+                  <td>{row.gate ?? t('performance-checkin:noGate')}</td>
+                  <td>{row.referenceCode ?? row.ticketId.slice(0, 8)}</td>
+                  <td>{row.ticketTypeName ?? '-'}</td>
+                  <td>{staffName(row.staffId)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : (
         <p>{t('performance-checkin:noRecent')}</p>
       )}

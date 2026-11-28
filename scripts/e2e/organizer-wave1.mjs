@@ -159,6 +159,10 @@ try {
     await page.locator('textarea[name="refundPolicy"]').fill('Full refund up to 7 days before the show.');
     await page.locator('textarea[name="artistBio"]').fill('Nguyen Anh is a singer and songwriter from Hanoi.');
     await page.locator('input[type="file"]').setInputFiles({ name: 'poster.png', mimeType: 'image/png', buffer: png });
+    // Releasing needs a category and a main genre (event-classification).
+    await page.getByRole('radio', { name: 'Concerts' }).check();
+    await page.getByRole('combobox', { name: 'Main genre' }).click();
+    await page.getByRole('option', { name: 'V-Pop' }).click();
     await shoot(page, 'event-details-step');
     const created = page.waitForResponse((response) => response.url().endsWith(prefix + '/events') && response.request().method() === 'POST');
     const posterAttempt = page.waitForResponse((response) => /\/events\/[^/]+\/poster/.test(response.url()), { timeout: 15_000 }).catch(() => null);
